@@ -27,4 +27,6 @@ dist-ssr
 *.sln
 *.sw?
 
+server/data/
+apps/api/dist/
 .env

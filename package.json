@@ -1,19 +1,23 @@
 {
-  "name": "base44-app",
+  "name": "longhua-crm",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "vite",
+    "dev:server": "npm run start:dev --prefix apps/api",
     "build": "vite build",
+    "build:api": "npm run build --prefix apps/api",
     "lint": "eslint . --quiet",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "npm run start:prod --prefix apps/api",
+    "migration:run": "npm run migration:run --prefix apps/api",
+    "import:json": "npm run import:json --prefix apps/api"
   },
   "dependencies": {
-    "@base44/sdk": "^0.8.26",
-    "@base44/vite-plugin": "^1.0.10",
     "@hello-pangea/dnd": "^17.0.0",
     "@hookform/resolvers": "^4.1.2",
     "@radix-ui/react-accordion": "^1.2.3",
@@ -79,6 +83,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "concurrently": "^9.1.2",
     "@eslint/js": "^9.19.0",
     "@types/node": "^22.13.5",
     "@types/react": "^18.2.66",

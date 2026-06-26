@@ -92,7 +92,7 @@ export default function Layout({ children, currentPageName }) {
           </div>
           <p className="text-muted-foreground max-w-sm">Платформа управления языковой школой</p>
           <Button 
-            onClick={() => base44.auth.redirectToLogin()} 
+            onClick={() => window.location.href = '/login'} 
             className="bg-indigo-600 hover:bg-indigo-700 px-8 py-3 text-base"
           >
             Войти

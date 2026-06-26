@@ -12,6 +12,7 @@ import UserManagement from './pages/UserManagement';
 import StudentLessonMaterials from './pages/StudentLessonMaterials';
 import MaterialsHub from './pages/MaterialsHub';
 import AdminPanel from './pages/AdminPanel';
+import Login from './pages/Login';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import NameFormModal from '@/components/auth/NameFormModal';
 
@@ -87,7 +88,10 @@ function App() {
       <AuthProvider>
         <QueryClientProvider client={queryClientInstance}>
           <Router>
-            <AuthenticatedApp />
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="*" element={<AuthenticatedApp />} />
+            </Routes>
           </Router>
           <Toaster />
         </QueryClientProvider>

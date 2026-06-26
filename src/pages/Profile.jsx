@@ -54,7 +54,7 @@ export default function Profile() {
 
     // Send activation message if telegram_id was just set or changed
     if (form.telegram_id && form.telegram_id !== prevTelegramId) {
-      const name = user.full_name?.split(" ")[0] || "Пользователь";
+      const name = user.full_name?.split(" ")[1] || "Пользователь";
       const message = `🎉 Уведомления активированы!\n\nПривет, ${name}! Ваш Telegram подключён к платформе Longhua Chinese 🐉\n\nТеперь вы будете получать уведомления об уроках и важных событиях. Удачи! 加油！`;
       base44.functions.invoke("sendTelegramMessage", { chat_id: form.telegram_id, text: message }).catch(() => {});
     }
