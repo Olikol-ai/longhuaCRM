@@ -17,9 +17,11 @@ export const ENTITY_NAMES = [
   'WelcomePageSettings',
 ] as const;
 
-export type EntityName = (typeof ENTITY_NAMES)[number] | 'User';
+export type EntityName = typeof ENTITY_NAMES[number] | 'User';
 
-export const PUBLIC_READ_ENTITIES = ['WelcomePageSettings'] as const;
+export const PUBLIC_READ_ENTITIES = [
+  'WelcomePageSettings',
+] as const;
 
 export const ENTITY_TABLE_MAP: Record<EntityName, string> = {
   User: 'users',
@@ -39,4 +41,4 @@ export const ENTITY_TABLE_MAP: Record<EntityName, string> = {
   AppSettings: 'app_settings',
   ShopSettings: 'shop_settings',
   WelcomePageSettings: 'welcome_page_settings',
-};
+} as const;

@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
 import { ENTITY_NAMES, EntityName } from '../../common/constants/entity-names';
-import { JsonRecordEntity } from '../../entities/json-record.entity';
 import {
   AlfaBankOrderEntity,
   AppSettingEntity,
@@ -22,13 +21,11 @@ import {
   TeacherPaymentEntity,
   WelcomePageSettingEntity,
 } from '../../entities/crm.entities';
-import { matchesFilter, recordFromEntity, sortRecords, splitRecordPayload } from '../../common/utils/record.util';
+
 import { userToRecord } from '../users/user.mapper';
 import { UsersRepository } from '../users/users.repository';
 
-type JsonEntityClass = new () => JsonRecordEntity;
-
-const ENTITY_CLASS_MAP: Record<string, JsonEntityClass> = {
+const ENTITY_CLASS_MAP: Record<string, any> = {
   Student: StudentEntity,
   Teacher: TeacherEntity,
   Lesson: LessonEntity,
@@ -49,7 +46,7 @@ const ENTITY_CLASS_MAP: Record<string, JsonEntityClass> = {
 
 @Injectable()
 export class EntityRepositoryService {
-  private readonly repoMap = new Map<string, Repository<JsonRecordEntity>>();
+  private readonly repoMap = new Map<string, Repository<any>>();
 
   constructor(
     @InjectRepository(StudentEntity) studentRepo: Repository<StudentEntity>,
@@ -70,138 +67,152 @@ export class EntityRepositoryService {
     @InjectRepository(WelcomePageSettingEntity) welcomePageSettingRepo: Repository<WelcomePageSettingEntity>,
     private readonly usersRepository: UsersRepository,
   ) {
-    this.repoMap.set('Student', studentRepo as Repository<JsonRecordEntity>);
-    this.repoMap.set('Teacher', teacherRepo as Repository<JsonRecordEntity>);
-    this.repoMap.set('Lesson', lessonRepo as Repository<JsonRecordEntity>);
-    this.repoMap.set('Payment', paymentRepo as Repository<JsonRecordEntity>);
-    this.repoMap.set('Course', courseRepo as Repository<JsonRecordEntity>);
-    this.repoMap.set('LessonMaterial', lessonMaterialRepo as Repository<JsonRecordEntity>);
-    this.repoMap.set('ScheduleSlot', scheduleSlotRepo as Repository<JsonRecordEntity>);
-    this.repoMap.set('LessonStudent', lessonStudentRepo as Repository<JsonRecordEntity>);
-    this.repoMap.set('LessonBalance', lessonBalanceRepo as Repository<JsonRecordEntity>);
-    this.repoMap.set('TeacherPayment', teacherPaymentRepo as Repository<JsonRecordEntity>);
-    this.repoMap.set('MaterialAccess', materialAccessRepo as Repository<JsonRecordEntity>);
-    this.repoMap.set('TeacherAvailability', teacherAvailabilityRepo as Repository<JsonRecordEntity>);
-    this.repoMap.set('AlfaBankOrder', alfaBankOrderRepo as Repository<JsonRecordEntity>);
-    this.repoMap.set('AppSettings', appSettingRepo as Repository<JsonRecordEntity>);
-    this.repoMap.set('ShopSettings', shopSettingRepo as Repository<JsonRecordEntity>);
-    this.repoMap.set('WelcomePageSettings', welcomePageSettingRepo as Repository<JsonRecordEntity>);
+    this.repoMap.set('Student', studentRepo);
+    this.repoMap.set('Teacher', teacherRepo);
+    this.repoMap.set('Lesson', lessonRepo);
+    this.repoMap.set('Payment', paymentRepo);
+    this.repoMap.set('Course', courseRepo);
+    this.repoMap.set('LessonMaterial', lessonMaterialRepo);
+    this.repoMap.set('ScheduleSlot', scheduleSlotRepo);
+    this.repoMap.set('LessonStudent', lessonStudentRepo);
+    this.repoMap.set('LessonBalance', lessonBalanceRepo);
+    this.repoMap.set('TeacherPayment', teacherPaymentRepo);
+    this.repoMap.set('MaterialAccess', materialAccessRepo);
+    this.repoMap.set('TeacherAvailability', teacherAvailabilityRepo);
+    this.repoMap.set('AlfaBankOrder', alfaBankOrderRepo);
+    this.repoMap.set('AppSettings', appSettingRepo);
+    this.repoMap.set('ShopSettings', shopSettingRepo);
+    this.repoMap.set('WelcomePageSettings', welcomePageSettingRepo);
   }
 
   isKnownEntity(entity: string): entity is EntityName {
     return entity === 'User' || (ENTITY_NAMES as readonly string[]).includes(entity);
   }
 
-  async list(entity: EntityName, sortField?: string, limit?: number): Promise<Record<string, unknown>[]> {
-    let records: Record<string, unknown>[];
+  async list(entity: EntityName, sortField?: string, limit?: number) {
     if (entity === 'User') {
-      records = (await this.usersRepository.findAll()).map(userToRecord);
-    } else {
-      const repo = this.getRepo(entity);
-      const rows = await repo.find();
-      records = rows.map((row) => recordFromEntity(row.id, row.data, row.createdDate, row.updatedDate));
+      let users = await this.usersRepository.findAll();
+      const records = users.map(userToRecord);
+      return this.applySortAndLimit(records, sortField, limit);
     }
-    records = sortRecords(records, sortField);
-    if (limit) records = records.slice(0, Number(limit));
-    return records;
+
+    const repo = this.getRepo(entity);
+    const rows = await repo.find();
+
+    const records = rows.map((r) => ({
+      id: r.id,
+      ...r.data,
+      createdDate: r.createdDate,
+      updatedDate: r.updatedDate,
+    }));
+
+    return this.applySortAndLimit(records, sortField, limit);
   }
 
-  async filter(entity: EntityName, query: Record<string, unknown>): Promise<Record<string, unknown>[]> {
-    return (await this.list(entity)).filter((record) => matchesFilter(record, query));
+  private applySortAndLimit(
+    records: Record<string, any>[],
+    sortField?: string,
+    limit?: number,
+  ) {
+    let result = records;
+
+    if (sortField) {
+      result = [...result].sort((a, b) =>
+        String(a?.[sortField]).localeCompare(String(b?.[sortField])),
+      );
+    }
+
+    if (limit) {
+      result = result.slice(0, limit);
+    }
+
+    return result;
   }
 
-  async getById(entity: EntityName, id: string): Promise<Record<string, unknown> | null> {
+  async filter(entity: EntityName, query: Record<string, unknown>) {
+    const list = await this.list(entity);
+    return list.filter((record) => {
+      return Object.entries(query).every(([key, value]) => record[key] == value);
+    });
+  }
+
+  async getById(entity: EntityName, id: string) {
     if (entity === 'User') {
       const row = await this.usersRepository.findById(id);
       return row ? userToRecord(row) : null;
     }
+
     const repo = this.getRepo(entity);
     const row = await repo.findOne({ where: { id } });
-    return row ? recordFromEntity(row.id, row.data, row.createdDate, row.updatedDate) : null;
+
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      ...row.data,
+      createdDate: row.createdDate,
+      updatedDate: row.updatedDate,
+    };
   }
 
-  async create(entity: EntityName, input: Record<string, unknown>): Promise<Record<string, unknown>> {
+  async create(entity: EntityName, input: Record<string, any>) {
     if (entity === 'User') {
       throw new Error('Use auth register for User creation');
     }
+
     const repo = this.getRepo(entity);
     const now = new Date();
-    const { id: inputId, payload } = splitRecordPayload(input);
-    const id = inputId ?? randomUUID();
+
+    const id = input.id ? String(input.id) : randomUUID();
+
     const row = repo.create({
       id,
-      data: payload,
+      data: input,
       createdDate: now,
       updatedDate: now,
     });
-    const saved = await repo.save(row);
-    return recordFromEntity(saved.id, saved.data, saved.createdDate, saved.updatedDate);
+
+    return repo.save(row);
   }
 
-  async update(entity: EntityName, id: string, input: Record<string, unknown>): Promise<Record<string, unknown>> {
-    if (entity === 'User') {
-      const row = await this.usersRepository.findById(id);
-      if (!row) throw new NotFoundException('User not found');
-      const allowed = ['role', 'first_name', 'last_name', 'phone', 'telegram_id', 'email'] as const;
-      for (const key of allowed) {
-        if (input[key] !== undefined) {
-          if (key === 'first_name') row.firstName = String(input[key]);
-          else if (key === 'last_name') row.lastName = String(input[key]);
-          else if (key === 'telegram_id') row.telegramId = String(input[key]);
-          else if (key === 'email') row.email = String(input[key]);
-          else if (key === 'role') row.role = String(input[key]);
-          else if (key === 'phone') row.phone = String(input[key]);
-        }
-      }
-      row.updatedDate = new Date();
-      const saved = await this.usersRepository.save(row);
-      return userToRecord(saved);
-    }
-
+  async update(entity: EntityName, id: string, input: Record<string, any>) {
     const repo = this.getRepo(entity);
     const row = await repo.findOne({ where: { id } });
+
     if (!row) throw new NotFoundException(`${entity} not found`);
 
-    const { payload } = splitRecordPayload(input);
-    row.data = { ...row.data, ...payload };
+    row.data = { ...row.data, ...input };
     row.updatedDate = new Date();
-    const saved = await repo.save(row);
-    return recordFromEntity(saved.id, saved.data, saved.createdDate, saved.updatedDate);
+
+    return repo.save(row);
   }
 
-  async delete(entity: EntityName, id: string): Promise<void> {
-    if (entity === 'User') {
-      await this.usersRepository.delete(id);
-      return;
-    }
+  async delete(entity: EntityName, id: string) {
     const repo = this.getRepo(entity);
-    await repo.delete({ id });
+    return repo.delete({ id });
   }
 
-  async bulkCreate(entity: EntityName, items: Record<string, unknown>[]): Promise<Record<string, unknown>[]> {
-    const results: Record<string, unknown>[] = [];
+  async bulkCreate(entity: EntityName, items: Record<string, any>[]) {
+    const results: any[] = [];
+
     for (const item of items) {
       results.push(await this.create(entity, item));
     }
+
     return results;
   }
 
-  async deleteRecordById(id: string): Promise<void> {
+  async deleteRecordById(id: string) {
     for (const entity of ENTITY_NAMES) {
       const repo = this.getRepo(entity);
-      const result = await repo.delete({ id });
-      if (result.affected) return;
+      const res = await repo.delete({ id });
+      if (res.affected) return;
     }
   }
 
-  private getRepo(entity: EntityName): Repository<JsonRecordEntity> {
-    if (entity === 'User') {
-      throw new Error('User entity uses UsersRepository');
-    }
+  private getRepo(entity: EntityName): Repository<any> {
     const repo = this.repoMap.get(entity);
-    if (!repo) {
-      throw new Error(`Unknown entity repository: ${entity}`);
-    }
+    if (!repo) throw new Error(`Unknown entity: ${entity}`);
     return repo;
   }
 }

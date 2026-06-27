@@ -22,9 +22,8 @@ import {
   TeacherPaymentEntity,
   WelcomePageSettingEntity,
 } from '../../entities/crm.entities';
-import { JsonRecordEntity } from '../../entities/json-record.entity';
 
-const ENTITY_REPO_MAP: Record<string, new () => JsonRecordEntity> = {
+const ENTITY_REPO_MAP: Record<string, any> = {
   Student: StudentEntity,
   Teacher: TeacherEntity,
   Lesson: LessonEntity,
@@ -55,15 +54,22 @@ async function importJson() {
   }
 
   const store = JSON.parse(fs.readFileSync(jsonPath, 'utf8')) as {
-    users?: Array<Record<string, unknown>>;
-    records?: Record<string, Array<Record<string, unknown>>>;
+    users?: Array<Record<string, any>>;
+    records?: Record<string, Array<Record<string, any>>>;
   };
 
   await dataSource.initialize();
 
+  // -------------------------
+  // USERS IMPORT (UNCHANGED)
+  // -------------------------
   const userRepo = dataSource.getRepository(UserEntity);
+
   for (const user of store.users || []) {
-    const existing = await userRepo.findOne({ where: { email: String(user.email) } });
+    const existing = await userRepo.findOne({
+      where: { email: String(user.email) },
+    });
+
     if (existing) continue;
 
     await userRepo.save({
@@ -75,34 +81,60 @@ async function importJson() {
       lastName: String(user.last_name || ''),
       phone: String(user.phone || ''),
       telegramId: String(user.telegram_id || ''),
-      createdDate: new Date(String(user.created_date || new Date().toISOString())),
-      updatedDate: new Date(String(user.updated_date || new Date().toISOString())),
+      createdDate: new Date(
+        String(user.created_date || new Date().toISOString()),
+      ),
+      updatedDate: new Date(
+        String(user.updated_date || new Date().toISOString()),
+      ),
     });
   }
 
+  // -------------------------
+  // GENERIC ENTITIES IMPORT
+  // -------------------------
   for (const [entityName, records] of Object.entries(store.records || {})) {
     const EntityClass = ENTITY_REPO_MAP[entityName];
+
     if (!EntityClass) {
       console.warn(`Skipping unknown entity: ${entityName}`);
       continue;
     }
 
     const repo = dataSource.getRepository(EntityClass);
+
     for (const record of records) {
-      const existing = await repo.findOne({ where: { id: String(record.id) } });
+      const id = String(record.id || randomUUID());
+
+      const existing = await repo.findOne({
+        where: { id },
+      });
+
       if (existing) continue;
 
-      const { id, created_date, updated_date, ...data } = record;
+      // clean system fields
+      const {
+        id: _id,
+        created_date,
+        updated_date,
+        ...payload
+      } = record;
+
       await repo.save({
-        id: String(id || randomUUID()),
-        data,
-        createdDate: new Date(String(created_date || new Date().toISOString())),
-        updatedDate: new Date(String(updated_date || new Date().toISOString())),
+        id,
+        ...payload,
+        createdDate: new Date(
+          String(created_date || new Date().toISOString()),
+        ),
+        updatedDate: new Date(
+          String(updated_date || new Date().toISOString()),
+        ),
       });
     }
   }
 
   await dataSource.destroy();
+
   console.log(`Import completed from ${jsonPath}`);
 }
 
