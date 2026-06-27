@@ -1,0 +1,25 @@
+---
+alwaysApply: true
+---
+
+LonghuaCRM uses NestJS + PostgreSQL + TypeORM.
+
+Never introduce json_record or JSON storage for stable business entities.
+
+Always preserve existing business logic.
+
+When modifying Entities, verify:
+- relations
+- repositories
+- services
+- controllers
+- DTOs
+- imports
+- migrations
+
+After every significant refactor:
+1. Run npm run build
+2. Fix compilation errors
+3. Continue until the project builds successfully.
+
+Never stop after the first error.
