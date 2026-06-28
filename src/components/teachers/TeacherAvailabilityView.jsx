@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { Loader2 } from "lucide-react";
 
 const DAYS = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"];
@@ -10,7 +10,7 @@ export default function TeacherAvailabilityView({ teacherId }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    base44.entities.TeacherAvailability.filter({ teacher_id: teacherId }).then(records => {
+    api.entities.TeacherAvailability.filter({ teacher_id: teacherId }).then(records => {
       if (records.length > 0) {
         const byDay = Array.from({ length: 7 }, () => []);
         (records[0].slots || []).forEach(slot => {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { useAuth } from "@/lib/AuthContext";
 import { BookOpen, Clock, Sparkles, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ export default function Welcome() {
   const [settings, setSettings] = useState(DEFAULTS);
 
   useEffect(() => {
-    base44.entities.WelcomePageSettings.list().then(data => {
+    api.entities.WelcomePageSettings.list().then(data => {
       if (data.length > 0) setSettings({ ...DEFAULTS, ...data[0] });
     }).catch(() => {});
   }, []);
@@ -72,7 +72,7 @@ export default function Welcome() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => base44.auth.logout()}
+            onClick={() => api.auth.logout()}
             className="text-slate-400 hover:text-slate-600 gap-2"
           >
             <LogOut className="h-4 w-4" />

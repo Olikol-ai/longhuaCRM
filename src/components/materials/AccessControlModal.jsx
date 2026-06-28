@@ -1,78 +1,74 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
+import { grantAccess, revokeAccess } from "@/lib/materialAccess";
 import { X, Users, Lock, Save, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function AccessControlModal({ material, course, onClose, onSave }) {
-  const [access, setAccess] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [students, setStudents] = useState([]);
-  const [teachers, setTeachers] = useState([]);
   const [user, setUser] = useState(null);
-  const [selectedStudents, setSelectedStudents] = useState([]);
-  const [selectedTeachers, setSelectedTeachers] = useState([]);
-  const [accessType, setAccessType] = useState("student");
+  const [selectedStudentIds, setSelectedStudentIds] = useState([]);
+  const [initialGrantedUserIds, setInitialGrantedUserIds] = useState(new Set());
 
   useEffect(() => {
     const load = async () => {
-      const me = await base44.auth.me();
+      const me = await api.auth.me();
       setUser(me);
-      
-      const [sts, trs, accesses] = await Promise.all([
-        base44.entities.Student.list(),
-        base44.entities.Teacher.list(),
-        base44.entities.MaterialAccess.filter({ material_id: material.id }),
+
+      const [sts, accesses] = await Promise.all([
+        api.entities.Student.list(),
+        api.entities.MaterialAccess.filter({
+          material_id: material.id,
+          granted_by_role: me.role === "admin" ? "ADMIN" : "TEACHER",
+        }),
       ]);
 
       setStudents(sts);
-      setTeachers(trs);
 
-      if (accesses.length > 0) {
-        const acc = accesses[0];
-        setAccess(acc);
-        setAccessType(acc.access_type);
-        setSelectedStudents(acc.student_ids || []);
-        setSelectedTeachers(acc.teacher_ids || []);
-      } else {
-        setAccess(null);
-        setAccessType("student");
-      }
+      const grantedUserIds = new Set(
+        accesses.filter((a) => a.access === true).map((a) => a.user_id),
+      );
+      setInitialGrantedUserIds(grantedUserIds);
+
+      const selected = sts
+        .filter((s) => s.user_id && grantedUserIds.has(s.user_id))
+        .map((s) => s.id);
+      setSelectedStudentIds(selected);
       setLoading(false);
     };
     load();
   }, [material.id]);
 
   const toggleStudent = (id) => {
-    setSelectedStudents(s =>
-      s.includes(id) ? s.filter(x => x !== id) : [...s, id]
-    );
-  };
-
-  const toggleTeacher = (id) => {
-    setSelectedTeachers(s =>
-      s.includes(id) ? s.filter(x => x !== id) : [...s, id]
+    setSelectedStudentIds((current) =>
+      current.includes(id) ? current.filter((x) => x !== id) : [...current, id],
     );
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const accessData = {
-        material_id: material.id,
-        access_type: accessType,
-        student_ids: accessType === "student" ? selectedStudents : [],
-        teacher_ids: accessType === "teacher" ? selectedTeachers : [],
-        course_id: course?.id,
-        granted_by: user.email,
-        granted_date: new Date().toISOString(),
-      };
+      const grantRole = user?.role === "admin" ? "ADMIN" : "TEACHER";
+      const selectedUserIds = new Set(
+        selectedStudentIds
+          .map((id) => students.find((s) => s.id === id)?.user_id)
+          .filter(Boolean),
+      );
 
-      if (access) {
-        await base44.entities.MaterialAccess.update(access.id, accessData);
-      } else {
-        await base44.entities.MaterialAccess.create(accessData);
+      for (const student of students) {
+        if (!student.user_id) continue;
+        const wasGranted = initialGrantedUserIds.has(student.user_id);
+        const shouldGrant = selectedUserIds.has(student.user_id);
+
+        if (shouldGrant && !wasGranted) {
+          await grantAccess(student.user_id, material.id, grantRole, user.id);
+        } else if (!shouldGrant && wasGranted) {
+          await revokeAccess(student.user_id, material.id, grantRole);
+        }
       }
+
       onSave();
     } catch (err) {
       console.error("Save error:", err);
@@ -98,139 +94,59 @@ export default function AccessControlModal({ material, course, onClose, onSave }
           <div>
             <h2 className="text-lg font-bold text-slate-900">Управление доступом</h2>
             <p className="text-xs text-slate-500 mt-0.5">{material.title}</p>
+            {course?.course_name && (
+              <p className="text-xs text-slate-400">{course.course_name}</p>
+            )}
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
-          >
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
             <X className="h-5 w-5 text-slate-400" />
           </button>
         </div>
 
         <div className="p-6 space-y-6">
-          {/* Access type selector */}
-          <div className="space-y-3">
-            <p className="text-sm font-semibold text-slate-700">Тип доступа</p>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { value: "student", label: "Ученики", icon: "👤" },
-                { value: "teacher", label: "Учителя", icon: "👨‍🏫" },
-                { value: "public", label: "Публичный", icon: "🌐" },
-              ].map(({ value, label, icon }) => (
-                <button
-                  key={value}
-                  onClick={() => {
-                    setAccessType(value);
-                    setSelectedStudents([]);
-                    setSelectedTeachers([]);
-                  }}
-                  className={`p-3 rounded-xl border-2 transition-all text-center ${
-                    accessType === value
-                      ? "border-indigo-600 bg-indigo-50"
-                      : "border-slate-200 hover:border-slate-300"
-                  }`}
-                >
-                  <span className="text-2xl mb-1 block">{icon}</span>
-                  <p className="text-xs font-semibold text-slate-700">{label}</p>
-                </button>
-              ))}
-            </div>
+          <div className="p-4 bg-blue-50 rounded-xl border border-blue-200 text-sm text-blue-700 flex items-start gap-2">
+            <Lock className="h-4 w-4 mt-0.5 shrink-0" />
+            <p>Доступ выдаётся по учётной записи ученика (user_id). Изменения сохраняются на сервере.</p>
           </div>
 
-          {/* Students selector */}
-          {accessType === "student" && (
-            <div className="space-y-3">
-              <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                <Users className="h-4 w-4" /> Выберите учеников
-              </p>
-              <div className="border border-slate-200 rounded-xl divide-y max-h-64 overflow-y-auto">
-                {students.length === 0 ? (
-                  <div className="p-4 text-center text-sm text-slate-500">Нет учеников</div>
-                ) : (
-                  students.map(s => (
-                    <label key={s.id} className="flex items-center gap-3 p-3 hover:bg-slate-50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedStudents.includes(s.id)}
-                        onChange={() => toggleStudent(s.id)}
-                        className="rounded accent-indigo-600"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-slate-800">{s.name}</p>
-                        <p className="text-xs text-slate-400">{s.email}</p>
-                      </div>
-                    </label>
-                  ))
-                )}
-              </div>
-              <p className="text-xs text-slate-500">
-                Выбрано: {selectedStudents.length} из {students.length}
-              </p>
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <Users className="h-4 w-4" /> Выберите учеников
+            </p>
+            <div className="border border-slate-200 rounded-xl divide-y max-h-64 overflow-y-auto">
+              {students.length === 0 ? (
+                <div className="p-4 text-center text-sm text-slate-500">Нет учеников</div>
+              ) : (
+                students.map((s) => (
+                  <label key={s.id} className="flex items-center gap-3 p-3 hover:bg-slate-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedStudentIds.includes(s.id)}
+                      onChange={() => toggleStudent(s.id)}
+                      disabled={!s.user_id}
+                      className="rounded accent-indigo-600"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-slate-800">{s.name}</p>
+                      <p className="text-xs text-slate-400">
+                        {s.user_id ? s.email : "Нет привязанного аккаунта"}
+                      </p>
+                    </div>
+                  </label>
+                ))
+              )}
             </div>
-          )}
-
-          {/* Teachers selector */}
-          {accessType === "teacher" && (
-            <div className="space-y-3">
-              <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                <Users className="h-4 w-4" /> Выберите учителей
-              </p>
-              <div className="border border-slate-200 rounded-xl divide-y max-h-64 overflow-y-auto">
-                {teachers.length === 0 ? (
-                  <div className="p-4 text-center text-sm text-slate-500">Нет учителей</div>
-                ) : (
-                  teachers.map(t => (
-                    <label key={t.id} className="flex items-center gap-3 p-3 hover:bg-slate-50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedTeachers.includes(t.id)}
-                        onChange={() => toggleTeacher(t.id)}
-                        className="rounded accent-indigo-600"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-slate-800">{t.name}</p>
-                        {t.email && <p className="text-xs text-slate-400">{t.email}</p>}
-                      </div>
-                    </label>
-                  ))
-                )}
-              </div>
-              <p className="text-xs text-slate-500">
-                Выбрано: {selectedTeachers.length} из {teachers.length}
-              </p>
-            </div>
-          )}
-
-          {/* Public notice */}
-          {accessType === "public" && (
-            <div className="p-4 bg-blue-50 rounded-xl border border-blue-200 text-sm text-blue-700 flex items-start gap-2">
-              <Lock className="h-4 w-4 mt-0.5 shrink-0" />
-              <p>Материал будет доступен всем, кто имеет доступ к библиотеке</p>
-            </div>
-          )}
+            <p className="text-xs text-slate-500">
+              Выбрано: {selectedStudentIds.length} из {students.length}
+            </p>
+          </div>
         </div>
 
-        {/* Footer */}
         <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100 sticky bottom-0 bg-white">
-          <Button variant="outline" onClick={onClose}>
-            Отмена
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-            className="bg-indigo-600 hover:bg-indigo-700 gap-2"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Сохранение...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4" />
-                Сохранить доступ
-              </>
-            )}
+          <Button variant="outline" onClick={onClose}>Отмена</Button>
+          <Button onClick={handleSave} disabled={saving} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Сохранить доступ
           </Button>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import {
   Folder, FolderOpen, FileText, Video, Link2, File, Plus, Search,
@@ -45,8 +45,8 @@ export default function WindowsFileBrowser() {
 
   const loadData = async () => {
     const [c, m] = await Promise.all([
-      base44.entities.Course.list("-created_date"),
-      base44.entities.LessonMaterial.list("-created_date"),
+      api.entities.Course.list("-created_date"),
+      api.entities.LessonMaterial.list("-created_date"),
     ]);
     setCourses(c);
     setMaterials(m);
@@ -77,7 +77,7 @@ export default function WindowsFileBrowser() {
 
       if (sourceCourseId !== destCourseId) {
         // Move to different course
-        await base44.entities.LessonMaterial.update(draggableId, { course_id: destCourseId });
+        await api.entities.LessonMaterial.update(draggableId, { course_id: destCourseId });
       }
       // Note: Order preservation can be added with a 'sort_order' field if needed
       loadData();
@@ -87,11 +87,11 @@ export default function WindowsFileBrowser() {
   const handleDeleteConfirm = async () => {
     setDeleting(true);
     if (deleteTarget.type === "material") {
-      await base44.entities.LessonMaterial.delete(deleteTarget.item.id);
+      await api.entities.LessonMaterial.delete(deleteTarget.item.id);
     } else {
       const courseMats = materials.filter(m => m.course_id === deleteTarget.item.id);
-      await Promise.all(courseMats.map(m => base44.entities.LessonMaterial.delete(m.id)));
-      await base44.entities.Course.delete(deleteTarget.item.id);
+      await Promise.all(courseMats.map(m => api.entities.LessonMaterial.delete(m.id)));
+      await api.entities.Course.delete(deleteTarget.item.id);
       if (selectedCourse?.id === deleteTarget.item.id) setSelectedCourse(null);
     }
     setDeleteTarget(null);
@@ -115,11 +115,11 @@ export default function WindowsFileBrowser() {
         const material = materials.find(m => m.id === item.id);
         if (material) {
           if (clipboard.type === "cut") {
-            await base44.entities.LessonMaterial.update(item.id, { course_id: selectedCourse.id });
+            await api.entities.LessonMaterial.update(item.id, { course_id: selectedCourse.id });
           } else {
             // Copy: create new material with same data
             const { id, created_date, updated_date, created_by, ...rest } = material;
-            await base44.entities.LessonMaterial.create({ ...rest, course_id: selectedCourse.id, title: `${material.title} (копия)` });
+            await api.entities.LessonMaterial.create({ ...rest, course_id: selectedCourse.id, title: `${material.title} (копия)` });
           }
         }
       }

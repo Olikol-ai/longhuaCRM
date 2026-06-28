@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { Send, Save, CheckCircle2, TestTube, Info, Eye, Webhook, RefreshCw } from "lucide-react";
 
 export default function TelegramSettings() {
@@ -22,9 +22,9 @@ export default function TelegramSettings() {
 
   const loadData = async () => {
     const [settings, s, t] = await Promise.all([
-      base44.entities.AppSettings.filter({ key: "telegram_bot_token" }),
-      base44.entities.Student.list(),
-      base44.entities.Teacher.list(),
+      api.entities.AppSettings.filter({ key: "telegram_bot_token" }),
+      api.entities.Student.list(),
+      api.entities.Teacher.list(),
     ]);
     if (settings.length > 0) {
       const v = settings[0].value || "";
@@ -38,11 +38,11 @@ export default function TelegramSettings() {
   const saveToken = async () => {
     if (!token.trim()) return;
     setSaving(true);
-    const existing = await base44.entities.AppSettings.filter({ key: "telegram_bot_token" });
+    const existing = await api.entities.AppSettings.filter({ key: "telegram_bot_token" });
     if (existing.length > 0) {
-      await base44.entities.AppSettings.update(existing[0].id, { value: token.trim() });
+      await api.entities.AppSettings.update(existing[0].id, { value: token.trim() });
     } else {
-      await base44.entities.AppSettings.create({ key: "telegram_bot_token", value: token.trim(), description: "Telegram Bot Token" });
+      await api.entities.AppSettings.create({ key: "telegram_bot_token", value: token.trim(), description: "Telegram Bot Token" });
     }
     const v = token.trim();
     setBotToken(v);
@@ -114,7 +114,7 @@ export default function TelegramSettings() {
     setWebhookLoading(true);
     setWebhookStatus(null);
     try {
-      const res = await base44.functions.invoke("fixWebhook", {});
+      const res = await api.functions.invoke("fixWebhook", {});
       const data = res.data;
       if (data?.set?.ok) {
         setWebhookStatus({ ok: true, url: data.webhook?.url, pending: data.webhook?.pending_update_count });

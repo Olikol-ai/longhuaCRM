@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { X, Package, GraduationCap, Check, CreditCard, Loader2, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -16,10 +16,10 @@ export default function TopUpModal({ onClose }) {
 
   useEffect(() => {
     Promise.all([
-      base44.auth.me(),
-      base44.entities.ShopSettings.list("sort_order"),
+      api.auth.me(),
+      api.entities.ShopSettings.list("sort_order"),
     ]).then(([user, data]) => {
-      base44.entities.Student.filter({ user_id: user.id }).then((students) => {
+      api.entities.Student.filter({ user_id: user.id }).then((students) => {
         setStudent(students[0]);
         setItems(data.filter((i) => i.is_active));
         setLoading(false);
@@ -43,7 +43,7 @@ export default function TopUpModal({ onClose }) {
       // Интеграция с Alfa Bank
       setPaying(true);
       try {
-        const res = await base44.functions.invoke("alfaBankInit", {
+        const res = await api.functions.invoke("alfaBankInit", {
           type: selected.type,
           itemId: selected.item_id,
           studentId: student.id,
@@ -66,7 +66,7 @@ export default function TopUpModal({ onClose }) {
       // Другие методы - уведомление администратору
       setStep(STEPS.DONE);
       if (student.telegram_id) {
-        base44.functions.invoke("sendTelegramMessage", {
+        api.functions.invoke("sendTelegramMessage", {
           chat_id: student.telegram_id,
           text: `📋 Заявка на пополнение баланса\n\n${selected.label}\n💳 Сумма: ${selected.price} BYN\n💬 Способ: ${method === "erip" ? "ЕРИП" : "Наличные в офисе"}\n\nАдминистратор свяжется с вами в ближайшее время.`,
         }).catch(() => {});

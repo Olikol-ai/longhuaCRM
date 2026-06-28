@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Loader2, Folder } from "lucide-react";
@@ -23,9 +23,9 @@ export default function CourseFormDialog({ course, onClose, onSave }) {
     setSaving(true);
     let saved;
     if (course) {
-      saved = await base44.entities.Course.update(course.id, form);
+      saved = await api.entities.Course.update(course.id, form);
     } else {
-      saved = await base44.entities.Course.create(form);
+      saved = await api.entities.Course.create(form);
     }
     setSaving(false);
     onSave(saved);

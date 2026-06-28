@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { X, Edit2, Trash2, Phone, Mail, MessageSquare, BookOpen, Clock, CreditCard } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
@@ -11,8 +11,8 @@ export default function StudentDetailModal({ student, teachers, onEdit, onDelete
 
   useEffect(() => {
     Promise.all([
-      base44.entities.Lesson.filter({ student_id: student.id }),
-      base44.entities.Payment.filter({ student_id: student.id }),
+      api.entities.Lesson.filter({ student_id: student.id }),
+      api.entities.Payment.filter({ student_id: student.id }),
     ]).then(([l, p]) => {
       setLessons(l.sort((a, b) => b.date?.localeCompare(a.date)));
       setPayments(p.sort((a, b) => b.payment_date?.localeCompare(a.payment_date)));

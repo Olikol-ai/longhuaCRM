@@ -11,7 +11,7 @@ import {
   getEntityPermissions,
 } from '../../common/constants/entity-permissions';
 import { EntityName } from '../../common/constants/entity-names';
-import { normalizeRole, NormalizedRole } from '../../common/constants/roles';
+import { normalizeRole } from '../../common/constants/roles';
 import { StudentEntity } from '../../entities/Student.entity';
 import { TeacherEntity } from '../../entities/Teacher.entity';
 import { EntityAccessContext, OwnershipContext } from './entity-access.types';
@@ -30,12 +30,14 @@ export class EntityAccessService {
       this.findOwnedStudentIds(userId),
       this.findOwnedTeacherId(userId),
     ]);
+    const assignedStudentIds = await this.findAssignedStudentIds(ownedTeacherId);
 
     return {
       userId,
       role: normalizedRole,
       ownedStudentIds,
       ownedTeacherId,
+      assignedStudentIds,
     };
   }
 
@@ -45,6 +47,7 @@ export class EntityAccessService {
       role: 'pending',
       ownedStudentIds: [],
       ownedTeacherId: null,
+      assignedStudentIds: [],
     };
   }
 
@@ -54,6 +57,7 @@ export class EntityAccessService {
       role: 'admin',
       ownedStudentIds: [],
       ownedTeacherId: null,
+      assignedStudentIds: [],
     };
   }
 
@@ -125,29 +129,40 @@ export class EntityAccessService {
   ): boolean {
     const userId = context.userId;
     const ownedStudentIds = context.ownedStudentIds;
+    const assignedStudentIds = context.assignedStudentIds ?? [];
     const ownedTeacherId = context.ownedTeacherId;
+    const visibleStudentIds = [...new Set([...ownedStudentIds, ...assignedStudentIds])];
 
     switch (entity) {
       case 'User':
         return String(record.id) === userId;
-      case 'Student':
+      case 'Student': {
+        if (String(record.user_id ?? '') === userId) {
+          return true;
+        }
+        return (
+          ownedTeacherId != null &&
+          String(record.assigned_teacher ?? '') === ownedTeacherId
+        );
+      }
       case 'Teacher':
         return String(record.user_id ?? '') === userId;
       case 'MaterialAccess':
         return String(record.user_id ?? '') === userId;
       case 'TeacherAvailability':
       case 'TeacherPayment':
+      case 'ScheduleSlot':
         return ownedTeacherId != null && String(record.teacher_id ?? '') === ownedTeacherId;
       case 'Payment':
       case 'Course':
       case 'LessonBalance':
       case 'AlfaBankOrder':
-        return ownedStudentIds.includes(String(record.student_id ?? ''));
+        return visibleStudentIds.includes(String(record.student_id ?? ''));
       case 'LessonStudent':
-        return ownedStudentIds.includes(String(record.student_id ?? ''));
+        return visibleStudentIds.includes(String(record.student_id ?? ''));
       case 'Lesson': {
         const studentId = String(record.student_id ?? '');
-        if (studentId && ownedStudentIds.includes(studentId)) {
+        if (studentId && visibleStudentIds.includes(studentId)) {
           return true;
         }
         const teacherId = String(record.teacher_id ?? '');
@@ -155,7 +170,7 @@ export class EntityAccessService {
           return true;
         }
         const studentIds = this.parseIdList(record.student_ids);
-        return studentIds.some((id) => ownedStudentIds.includes(id));
+        return studentIds.some((id) => visibleStudentIds.includes(id));
       }
       default:
         return false;
@@ -168,6 +183,10 @@ export class EntityAccessService {
     context: EntityAccessContext,
   ): boolean {
     if (entity === 'TeacherAvailability' && context.ownedTeacherId) {
+      const teacherId = String(input.teacher_id ?? input.teacherId ?? '');
+      return teacherId === context.ownedTeacherId;
+    }
+    if ((entity === 'Lesson' || entity === 'ScheduleSlot') && context.ownedTeacherId) {
       const teacherId = String(input.teacher_id ?? input.teacherId ?? '');
       return teacherId === context.ownedTeacherId;
     }
@@ -198,5 +217,16 @@ export class EntityAccessService {
       select: ['id'],
     });
     return row?.id ?? null;
+  }
+
+  private async findAssignedStudentIds(teacherId: string | null): Promise<string[]> {
+    if (!teacherId) {
+      return [];
+    }
+    const rows = await this.dataSource.getRepository(StudentEntity).find({
+      where: { assignedTeacher: teacherId },
+      select: ['id'],
+    });
+    return rows.map((row) => row.id);
   }
 }

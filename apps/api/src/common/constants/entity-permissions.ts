@@ -45,6 +45,20 @@ const readAllWriteAll = (): EntityCrudPermissions => ({
   delete: 'none',
 });
 
+const readOwnWriteOwn = (): EntityCrudPermissions => ({
+  read: 'own',
+  create: 'own',
+  update: 'own',
+  delete: 'own',
+});
+
+const readOwnUpdateOwn = (): EntityCrudPermissions => ({
+  read: 'own',
+  create: 'none',
+  update: 'own',
+  delete: 'none',
+});
+
 const noneAccess = (): EntityCrudPermissions => ({
   read: 'none',
   create: 'none',
@@ -60,7 +74,7 @@ export const ENTITY_PERMISSIONS: EntityPermissionsMatrix = {
   },
   Student: {
     admin: fullAccess(),
-    teacher: fullAccess(),
+    teacher: readOwnUpdateOwn(),
     student: {
       read: 'own',
       create: 'none',
@@ -80,7 +94,7 @@ export const ENTITY_PERMISSIONS: EntityPermissionsMatrix = {
   },
   Lesson: {
     admin: fullAccess(),
-    teacher: fullAccess(),
+    teacher: readOwnWriteOwn(),
     student: {
       read: 'own',
       create: 'none',
@@ -90,7 +104,7 @@ export const ENTITY_PERMISSIONS: EntityPermissionsMatrix = {
   },
   Payment: {
     admin: fullAccess(),
-    teacher: readAll(),
+    teacher: readOwn(),
     student: {
       read: 'own',
       create: 'none',
@@ -115,7 +129,7 @@ export const ENTITY_PERMISSIONS: EntityPermissionsMatrix = {
   },
   ScheduleSlot: {
     admin: fullAccess(),
-    teacher: fullAccess(),
+    teacher: readOwnWriteOwn(),
     student: readAll(),
   },
   LessonStudent: {

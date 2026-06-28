@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Search, FileText, Video, Link, File, CheckCircle2, Loader2 } from "lucide-react";
@@ -19,7 +19,7 @@ export default function MaterialPickerDialog({ onConfirm, onSkip, onCancel, less
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    base44.entities.LessonMaterial.list("-created_date", 200).then(m => {
+    api.entities.LessonMaterial.list("-created_date", 200).then(m => {
       setMaterials(m);
       setLoading(false);
     });

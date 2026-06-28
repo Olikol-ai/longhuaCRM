@@ -1,4 +1,4 @@
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 
 /**
  * Проверяет, имеет ли пользователь доступ к материалу
@@ -7,7 +7,7 @@ import { base44 } from "@/api/base44Client";
  * @returns {Promise<boolean>}
  */
 export async function hasAccessToMaterial(userId, materialId) {
-  const accesses = await base44.entities.MaterialAccess.filter({
+  const accesses = await api.entities.MaterialAccess.filter({
     user_id: userId,
     material_id: materialId,
   });
@@ -40,7 +40,7 @@ export async function grantAccess(userId, materialId, grantedByRole, grantedByUs
   // Проверяем, что учитель может выдавать доступ только с access=true
   if (grantedByRole === "TEACHER") {
     // Проверяем, что это его ученик
-    const student = await base44.entities.Student.filter({
+    const student = await api.entities.Student.filter({
       user_id: userId,
     });
 
@@ -48,7 +48,7 @@ export async function grantAccess(userId, materialId, grantedByRole, grantedByUs
       throw new Error("Студент не найден");
     }
 
-    const teacher = await base44.entities.Teacher.filter({
+    const teacher = await api.entities.Teacher.filter({
       user_id: grantedByUserId,
     });
 
@@ -63,7 +63,7 @@ export async function grantAccess(userId, materialId, grantedByRole, grantedByUs
   }
 
   // Проверяем, есть ли уже запись
-  const existing = await base44.entities.MaterialAccess.filter({
+  const existing = await api.entities.MaterialAccess.filter({
     user_id: userId,
     material_id: materialId,
     granted_by_role: grantedByRole,
@@ -71,12 +71,12 @@ export async function grantAccess(userId, materialId, grantedByRole, grantedByUs
 
   if (existing.length > 0) {
     // Обновляем
-    await base44.entities.MaterialAccess.update(existing[0].id, {
+    await api.entities.MaterialAccess.update(existing[0].id, {
       access: true,
     });
   } else {
     // Создаем
-    await base44.entities.MaterialAccess.create({
+    await api.entities.MaterialAccess.create({
       user_id: userId,
       material_id: materialId,
       granted_by_role: grantedByRole,
@@ -92,19 +92,19 @@ export async function grantAccess(userId, materialId, grantedByRole, grantedByUs
  * @param {string} revokedByRole - ADMIN или TEACHER
  */
 export async function revokeAccess(userId, materialId, revokedByRole) {
-  const existing = await base44.entities.MaterialAccess.filter({
+  const existing = await api.entities.MaterialAccess.filter({
     user_id: userId,
     material_id: materialId,
     granted_by_role: revokedByRole,
   });
 
   if (existing.length > 0) {
-    await base44.entities.MaterialAccess.delete(existing[0].id);
+    await api.entities.MaterialAccess.delete(existing[0].id);
   }
 
   // Если отзывает админ, создаем запись о запрете
   if (revokedByRole === "ADMIN") {
-    await base44.entities.MaterialAccess.create({
+    await api.entities.MaterialAccess.create({
       user_id: userId,
       material_id: materialId,
       granted_by_role: "ADMIN",

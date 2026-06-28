@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { base44, getToken } from '@/api/base44Client';
+import { api, getToken } from '@/api';
 
 const AuthContext = createContext();
 
@@ -29,7 +29,7 @@ export const AuthProvider = ({ children }) => {
   const checkUserAuth = async () => {
     try {
       setIsLoadingAuth(true);
-      const currentUser = await base44.auth.me();
+      const currentUser = await api.auth.me();
 
       if (!currentUser.first_name || !currentUser.last_name) {
         setUser(currentUser);
@@ -37,22 +37,6 @@ export const AuthProvider = ({ children }) => {
         setNeedsNameSetup(true);
         setIsLoadingAuth(false);
         return;
-      }
-
-      if (currentUser.role === 'user') {
-        const [teacherRecords, studentRecords] = await Promise.all([
-          base44.entities.Teacher.filter({ user_id: currentUser.id }),
-          base44.entities.Student.filter({ user_id: currentUser.id }),
-        ]);
-        if (teacherRecords.length > 0) {
-          await base44.auth.updateMe({ role: 'teacher' });
-          currentUser.role = 'teacher';
-        } else if (studentRecords.length > 0) {
-          await base44.auth.updateMe({ role: 'student' });
-          currentUser.role = 'student';
-        } else {
-          currentUser.role = 'pending';
-        }
       }
 
       setUser(currentUser);
@@ -77,11 +61,11 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(false);
     setNeedsNameSetup(false);
     setAuthError(null);
-    base44.auth.logout();
+    api.auth.logout();
   };
 
   const navigateToLogin = () => {
-    base44.auth.redirectToLogin(window.location.href);
+    api.auth.redirectToLogin(window.location.href);
   };
 
   const handleNameSetupComplete = (nameData) => {

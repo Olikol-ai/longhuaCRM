@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { Loader2 } from "lucide-react";
 
 export default function TeacherFormDialog({ open, onOpenChange, teacher, onSave }) {
@@ -52,9 +52,9 @@ export default function TeacherFormDialog({ open, onOpenChange, teacher, onSave 
     try {
       const data = { ...formData, hourly_rate: Number(formData.hourly_rate) };
       if (teacher) {
-        await base44.entities.Teacher.update(teacher.id, data);
+        await api.entities.Teacher.update(teacher.id, data);
       } else {
-        await base44.entities.Teacher.create(data);
+        await api.entities.Teacher.create(data);
       }
       onSave?.();
       onOpenChange(false);

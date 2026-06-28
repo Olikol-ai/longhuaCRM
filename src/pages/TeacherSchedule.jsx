@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
+import { useAuth } from '@/lib/AuthContext';
 import { Button } from "@/components/ui/button";
 import TeacherAvailabilityTab from "@/components/schedule/TeacherAvailabilityTab";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +44,7 @@ const STATUS_LABELS = {
 const WEEK_DAYS_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
 export default function TeacherSchedule() {
+  const { user } = useAuth();
   const [lessons, setLessons] = useState([]);
   const [teacher, setTeacher] = useState(null);
   const [allTeachers, setAllTeachers] = useState([]);
@@ -58,22 +60,26 @@ export default function TeacherSchedule() {
   const [mainTab, setMainTab] = useState("schedule"); // "schedule" | "availability"
   const { theme, toggleTheme } = useTheme();
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    if (user) loadData();
+  }, [user]);
 
   const loadData = async () => {
-    const me = await base44.auth.me();
     const [teachers, allLessons, allStudents] = await Promise.all([
-      base44.entities.Teacher.list(),
-      base44.entities.Lesson.list("-date", 500),
-      base44.entities.Student.list(),
+      api.entities.Teacher.list(),
+      api.entities.Lesson.list("-date", 500),
+      api.entities.Student.list(),
     ]);
-    const t = teachers.find(t => t.user_id === me.id || t.email === me.email);
+    const t = teachers.find((row) => row.user_id === user.id || row.email === user.email);
     setAllTeachers(teachers);
-    // Ученики, назначенные текущему преподавателю
-    setStudents(allStudents.filter(s => s.assigned_teacher === t?.id || !t));
     if (t) {
       setTeacher(t);
-      setLessons(allLessons.filter(l => l.teacher_id === t.id));
+      setLessons(allLessons.filter((l) => l.teacher_id === t.id));
+      setStudents(allStudents.filter((s) => s.assigned_teacher === t.id));
+    } else {
+      setTeacher(null);
+      setLessons([]);
+      setStudents([]);
     }
     setLoading(false);
   };
@@ -97,25 +103,7 @@ export default function TeacherSchedule() {
 
   const markLesson = async (lesson, status) => {
     setUpdating(lesson.id);
-    await base44.entities.Lesson.update(lesson.id, { status });
-    if (status === "completed" || status === "missed_no_notice") {
-      const ids = lesson.student_ids?.length ? lesson.student_ids : lesson.student_id ? [lesson.student_id] : [];
-      await Promise.all(ids.map(async sid => {
-        const arr = await base44.entities.Student.filter({ id: sid });
-        const s = arr[0];
-        if (s?.telegram_id) {
-          const newBalance = s.lesson_balance ?? 0;
-          const msg = status === "completed"
-            ? `✅ Урок завершён!\n\n📅 ${lesson.date} в ${lesson.start_time}\n💡 Осталось уроков: ${newBalance}`
-            : `⚠️ Урок пропущен без предупреждения\n\n📅 ${lesson.date} в ${lesson.start_time}\nБаланс списан. Осталось уроков: ${newBalance}`;
-          base44.functions.invoke("sendTelegramMessage", { chat_id: s.telegram_id, text: msg }).catch(() => {});
-          if (newBalance === 0) {
-            const balMsg = `⚠️ Баланс уроков исчерпан!\n\nТекущий урок (${lesson.date} в ${lesson.start_time}) не оплачен — на вашем счёте 0 уроков.\n\nПожалуйста, пополните баланс, чтобы продолжить занятия. Свяжитесь с администратором.`;
-            base44.functions.invoke("sendTelegramMessage", { chat_id: s.telegram_id, text: balMsg }).catch(() => {});
-          }
-        }
-      }));
-    }
+    await api.entities.Lesson.update(lesson.id, { status });
     setExpandedLesson(null);
     setUpdating(null);
     loadData();
@@ -128,11 +116,11 @@ export default function TeacherSchedule() {
       let d = parseISO(lessonData.date);
       const groupId = Date.now().toString();
       for (let i = 0; i < 4; i++) {
-        await base44.entities.Lesson.create({ ...lessonData, date: format(d, "yyyy-MM-dd"), is_recurring: true, recurring_group_id: groupId });
+        await api.entities.Lesson.create({ ...lessonData, date: format(d, "yyyy-MM-dd"), is_recurring: true, recurring_group_id: groupId });
         d = addDays(d, 7);
       }
     } else {
-      await base44.entities.Lesson.create(lessonData);
+      await api.entities.Lesson.create(lessonData);
     }
     setShowModal(false);
     loadData();

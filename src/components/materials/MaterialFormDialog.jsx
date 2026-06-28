@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api";
 import { X, Upload, Loader2, File } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -23,7 +23,7 @@ export default function MaterialFormDialog({ onClose, onSave }) {
   }, []);
 
   const loadCourses = async () => {
-    const c = await base44.entities.Course.list();
+    const c = await api.entities.Course.list();
     setCourses(c);
     if (c.length > 0) {
       setFormData(prev => ({ ...prev, course_id: c[0].id }));
@@ -70,12 +70,12 @@ export default function MaterialFormDialog({ onClose, onSave }) {
     setSaving(true);
     try {
       // Upload file
-      const uploadedFile = await base44.integrations.Core.UploadFile({
+      const uploadedFile = await api.uploads.uploadFile({
         file: file,
       });
 
       // Create material record
-      await base44.entities.LessonMaterial.create({
+      await api.entities.LessonMaterial.create({
         title: formData.title,
         description: formData.description || "",
         course_id: formData.course_id,

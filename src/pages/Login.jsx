@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api';
 import { BookOpen, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,9 +23,9 @@ export default function Login() {
 
     try {
       if (mode === 'login') {
-        await base44.auth.login(email.trim(), password);
+        await api.auth.login(email.trim(), password);
       } else {
-        await base44.auth.register(email.trim(), password, firstName.trim(), lastName.trim());
+        await api.auth.register(email.trim(), password, firstName.trim(), lastName.trim());
       }
 
       const fromUrl = searchParams.get('from_url');

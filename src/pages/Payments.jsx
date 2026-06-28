@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { Plus, CreditCard, TrendingUp, Search, Pencil, Trash2 } from "lucide-react";
 import PaymentModal from "../components/payments/PaymentModal";
 import { format, parseISO } from "date-fns";
@@ -15,8 +15,8 @@ export default function Payments() {
 
   const load = async () => {
     const [p, s] = await Promise.all([
-      base44.entities.Payment.list("-payment_date", 200),
-      base44.entities.Student.list(),
+      api.entities.Payment.list("-payment_date", 200),
+      api.entities.Student.list(),
     ]);
     setPayments(p);
     setStudents(s);
@@ -27,10 +27,10 @@ export default function Payments() {
 
   const handleSave = async (data) => {
     if (editingPayment) {
-      await base44.entities.Payment.update(editingPayment.id, data);
+      await api.entities.Payment.update(editingPayment.id, data);
       setEditingPayment(null);
     } else {
-      await base44.entities.Payment.create(data);
+      await api.entities.Payment.create(data);
     }
     setShowModal(false);
     load();
@@ -38,7 +38,7 @@ export default function Payments() {
 
   const handleDelete = async (payment) => {
     if (!window.confirm(`Удалить платёж ${payment.student_name} на ${payment.amount} BYN? Баланс ученика будет уменьшен на ${payment.lessons_added} уроков.`)) return;
-    await base44.entities.Payment.delete(payment.id);
+    await api.entities.Payment.delete(payment.id);
     load();
   };
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { parseISO, format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { TrendingUp, Users, BookOpen, Download, GraduationCap, CreditCard } from "lucide-react";
@@ -37,10 +37,10 @@ export default function Analytics() {
 
   useEffect(() => {
     Promise.all([
-      base44.entities.Payment.list("-payment_date", 500),
-      base44.entities.Lesson.list("-date", 1000),
-      base44.entities.Student.list(),
-      base44.entities.Teacher.list(),
+      api.entities.Payment.list("-payment_date", 500),
+      api.entities.Lesson.list("-date", 1000),
+      api.entities.Student.list(),
+      api.entities.Teacher.list(),
     ]).then(([p, l, s, t]) => {
       setPayments(p); setLessons(l); setStudents(s); setTeachers(t);
       setLoading(false);

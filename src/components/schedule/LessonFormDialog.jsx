@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { Loader2 } from "lucide-react";
 
 export default function LessonFormDialog({ open, onOpenChange, lesson, onSave }) {
@@ -70,8 +70,8 @@ export default function LessonFormDialog({ open, onOpenChange, lesson, onSave })
 
   const loadData = async () => {
     const [t, s] = await Promise.all([
-      base44.entities.Teacher.list(),
-      base44.entities.Student.list(),
+      api.entities.Teacher.list(),
+      api.entities.Student.list(),
     ]);
     setTeachers(t.filter((x) => x.status === "active"));
     setStudents(s.filter((x) => x.status === "active"));
@@ -127,7 +127,7 @@ export default function LessonFormDialog({ open, onOpenChange, lesson, onSave })
             recurring_group_id: groupId,
           });
         }
-        await base44.entities.Lesson.bulkCreate(lessons);
+        await api.entities.Lesson.bulkCreate(lessons);
       } else {
         const data = {
           teacher_id: formData.teacher_id,
@@ -146,9 +146,9 @@ export default function LessonFormDialog({ open, onOpenChange, lesson, onSave })
           notes: formData.notes,
         };
         if (lesson) {
-          await base44.entities.Lesson.update(lesson.id, data);
+          await api.entities.Lesson.update(lesson.id, data);
         } else {
-          await base44.entities.Lesson.create(data);
+          await api.entities.Lesson.create(data);
         }
       }
       onSave?.();

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { revokeAccess } from "@/lib/materialAccess";
 import { Users, Loader2, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,14 +20,14 @@ export default function AccessManageModal({ closeTab }) {
   }, []);
 
   const loadData = async () => {
-    const me = await base44.auth.me();
+    const me = await api.auth.me();
     setUser(me);
 
     const [sts, trs, mats, accs] = await Promise.all([
-      base44.entities.Student.list(),
-      base44.entities.Teacher.list(),
-      base44.entities.LessonMaterial.list(),
-      base44.entities.MaterialAccess.list(),
+      api.entities.Student.list(),
+      api.entities.Teacher.list(),
+      api.entities.LessonMaterial.list(),
+      api.entities.MaterialAccess.list(),
     ]);
 
     setStudents(sts);

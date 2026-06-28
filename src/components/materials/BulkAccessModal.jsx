@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
+import { grantAccess } from "@/lib/materialAccess";
 import { X, Loader2, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -13,13 +14,16 @@ export default function BulkAccessModal({ teacher, onClose, onSuccess }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
     const load = async () => {
+      const me = await api.auth.me();
+      setCurrentUser(me);
       const [s, m, c] = await Promise.all([
-        base44.entities.Student.filter({ status: "active" }),
-        base44.entities.LessonMaterial.list(),
-        base44.entities.Course.list(),
+        api.entities.Student.filter({ status: "active" }),
+        api.entities.LessonMaterial.list(),
+        api.entities.Course.list(),
       ]);
       setStudents(s);
       setMaterials(m);
@@ -58,45 +62,25 @@ export default function BulkAccessModal({ teacher, onClose, onSuccess }) {
 
     setSaving(true);
     try {
-      const grants = [];
+      const grantRole = currentUser?.role === "admin" ? "ADMIN" : "TEACHER";
+      const materialIds = new Set(selectedMaterials);
 
-      // Выдаём доступ к каждому материалу
-      for (const matId of selectedMaterials) {
-        const existing = await base44.entities.MaterialAccess.filter({ material_id: matId });
-        const current = existing[0] || { material_id: matId, access_type: "student", student_ids: [] };
-        const newStudentIds = [...new Set([...(current.student_ids || []), ...selectedStudents])];
-        if (existing[0]) {
-          await base44.entities.MaterialAccess.update(existing[0].id, { student_ids: newStudentIds });
-        } else {
-          await base44.entities.MaterialAccess.create({
-            material_id: matId,
-            access_type: "student",
-            student_ids: Array.from(selectedStudents),
-            granted_by: teacher.email,
-            granted_date: new Date().toISOString(),
-          });
-        }
+      for (const courseId of selectedCourses) {
+        materials
+          .filter((m) => m.course_id === courseId)
+          .forEach((m) => materialIds.add(m.id));
       }
 
-      // Выдаём доступ к каждому курсу (через материалы курса)
-      for (const courseId of selectedCourses) {
-        const courseMaterials = materials.filter(m => m.course_id === courseId);
-        for (const mat of courseMaterials) {
-          const existing = await base44.entities.MaterialAccess.filter({ material_id: mat.id });
-          const current = existing[0] || { material_id: mat.id, access_type: "student", student_ids: [] };
-          const newStudentIds = [...new Set([...(current.student_ids || []), ...selectedStudents])];
-          if (existing[0]) {
-            await base44.entities.MaterialAccess.update(existing[0].id, { student_ids: newStudentIds });
-          } else {
-            await base44.entities.MaterialAccess.create({
-              material_id: mat.id,
-              access_type: "student",
-              student_ids: Array.from(selectedStudents),
-              course_id: courseId,
-              granted_by: teacher.email,
-              granted_date: new Date().toISOString(),
-            });
-          }
+      for (const matId of materialIds) {
+        for (const studentId of selectedStudents) {
+          const student = students.find((s) => s.id === studentId);
+          if (!student?.user_id) continue;
+          await grantAccess(
+            student.user_id,
+            matId,
+            grantRole,
+            currentUser?.id ?? teacher?.user_id,
+          );
         }
       }
 
@@ -142,19 +126,19 @@ export default function BulkAccessModal({ teacher, onClose, onSuccess }) {
           </div>
         ) : (
           <div className="space-y-6 max-h-[60vh] overflow-y-auto">
-            {/* Ученики */}
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-3">Ученики ({selectedStudents.size})</h3>
               <div className="space-y-2 bg-muted/30 rounded-xl p-4 max-h-[200px] overflow-y-auto">
                 {students.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Нет активных учеников</p>
                 ) : (
-                  students.map(s => (
+                  students.map((s) => (
                     <label key={s.id} className="flex items-center gap-3 p-2 hover:bg-muted/50 rounded-lg cursor-pointer transition-colors">
                       <input
                         type="checkbox"
                         checked={selectedStudents.has(s.id)}
                         onChange={() => toggleStudent(s.id)}
+                        disabled={!s.user_id}
                         className="w-4 h-4 rounded border-2 border-indigo-300 accent-indigo-600"
                       />
                       <span className="text-sm text-foreground">{s.name}</span>
@@ -164,14 +148,13 @@ export default function BulkAccessModal({ teacher, onClose, onSuccess }) {
               </div>
             </div>
 
-            {/* Курсы */}
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-3">Курсы ({selectedCourses.size})</h3>
               <div className="space-y-2 bg-muted/30 rounded-xl p-4 max-h-[150px] overflow-y-auto">
                 {courses.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Нет курсов</p>
                 ) : (
-                  courses.map(c => (
+                  courses.map((c) => (
                     <label key={c.id} className="flex items-center gap-3 p-2 hover:bg-muted/50 rounded-lg cursor-pointer transition-colors">
                       <input
                         type="checkbox"
@@ -186,14 +169,13 @@ export default function BulkAccessModal({ teacher, onClose, onSuccess }) {
               </div>
             </div>
 
-            {/* Материалы */}
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-3">Материалы ({selectedMaterials.size})</h3>
               <div className="space-y-2 bg-muted/30 rounded-xl p-4 max-h-[150px] overflow-y-auto">
                 {materials.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Нет материалов</p>
                 ) : (
-                  materials.map(m => (
+                  materials.map((m) => (
                     <label key={m.id} className="flex items-center gap-3 p-2 hover:bg-muted/50 rounded-lg cursor-pointer transition-colors">
                       <input
                         type="checkbox"
@@ -210,11 +192,8 @@ export default function BulkAccessModal({ teacher, onClose, onSuccess }) {
           </div>
         )}
 
-        {/* Actions */}
         <div className="flex gap-3 mt-6 pt-6 border-t border-border">
-          <Button variant="outline" onClick={onClose} disabled={saving} className="flex-1">
-            Отмена
-          </Button>
+          <Button variant="outline" onClick={onClose} disabled={saving} className="flex-1">Отмена</Button>
           <Button
             onClick={handleSave}
             disabled={saving || selectedStudents.size === 0 || (selectedMaterials.size === 0 && selectedCourses.size === 0)}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { Calendar, BookOpen, GraduationCap, Video, Clock, Loader2, Plus, ChevronDown, ChevronUp, List, Sun, Moon } from "lucide-react";
@@ -41,12 +41,12 @@ export default function StudentDashboard() {
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
-    const me = await base44.auth.me();
+    const me = await api.auth.me();
     setUser(me);
     const [myStudents, allLessons, allTeachers] = await Promise.all([
-      base44.entities.Student.filter({ user_id: me.id }),
-      base44.entities.Lesson.list("-date", 200),
-      base44.entities.Teacher.list(),
+      api.entities.Student.filter({ user_id: me.id }),
+      api.entities.Lesson.list("-date", 200),
+      api.entities.Teacher.list(),
     ]);
     const s = myStudents[0] || null;
     setStudent(s);

@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { Loader2 } from "lucide-react";
 
 export default function PaymentFormDialog({ open, onOpenChange, studentId, onSave }) {
@@ -47,7 +47,7 @@ export default function PaymentFormDialog({ open, onOpenChange, studentId, onSav
   }, [open, studentId]);
 
   const loadStudents = async () => {
-    const s = await base44.entities.Student.list();
+    const s = await api.entities.Student.list();
     setStudents(s);
     if (studentId) {
       const found = s.find((st) => st.id === studentId);
@@ -77,7 +77,7 @@ export default function PaymentFormDialog({ open, onOpenChange, studentId, onSav
         payment_date: formData.payment_date,
         comment: formData.comment,
       };
-      await base44.entities.Payment.create(payment);
+      await api.entities.Payment.create(payment);
       onSave?.();
       onOpenChange(false);
     } finally {

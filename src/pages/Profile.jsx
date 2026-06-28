@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { Save, CheckCircle2, User, Send } from "lucide-react";
 
 export default function Profile() {
@@ -9,18 +9,18 @@ export default function Profile() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    base44.auth.me().then(async u => {
+    api.auth.me().then(async u => {
       setUser(u);
       let telegramId = u.telegram_id || "";
       let birthday = "";
 
       if (u.role === "student") {
-        const students = await base44.entities.Student.filter({ user_id: u.id });
+        const students = await api.entities.Student.filter({ user_id: u.id });
         birthday = students[0]?.birthday || "";
         if (!telegramId && students[0]?.telegram_id) telegramId = students[0].telegram_id;
       } else if (u.role === "teacher") {
-        let teachers = await base44.entities.Teacher.filter({ user_id: u.id });
-        if (!teachers.length) teachers = await base44.entities.Teacher.filter({ email: u.email });
+        let teachers = await api.entities.Teacher.filter({ user_id: u.id });
+        if (!teachers.length) teachers = await api.entities.Teacher.filter({ email: u.email });
         if (!telegramId && teachers[0]?.telegram_id) telegramId = teachers[0].telegram_id;
       }
 
@@ -36,19 +36,19 @@ export default function Profile() {
   const handleSave = async () => {
     setSaving(true);
     const prevTelegramId = user.telegram_id || "";
-    await base44.auth.updateMe({ phone: form.phone, telegram_id: form.telegram_id });
+    await api.auth.updateMe({ phone: form.phone, telegram_id: form.telegram_id });
 
     // Sync telegram_id to Student OR Teacher entity depending on role
     if (user.role === "student") {
-      const students = await base44.entities.Student.filter({ user_id: user.id });
+      const students = await api.entities.Student.filter({ user_id: user.id });
       if (students.length > 0) {
-        await base44.entities.Student.update(students[0].id, { telegram_id: form.telegram_id, birthday: form.birthday });
+        await api.entities.Student.update(students[0].id, { telegram_id: form.telegram_id, birthday: form.birthday });
       }
     } else if (user.role === "teacher") {
-      let teachers = await base44.entities.Teacher.filter({ user_id: user.id });
-      if (!teachers.length) teachers = await base44.entities.Teacher.filter({ email: user.email });
+      let teachers = await api.entities.Teacher.filter({ user_id: user.id });
+      if (!teachers.length) teachers = await api.entities.Teacher.filter({ email: user.email });
       if (teachers.length > 0) {
-        await base44.entities.Teacher.update(teachers[0].id, { telegram_id: form.telegram_id, user_id: user.id });
+        await api.entities.Teacher.update(teachers[0].id, { telegram_id: form.telegram_id, user_id: user.id });
       }
     }
 
@@ -56,7 +56,7 @@ export default function Profile() {
     if (form.telegram_id && form.telegram_id !== prevTelegramId) {
       const name = user.full_name?.split(" ")[1] || "Пользователь";
       const message = `🎉 Уведомления активированы!\n\nПривет, ${name}! Ваш Telegram подключён к платформе Longhua Chinese 🐉\n\nТеперь вы будете получать уведомления об уроках и важных событиях. Удачи! 加油！`;
-      base44.functions.invoke("sendTelegramMessage", { chat_id: form.telegram_id, text: message }).catch(() => {});
+      api.functions.invoke("sendTelegramMessage", { chat_id: form.telegram_id, text: message }).catch(() => {});
     }
 
     setSaving(false);

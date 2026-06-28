@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { Loader2 } from "lucide-react";
 
 export default function StudentFormDialog({ open, onOpenChange, student, onSave }) {
@@ -57,7 +57,7 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
   }, [open, student]);
 
   const loadTeachers = async () => {
-    const t = await base44.entities.Teacher.list();
+    const t = await api.entities.Teacher.list();
     setTeachers(t.filter((x) => x.status === "active"));
   };
 
@@ -66,9 +66,9 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
     try {
       const data = { ...formData, lesson_balance: Number(formData.lesson_balance) };
       if (student) {
-        await base44.entities.Student.update(student.id, data);
+        await api.entities.Student.update(student.id, data);
       } else {
-        await base44.entities.Student.create(data);
+        await api.entities.Student.create(data);
       }
       onSave?.();
       onOpenChange(false);

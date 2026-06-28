@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import {
   Users, GraduationCap, Shield, Clock, Trash2, Search,
   ChevronDown, UserCheck, Loader2, X, Plus, Pencil, Eye, CheckCircle2
@@ -139,7 +139,7 @@ function AccountsTab() {
 
   const load = async () => {
     setLoading(true);
-    const all = await base44.entities.User.list();
+    const all = await api.entities.User.list();
     setUsers(all);
     setLoading(false);
   };
@@ -153,14 +153,14 @@ function AccountsTab() {
       ? `${u.last_name} ${u.first_name}`
       : u.full_name || u.email;
     
-    await base44.entities.User.update(userId, { role: newRole });
+    await api.entities.User.update(userId, { role: newRole });
 
     if (newRole === "teacher") {
-      const existing = await base44.entities.Teacher.filter({ user_id: userId });
+      const existing = await api.entities.Teacher.filter({ user_id: userId });
       if (existing.length === 0) {
-        const byEmail = await base44.entities.Teacher.filter({ email: u.email });
+        const byEmail = await api.entities.Teacher.filter({ email: u.email });
         if (byEmail.length === 0) {
-          await base44.entities.Teacher.create({ 
+          await api.entities.Teacher.create({ 
             name: displayName, 
             email: u.email, 
             user_id: userId, 
@@ -169,15 +169,15 @@ function AccountsTab() {
             last_name: u.last_name || "",
           });
         } else {
-          await base44.entities.Teacher.update(byEmail[0].id, { user_id: userId });
+          await api.entities.Teacher.update(byEmail[0].id, { user_id: userId });
         }
       }
     } else if (newRole === "student") {
-      const existing = await base44.entities.Student.filter({ user_id: userId });
+      const existing = await api.entities.Student.filter({ user_id: userId });
       if (existing.length === 0) {
-        const byEmail = await base44.entities.Student.filter({ email: u.email });
+        const byEmail = await api.entities.Student.filter({ email: u.email });
         if (byEmail.length === 0) {
-          await base44.entities.Student.create({ 
+          await api.entities.Student.create({ 
             name: displayName, 
             email: u.email, 
             user_id: userId, 
@@ -187,7 +187,7 @@ function AccountsTab() {
             last_name: u.last_name || "",
           });
         } else {
-          await base44.entities.Student.update(byEmail[0].id, { user_id: userId });
+          await api.entities.Student.update(byEmail[0].id, { user_id: userId });
         }
       }
     }
@@ -199,7 +199,7 @@ function AccountsTab() {
   const deleteUser = async (u) => {
     setUpdating(u.id);
     setDeleteConfirm(null);
-    await base44.entities.User.delete(u.id);
+    await api.entities.User.delete(u.id);
     await load();
     setUpdating(null);
   };
@@ -360,8 +360,8 @@ function StudentsTab() {
 
   const loadData = async () => {
     const [s, t] = await Promise.all([
-      base44.entities.Student.list("-created_date"),
-      base44.entities.Teacher.list(),
+      api.entities.Student.list("-created_date"),
+      api.entities.Teacher.list(),
     ]);
     setStudents(s);
     setTeachers(t);
@@ -374,17 +374,17 @@ function StudentsTab() {
     if (!deleteTarget) return;
     setDeleting(true);
     const [lessons, payments, courses] = await Promise.all([
-      base44.entities.Lesson.filter({ student_id: deleteTarget.id }),
-      base44.entities.Payment.filter({ student_id: deleteTarget.id }),
-      base44.entities.Course.filter({ student_id: deleteTarget.id }),
+      api.entities.Lesson.filter({ student_id: deleteTarget.id }),
+      api.entities.Payment.filter({ student_id: deleteTarget.id }),
+      api.entities.Course.filter({ student_id: deleteTarget.id }),
     ]);
     await Promise.all([
-      ...lessons.map(l => base44.entities.Lesson.delete(l.id)),
-      ...payments.map(p => base44.entities.Payment.delete(p.id)),
-      ...courses.map(c => base44.entities.Course.delete(c.id)),
+      ...lessons.map(l => api.entities.Lesson.delete(l.id)),
+      ...payments.map(p => api.entities.Payment.delete(p.id)),
+      ...courses.map(c => api.entities.Course.delete(c.id)),
     ]);
-    await base44.entities.Student.delete(deleteTarget.id);
-    if (deleteTarget.user_id) await base44.entities.User.delete(deleteTarget.user_id).catch(() => {});
+    await api.entities.Student.delete(deleteTarget.id);
+    if (deleteTarget.user_id) await api.entities.User.delete(deleteTarget.user_id).catch(() => {});
     setDeleteTarget(null);
     setDeleting(false);
     loadData();
@@ -509,9 +509,9 @@ function TeachersTab() {
 
   const loadData = async () => {
     const [t, s, l] = await Promise.all([
-      base44.entities.Teacher.list("-created_date"),
-      base44.entities.Student.list(),
-      base44.entities.Lesson.list(),
+      api.entities.Teacher.list("-created_date"),
+      api.entities.Student.list(),
+      api.entities.Lesson.list(),
     ]);
     setTeachers(t);
     setStudents(s);
@@ -531,7 +531,7 @@ function TeachersTab() {
       return;
     }
     setDeleting(true);
-    await base44.entities.Teacher.delete(deleteTarget.id);
+    await api.entities.Teacher.delete(deleteTarget.id);
     setDeleteTarget(null);
     setDeleting(false);
     loadData();

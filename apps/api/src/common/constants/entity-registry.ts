@@ -52,6 +52,12 @@ export const USER_BLOCKED_UPDATE_FIELDS = new Set([
   'updatedDate',
 ]);
 
+/** Only admin or PaymentService/StudentBalanceService may change lesson balance. */
+export const STUDENT_BALANCE_BLOCKED_FIELDS = new Set([
+  'lesson_balance',
+  'lessonBalance',
+]);
+
 export function isCrmEntityName(name: string): name is CrmEntityName {
   return (ENTITY_NAMES as readonly string[]).includes(name);
 }

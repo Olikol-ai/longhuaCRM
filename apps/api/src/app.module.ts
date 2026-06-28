@@ -18,6 +18,7 @@ import { SettingsModule } from './modules/settings/settings.module';
 import { SpaModule } from './modules/spa/spa.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
 import { UsersModule } from './modules/users/users.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 
 const serveFrontend = process.env.SERVE_FRONTEND !== 'false';
@@ -43,6 +44,11 @@ const serveFrontend = process.env.SERVE_FRONTEND !== 'false';
       }),
     }),
     ScheduleModule.forRoot(),
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'uploads'),
+      serveRoot: '/uploads',
+      exclude: ['/api{*path}'],
+    }),
     ...(serveFrontend
       ? [
           ServeStaticModule.forRoot({
@@ -52,6 +58,7 @@ const serveFrontend = process.env.SERVE_FRONTEND !== 'false';
         ]
       : []),
     UsersModule,
+    UploadsModule,
     EntitiesModule,
     SettingsModule,
     AuthModule,

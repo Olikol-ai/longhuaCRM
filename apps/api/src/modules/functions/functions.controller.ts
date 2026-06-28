@@ -39,7 +39,6 @@ export class FunctionsController {
     @Req() req: Request,
     @CurrentUser() user: JwtPayload | null,
   ) {
-    const publicFunctions = ['tgDebug'];
     const adminFunctions = [
       'exportBackup',
       'checkBotInfo',
@@ -50,13 +49,12 @@ export class FunctionsController {
       'sendLessonReminders2h',
       'fixWebhook',
       'clearTelegramUpdates',
+      'sendTelegramMessage',
+      'tgDebug',
     ];
-    const authFunctions = ['sendTelegramMessage', 'alfaBankInit', 'checkPaymentStatus'];
+    const studentFunctions = ['alfaBankInit', 'checkPaymentStatus'];
 
-    const known =
-      publicFunctions.includes(name) ||
-      authFunctions.includes(name) ||
-      adminFunctions.includes(name);
+    const known = [...adminFunctions, ...studentFunctions].includes(name);
 
     if (!known) {
       throw new NotFoundException(`Unknown function: ${name}`);
@@ -66,21 +64,26 @@ export class FunctionsController {
       if (!user || normalizeRole(user.role) !== 'admin') {
         throw new ForbiddenException('Forbidden: Admin access required');
       }
-    } else if (authFunctions.includes(name)) {
+    } else if (studentFunctions.includes(name)) {
       if (!user) {
         throw new UnauthorizedException('Unauthorized');
       }
     }
 
     try {
-      return await this.dispatch(name, body, req);
+      return await this.dispatch(name, body, req, user);
     } catch (error) {
       this.logger.error(`Function ${name} error: ${(error as Error).message}`);
       throw new InternalServerErrorException((error as Error).message);
     }
   }
 
-  private async dispatch(name: string, body: Record<string, unknown>, req: Request) {
+  private async dispatch(
+    name: string,
+    body: Record<string, unknown>,
+    req: Request,
+    user: JwtPayload | null,
+  ) {
     const origin = `${req.protocol}://${req.get('host')}`;
     const webhookUrl = `${origin}/api/webhooks/telegram`;
 
@@ -92,9 +95,10 @@ export class FunctionsController {
           type: String(body.type),
           itemId: String(body.itemId),
           studentId: String(body.studentId),
-          amount: Number(body.amount),
           returnUrl: body.returnUrl as string | undefined,
           origin,
+          userId: user!.sub,
+          userRole: user!.role,
         });
       case 'checkPaymentStatus':
         return this.alfaBankService.checkPaymentStatus(String(body.orderId));
@@ -115,7 +119,7 @@ export class FunctionsController {
       case 'revokeAllAccess':
         return this.jobsService.revokeAllAccess();
       case 'tgDebug':
-        this.logger.debug(`tgDebug ${req.method} ${JSON.stringify(req.headers)} ${JSON.stringify(body)}`);
+        this.logger.debug(`tgDebug ${req.method} body keys=${Object.keys(body).join(',')}`);
         return { ok: true };
       default:
         throw new Error(`Unknown function: ${name}`);

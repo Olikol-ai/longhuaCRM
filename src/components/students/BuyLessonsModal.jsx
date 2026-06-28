@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { X, BookOpen, CheckCircle2, GraduationCap, Loader2, CreditCard } from "lucide-react";
 
 const FALLBACK_PACKAGES = [
@@ -27,7 +27,7 @@ export default function BuyLessonsModal({ onClose }) {
 
   const loadShopItems = async () => {
     try {
-      const items = await base44.entities.ShopSettings.list("sort_order");
+      const items = await api.entities.ShopSettings.list("sort_order");
       const pkgs = items.filter(i => i.type === "package" && i.is_active !== false);
       const crs = items.filter(i => i.type === "course" && i.is_active !== false);
       setPackages(pkgs.length > 0 ? pkgs : FALLBACK_PACKAGES);

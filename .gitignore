@@ -29,4 +29,6 @@ dist-ssr
 
 server/data/
 apps/api/dist/
+apps/api/uploads/
+uploads/
 .env

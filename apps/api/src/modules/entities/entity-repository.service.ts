@@ -10,6 +10,7 @@ import {
   CRM_ENTITY_CLASS_MAP,
   CrmEntityName,
   isGenericEntityName,
+  STUDENT_BALANCE_BLOCKED_FIELDS,
   USER_BLOCKED_UPDATE_FIELDS,
 } from '../../common/constants/entity-registry';
 import { EntityName } from '../../common/constants/entity-names';
@@ -22,9 +23,11 @@ import {
 } from '../../common/utils/record.util';
 import { PaymentEntity } from '../../entities/Payment.entity';
 import { ShopItemEntity } from '../../entities/ShopItem.entity';
+import { WelcomePageSettingEntity } from '../../entities/WelcomePageSetting.entity';
 import { paymentToRecord } from '../payments/payment.mapper';
 import { PaymentService } from '../payments/payment.service';
 import { recordToShopItemPayload, shopItemToRecord } from '../shop/shop.mapper';
+import { welcomeInputToRows, welcomeRowsToRecord } from '../welcome/welcome.mapper';
 import { StudentBalanceService } from '../students/student-balance.service';
 import { UsersRepository } from '../users/users.repository';
 import { EntityAccessService } from './entity-access.service';
@@ -73,12 +76,17 @@ export class EntityRepositoryService {
 
     const repo = this.getRepo(entity as CrmEntityName);
     const rows = await repo.find();
-    records =
-      entity === 'Payment'
-        ? rows.map((row) => paymentToRecord(row as PaymentEntity))
-        : entity === 'ShopSettings'
-          ? rows.map((row) => shopItemToRecord(row as ShopItemEntity))
-          : rows.map((row) => entityToRecord(row as Record<string, unknown>));
+    if (entity === 'WelcomePageSettings') {
+      const aggregated = welcomeRowsToRecord(rows as WelcomePageSettingEntity[]);
+      records = aggregated ? [aggregated] : [];
+    } else {
+      records =
+        entity === 'Payment'
+          ? rows.map((row) => paymentToRecord(row as PaymentEntity))
+          : entity === 'ShopSettings'
+            ? rows.map((row) => shopItemToRecord(row as ShopItemEntity))
+            : rows.map((row) => entityToRecord(row as Record<string, unknown>));
+    }
 
     if (context) {
       records = this.entityAccess.filterReadableRecords(entity, context, records);
@@ -136,6 +144,7 @@ export class EntityRepositoryService {
   ) {
     this.assertNotGenericUser(entity);
     this.entityAccess.assertCanCreatePayload(entity, context, input);
+    this.assertNoSensitiveFields(entity, input, context);
 
     if (entity === 'Payment') {
       return this.paymentService.create(input);
@@ -153,6 +162,10 @@ export class EntityRepositoryService {
       });
       const saved = await repo.save(row);
       return shopItemToRecord(saved as ShopItemEntity);
+    }
+
+    if (entity === 'WelcomePageSettings') {
+      return this.upsertWelcomePageSettings(input);
     }
 
     const repo = this.getRepo(entity as CrmEntityName);
@@ -179,6 +192,11 @@ export class EntityRepositoryService {
   ) {
     this.assertNotGenericUser(entity);
     this.entityAccess.assertCan(entity, 'update', context);
+    this.assertNoSensitiveFields(entity, input, context);
+
+    if (entity === 'WelcomePageSettings') {
+      return this.upsertWelcomePageSettings(input);
+    }
 
     const repo = this.getRepo(entity as CrmEntityName);
     const row = await repo.findOne({ where: { id } });
@@ -276,17 +294,63 @@ export class EntityRepositoryService {
     input: Record<string, unknown>,
     context: EntityAccessContext,
   ) {
-    if (normalizeRole(context.role) === 'admin') {
-      return;
-    }
+    const isSystem = context.userId === 'system';
+    const isAdmin = normalizeRole(context.role) === 'admin' || isSystem;
 
     for (const key of Object.keys(input)) {
-      if (USER_BLOCKED_UPDATE_FIELDS.has(key)) {
+      if (!isAdmin && USER_BLOCKED_UPDATE_FIELDS.has(key)) {
         throw new ForbiddenException(`Field "${key}" cannot be updated without admin role`);
+      }
+
+      if (
+        entity === 'Student' &&
+        !isAdmin &&
+        STUDENT_BALANCE_BLOCKED_FIELDS.has(key)
+      ) {
+        throw new ForbiddenException(
+          'lesson_balance can only be changed through payments or by an administrator',
+        );
+      }
+    }
+  }
+
+  private async upsertWelcomePageSettings(
+    input: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const repo = this.getRepo('WelcomePageSettings');
+    const now = new Date();
+
+    for (const partial of welcomeInputToRows(input)) {
+      const existing = await repo.findOne({
+        where: { key: partial.key as string },
+      });
+
+      if (existing) {
+        existing.value = partial.value as string;
+        existing.updatedDate = now;
+        await repo.save(existing);
+      } else {
+        await repo.save(
+          repo.create({
+            id: randomUUID(),
+            key: partial.key as string,
+            value: partial.value as string,
+            description: partial.description as string,
+            type: partial.type as string,
+            isActive: true,
+            createdDate: now,
+            updatedDate: now,
+          }),
+        );
       }
     }
 
-    void entity;
+    const rows = await repo.find();
+    const aggregated = welcomeRowsToRecord(rows as WelcomePageSettingEntity[]);
+    if (!aggregated) {
+      throw new NotFoundException('Welcome page settings could not be saved');
+    }
+    return aggregated;
   }
 
   private getRepo(entity: CrmEntityName): Repository<any> {

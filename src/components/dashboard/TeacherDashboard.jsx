@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { format, isToday, isTomorrow, parseISO, addDays } from "date-fns";
 import { CalendarDays, Clock, CheckCircle2, XCircle, Video } from "lucide-react";
 import StatCard from "./StatCard";
@@ -15,11 +15,11 @@ export default function TeacherDashboard({ user }) {
   }, []);
 
   const loadData = async () => {
-    const teachers = await base44.entities.Teacher.filter({ user_id: user?.id });
+    const teachers = await api.entities.Teacher.filter({ user_id: user?.id });
     const t = teachers[0];
     setTeacher(t);
     if (t) {
-      const ls = await base44.entities.Lesson.filter({ teacher_id: t.id });
+      const ls = await api.entities.Lesson.filter({ teacher_id: t.id });
       setLessons(ls);
     }
     setLoading(false);
@@ -27,31 +27,9 @@ export default function TeacherDashboard({ user }) {
 
   const markLesson = async (lesson, status) => {
     setUpdating(lesson.id);
-    await base44.entities.Lesson.update(lesson.id, { status });
-    if (status === "completed" || status === "missed_no_notice") {
-      const ids = lesson.student_ids?.length ? lesson.student_ids : lesson.student_id ? [lesson.student_id] : [];
-      await Promise.all(ids.map(async (sid) => {
-        try {
-          const arr = await base44.entities.Student.filter({ id: sid });
-          const student = arr[0];
-          if (student?.telegram_id) {
-            sendTelegramNotification(student.telegram_id, `✅ Урок завершён. Осталось уроков: ${student.lesson_balance ?? 0}`);
-          }
-        } catch (e) { /* student may have been deleted */ }
-      }));
-    }
+    await api.entities.Lesson.update(lesson.id, { status });
     await loadData();
     setUpdating(null);
-  };
-
-  const sendTelegramNotification = async (telegramId, message) => {
-    const botToken = localStorage.getItem("telegram_bot_token");
-    if (!botToken || !telegramId) return;
-    fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: telegramId, text: message }),
-    }).catch(() => {});
   };
 
   const todayLessons = lessons.filter(l => {

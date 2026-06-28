@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { Save, Plus, Trash2, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -25,7 +25,7 @@ export default function TeacherAvailabilityTab({ teacher }) {
   }, [teacher]);
 
   const loadAvailability = async () => {
-    const records = await base44.entities.TeacherAvailability.filter({ teacher_id: teacher.id });
+    const records = await api.entities.TeacherAvailability.filter({ teacher_id: teacher.id });
     if (records.length > 0) {
       setRecordId(records[0].id);
       // Rebuild slots array indexed by day
@@ -71,9 +71,9 @@ export default function TeacherAvailabilityTab({ teacher }) {
       });
     });
     if (recordId) {
-      await base44.entities.TeacherAvailability.update(recordId, { slots: flatSlots });
+      await api.entities.TeacherAvailability.update(recordId, { slots: flatSlots });
     } else {
-      const created = await base44.entities.TeacherAvailability.create({ teacher_id: teacher.id, slots: flatSlots });
+      const created = await api.entities.TeacherAvailability.create({ teacher_id: teacher.id, slots: flatSlots });
       setRecordId(created.id);
     }
     setSaving(false);

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { format, parseISO, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { Download, GraduationCap, DollarSign } from "lucide-react";
 
@@ -24,8 +24,8 @@ export default function Salary() {
 
   useEffect(() => {
     Promise.all([
-      base44.entities.Lesson.list("-date", 1000),
-      base44.entities.Teacher.list(),
+      api.entities.Lesson.list("-date", 1000),
+      api.entities.Teacher.list(),
     ]).then(([l, t]) => {
       setLessons(l); setTeachers(t); setLoading(false);
     });

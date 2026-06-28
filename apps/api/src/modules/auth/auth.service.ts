@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
-import { canSelfAssignRole } from '../../common/constants/roles';
 import { UsersRepository } from '../users/users.repository';
 import { userToRecord } from '../users/user.mapper';
 import { LoginDto } from './dto/login.dto';
@@ -76,10 +75,7 @@ export class AuthService {
     if (dto.telegram_id !== undefined) row.telegramId = dto.telegram_id;
 
     if (dto.role !== undefined) {
-      if (!canSelfAssignRole(row.role, dto.role)) {
-        throw new ForbiddenException('Role change is not allowed');
-      }
-      row.role = dto.role;
+      throw new ForbiddenException('Role changes must be made by an administrator');
     }
 
     row.updatedDate = new Date();

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { grantAccess } from "@/lib/materialAccess";
 import { X, Loader2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
   const [materials, setMaterials] = useState([]);
   const [students, setStudents] = useState([]);
   const [teachers, setTeachers] = useState([]);
+  const [teacherEntityId, setTeacherEntityId] = useState(null);
   const [selectedMaterials, setSelectedMaterials] = useState(new Set(materialIds));
   const [selectedUsers, setSelectedUsers] = useState(new Set());
 
@@ -22,14 +23,18 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
 
   const loadData = async () => {
     const [mats, sts, trs] = await Promise.all([
-      base44.entities.LessonMaterial.list(),
-      base44.entities.Student.list(),
-      base44.entities.Teacher.list(),
+      api.entities.LessonMaterial.list(),
+      api.entities.Student.list(),
+      api.entities.Teacher.list(),
     ]);
 
     setMaterials(mats);
     setStudents(sts);
     setTeachers(trs);
+    if (user?.role === "teacher") {
+      const ownTeacher = trs.find((t) => t.user_id === user.id);
+      setTeacherEntityId(ownTeacher?.id ?? null);
+    }
     setLoading(false);
   };
 
@@ -84,7 +89,7 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
   };
 
   const visibleStudents = user?.role === "teacher"
-    ? students.filter(s => s.assigned_teacher === user.id)
+    ? students.filter((s) => s.assigned_teacher === teacherEntityId)
     : students;
 
   if (loading) {

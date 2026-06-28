@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { hasAccessToMaterial } from "@/lib/materialAccess";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,14 +25,14 @@ export default function StudentLessonMaterials() {
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
-    const me = await base44.auth.me();
-    const myStudents = await base44.entities.Student.filter({ user_id: me.id });
+    const me = await api.auth.me();
+    const myStudents = await api.entities.Student.filter({ user_id: me.id });
     const s = myStudents[0];
     if (!s) { setLoading(false); return; }
     setStudent(s);
 
     // Материалы из завершённых уроков
-    const allLessons = await base44.entities.Lesson.list("-date", 200);
+    const allLessons = await api.entities.Lesson.list("-date", 200);
     const myCompleted = allLessons.filter(l =>
       (l.student_id === s.id || (l.student_ids || []).includes(s.id)) &&
       l.status === "completed" &&
@@ -44,7 +44,7 @@ export default function StudentLessonMaterials() {
     const allMaterialIds = myCompleted.flatMap(l => l.material_ids || []);
     
     if (allMaterialIds.length > 0) {
-      const allMats = await base44.entities.LessonMaterial.list("-created_date", 500);
+      const allMats = await api.entities.LessonMaterial.list("-created_date", 500);
       
       // Фильтруем по доступу
       const accessibleMats = [];

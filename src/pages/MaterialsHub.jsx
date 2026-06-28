@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { hasAccessToMaterial } from "@/lib/materialAccess";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -47,12 +47,12 @@ export default function MaterialsHub() {
   }, []);
 
   const loadData = async () => {
-    const me = await base44.auth.me();
+    const me = await api.auth.me();
     setUser(me);
 
     const [allMats, c] = await Promise.all([
-      base44.entities.LessonMaterial.list("-created_date"),
-      base44.entities.Course.list(),
+      api.entities.LessonMaterial.list("-created_date"),
+      api.entities.Course.list(),
     ]);
 
     // Если учитель - фильтруем по доступу
@@ -85,9 +85,9 @@ export default function MaterialsHub() {
     setLoading(true);
     try {
       if (editingCourse) {
-        await base44.entities.Course.update(editingCourse.id, courseFormData);
+        await api.entities.Course.update(editingCourse.id, courseFormData);
       } else {
-        await base44.entities.Course.create(courseFormData);
+        await api.entities.Course.create(courseFormData);
       }
       setShowCourseForm(false);
       setEditingCourse(null);
@@ -115,10 +115,10 @@ export default function MaterialsHub() {
     if (!confirm("Удалить курс? Материалы в этом курсе также будут удалены.")) return;
     setDeleting(id);
     try {
-      await base44.entities.Course.delete(id);
+      await api.entities.Course.delete(id);
       const matsToDelete = materials.filter(m => m.course_id === id);
       for (const mat of matsToDelete) {
-        await base44.entities.LessonMaterial.delete(mat.id);
+        await api.entities.LessonMaterial.delete(mat.id);
       }
       await loadData();
     } catch (err) {
@@ -149,7 +149,7 @@ export default function MaterialsHub() {
     if (!confirm("Удалить материал?")) return;
     setDeleting(matId);
     try {
-      await base44.entities.LessonMaterial.delete(matId);
+      await api.entities.LessonMaterial.delete(matId);
       await loadData();
     } catch (err) {
       console.error("Delete error:", err);

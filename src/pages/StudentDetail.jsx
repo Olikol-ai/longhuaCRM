@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,10 +48,10 @@ export default function StudentDetail() {
 
   const loadData = async () => {
     const [allStudents, allLessons, allPayments, allTeachers] = await Promise.all([
-      base44.entities.Student.list(),
-      base44.entities.Lesson.list("-date", 200),
-      base44.entities.Payment.list("-payment_date", 200),
-      base44.entities.Teacher.list(),
+      api.entities.Student.list(),
+      api.entities.Lesson.list("-date", 200),
+      api.entities.Payment.list("-payment_date", 200),
+      api.entities.Teacher.list(),
     ]);
 
     const s = allStudents.find((x) => x.id === studentId);

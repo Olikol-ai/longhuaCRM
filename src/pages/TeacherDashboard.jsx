@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import MaterialPickerDialog from "@/components/materials/MaterialPickerDialog";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
+import { useAuth } from '@/lib/AuthContext';
 import { format } from "date-fns";
 import { Calendar, CheckCircle2, XCircle, Clock, Loader2, Sun, Moon } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
@@ -20,7 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export default function TeacherDashboard() {
-  const [user, setUser] = useState(null);
+  const { user } = useAuth();
   const [teacher, setTeacher] = useState(null);
   const [lessons, setLessons] = useState([]);
   const [students, setStudents] = useState([]);
@@ -29,47 +30,37 @@ export default function TeacherDashboard() {
   const [showMaterialPicker, setShowMaterialPicker] = useState(false);
   const { theme, toggleTheme } = useTheme();
 
-  useEffect(() => { loadData(); }, []);
-
   const loadData = async () => {
-    const me = await base44.auth.me();
-    setUser(me);
+    if (!user) return;
     const [allTeachers, allLessons, allStudents] = await Promise.all([
-      base44.entities.Teacher.list(),
-      base44.entities.Lesson.list("-date", 200),
-      base44.entities.Student.list(),
+      api.entities.Teacher.list(),
+      api.entities.Lesson.list("-date", 200),
+      api.entities.Student.list(),
     ]);
-    const t = allTeachers.find((x) => x.user_id === me.id || x.email === me.email);
+    const t = allTeachers.find((x) => x.user_id === user.id || x.email === user.email);
     setTeacher(t);
     if (t) {
       setLessons(allLessons.filter((l) => l.teacher_id === t.id));
+      setStudents(allStudents.filter((s) => s.assigned_teacher === t.id));
+    } else {
+      setLessons([]);
+      setStudents([]);
     }
-    setStudents(allStudents);
     setLoading(false);
   };
 
+  useEffect(() => {
+    if (user) loadData();
+  }, [user]);
+
   const handleMarkComplete = async (lesson, materialIds = []) => {
-    await base44.entities.Lesson.update(lesson.id, { status: "completed", material_ids: materialIds });
-    const ids = lesson.student_ids?.length ? lesson.student_ids : lesson.student_id ? [lesson.student_id] : [];
-    for (const sid of ids) {
-      const arr = await base44.entities.Student.filter({ id: sid });
-      const student = arr[0];
-      if (student?.telegram_id) {
-        const newBalance = student.lesson_balance ?? 0;
-        const msg = `✅ Урок завершён!\n\n📅 ${lesson.date} в ${lesson.start_time}\n💡 Осталось уроков: ${newBalance}`;
-        base44.functions.invoke("sendTelegramMessage", { chat_id: student.telegram_id, text: msg }).catch(() => {});
-        if (newBalance === 0) {
-          const balMsg = `⚠️ Баланс уроков исчерпан!\n\nТекущий урок (${lesson.date} в ${lesson.start_time}) не оплачен — на вашем счёте 0 уроков.\n\nПожалуйста, пополните баланс, чтобы продолжить занятия. Свяжитесь с администратором.`;
-          base44.functions.invoke("sendTelegramMessage", { chat_id: student.telegram_id, text: balMsg }).catch(() => {});
-        }
-      }
-    }
+    await api.entities.Lesson.update(lesson.id, { status: "completed", material_ids: materialIds });
     setConfirmAction(null);
     loadData();
   };
 
   const handleMarkCancelled = async (lesson) => {
-    await base44.entities.Lesson.update(lesson.id, { status: "cancelled" });
+    await api.entities.Lesson.update(lesson.id, { status: "cancelled" });
     setConfirmAction(null);
     loadData();
   };

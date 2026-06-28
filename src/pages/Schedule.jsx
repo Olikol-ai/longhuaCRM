@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { useAuth } from "@/lib/AuthContext";
 import {
   format, startOfWeek, endOfWeek, startOfMonth, endOfMonth,
@@ -24,9 +24,9 @@ export default function Schedule() {
 
   const load = async () => {
     const [l, t, s] = await Promise.all([
-      base44.entities.Lesson.list("-date", 500),
-      base44.entities.Teacher.list(),
-      base44.entities.Student.list(),
+      api.entities.Lesson.list("-date", 500),
+      api.entities.Teacher.list(),
+      api.entities.Student.list(),
     ]);
     setLessons(l);
     setTeachers(t);
@@ -58,23 +58,23 @@ export default function Schedule() {
       }
       const groupId = Date.now().toString();
       await Promise.all(dates.map(date =>
-        base44.entities.Lesson.create({ ...data, date, is_recurring: true, recurring_group_id: groupId })
+        api.entities.Lesson.create({ ...data, date, is_recurring: true, recurring_group_id: groupId })
       ));
     } else {
-      await base44.entities.Lesson.create(data);
+      await api.entities.Lesson.create(data);
     }
     setShowModal(false);
     load();
   };
 
   const handleUpdate = async (id, data) => {
-    await base44.entities.Lesson.update(id, data);
+    await api.entities.Lesson.update(id, data);
     setViewingLesson(null);
     load();
   };
 
   const handleDelete = async (id) => {
-    await base44.entities.Lesson.delete(id);
+    await api.entities.Lesson.delete(id);
     setViewingLesson(null);
     load();
   };

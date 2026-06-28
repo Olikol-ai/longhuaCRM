@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -71,10 +71,10 @@ export default function StudentLessons() {
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
-    const me = await base44.auth.me();
+    const me = await api.auth.me();
     const [allStudents, allLessons] = await Promise.all([
-      base44.entities.Student.list(),
-      base44.entities.Lesson.list("-date", 300),
+      api.entities.Student.list(),
+      api.entities.Lesson.list("-date", 300),
     ]);
     const student = allStudents.find((s) => s.user_id === me.id || s.email === me.email);
     if (student) {

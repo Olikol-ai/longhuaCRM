@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { Loader2, Save, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -22,7 +22,7 @@ export default function WelcomePageEditor() {
   useEffect(() => { loadSettings(); }, []);
 
   const loadSettings = async () => {
-    const data = await base44.entities.WelcomePageSettings.list();
+    const data = await api.entities.WelcomePageSettings.list();
     if (data.length > 0) {
       setRecord(data[0]);
       setForm({ ...DEFAULTS, ...data[0] });
@@ -35,9 +35,9 @@ export default function WelcomePageEditor() {
   const handleSave = async () => {
     setSaving(true);
     if (record) {
-      await base44.entities.WelcomePageSettings.update(record.id, form);
+      await api.entities.WelcomePageSettings.update(record.id, form);
     } else {
-      const created = await base44.entities.WelcomePageSettings.create(form);
+      const created = await api.entities.WelcomePageSettings.create(form);
       setRecord(created);
     }
     setSaving(false);

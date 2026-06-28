@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { Download, Users, CreditCard, BookOpen, TrendingUp, FileText } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
@@ -21,10 +21,10 @@ export default function ExportData() {
 
   useEffect(() => {
     Promise.all([
-      base44.entities.Student.list(),
-      base44.entities.Payment.list("-payment_date", 1000),
-      base44.entities.Lesson.list("-date", 2000),
-      base44.entities.Teacher.list(),
+      api.entities.Student.list(),
+      api.entities.Payment.list("-payment_date", 1000),
+      api.entities.Lesson.list("-date", 2000),
+      api.entities.Teacher.list(),
     ]).then(([s, p, l, t]) => {
       setStudents(s); setPayments(p); setLessons(l); setTeachers(t);
       setLoading(false);

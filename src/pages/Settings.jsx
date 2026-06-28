@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { useAuth } from "@/lib/AuthContext";
 import { User, Shield, Sun, Moon, Download, Loader2 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
@@ -12,7 +12,7 @@ export default function Settings() {
   const handleExport = async () => {
     setExporting(true);
     try {
-      const response = await base44.functions.invoke('exportBackup', {});
+      const response = await api.functions.invoke('exportBackup', {});
       const base64Data = response.data.data;
       const jsonData = atob(base64Data);
       const blob = new Blob([jsonData], { type: 'application/json' });

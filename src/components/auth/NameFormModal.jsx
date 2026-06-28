@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ export default function NameFormModal({ user, onSave }) {
 
     setSaving(true);
     try {
-      await base44.auth.updateMe({
+      await api.auth.updateMe({
         first_name: firstName.trim(),
         last_name: lastName.trim(),
       });

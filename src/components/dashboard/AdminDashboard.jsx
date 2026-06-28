@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from '@/api';
 import { format, isToday, isTomorrow, parseISO, differenceInDays } from "date-fns";
 import { CalendarDays, Users, GraduationCap, AlertCircle, Clock, TrendingUp, ArrowRight, Cake } from "lucide-react";
 import StatCard from "./StatCard";
@@ -16,10 +16,10 @@ export default function AdminDashboard({ user }) {
 
   useEffect(() => {
     Promise.all([
-      base44.entities.Lesson.list("-date", 200),
-      base44.entities.Student.list(),
-      base44.entities.Teacher.list(),
-      base44.entities.Payment.list("-payment_date", 100),
+      api.entities.Lesson.list("-date", 200),
+      api.entities.Student.list(),
+      api.entities.Teacher.list(),
+      api.entities.Payment.list("-payment_date", 100),
     ]).then(([l, s, t, p]) => {
       setLessons(l);
       setStudents(s);
