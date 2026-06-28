@@ -1,8 +1,9 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
+import { canSelfAssignRole } from '../../common/constants/roles';
 import { UsersRepository } from '../users/users.repository';
 import { userToRecord } from '../users/user.mapper';
 import { LoginDto } from './dto/login.dto';
@@ -61,7 +62,8 @@ export class AuthService {
   async getMe(userId: string) {
     const row = await this.usersRepository.findById(userId);
     if (!row) throw new UnauthorizedException('User not found');
-    return userToRecord(row);
+    const user = userToRecord(row);
+    return { ...user, token: this.signToken(user) };
   }
 
   async updateMe(userId: string, dto: UpdateMeDto) {
@@ -72,11 +74,19 @@ export class AuthService {
     if (dto.last_name !== undefined) row.lastName = dto.last_name;
     if (dto.phone !== undefined) row.phone = dto.phone;
     if (dto.telegram_id !== undefined) row.telegramId = dto.telegram_id;
-    if (dto.role !== undefined) row.role = dto.role;
+
+    if (dto.role !== undefined) {
+      if (!canSelfAssignRole(row.role, dto.role)) {
+        throw new ForbiddenException('Role change is not allowed');
+      }
+      row.role = dto.role;
+    }
+
     row.updatedDate = new Date();
 
     const saved = await this.usersRepository.save(row);
-    return userToRecord(saved);
+    const user = userToRecord(saved);
+    return { ...user, token: this.signToken(user) };
   }
 
   signToken(user: Record<string, unknown>): string {

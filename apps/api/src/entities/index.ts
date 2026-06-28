@@ -14,7 +14,7 @@ import {
   TeacherAvailabilityEntity,
   AlfaBankOrderEntity,
   AppSettingEntity,
-  ShopSettingEntity,
+  ShopItemEntity,
   WelcomePageSettingEntity,
 } from './crm.entities';
 
@@ -37,6 +37,6 @@ export const ALL_ENTITIES = [
   TeacherAvailabilityEntity,
   AlfaBankOrderEntity,
   AppSettingEntity,
-  ShopSettingEntity,
+  ShopItemEntity,
   WelcomePageSettingEntity,
 ];

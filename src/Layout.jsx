@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
 import { createPageUrl } from "@/utils";
 import {
   LayoutDashboard,
@@ -18,9 +17,9 @@ import {
   Layers,
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
+import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
 
 const adminNav = [
   { name: "Главная", icon: LayoutDashboard, page: "Dashboard" },
@@ -48,30 +47,12 @@ const studentNav = [
 ];
 
 export default function Layout({ children, currentPageName }) {
-  const [user, setUser] = useState(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const { user, isLoadingAuth, isAuthenticated, logout } = useAuth();
 
-  useEffect(() => {
-    loadUser();
-  }, [location.pathname]);
-
-  const loadUser = async () => {
-    try {
-      const me = await base44.auth.me();
-      // Убедимся что это текущий пользователь, а не чужие данные
-      if (me && me.id) {
-        setUser(me);
-      }
-    } catch (e) {
-      // not logged in
-    }
-    setLoading(false);
-  };
-
-  if (loading) {
+  if (isLoadingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
@@ -82,7 +63,7 @@ export default function Layout({ children, currentPageName }) {
     );
   }
 
-  if (!user) {
+  if (!isAuthenticated || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-6 p-8">
@@ -91,8 +72,8 @@ export default function Layout({ children, currentPageName }) {
             <h1 className="text-3xl font-bold text-foreground tracking-tight">Longhua Chinese</h1>
           </div>
           <p className="text-muted-foreground max-w-sm">Платформа управления языковой школой</p>
-          <Button 
-            onClick={() => window.location.href = '/login'} 
+          <Button
+            onClick={() => { window.location.href = '/login'; }}
             className="bg-indigo-600 hover:bg-indigo-700 px-8 py-3 text-base"
           >
             Войти
@@ -104,35 +85,27 @@ export default function Layout({ children, currentPageName }) {
 
   const role = user.role || "pending";
 
-  // Redirect pending/user roles to Welcome page (unless already there)
   if ((role === "pending" || role === "user") && currentPageName !== "Welcome") {
     navigate(createPageUrl("Welcome"), { replace: true });
     return null;
   }
 
-  // If on Welcome page but has a real role, redirect to correct dashboard
   if (currentPageName === "Welcome" && role !== "pending" && role !== "user") {
     const dest = role === "admin" ? "Dashboard" : role === "teacher" ? "TeacherDashboard" : "StudentDashboard";
     navigate(createPageUrl(dest), { replace: true });
     return null;
   }
 
-  // Students should never see the generic Dashboard page
   if (role === "student" && currentPageName === "Dashboard") {
     navigate(createPageUrl("StudentDashboard"), { replace: true });
     return null;
   }
 
-  // Welcome page renders without sidebar
   if (currentPageName === "Welcome") {
     return <>{children}</>;
   }
 
   const navItems = role === "admin" ? adminNav : role === "teacher" ? teacherNav : studentNav;
-
-  const handleLogout = () => {
-    base44.auth.logout();
-  };
 
   const fullName = user?.full_name || user?.email || "User";
 
@@ -145,40 +118,40 @@ export default function Layout({ children, currentPageName }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex">
-      {/* Mobile overlay */}
       {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/30 z-40 lg:hidden" 
-          onClick={() => setSidebarOpen(false)} 
+        <div
+          className="fixed inset-0 bg-black/30 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
       <aside className={`
        fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-700
        transform transition-transform duration-200 ease-in-out
        ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0
        flex flex-col
       `}>
-        {/* Logo */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-2.5">
-            <div 
-              className="h-8 w-8 rounded-lg flex items-center justify-center"
-              style={{
-                backgroundColor: theme === "dark" ? "rgb(30, 41, 59)" : "rgb(241, 245, 249)"
-              }}
-            >
-              <img src="https://media.base44.com/images/public/69bacd41b4a832923ba54bb2/242d03ba1_generated_image.png" alt="dragon" className="h-8 w-8 object-contain" />
+            <div className="h-8 w-8 rounded-lg flex items-center justify-center bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
+              <BookOpen className="h-5 w-5" />
             </div>
             <span className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">Longhua</span>
           </div>
-          <button className="lg:hidden text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-white" onClick={() => setSidebarOpen(false)}>
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={toggleTheme}
+              className="hidden lg:flex p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title="Переключить тему"
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+            <button className="lg:hidden text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-white" onClick={() => setSidebarOpen(false)}>
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = currentPageName === item.page;
@@ -189,8 +162,8 @@ export default function Layout({ children, currentPageName }) {
                 onClick={() => setSidebarOpen(false)}
                 className={`
                   flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
-                  ${isActive 
-                    ? "bg-indigo-600 text-white" 
+                  ${isActive
+                    ? "bg-indigo-600 text-white"
                     : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                   }
                 `}
@@ -203,7 +176,6 @@ export default function Layout({ children, currentPageName }) {
           })}
         </nav>
 
-        {/* User section */}
         <div className="border-t border-slate-200 dark:border-slate-800 p-3">
           <div className="flex items-center gap-3 px-3 py-2">
             <Avatar className="h-8 w-8">
@@ -217,16 +189,14 @@ export default function Layout({ children, currentPageName }) {
                 {role === "admin" ? "Администратор" : role === "teacher" ? "Преподаватель" : role === "student" ? "Ученик" : "Ожидает роли"}
               </p>
             </div>
-            <button onClick={handleLogout} className="text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
+            <button onClick={logout} className="text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
               <LogOut className="h-4 w-4" />
             </button>
           </div>
         </div>
       </aside>
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar - mobile */}
         <header className="lg:hidden h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 sticky top-0 z-30">
           <div className="flex items-center gap-2">
             <button onClick={() => setSidebarOpen(true)} className="text-slate-600 dark:text-slate-400">
@@ -239,7 +209,6 @@ export default function Layout({ children, currentPageName }) {
           </button>
         </header>
 
-        {/* Page content */}
         <main className="flex-1 overflow-auto">
           {children}
         </main>

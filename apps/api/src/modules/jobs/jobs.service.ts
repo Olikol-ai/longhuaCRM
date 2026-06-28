@@ -26,7 +26,8 @@ export class JobsService {
   }
 
   async autoCompleteExpiredLessons() {
-    const lessons = (await this.entityRepository.filter('Lesson', { status: 'planned' })).slice(0, 1000);
+    const ctx = this.entityRepository.getSystemContext();
+    const lessons = (await this.entityRepository.filter('Lesson', { status: 'planned' }, ctx)).slice(0, 1000);
     const now = new Date();
     let count = 0;
 
@@ -35,7 +36,7 @@ export class JobsService {
       const [hours, minutes] = String(lesson.start_time || '00:00').split(':').map(Number);
       const endTime = new Date(year, month - 1, day, hours, minutes + ((lesson.duration as number) || 60));
       if (endTime < now) {
-        await this.entityRepository.update('Lesson', String(lesson.id), { status: 'completed' });
+        await this.entityRepository.update('Lesson', String(lesson.id), { status: 'completed' }, ctx);
         count++;
       }
     }
@@ -52,25 +53,26 @@ export class JobsService {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
+    const ctx = this.entityRepository.getSystemContext();
     const allTomorrow = await this.entityRepository.filter('Lesson', {
       date: tomorrowStr,
       status: 'planned',
-    });
+    }, ctx);
     const lessons = allTomorrow.filter((l) => !l.reminder_24h_sent);
 
     if (lessons.length === 0) {
       return { ok: true, sent: 0, message: 'No lessons tomorrow' };
     }
 
-    const students = await this.entityRepository.list('Student');
-    const teachers = await this.entityRepository.list('Teacher');
+    const students = await this.entityRepository.list('Student', ctx);
+    const teachers = await this.entityRepository.list('Teacher', ctx);
     const studentMap = Object.fromEntries(students.map((s) => [s.id, s]));
     const teacherMap = Object.fromEntries(teachers.map((t) => [t.id, t]));
 
     let sentCount = 0;
 
     for (const lesson of lessons) {
-      await this.entityRepository.update('Lesson', String(lesson.id), { reminder_24h_sent: true });
+      await this.entityRepository.update('Lesson', String(lesson.id), { reminder_24h_sent: true }, ctx);
 
       const teacher = teacherMap[String(lesson.teacher_id)];
       const studentIds = this.resolveStudentIds(lesson);
@@ -110,7 +112,8 @@ export class JobsService {
     if (!botToken) return { ok: false, error: 'TELEGRAM_BOT_TOKEN not set' };
 
     const mskNow = this.getTimezoneNow();
-    const planned = await this.entityRepository.filter('Lesson', { status: 'planned' });
+    const ctx = this.entityRepository.getSystemContext();
+    const planned = await this.entityRepository.filter('Lesson', { status: 'planned' }, ctx);
 
     const lessons = planned.filter((lesson) => {
       if (lesson.reminder_2h_sent) return false;
@@ -121,15 +124,15 @@ export class JobsService {
       return diffMin >= 110 && diffMin <= 125;
     });
 
-    const students = await this.entityRepository.list('Student');
-    const teachers = await this.entityRepository.list('Teacher');
+    const students = await this.entityRepository.list('Student', ctx);
+    const teachers = await this.entityRepository.list('Teacher', ctx);
     const studentMap = Object.fromEntries(students.map((s) => [s.id, s]));
     const teacherMap = Object.fromEntries(teachers.map((t) => [t.id, t]));
 
     let sentCount = 0;
 
     for (const lesson of lessons) {
-      await this.entityRepository.update('Lesson', String(lesson.id), { reminder_2h_sent: true });
+      await this.entityRepository.update('Lesson', String(lesson.id), { reminder_2h_sent: true }, ctx);
 
       const teacher = teacherMap[String(lesson.teacher_id)];
       const studentIds = this.resolveStudentIds(lesson);
@@ -151,9 +154,11 @@ export class JobsService {
     const backup: Record<string, unknown> = {};
     let totalRecords = 0;
 
+    const ctx = this.entityRepository.getSystemContext();
+
     for (const entity of entities) {
       try {
-        const records = await this.entityRepository.list(entity, undefined, 1000);
+        const records = await this.entityRepository.list(entity, ctx, undefined, 1000);
         backup[entity] = records || [];
         totalRecords += records.length;
       } catch {
@@ -179,7 +184,8 @@ export class JobsService {
   }
 
   async revokeAllAccess() {
-    const all = await this.entityRepository.list('MaterialAccess');
+    const ctx = this.entityRepository.getSystemContext();
+    const all = await this.entityRepository.list('MaterialAccess', ctx);
     const toDelete = all.filter((a) => a.granted_by_role !== 'ADMIN');
     for (const record of toDelete) {
       await this.entityRepository.deleteRecordById(String(record.id));

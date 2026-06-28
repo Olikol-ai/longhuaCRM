@@ -50,20 +50,17 @@ export default function TeacherDashboard() {
 
   const handleMarkComplete = async (lesson, materialIds = []) => {
     await base44.entities.Lesson.update(lesson.id, { status: "completed", material_ids: materialIds });
-    // Decrease student balance + send Telegram
     const ids = lesson.student_ids?.length ? lesson.student_ids : lesson.student_id ? [lesson.student_id] : [];
     for (const sid of ids) {
-      const student = students.find((s) => s.id === sid);
-      if (student) {
-        const newBalance = Math.max(0, (student.lesson_balance || 0) - 1);
-        await base44.entities.Student.update(student.id, { lesson_balance: newBalance });
-        if (student.telegram_id) {
-          const msg = `✅ Урок завершён!\n\n📅 ${lesson.date} в ${lesson.start_time}\n💡 Осталось уроков: ${newBalance}`;
-          base44.functions.invoke("sendTelegramMessage", { chat_id: student.telegram_id, text: msg }).catch(() => {});
-          if (newBalance === 0) {
-            const balMsg = `⚠️ Баланс уроков исчерпан!\n\nТекущий урок (${lesson.date} в ${lesson.start_time}) не оплачен — на вашем счёте 0 уроков.\n\nПожалуйста, пополните баланс, чтобы продолжить занятия. Свяжитесь с администратором.`;
-            base44.functions.invoke("sendTelegramMessage", { chat_id: student.telegram_id, text: balMsg }).catch(() => {});
-          }
+      const arr = await base44.entities.Student.filter({ id: sid });
+      const student = arr[0];
+      if (student?.telegram_id) {
+        const newBalance = student.lesson_balance ?? 0;
+        const msg = `✅ Урок завершён!\n\n📅 ${lesson.date} в ${lesson.start_time}\n💡 Осталось уроков: ${newBalance}`;
+        base44.functions.invoke("sendTelegramMessage", { chat_id: student.telegram_id, text: msg }).catch(() => {});
+        if (newBalance === 0) {
+          const balMsg = `⚠️ Баланс уроков исчерпан!\n\nТекущий урок (${lesson.date} в ${lesson.start_time}) не оплачен — на вашем счёте 0 уроков.\n\nПожалуйста, пополните баланс, чтобы продолжить занятия. Свяжитесь с администратором.`;
+          base44.functions.invoke("sendTelegramMessage", { chat_id: student.telegram_id, text: balMsg }).catch(() => {});
         }
       }
     }

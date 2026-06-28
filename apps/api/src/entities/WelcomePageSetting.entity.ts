@@ -23,7 +23,7 @@ import {
     @Column({ type: 'text', nullable: true })
     type: string; // string | number | boolean | json
   
-    @Column({ type: 'boolean', default: true })
+    @Column({ name: 'is_active', type: 'boolean', default: true })
     isActive: boolean;
   
     @CreateDateColumn({ name: 'created_date', type: 'timestamptz' })

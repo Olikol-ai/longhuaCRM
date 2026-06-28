@@ -1,14 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { EntityRepositoryService } from '../entities/entity-repository.service';
+import { PaymentService } from '../payments/payment.service';
 import { SettingsService } from '../settings/settings.service';
 import { TelegramService } from '../telegram/telegram.service';
 
 @Injectable()
 export class AlfaBankService {
+  private readonly logger = new Logger(AlfaBankService.name);
+
   constructor(
     private readonly entityRepository: EntityRepositoryService,
+    private readonly paymentService: PaymentService,
     private readonly settingsService: SettingsService,
     private readonly telegramService: TelegramService,
     private readonly config: ConfigService,
@@ -22,12 +26,13 @@ export class AlfaBankService {
     returnUrl?: string;
     origin?: string;
   }) {
+    const ctx = this.entityRepository.getSystemContext();
     const { token: alfaToken, merchantId: alfaMerchantId } = await this.settingsService.getAlfaCredentials();
     if (!alfaToken || !alfaMerchantId) {
       throw new Error('Alfa Bank credentials not configured');
     }
 
-    const shopItems = await this.entityRepository.filter('ShopSettings', { item_id: params.itemId });
+    const shopItems = await this.entityRepository.filter('ShopSettings', { item_id: params.itemId }, ctx);
     const shopItem = shopItems[0];
     const lessonsAdded = (shopItem?.lessons as number) || 0;
     const orderNumber = `ALF-${Date.now()}`;
@@ -40,9 +45,11 @@ export class AlfaBankService {
       payment_date: new Date().toISOString().split('T')[0],
       comment: `Pending Alfa Bank - Order ${orderNumber}`,
       order_number: orderNumber,
-    });
+      status: 'pending',
+      provider: 'alfa_bank',
+    }, ctx);
 
-    const apiUrl = this.config.get<string>('alfaBank.apiUrl');
+    const apiUrl = this.config.get('alfaBank.apiUrl');
     const alfaPayload = {
       userName: alfaMerchantId,
       password: alfaToken,
@@ -72,7 +79,8 @@ export class AlfaBankService {
 
     await this.entityRepository.update('Payment', String(payment.id), {
       comment: `Alfa Bank - orderId: ${alfaData.orderId} - ${orderNumber}`,
-    });
+      external_id: String(alfaData.orderId),
+    }, ctx);
 
     return {
       ok: true,
@@ -85,7 +93,10 @@ export class AlfaBankService {
   async handleWebhook(bodyText: string): Promise<string> {
     const params = new URLSearchParams(bodyText);
     const { token: alfaToken } = await this.settingsService.getAlfaCredentials();
-    if (!alfaToken) return '0';
+    if (!alfaToken) {
+      this.logger.warn('AlfaBank webhook rejected: credentials not configured');
+      throw new ForbiddenException('Alfa Bank not configured');
+    }
 
     const orderId = params.get('orderId');
     const orderNumber = params.get('orderNumber');
@@ -93,60 +104,41 @@ export class AlfaBankService {
     const status = params.get('status');
     const checksum = params.get('checksum');
 
-    if (!orderId || !orderNumber || status !== '1') return '0';
+    if (!orderId || !orderNumber || status !== '1') {
+      return '0';
+    }
 
     const expectedChecksum = crypto
       .createHash('md5')
       .update(`${orderId};${params.get('amount')};810;${alfaToken}`)
       .digest('hex');
 
-    if (checksum !== expectedChecksum) return '0';
+    if (checksum !== expectedChecksum) {
+      this.logger.warn(
+        `AlfaBank webhook rejected: invalid checksum for order ${orderNumber}`,
+      );
+      throw new ForbiddenException('Invalid AlfaBank webhook signature');
+    }
 
-    const payments = await this.entityRepository.filter('Payment', {
-      comment: { $contains: orderNumber },
-    });
-    if (payments.length === 0) return '0';
-
-    const payment = payments[0];
-    const studentId = payment.student_id as string;
-    const type = payment.package_type as string;
-
-    await this.entityRepository.update('Payment', String(payment.id), {
+    const result = await this.paymentService.markPaidFromWebhook({
+      orderNumber,
+      externalOrderId: orderId,
       comment: `Оплачено через Alfa Bank - ${orderId}`,
     });
 
-    if (type === 'package') {
-      const students = await this.entityRepository.filter('Student', { id: studentId });
-      if (students.length > 0) {
-        const student = students[0];
-        const lessonsAdded = (payment.lessons_added as number) || 0;
-        const newBalance = ((student.lesson_balance as number) || 0) + lessonsAdded;
-        await this.entityRepository.update('Student', studentId, { lesson_balance: newBalance });
+    if (!result.applied) {
+      this.logger.warn(`AlfaBank webhook: payment not found for order ${orderNumber}`);
+      throw new NotFoundException('Payment not found');
+    }
 
-        if (student.telegram_id) {
-          const msg = `✅ Платёж успешно обработан!\n\n💳 Сумма: ${amount.toFixed(2)} BYN\n📚 Уроков добавлено: ${lessonsAdded}\n💡 Новый баланс: ${newBalance} уроков`;
-          this.telegramService.sendMessage(String(student.telegram_id), msg).catch(() => undefined);
-        }
-      }
-    } else if (type === 'course') {
-      const students = await this.entityRepository.filter('Student', { id: studentId });
-      if (students.length > 0) {
-        const student = students[0];
-        await this.entityRepository.create('Course', {
-          student_id: studentId,
-          student_name: student.name,
-          course_type: String(payment.comment || '').includes('basic') ? 'basic_beginner' : 'advanced',
-          course_name: payment.comment || 'Курс',
-          total_lessons: 35,
-          completed_lessons: 0,
-          start_date: new Date().toISOString().split('T')[0],
-          status: 'active',
-        });
-
-        if (student.telegram_id) {
-          const msg = `✅ Курс успешно активирован!\n\n📚 Тип: Групповой курс\n💳 Сумма: ${amount.toFixed(2)} BYN\n🎓 Всего занятий: 35 часов`;
-          this.telegramService.sendMessage(String(student.telegram_id), msg).catch(() => undefined);
-        }
+    const student = result.student;
+    if (student?.telegramId) {
+      if (result.packageType === 'package') {
+        const msg = `✅ Платёж успешно обработан!\n\n💳 Сумма: ${amount.toFixed(2)} BYN\n📚 Уроков добавлено: ${result.lessonsAdded ?? 0}\n💡 Новый баланс: ${student.lessonBalance} уроков`;
+        this.telegramService.sendMessage(String(student.telegramId), msg).catch(() => undefined);
+      } else if (result.packageType === 'course') {
+        const msg = `✅ Курс успешно активирован!\n\n📚 Тип: Групповой курс\n💳 Сумма: ${amount.toFixed(2)} BYN\n🎓 Всего занятий: 35 часов`;
+        this.telegramService.sendMessage(String(student.telegramId), msg).catch(() => undefined);
       }
     }
 
@@ -157,7 +149,7 @@ export class AlfaBankService {
     const { token: alfaToken, merchantId } = await this.settingsService.getAlfaCredentials();
     if (!alfaToken || !merchantId) throw new Error('Alfa Bank credentials not configured');
 
-    const apiUrl = this.config.get<string>('alfaBank.apiUrl');
+    const apiUrl = this.config.get('alfaBank.apiUrl');
     const res = await fetch(`${apiUrl}/getOrderStatusExtended.do`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

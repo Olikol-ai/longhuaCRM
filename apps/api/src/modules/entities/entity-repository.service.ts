@@ -1,126 +1,98 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { randomUUID } from 'crypto';
-import { Repository } from 'typeorm';
-import { ENTITY_NAMES, EntityName } from '../../common/constants/entity-names';
 import {
-  AlfaBankOrderEntity,
-  AppSettingEntity,
-  CourseEntity,
-  LessonBalanceEntity,
-  LessonEntity,
-  LessonMaterialEntity,
-  LessonStudentEntity,
-  MaterialAccessEntity,
-  PaymentEntity,
-  ScheduleSlotEntity,
-  ShopSettingEntity,
-  StudentEntity,
-  TeacherAvailabilityEntity,
-  TeacherEntity,
-  TeacherPaymentEntity,
-  WelcomePageSettingEntity,
-} from '../../entities/crm.entities';
-
-import { userToRecord } from '../users/user.mapper';
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { randomUUID } from 'crypto';
+import { DataSource, Repository } from 'typeorm';
+import {
+  CRM_ENTITY_CLASS_MAP,
+  CrmEntityName,
+  isGenericEntityName,
+  USER_BLOCKED_UPDATE_FIELDS,
+} from '../../common/constants/entity-registry';
+import { EntityName } from '../../common/constants/entity-names';
+import { normalizeRole } from '../../common/constants/roles';
+import {
+  entityToRecord,
+  matchesFilter,
+  recordToEntityPayload,
+  sortRecords,
+} from '../../common/utils/record.util';
+import { PaymentEntity } from '../../entities/Payment.entity';
+import { ShopItemEntity } from '../../entities/ShopItem.entity';
+import { paymentToRecord } from '../payments/payment.mapper';
+import { PaymentService } from '../payments/payment.service';
+import { recordToShopItemPayload, shopItemToRecord } from '../shop/shop.mapper';
+import { StudentBalanceService } from '../students/student-balance.service';
 import { UsersRepository } from '../users/users.repository';
-
-const ENTITY_CLASS_MAP: Record<string, any> = {
-  Student: StudentEntity,
-  Teacher: TeacherEntity,
-  Lesson: LessonEntity,
-  Payment: PaymentEntity,
-  Course: CourseEntity,
-  LessonMaterial: LessonMaterialEntity,
-  ScheduleSlot: ScheduleSlotEntity,
-  LessonStudent: LessonStudentEntity,
-  LessonBalance: LessonBalanceEntity,
-  TeacherPayment: TeacherPaymentEntity,
-  MaterialAccess: MaterialAccessEntity,
-  TeacherAvailability: TeacherAvailabilityEntity,
-  AlfaBankOrder: AlfaBankOrderEntity,
-  AppSettings: AppSettingEntity,
-  ShopSettings: ShopSettingEntity,
-  WelcomePageSettings: WelcomePageSettingEntity,
-};
+import { EntityAccessService } from './entity-access.service';
+import { EntityAccessContext } from './entity-access.types';
 
 @Injectable()
 export class EntityRepositoryService {
-  private readonly repoMap = new Map<string, Repository<any>>();
+  private readonly repoMap = new Map<CrmEntityName, Repository<any>>();
 
   constructor(
-    @InjectRepository(StudentEntity) studentRepo: Repository<StudentEntity>,
-    @InjectRepository(TeacherEntity) teacherRepo: Repository<TeacherEntity>,
-    @InjectRepository(LessonEntity) lessonRepo: Repository<LessonEntity>,
-    @InjectRepository(PaymentEntity) paymentRepo: Repository<PaymentEntity>,
-    @InjectRepository(CourseEntity) courseRepo: Repository<CourseEntity>,
-    @InjectRepository(LessonMaterialEntity) lessonMaterialRepo: Repository<LessonMaterialEntity>,
-    @InjectRepository(ScheduleSlotEntity) scheduleSlotRepo: Repository<ScheduleSlotEntity>,
-    @InjectRepository(LessonStudentEntity) lessonStudentRepo: Repository<LessonStudentEntity>,
-    @InjectRepository(LessonBalanceEntity) lessonBalanceRepo: Repository<LessonBalanceEntity>,
-    @InjectRepository(TeacherPaymentEntity) teacherPaymentRepo: Repository<TeacherPaymentEntity>,
-    @InjectRepository(MaterialAccessEntity) materialAccessRepo: Repository<MaterialAccessEntity>,
-    @InjectRepository(TeacherAvailabilityEntity) teacherAvailabilityRepo: Repository<TeacherAvailabilityEntity>,
-    @InjectRepository(AlfaBankOrderEntity) alfaBankOrderRepo: Repository<AlfaBankOrderEntity>,
-    @InjectRepository(AppSettingEntity) appSettingRepo: Repository<AppSettingEntity>,
-    @InjectRepository(ShopSettingEntity) shopSettingRepo: Repository<ShopSettingEntity>,
-    @InjectRepository(WelcomePageSettingEntity) welcomePageSettingRepo: Repository<WelcomePageSettingEntity>,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
     private readonly usersRepository: UsersRepository,
-  ) {
-    this.repoMap.set('Student', studentRepo);
-    this.repoMap.set('Teacher', teacherRepo);
-    this.repoMap.set('Lesson', lessonRepo);
-    this.repoMap.set('Payment', paymentRepo);
-    this.repoMap.set('Course', courseRepo);
-    this.repoMap.set('LessonMaterial', lessonMaterialRepo);
-    this.repoMap.set('ScheduleSlot', scheduleSlotRepo);
-    this.repoMap.set('LessonStudent', lessonStudentRepo);
-    this.repoMap.set('LessonBalance', lessonBalanceRepo);
-    this.repoMap.set('TeacherPayment', teacherPaymentRepo);
-    this.repoMap.set('MaterialAccess', materialAccessRepo);
-    this.repoMap.set('TeacherAvailability', teacherAvailabilityRepo);
-    this.repoMap.set('AlfaBankOrder', alfaBankOrderRepo);
-    this.repoMap.set('AppSettings', appSettingRepo);
-    this.repoMap.set('ShopSettings', shopSettingRepo);
-    this.repoMap.set('WelcomePageSettings', welcomePageSettingRepo);
-  }
+    private readonly entityAccess: EntityAccessService,
+    private readonly paymentService: PaymentService,
+    private readonly studentBalanceService: StudentBalanceService,
+  ) {}
 
   isKnownEntity(entity: string): entity is EntityName {
-    return entity === 'User' || (ENTITY_NAMES as readonly string[]).includes(entity);
+    return isGenericEntityName(entity);
   }
 
-  async list(entity: EntityName, sortField?: string, limit?: number) {
+  getSystemContext(): EntityAccessContext {
+    return this.entityAccess.createSystemContext();
+  }
+
+  private assertNotGenericUser(entity: EntityName): void {
     if (entity === 'User') {
-      let users = await this.usersRepository.findAll();
-      const records = users.map(userToRecord);
-      return this.applySortAndLimit(records, sortField, limit);
+      throw new ForbiddenException('Use /api/users for User management');
+    }
+  }
+
+  async list(
+    entity: EntityName,
+    context: EntityAccessContext | null,
+    sortField?: string,
+    limit?: number,
+  ) {
+    if (context) {
+      this.entityAccess.assertCan(entity, 'read', context);
     }
 
-    const repo = this.getRepo(entity);
-    const rows = await repo.find();
+    this.assertNotGenericUser(entity);
 
-    const records = rows.map((r) => ({
-      id: r.id,
-      ...r.data,
-      createdDate: r.createdDate,
-      updatedDate: r.updatedDate,
-    }));
+    let records: Record<string, unknown>[];
+
+    const repo = this.getRepo(entity as CrmEntityName);
+    const rows = await repo.find();
+    records =
+      entity === 'Payment'
+        ? rows.map((row) => paymentToRecord(row as PaymentEntity))
+        : entity === 'ShopSettings'
+          ? rows.map((row) => shopItemToRecord(row as ShopItemEntity))
+          : rows.map((row) => entityToRecord(row as Record<string, unknown>));
+
+    if (context) {
+      records = this.entityAccess.filterReadableRecords(entity, context, records);
+    }
 
     return this.applySortAndLimit(records, sortField, limit);
   }
 
   private applySortAndLimit(
-    records: Record<string, any>[],
+    records: Record<string, unknown>[],
     sortField?: string,
     limit?: number,
   ) {
-    let result = records;
-
-    if (sortField) {
-      result = [...result].sort((a, b) =>
-        String(a?.[sortField]).localeCompare(String(b?.[sortField])),
-      );
-    }
+    let result = sortRecords(records, sortField);
 
     if (limit) {
       result = result.slice(0, limit);
@@ -129,92 +101,202 @@ export class EntityRepositoryService {
     return result;
   }
 
-  async filter(entity: EntityName, query: Record<string, unknown>) {
-    const list = await this.list(entity);
-    return list.filter((record) => {
-      return Object.entries(query).every(([key, value]) => record[key] == value);
-    });
+  async filter(
+    entity: EntityName,
+    query: Record<string, unknown>,
+    context: EntityAccessContext,
+  ) {
+    const list = await this.list(entity, context);
+    return list.filter((record) => matchesFilter(record, query));
   }
 
-  async getById(entity: EntityName, id: string) {
-    if (entity === 'User') {
-      const row = await this.usersRepository.findById(id);
-      return row ? userToRecord(row) : null;
-    }
+  async getById(entity: EntityName, id: string, context: EntityAccessContext) {
+    this.entityAccess.assertCan(entity, 'read', context);
+    this.assertNotGenericUser(entity);
 
-    const repo = this.getRepo(entity);
+    const repo = this.getRepo(entity as CrmEntityName);
     const row = await repo.findOne({ where: { id } });
 
     if (!row) return null;
 
-    return {
-      id: row.id,
-      ...row.data,
-      createdDate: row.createdDate,
-      updatedDate: row.updatedDate,
-    };
+    const record =
+      entity === 'Payment'
+        ? paymentToRecord(row as PaymentEntity)
+        : entity === 'ShopSettings'
+          ? shopItemToRecord(row as ShopItemEntity)
+          : entityToRecord(row as Record<string, unknown>);
+    this.entityAccess.assertCanAccessRecord(entity, 'read', context, record);
+    return record;
   }
 
-  async create(entity: EntityName, input: Record<string, any>) {
-    if (entity === 'User') {
-      throw new Error('Use auth register for User creation');
+  async create(
+    entity: EntityName,
+    input: Record<string, unknown>,
+    context: EntityAccessContext,
+  ) {
+    this.assertNotGenericUser(entity);
+    this.entityAccess.assertCanCreatePayload(entity, context, input);
+
+    if (entity === 'Payment') {
+      return this.paymentService.create(input);
     }
 
-    const repo = this.getRepo(entity);
-    const now = new Date();
+    if (entity === 'ShopSettings') {
+      const repo = this.getRepo(entity as CrmEntityName);
+      const now = new Date();
+      const id = input.id ? String(input.id) : randomUUID();
+      const row = repo.create({
+        id,
+        ...recordToShopItemPayload(input),
+        createdDate: now,
+        updatedDate: now,
+      });
+      const saved = await repo.save(row);
+      return shopItemToRecord(saved as ShopItemEntity);
+    }
 
+    const repo = this.getRepo(entity as CrmEntityName);
+    const now = new Date();
     const id = input.id ? String(input.id) : randomUUID();
+    const payload = recordToEntityPayload(input);
 
     const row = repo.create({
       id,
-      data: input,
+      ...payload,
       createdDate: now,
       updatedDate: now,
     });
 
-    return repo.save(row);
+    const saved = await repo.save(row);
+    return entityToRecord(saved as Record<string, unknown>);
   }
 
-  async update(entity: EntityName, id: string, input: Record<string, any>) {
-    const repo = this.getRepo(entity);
+  async update(
+    entity: EntityName,
+    id: string,
+    input: Record<string, unknown>,
+    context: EntityAccessContext,
+  ) {
+    this.assertNotGenericUser(entity);
+    this.entityAccess.assertCan(entity, 'update', context);
+
+    const repo = this.getRepo(entity as CrmEntityName);
     const row = await repo.findOne({ where: { id } });
 
     if (!row) throw new NotFoundException(`${entity} not found`);
 
-    row.data = { ...row.data, ...input };
-    row.updatedDate = new Date();
+    const currentRecord =
+      entity === 'Payment'
+        ? paymentToRecord(row as PaymentEntity)
+        : entity === 'ShopSettings'
+          ? shopItemToRecord(row as ShopItemEntity)
+          : entityToRecord(row as Record<string, unknown>);
+    this.entityAccess.assertCanAccessRecord(entity, 'update', context, currentRecord);
+    this.assertNoSensitiveFields(entity, input, context);
 
-    return repo.save(row);
+    if (entity === 'Payment') {
+      return this.paymentService.update(id, input);
+    }
+
+    const payload = recordToEntityPayload(input);
+
+    if (entity === 'ShopSettings') {
+      Object.assign(row, recordToShopItemPayload(input));
+      (row as { updatedDate: Date }).updatedDate = new Date();
+      const saved = await repo.save(row);
+      return shopItemToRecord(saved as ShopItemEntity);
+    }
+
+    if (entity === 'Lesson' && input.status !== undefined) {
+      Object.assign(row, payload);
+      (row as { updatedDate: Date }).updatedDate = new Date();
+      const saved = await repo.save(row);
+      await this.studentBalanceService.handleLessonStatusUpdate(id, String(input.status));
+      const refreshed = await repo.findOne({ where: { id } });
+      return entityToRecord(refreshed as Record<string, unknown>);
+    }
+
+    Object.assign(row, payload);
+    (row as { updatedDate: Date }).updatedDate = new Date();
+
+    const saved = await repo.save(row);
+    return entityToRecord(saved as Record<string, unknown>);
   }
 
-  async delete(entity: EntityName, id: string) {
-    const repo = this.getRepo(entity);
+  async delete(entity: EntityName, id: string, context: EntityAccessContext) {
+    this.assertNotGenericUser(entity);
+    this.entityAccess.assertCan(entity, 'delete', context);
+
+    const repo = this.getRepo(entity as CrmEntityName);
+    const row = await repo.findOne({ where: { id } });
+    if (!row) throw new NotFoundException(`${entity} not found`);
+
+    const currentRecord =
+      entity === 'Payment'
+        ? paymentToRecord(row as PaymentEntity)
+        : entity === 'ShopSettings'
+          ? shopItemToRecord(row as ShopItemEntity)
+          : entityToRecord(row as Record<string, unknown>);
+    this.entityAccess.assertCanAccessRecord(entity, 'delete', context, currentRecord);
+
+    if (entity === 'Payment') {
+      await this.paymentService.delete(id);
+      return;
+    }
+
     return repo.delete({ id });
   }
 
-  async bulkCreate(entity: EntityName, items: Record<string, any>[]) {
-    const results: any[] = [];
+  async bulkCreate(
+    entity: EntityName,
+    items: Record<string, unknown>[],
+    context: EntityAccessContext,
+  ) {
+    const results: Record<string, unknown>[] = [];
 
     for (const item of items) {
-      results.push(await this.create(entity, item));
+      results.push(await this.create(entity, item, context));
     }
 
     return results;
   }
 
   async deleteRecordById(id: string) {
-    for (const entity of ENTITY_NAMES) {
+    for (const entity of Object.keys(CRM_ENTITY_CLASS_MAP) as CrmEntityName[]) {
       const repo = this.getRepo(entity);
       const res = await repo.delete({ id });
       if (res.affected) return;
     }
+
+    await this.usersRepository.delete(id);
   }
 
-  private getRepo(entity: EntityName): Repository<any> {
-    const repo = this.repoMap.get(entity);
-    if (!repo) throw new Error(`Unknown entity: ${entity}`);
+  private assertNoSensitiveFields(
+    entity: EntityName,
+    input: Record<string, unknown>,
+    context: EntityAccessContext,
+  ) {
+    if (normalizeRole(context.role) === 'admin') {
+      return;
+    }
+
+    for (const key of Object.keys(input)) {
+      if (USER_BLOCKED_UPDATE_FIELDS.has(key)) {
+        throw new ForbiddenException(`Field "${key}" cannot be updated without admin role`);
+      }
+    }
+
+    void entity;
+  }
+
+  private getRepo(entity: CrmEntityName): Repository<any> {
+    let repo = this.repoMap.get(entity);
+    if (!repo) {
+      repo = this.dataSource.getRepository(CRM_ENTITY_CLASS_MAP[entity]);
+      this.repoMap.set(entity, repo);
+    }
     return repo;
   }
 }
 
-export { ENTITY_CLASS_MAP };
+export { CRM_ENTITY_CLASS_MAP as ENTITY_CLASS_MAP };

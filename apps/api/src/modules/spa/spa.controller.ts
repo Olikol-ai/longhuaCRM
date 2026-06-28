@@ -4,7 +4,7 @@ import { join } from 'path';
 
 @Controller()
 export class SpaController {
-  @Get('*')
+  @Get('*path')
   fallback(@Req() req: Request, @Res() res: Response) {
     if (req.path.startsWith('/api')) {
       return res.status(404).json({ error: 'Not found' });

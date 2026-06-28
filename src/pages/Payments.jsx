@@ -27,26 +27,10 @@ export default function Payments() {
 
   const handleSave = async (data) => {
     if (editingPayment) {
-      // On edit: adjust balance by difference in lessons_added
-      const diff = (data.lessons_added || 0) - (editingPayment.lessons_added || 0);
       await base44.entities.Payment.update(editingPayment.id, data);
-      if (diff !== 0) {
-        const student = students.find(s => s.id === data.student_id);
-        if (student) {
-          await base44.entities.Student.update(student.id, {
-            lesson_balance: Math.max(0, (student.lesson_balance || 0) + diff),
-          });
-        }
-      }
       setEditingPayment(null);
     } else {
       await base44.entities.Payment.create(data);
-      const student = students.find(s => s.id === data.student_id);
-      if (student) {
-        await base44.entities.Student.update(student.id, {
-          lesson_balance: (student.lesson_balance || 0) + (data.lessons_added || 0),
-        });
-      }
     }
     setShowModal(false);
     load();
@@ -55,12 +39,6 @@ export default function Payments() {
   const handleDelete = async (payment) => {
     if (!window.confirm(`Удалить платёж ${payment.student_name} на ${payment.amount} BYN? Баланс ученика будет уменьшен на ${payment.lessons_added} уроков.`)) return;
     await base44.entities.Payment.delete(payment.id);
-    const student = students.find(s => s.id === payment.student_id);
-    if (student) {
-      await base44.entities.Student.update(student.id, {
-        lesson_balance: Math.max(0, (student.lesson_balance || 0) - (payment.lessons_added || 0)),
-      });
-    }
     load();
   };
 

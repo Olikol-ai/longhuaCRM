@@ -1,20 +1,11 @@
-import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { useAuth } from "@/lib/AuthContext";
 import AdminDashboard from "@/components/dashboard/AdminDashboard";
 import TeacherDashboard from "@/components/dashboard/TeacherDashboard";
 
 export default function Dashboard() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { user, isLoadingAuth } = useAuth();
 
-  useEffect(() => {
-    base44.auth.me().then((u) => {
-      setUser(u);
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, []);
-
-  if (loading) {
+  if (isLoadingAuth) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
@@ -27,7 +18,6 @@ export default function Dashboard() {
   if (role === "admin") return <AdminDashboard user={user} />;
   if (role === "teacher") return <TeacherDashboard user={user} />;
 
-  // pending or unknown role
   return (
     <div className="flex flex-col items-center justify-center h-full py-24 gap-4 px-6 dark:bg-slate-950">
       <div className="w-16 h-16 rounded-2xl bg-amber-100 flex items-center justify-center">

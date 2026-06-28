@@ -1,16 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { base44 } from "@/api/base44Client";
+import { useAuth } from "@/lib/AuthContext";
 import { User, Shield, Sun, Moon, Download, Loader2 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 
 export default function Settings() {
-  const [user, setUser] = useState(null);
+  const { user } = useAuth();
   const [exporting, setExporting] = useState(false);
   const { theme, toggleTheme } = useTheme();
-
-  useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => {});
-  }, []);
 
   const handleExport = async () => {
     setExporting(true);

@@ -22,7 +22,11 @@ import {
     @Column({ name: 'student_name', type: 'text', nullable: true })
     studentName: string;
   
-    @Column({ type: 'enum', enum: ['basic_beginner', 'advanced_beginner', 'advanced'] })
+    @Column({
+      name: 'course_type',
+      type: 'enum',
+      enum: ['basic_beginner', 'advanced_beginner', 'advanced'],
+    })
     courseType: CourseType;
   
     @Column({ name: 'course_name', type: 'text', nullable: true })

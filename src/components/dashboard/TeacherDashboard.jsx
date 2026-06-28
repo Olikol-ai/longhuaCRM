@@ -29,18 +29,13 @@ export default function TeacherDashboard({ user }) {
     setUpdating(lesson.id);
     await base44.entities.Lesson.update(lesson.id, { status });
     if (status === "completed" || status === "missed_no_notice") {
-      // Support group lessons
       const ids = lesson.student_ids?.length ? lesson.student_ids : lesson.student_id ? [lesson.student_id] : [];
       await Promise.all(ids.map(async (sid) => {
         try {
           const arr = await base44.entities.Student.filter({ id: sid });
           const student = arr[0];
-          if (student) {
-            const newBalance = Math.max(0, (student.lesson_balance || 0) - 1);
-            await base44.entities.Student.update(student.id, { lesson_balance: newBalance });
-            if (student.telegram_id) {
-              sendTelegramNotification(student.telegram_id, `✅ Урок завершён. Осталось уроков: ${newBalance}`);
-            }
+          if (student?.telegram_id) {
+            sendTelegramNotification(student.telegram_id, `✅ Урок завершён. Осталось уроков: ${student.lesson_balance ?? 0}`);
           }
         } catch (e) { /* student may have been deleted */ }
       }));

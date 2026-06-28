@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Header,
   Headers,
   Logger,
@@ -50,9 +51,12 @@ export class WebhooksController {
         typeof req.body === 'string'
           ? req.body
           : new URLSearchParams(req.body as Record<string, string>).toString();
-      const result = await this.alfaBankService.handleWebhook(bodyText);
-      return result;
+      return await this.alfaBankService.handleWebhook(bodyText);
     } catch (error) {
+      if (error instanceof ForbiddenException) {
+        this.logger.warn(`AlfaBank webhook rejected: ${error.message}`);
+        throw error;
+      }
       this.logger.error(`AlfaBank webhook error: ${(error as Error).message}`);
       return '0';
     }

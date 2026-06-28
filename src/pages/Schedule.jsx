@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { useAuth } from "@/lib/AuthContext";
 import {
   format, startOfWeek, endOfWeek, startOfMonth, endOfMonth,
   eachDayOfInterval, addWeeks, subWeeks, addMonths, subMonths,
@@ -15,15 +16,11 @@ export default function Schedule() {
   const [lessons, setLessons] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [students, setStudents] = useState([]);
-  const [user, setUser] = useState(null);
+  const { user } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
   const [viewingLesson, setViewingLesson] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => {});
-  }, []);
 
   const load = async () => {
     const [l, t, s] = await Promise.all([
@@ -72,24 +69,6 @@ export default function Schedule() {
 
   const handleUpdate = async (id, data) => {
     await base44.entities.Lesson.update(id, data);
-    const deductStatuses = ["completed", "missed_no_notice"];
-    if (deductStatuses.includes(data.status)) {
-      const lesson = lessons.find(l => l.id === id);
-      if (lesson) {
-        const ids = lesson.student_ids?.length ? lesson.student_ids : lesson.student_id ? [lesson.student_id] : [];
-        await Promise.all(ids.map(async (sid) => {
-          try {
-            const arr = await base44.entities.Student.filter({ id: sid });
-            const student = arr[0];
-            if (student) {
-              await base44.entities.Student.update(student.id, {
-                lesson_balance: Math.max(0, (student.lesson_balance || 0) - 1),
-              });
-            }
-          } catch (e) { /* student may have been deleted */ }
-        }));
-      }
-    }
     setViewingLesson(null);
     load();
   };

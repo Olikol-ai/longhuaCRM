@@ -72,10 +72,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = (shouldRedirect = true) => {
+  const logout = () => {
     setUser(null);
     setIsAuthenticated(false);
-    base44.auth.logout(shouldRedirect ? window.location.href : undefined);
+    setNeedsNameSetup(false);
+    setAuthError(null);
+    base44.auth.logout();
   };
 
   const navigateToLogin = () => {

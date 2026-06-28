@@ -1,5 +1,4 @@
 import { UserEntity } from '../../entities/user.entity';
-import { recordFromEntity } from '../../common/utils/record.util';
 
 export function userToRecord(row: UserEntity): Record<string, unknown> {
   const fullName =
@@ -16,8 +15,4 @@ export function userToRecord(row: UserEntity): Record<string, unknown> {
     created_date: row.createdDate.toISOString(),
     updated_date: row.updatedDate.toISOString(),
   };
-}
-
-export function recordToUser(row: UserEntity): Record<string, unknown> {
-  return userToRecord(row);
 }

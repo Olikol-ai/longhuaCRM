@@ -36,7 +36,7 @@ const serveFrontend = process.env.SERVE_FRONTEND !== 'false';
         type: 'postgres',
         url: config.get<string>('databaseUrl'),
         entities: ALL_ENTITIES,
-        synchronize: config.get<string>('nodeEnv') !== 'production',
+        synchronize: false,
         migrations: [join(__dirname, 'database/migrations/*{.ts,.js}')],
         migrationsRun: config.get<string>('nodeEnv') === 'production',
         logging: config.get<string>('nodeEnv') === 'development',
@@ -47,7 +47,7 @@ const serveFrontend = process.env.SERVE_FRONTEND !== 'false';
       ? [
           ServeStaticModule.forRoot({
             rootPath: join(__dirname, '../../../dist'),
-            exclude: ['/api*'],
+            exclude: ['/api{*path}'],
           }),
         ]
       : []),

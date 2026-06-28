@@ -72,17 +72,40 @@ function createEntityClient(entityName) {
   };
 }
 
-const ENTITY_NAMES = [
-  'Student', 'Teacher', 'Lesson', 'Payment', 'Course',
-  'LessonMaterial', 'ScheduleSlot', 'LessonStudent',
-  'LessonBalance', 'TeacherPayment', 'MaterialAccess',
-  'TeacherAvailability', 'AlfaBankOrder', 'AppSettings',
-  'ShopSettings', 'WelcomePageSettings', 'User',
-];
+import entityNames from '../../shared/entity-names.json';
+
+const CRM_ENTITY_NAMES = entityNames;
+const ENTITY_NAMES = [...CRM_ENTITY_NAMES, 'User'];
 
 const entities = {};
 for (const name of ENTITY_NAMES) {
-  entities[name] = createEntityClient(name);
+  if (name === 'User') {
+    entities.User = {
+      list() {
+        return apiFetch('/users');
+      },
+      filter() {
+        return apiFetch('/users');
+      },
+      update(id, data) {
+        return apiFetch(`/users/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(data),
+        });
+      },
+      delete(id) {
+        return apiFetch(`/users/${id}`, { method: 'DELETE' });
+      },
+      create() {
+        return Promise.reject(new Error('Use /auth/register for User creation'));
+      },
+      bulkCreate() {
+        return Promise.reject(new Error('Use /auth/register for User creation'));
+      },
+    };
+  } else {
+    entities[name] = createEntityClient(name);
+  }
 }
 
 export const base44 = {
@@ -93,16 +116,20 @@ export const base44 = {
         err.status = 401;
         throw err;
       }
-      return apiFetch('/auth/me');
+      const result = await apiFetch('/auth/me');
+      if (result.token) setToken(result.token);
+      const { token: _token, ...user } = result;
+      return user;
     },
     async updateMe(data) {
-      return apiFetch('/auth/me', { method: 'PATCH', body: JSON.stringify(data) });
+      const result = await apiFetch('/auth/me', { method: 'PATCH', body: JSON.stringify(data) });
+      if (result.token) setToken(result.token);
+      const { token: _token, ...user } = result;
+      return user;
     },
-    logout(redirectUrl) {
+    logout() {
       setToken(null);
-      if (redirectUrl !== undefined) {
-        window.location.href = '/login';
-      }
+      window.location.href = '/login';
     },
     redirectToLogin(redirectUrl) {
       const returnUrl = redirectUrl || window.location.href;

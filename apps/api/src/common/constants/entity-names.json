@@ -1,0 +1,18 @@
+[
+  "Student",
+  "Teacher",
+  "Lesson",
+  "Payment",
+  "Course",
+  "LessonMaterial",
+  "ScheduleSlot",
+  "LessonStudent",
+  "LessonBalance",
+  "TeacherPayment",
+  "MaterialAccess",
+  "TeacherAvailability",
+  "AlfaBankOrder",
+  "AppSettings",
+  "ShopSettings",
+  "WelcomePageSettings"
+]

@@ -78,15 +78,6 @@ export default function PaymentFormDialog({ open, onOpenChange, studentId, onSav
         comment: formData.comment,
       };
       await base44.entities.Payment.create(payment);
-
-      // Update student balance
-      const student = students.find((s) => s.id === formData.student_id);
-      if (student) {
-        await base44.entities.Student.update(student.id, {
-          lesson_balance: (student.lesson_balance || 0) + Number(formData.lessons_added),
-        });
-      }
-
       onSave?.();
       onOpenChange(false);
     } finally {

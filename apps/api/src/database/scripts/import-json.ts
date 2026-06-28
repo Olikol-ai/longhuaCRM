@@ -3,44 +3,11 @@ import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import dataSource from '../data-source';
+import { CRM_ENTITY_CLASS_MAP } from '../../common/constants/entity-registry';
+import { recordToEntityPayload } from '../../common/utils/record.util';
 import { UserEntity } from '../../entities/user.entity';
-import {
-  AlfaBankOrderEntity,
-  AppSettingEntity,
-  CourseEntity,
-  LessonBalanceEntity,
-  LessonEntity,
-  LessonMaterialEntity,
-  LessonStudentEntity,
-  MaterialAccessEntity,
-  PaymentEntity,
-  ScheduleSlotEntity,
-  ShopSettingEntity,
-  StudentEntity,
-  TeacherAvailabilityEntity,
-  TeacherEntity,
-  TeacherPaymentEntity,
-  WelcomePageSettingEntity,
-} from '../../entities/crm.entities';
 
-const ENTITY_REPO_MAP: Record<string, any> = {
-  Student: StudentEntity,
-  Teacher: TeacherEntity,
-  Lesson: LessonEntity,
-  Payment: PaymentEntity,
-  Course: CourseEntity,
-  LessonMaterial: LessonMaterialEntity,
-  ScheduleSlot: ScheduleSlotEntity,
-  LessonStudent: LessonStudentEntity,
-  LessonBalance: LessonBalanceEntity,
-  TeacherPayment: TeacherPaymentEntity,
-  MaterialAccess: MaterialAccessEntity,
-  TeacherAvailability: TeacherAvailabilityEntity,
-  AlfaBankOrder: AlfaBankOrderEntity,
-  AppSettings: AppSettingEntity,
-  ShopSettings: ShopSettingEntity,
-  WelcomePageSettings: WelcomePageSettingEntity,
-};
+const ENTITY_REPO_MAP = CRM_ENTITY_CLASS_MAP;
 
 async function importJson() {
   const jsonPath =
@@ -120,9 +87,11 @@ async function importJson() {
         ...payload
       } = record;
 
+      const entityPayload = recordToEntityPayload(payload);
+
       await repo.save({
         id,
-        ...payload,
+        ...entityPayload,
         createdDate: new Date(
           String(created_date || new Date().toISOString()),
         ),

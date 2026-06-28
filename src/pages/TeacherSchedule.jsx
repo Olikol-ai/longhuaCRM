@@ -103,18 +103,15 @@ export default function TeacherSchedule() {
       await Promise.all(ids.map(async sid => {
         const arr = await base44.entities.Student.filter({ id: sid });
         const s = arr[0];
-        if (s) {
-          const newBalance = Math.max(0, (s.lesson_balance || 0) - 1);
-          await base44.entities.Student.update(s.id, { lesson_balance: newBalance });
-          if (s.telegram_id) {
-            const msg = status === "completed"
-              ? `✅ Урок завершён!\n\n📅 ${lesson.date} в ${lesson.start_time}\n💡 Осталось уроков: ${newBalance}`
-              : `⚠️ Урок пропущен без предупреждения\n\n📅 ${lesson.date} в ${lesson.start_time}\nБаланс списан. Осталось уроков: ${newBalance}`;
-            base44.functions.invoke("sendTelegramMessage", { chat_id: s.telegram_id, text: msg }).catch(() => {});
-            if (newBalance === 0) {
-              const balMsg = `⚠️ Баланс уроков исчерпан!\n\nТекущий урок (${lesson.date} в ${lesson.start_time}) не оплачен — на вашем счёте 0 уроков.\n\nПожалуйста, пополните баланс, чтобы продолжить занятия. Свяжитесь с администратором.`;
-              base44.functions.invoke("sendTelegramMessage", { chat_id: s.telegram_id, text: balMsg }).catch(() => {});
-            }
+        if (s?.telegram_id) {
+          const newBalance = s.lesson_balance ?? 0;
+          const msg = status === "completed"
+            ? `✅ Урок завершён!\n\n📅 ${lesson.date} в ${lesson.start_time}\n💡 Осталось уроков: ${newBalance}`
+            : `⚠️ Урок пропущен без предупреждения\n\n📅 ${lesson.date} в ${lesson.start_time}\nБаланс списан. Осталось уроков: ${newBalance}`;
+          base44.functions.invoke("sendTelegramMessage", { chat_id: s.telegram_id, text: msg }).catch(() => {});
+          if (newBalance === 0) {
+            const balMsg = `⚠️ Баланс уроков исчерпан!\n\nТекущий урок (${lesson.date} в ${lesson.start_time}) не оплачен — на вашем счёте 0 уроков.\n\nПожалуйста, пополните баланс, чтобы продолжить занятия. Свяжитесь с администратором.`;
+            base44.functions.invoke("sendTelegramMessage", { chat_id: s.telegram_id, text: balMsg }).catch(() => {});
           }
         }
       }));
