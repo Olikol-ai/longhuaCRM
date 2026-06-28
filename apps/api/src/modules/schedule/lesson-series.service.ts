@@ -2,11 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
-  Logger,
-  OnModuleInit,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { ModuleRef } from '@nestjs/core';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { DataSource, EntityManager, In, QueryFailedError } from 'typeorm';
@@ -16,11 +12,7 @@ import { LessonSeriesExclusionEntity } from '../../entities/LessonSeriesExclusio
 import { LessonSeriesStudentEntity } from '../../entities/LessonSeriesStudent.entity';
 import { StudentEntity } from '../../entities/Student.entity';
 import { TeacherEntity } from '../../entities/Teacher.entity';
-import { EntityRepositoryService } from '../entities/entity-repository.service';
-import {
-  addUtcDays,
-  normalizeSeriesTime,
-} from './lesson-series-date.util';
+import { addUtcDays, normalizeSeriesTime } from './lesson-series-date.util';
 
 export type RecurringLessonPrepareInput = {
   lessonInput: Record<string, unknown>;
@@ -41,25 +33,8 @@ export type RecurringLessonPrepareResult = {
 };
 
 @Injectable()
-export class LessonSeriesService implements OnModuleInit {
-  private readonly logger = new Logger(LessonSeriesService.name);
-  private maintenanceInFlight: Promise<{ created: number; skipped: number }> | null = null;
-
-  constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
-    private readonly moduleRef: ModuleRef,
-    private readonly config: ConfigService,
-  ) {}
-
-  onModuleInit(): void {
-    if (!this.config.get<boolean>('jobs.enabled')) {
-      return;
-    }
-
-    void this.maintainActiveSeries().catch((error) => {
-      this.logger.warn(`Bootstrap series maintenance skipped: ${(error as Error).message}`);
-    });
-  }
+export class LessonSeriesService {
+  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   async prepareRecurringLessonCreate(
     input: RecurringLessonPrepareInput,
@@ -198,16 +173,50 @@ export class LessonSeriesService implements OnModuleInit {
     };
   }
 
-  async maintainActiveSeries(): Promise<{ created: number; skipped: number }> {
-    if (this.maintenanceInFlight) {
-      return this.maintenanceInFlight;
+  async planNextScheduledInstance(
+    series: LessonSeriesEntity,
+    manager: EntityManager,
+  ): Promise<{ payload: Record<string, unknown> } | null> {
+    const canGenerate = await this.canGenerateForSeries(series, manager);
+    if (!canGenerate) {
+      return null;
     }
 
-    this.maintenanceInFlight = this.runMaintenance().finally(() => {
-      this.maintenanceInFlight = null;
+    const latest = await manager.getRepository(LessonEntity).findOne({
+      where: { recurrenceSeriesId: series.id },
+      order: { recurrenceIndex: 'DESC' },
     });
 
-    return this.maintenanceInFlight;
+    if (!latest || latest.recurrenceIndex == null) {
+      return null;
+    }
+
+    const nextIndex = latest.recurrenceIndex + 1;
+    const nextDate = addUtcDays(String(latest.date), 7);
+
+    const exists = await this.seriesInstanceExists(
+      series.id,
+      nextIndex,
+      series.teacherId,
+      nextDate,
+      series.scheduleSlotId,
+      manager,
+    );
+
+    if (exists) {
+      return null;
+    }
+
+    const studentIds = await this.getSeriesStudentIds(series.id, manager);
+    const payload = await this.buildScheduledLessonPayload(
+      series,
+      studentIds,
+      nextDate,
+      nextIndex,
+      manager,
+    );
+
+    return { payload };
   }
 
   async isSeriesInstanceOccupied(
@@ -260,83 +269,6 @@ export class LessonSeriesService implements OnModuleInit {
       { id: seriesId },
       { status: 'stopped', repeatWeekly: false, updatedDate: new Date() },
     );
-  }
-
-  private async runMaintenance(): Promise<{ created: number; skipped: number }> {
-    const entityRepository = this.getEntityRepository();
-    const ctx = entityRepository.getSystemContext();
-
-    const activeSeries = await this.dataSource.getRepository(LessonSeriesEntity).find({
-      where: { status: 'active', repeatWeekly: true },
-    });
-
-    let created = 0;
-    let skipped = 0;
-
-    for (const seriesSummary of activeSeries) {
-      const outcome = await this.dataSource.transaction(async (manager) => {
-        const series = await manager
-          .getRepository(LessonSeriesEntity)
-          .createQueryBuilder('s')
-          .setLock('pessimistic_write')
-          .where('s.id = :id', { id: seriesSummary.id })
-          .getOne();
-
-        if (!series) {
-          return 'skipped' as const;
-        }
-
-        const canGenerate = await this.canGenerateForSeries(series, manager);
-        if (!canGenerate) {
-          return 'skipped' as const;
-        }
-
-        const latest = await manager.getRepository(LessonEntity).findOne({
-          where: { recurrenceSeriesId: series.id },
-          order: { recurrenceIndex: 'DESC' },
-        });
-
-        if (!latest || latest.recurrenceIndex == null) {
-          return 'skipped' as const;
-        }
-
-        const nextIndex = latest.recurrenceIndex + 1;
-        const nextDate = addUtcDays(String(latest.date), 7);
-
-        const exists = await this.seriesInstanceExists(
-          series.id,
-          nextIndex,
-          series.teacherId,
-          nextDate,
-          series.scheduleSlotId,
-          manager,
-        );
-
-        if (exists) {
-          return 'skipped' as const;
-        }
-
-        const studentIds = await this.getSeriesStudentIds(series.id, manager);
-        const payload = await this.buildScheduledLessonPayload(
-          series,
-          studentIds,
-          nextDate,
-          nextIndex,
-          manager,
-        );
-
-        await entityRepository.createLessonWithManager(payload, ctx, manager);
-        return 'created' as const;
-      });
-
-      if (outcome === 'created') {
-        created++;
-      } else {
-        skipped++;
-      }
-    }
-
-    return { created, skipped };
   }
 
   private async preparePresetInstance(
@@ -662,10 +594,6 @@ export class LessonSeriesService implements OnModuleInit {
       recurrence_index: recurrenceIndex,
       schedule_slot_id: series.scheduleSlotId,
     };
-  }
-
-  private getEntityRepository(): EntityRepositoryService {
-    return this.moduleRef.get(EntityRepositoryService, { strict: false });
   }
 
   private isUniqueViolation(error: unknown): boolean {

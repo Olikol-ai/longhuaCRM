@@ -3,7 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { ENTITY_NAMES } from '../../common/constants/entity-names';
 import { EntityRepositoryService } from '../entities/entity-repository.service';
-import { LessonSeriesService } from '../schedule/lesson-series.service';
+import { LessonSeriesOrchestratorService } from '../schedule/lesson-series-orchestrator.service';
+import { LessonOrchestratorService } from '../schedule/lesson-orchestrator.service';
 import { TelegramService } from '../telegram/telegram.service';
 
 @Injectable()
@@ -12,7 +13,8 @@ export class JobsService {
 
   constructor(
     private readonly entityRepository: EntityRepositoryService,
-    private readonly lessonSeries: LessonSeriesService,
+    private readonly lessonOrchestrator: LessonOrchestratorService,
+    private readonly lessonSeriesOrchestrator: LessonSeriesOrchestratorService,
     private readonly telegramService: TelegramService,
     private readonly config: ConfigService,
   ) {}
@@ -20,7 +22,7 @@ export class JobsService {
   @Cron('0 3 * * *')
   async runDailyRecurringLessons() {
     if (!this.config.get<boolean>('jobs.enabled')) return;
-    const result = await this.lessonSeries.maintainActiveSeries();
+    const result = await this.lessonSeriesOrchestrator.maintainActiveSeries();
     this.logger.log(
       `Lesson series maintenance: created=${result.created}, skipped=${result.skipped}`,
     );
@@ -49,7 +51,7 @@ export class JobsService {
       const [hours, minutes] = String(lesson.start_time || '00:00').split(':').map(Number);
       const endTime = new Date(year, month - 1, day, hours, minutes + ((lesson.duration as number) || 60));
       if (endTime < now) {
-        await this.entityRepository.update('Lesson', String(lesson.id), { status: 'completed' }, ctx);
+        await this.lessonOrchestrator.updateLesson(String(lesson.id), { status: 'completed' }, ctx);
         count++;
       }
     }
@@ -85,7 +87,7 @@ export class JobsService {
     let sentCount = 0;
 
     for (const lesson of lessons) {
-      await this.entityRepository.update('Lesson', String(lesson.id), { reminder_24h_sent: true }, ctx);
+      await this.lessonOrchestrator.updateLesson(String(lesson.id), { reminder_24h_sent: true }, ctx);
 
       const teacher = teacherMap[String(lesson.teacher_id)];
       const studentIds = this.resolveStudentIds(lesson);
@@ -145,7 +147,7 @@ export class JobsService {
     let sentCount = 0;
 
     for (const lesson of lessons) {
-      await this.entityRepository.update('Lesson', String(lesson.id), { reminder_2h_sent: true }, ctx);
+      await this.lessonOrchestrator.updateLesson(String(lesson.id), { reminder_2h_sent: true }, ctx);
 
       const teacher = teacherMap[String(lesson.teacher_id)];
       const studentIds = this.resolveStudentIds(lesson);
