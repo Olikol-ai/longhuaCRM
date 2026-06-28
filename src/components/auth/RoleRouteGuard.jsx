@@ -1,23 +1,33 @@
 import { useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { isOnboarding, ONBOARDING_PATH, resolveRedirect } from '@/lib/routing';
+import {
+  AuthLoadingScreen,
+  shouldBlockProtectedUI,
+  shouldBlockUntilRoleKnown,
+} from '@/lib/auth-gate';
+import {
+  getRoleDashboardPath,
+  getRequiredRoleForPath,
+  isOnboarding,
+  isPathAllowedForUser,
+  ONBOARDING_PATH,
+  resolveRedirect,
+} from '@/lib/routing';
 
 const ONBOARDING_PATHS = new Set([ONBOARDING_PATH, '/Welcome']);
 
-function RouteSpinner() {
-  return (
-    <div className="fixed inset-0 flex items-center justify-center">
-      <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
-    </div>
-  );
+function blockProtectedUi(auth) {
+  return shouldBlockProtectedUI(auth) || shouldBlockUntilRoleKnown(auth.user);
 }
 
+/** Single post-auth routing gate — no route or layout renders until session + role are resolved. */
 export default function RoleRouteGuard({ children }) {
-  const { user, isLoadingAuth, isAuthenticated } = useAuth();
+  const auth = useAuth();
+  const { user } = auth;
   const location = useLocation();
 
-  if (isLoadingAuth || !isAuthenticated || !user) {
-    return <RouteSpinner />;
+  if (shouldBlockProtectedUI(auth)) {
+    return <AuthLoadingScreen />;
   }
 
   const path = location.pathname;
@@ -29,12 +39,22 @@ export default function RoleRouteGuard({ children }) {
     return children;
   }
 
+  if (shouldBlockUntilRoleKnown(user)) {
+    return <AuthLoadingScreen />;
+  }
+
   if (ONBOARDING_PATHS.has(path)) {
     return <Navigate to={resolveRedirect(user)} replace />;
   }
 
   const home = resolveRedirect(user);
-  if ((path === '/' || path === '/Dashboard') && path !== home) {
+
+  if (path === '/') {
+    return <Navigate to={home} replace />;
+  }
+
+  const requiredRole = getRequiredRoleForPath(path);
+  if (requiredRole && user.role !== requiredRole && !isPathAllowedForUser(user, path)) {
     return <Navigate to={home} replace />;
   }
 
@@ -42,18 +62,42 @@ export default function RoleRouteGuard({ children }) {
 }
 
 export function RoleHomeRedirect({ role }) {
-  const paths = {
-    admin: '/Dashboard',
-    teacher: '/TeacherDashboard',
-    student: '/StudentDashboard',
-  };
-  return <Navigate to={paths[role] || ONBOARDING_PATH} replace />;
+  const auth = useAuth();
+  const { user } = auth;
+
+  if (blockProtectedUi(auth)) {
+    return <AuthLoadingScreen />;
+  }
+
+  if (user.role !== role) {
+    return <Navigate to={resolveRedirect(user)} replace />;
+  }
+
+  return <Navigate to={getRoleDashboardPath(role)} replace />;
+}
+
+export function RootRedirect() {
+  const auth = useAuth();
+  const { user } = auth;
+
+  if (blockProtectedUi(auth)) {
+    return <AuthLoadingScreen />;
+  }
+
+  return <Navigate to={resolveRedirect(user)} replace />;
 }
 
 export function OnboardingFallback() {
-  const { user, isLoadingAuth, isAuthenticated } = useAuth();
-  if (isLoadingAuth || !isAuthenticated || !user) {
-    return <RouteSpinner />;
+  const auth = useAuth();
+  const { user } = auth;
+
+  if (shouldBlockProtectedUI(auth)) {
+    return <AuthLoadingScreen />;
   }
+
+  if (!isOnboarding(user) && shouldBlockUntilRoleKnown(user)) {
+    return <AuthLoadingScreen />;
+  }
+
   return <Navigate to={resolveRedirect(user)} replace />;
 }

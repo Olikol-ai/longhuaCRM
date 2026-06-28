@@ -66,7 +66,7 @@ export default function Profile() {
       }
     }
 
-    await checkAppState();
+    await checkAppState({ force: true });
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);

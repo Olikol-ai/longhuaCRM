@@ -104,7 +104,7 @@ export default function Schedule() {
       try { return isSameDay(parseISO(l.date), day); } catch { return false; }
     }).sort((a, b) => a.start_time?.localeCompare(b.start_time));
 
-  const role = user?.role || "student";
+  const role = user?.role;
   const isAdmin = role === "admin";
 
   const HOURS = Array.from({ length: 14 }, (_, i) => i + 7); // 7am - 8pm

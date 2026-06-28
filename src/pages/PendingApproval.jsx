@@ -17,7 +17,7 @@ const DEFAULTS = {
 };
 
 export default function PendingApproval() {
-  const { user, logout, checkAppState } = useAuth();
+  const { user, logout, establishSession } = useAuth();
   const navigate = useNavigate();
   const [settings] = useState(DEFAULTS);
   const [code, setCode] = useState('');
@@ -34,11 +34,11 @@ export default function PendingApproval() {
     setError('');
     setVerifying(true);
     try {
-      const result = await api.auth.verifyCode(code.trim());
+      await api.auth.verifyCode(code.trim());
       sessionStorage.removeItem('longhua_verification_code');
-      await checkAppState();
-      if (result.onboarding_state === 'active') {
-        navigate(result.redirect_path, { replace: true });
+      const sessionUser = await establishSession({ force: true });
+      if (sessionUser?.onboarding_state === 'active') {
+        navigate(resolveRedirect(sessionUser), { replace: true });
       }
     } catch (err) {
       setError(err.message || 'Неверный код');

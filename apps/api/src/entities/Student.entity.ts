@@ -56,6 +56,7 @@ import {
     })
     status: StudentStatus;
   
+    @Index('IDX_STUDENT_USER_ID', { unique: true })
     @Column({ name: 'user_id', type: 'uuid', nullable: true })
     userId: string;
   

@@ -43,6 +43,7 @@ import {
     @Column({ type: 'text', nullable: true })
     specializations: string;
   
+    @Index('IDX_TEACHER_USER_ID', { unique: true })
     @Column({ name: 'user_id', type: 'uuid', nullable: true })
     userId: string;
   

@@ -1,5 +1,15 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import { api, getToken, setToken } from '@/api';
+import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
+import { api, getToken, setToken, onTokenChange } from '@/api';
+import {
+  clearInFlightEstablish,
+  clearSessionCache,
+  getCachedSessionUser,
+  getInFlightEstablish,
+  isActiveSessionWithInvalidRole,
+  normalizeSessionUser,
+  setCachedSessionUser,
+  setInFlightEstablish,
+} from './session-user';
 
 const AuthContext = createContext();
 
@@ -11,9 +21,11 @@ export const AuthProvider = ({ children }) => {
   const [authError, setAuthError] = useState(null);
   const [appPublicSettings] = useState({ id: 'longhua-crm', public_settings: { auth_required: true } });
   const [needsNameSetup, setNeedsNameSetup] = useState(false);
+  const establishSessionRef = useRef(null);
 
   const applyUserSession = useCallback((currentUser) => {
     if (currentUser.onboarding_state === 'blocked') {
+      clearSessionCache();
       setToken(null);
       setUser(null);
       setIsAuthenticated(false);
@@ -21,6 +33,19 @@ export const AuthProvider = ({ children }) => {
       setAuthError({
         type: 'blocked',
         message: 'Account is blocked',
+      });
+      return;
+    }
+
+    if (isActiveSessionWithInvalidRole(currentUser)) {
+      clearSessionCache();
+      setToken(null);
+      setUser(null);
+      setIsAuthenticated(false);
+      setNeedsNameSetup(false);
+      setAuthError({
+        type: 'auth_required',
+        message: 'Invalid session role',
       });
       return;
     }
@@ -39,64 +64,128 @@ export const AuthProvider = ({ children }) => {
     setAuthError(null);
   }, []);
 
-  /** Single auth initialization path — used on app load and after login. */
-  const establishSession = useCallback(async () => {
-    setAuthError(null);
-
-    if (!getToken()) {
-      setUser(null);
-      setIsAuthenticated(false);
-      setNeedsNameSetup(false);
-      setIsLoadingAuth(false);
-      return null;
+  /**
+   * Single auth initialization path — idempotent, deduped across StrictMode remounts.
+   * @param {{ force?: boolean }} options — force=true bypasses module cache (e.g. after profile update)
+   */
+  const establishSession = useCallback(async (options = {}) => {
+    const force = options.force === true;
+    const inFlight = getInFlightEstablish();
+    if (inFlight) {
+      return inFlight;
     }
 
-    try {
-      setIsLoadingAuth(true);
-      const currentUser = await api.auth.me();
-      applyUserSession(currentUser);
-      setIsLoadingAuth(false);
-      return currentUser;
-    } catch (error) {
-      console.error('User auth check failed:', error);
-      setIsLoadingAuth(false);
-      setIsAuthenticated(false);
-      setUser(null);
-      setNeedsNameSetup(false);
+    const run = (async () => {
+      setAuthError(null);
+      const token = getToken();
 
-      if (error.status === 401 || error.status === 403) {
-        setToken(null);
-        setAuthError({
-          type: 'auth_required',
-          message: 'Authentication required',
-        });
+      if (!token) {
+        clearSessionCache();
+        setUser(null);
+        setIsAuthenticated(false);
+        setNeedsNameSetup(false);
+        setIsLoadingAuth(false);
+        return null;
       }
-      return null;
+
+      if (!force) {
+        const cached = getCachedSessionUser(token);
+        if (cached) {
+          applyUserSession(cached);
+          setIsLoadingAuth(false);
+          return cached;
+        }
+      }
+
+      try {
+        setIsLoadingAuth(true);
+        if (force || getCachedSessionUser(token) == null) {
+          setUser(null);
+          setIsAuthenticated(false);
+          setNeedsNameSetup(false);
+        }
+
+        const raw = await api.auth.me();
+        const currentUser = normalizeSessionUser(raw);
+
+        if (isActiveSessionWithInvalidRole(currentUser)) {
+          throw Object.assign(new Error('Invalid session role'), { status: 401 });
+        }
+
+        applyUserSession(currentUser);
+        setCachedSessionUser(token, currentUser);
+        setIsLoadingAuth(false);
+        return currentUser;
+      } catch (error) {
+        console.error('User auth check failed:', error);
+        clearSessionCache();
+        setUser(null);
+        setIsAuthenticated(false);
+        setNeedsNameSetup(false);
+        setIsLoadingAuth(false);
+
+        if (error.status === 401 || error.status === 403) {
+          setToken(null);
+          setAuthError({
+            type: 'auth_required',
+            message: 'Authentication required',
+          });
+        }
+        return null;
+      }
+    })();
+
+    setInFlightEstablish(run);
+    try {
+      return await run;
+    } finally {
+      clearInFlightEstablish();
     }
   }, [applyUserSession]);
 
+  establishSessionRef.current = establishSession;
+
   useEffect(() => {
-    establishSession();
+    void establishSession();
   }, [establishSession]);
 
-  const logout = () => {
+  useEffect(() => {
+    return onTokenChange(() => {
+      clearSessionCache();
+      void establishSessionRef.current?.({ force: true });
+    });
+  }, []);
+
+  const logout = useCallback(() => {
+    clearSessionCache();
     setUser(null);
     setIsAuthenticated(false);
     setNeedsNameSetup(false);
     setAuthError(null);
-    api.auth.logout();
-  };
+    setIsLoadingAuth(false);
+    setToken(null);
+    window.location.href = '/login';
+  }, []);
 
   const navigateToLogin = () => {
     api.auth.redirectToLogin(window.location.href);
   };
 
   const handleNameSetupComplete = (nameData) => {
-    setUser((prev) => ({
-      ...prev,
-      first_name: nameData.first_name,
-      last_name: nameData.last_name,
-    }));
+    setUser((prev) => {
+      const next = {
+        ...prev,
+        first_name: nameData.first_name,
+        last_name: nameData.last_name,
+        name: `${nameData.last_name} ${nameData.first_name}`.trim(),
+        full_name: `${nameData.last_name} ${nameData.first_name}`.trim(),
+      };
+      const token = getToken();
+      if (token) {
+        setCachedSessionUser(token, next);
+      }
+      return next;
+    });
     setNeedsNameSetup(false);
   };
 

@@ -158,50 +158,7 @@ function AccountsTab() {
 
   const changeRole = async (userId, newRole) => {
     setUpdating(userId);
-    const u = users.find(u => u.id === userId);
-    const displayName = u.first_name && u.last_name
-      ? `${u.last_name} ${u.first_name}`
-      : u.full_name || u.email;
-    
     await api.entities.User.update(userId, { role: newRole, status: 'active' });
-
-    if (newRole === "teacher") {
-      const existing = await api.entities.Teacher.filter({ user_id: userId });
-      if (existing.length === 0) {
-        const byEmail = await api.entities.Teacher.filter({ email: u.email });
-        if (byEmail.length === 0) {
-          await api.entities.Teacher.create({ 
-            name: displayName, 
-            email: u.email, 
-            user_id: userId, 
-            status: "active",
-            first_name: u.first_name || "",
-            last_name: u.last_name || "",
-          });
-        } else {
-          await api.entities.Teacher.update(byEmail[0].id, { user_id: userId });
-        }
-      }
-    } else if (newRole === "student") {
-      const existing = await api.entities.Student.filter({ user_id: userId });
-      if (existing.length === 0) {
-        const byEmail = await api.entities.Student.filter({ email: u.email });
-        if (byEmail.length === 0) {
-          await api.entities.Student.create({ 
-            name: displayName, 
-            email: u.email, 
-            user_id: userId, 
-            status: "active", 
-            lesson_balance: 0,
-            first_name: u.first_name || "",
-            last_name: u.last_name || "",
-          });
-        } else {
-          await api.entities.Student.update(byEmail[0].id, { user_id: userId });
-        }
-      }
-    }
-
     await load();
     setUpdating(null);
   };

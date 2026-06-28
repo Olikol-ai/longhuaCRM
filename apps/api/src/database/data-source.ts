@@ -13,6 +13,7 @@ import { NormalizeUserRoles1730000000007 } from './migrations/1730000000007-Norm
 import { SecurityHardening1730000000008 } from './migrations/1730000000008-SecurityHardening';
 import { PaymentAndLessonStudentConstraints1730000000009 } from './migrations/1730000000009-PaymentAndLessonStudentConstraints';
 import { EliminateJsonbAndArrays1730000000010 } from './migrations/1730000000010-EliminateJsonbAndArrays';
+import { EnforceUserRoleEntityConsistency1730000000011 } from './migrations/1730000000011-EnforceUserRoleEntityConsistency';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -29,6 +30,7 @@ export default new DataSource({
     SecurityHardening1730000000008,
     PaymentAndLessonStudentConstraints1730000000009,
     EliminateJsonbAndArrays1730000000010,
+    EnforceUserRoleEntityConsistency1730000000011,
   ],
   synchronize: false,
 });

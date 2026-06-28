@@ -1,22 +1,30 @@
 import { useAuth } from "@/lib/AuthContext";
+import { AuthLoadingScreen, isValidDashboardRole, shouldBlockProtectedUI } from "@/lib/auth-gate";
 import AdminDashboard from "@/components/dashboard/AdminDashboard";
 import TeacherDashboard from "@/components/dashboard/TeacherDashboard";
 
 export default function Dashboard() {
-  const { user, isLoadingAuth } = useAuth();
+  const auth = useAuth();
+  const { user } = auth;
 
-  if (isLoadingAuth) {
+  if (shouldBlockProtectedUI(auth)) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+        <AuthLoadingScreen />
       </div>
     );
   }
 
-  const role = user?.role || "pending";
+  if (!isValidDashboardRole(user?.role)) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <AuthLoadingScreen />
+      </div>
+    );
+  }
 
-  if (role === "admin") return <AdminDashboard user={user} />;
-  if (role === "teacher") return <TeacherDashboard user={user} />;
+  if (user.role === "admin") return <AdminDashboard user={user} />;
+  if (user.role === "teacher") return <TeacherDashboard user={user} />;
 
   return (
     <div className="flex flex-col items-center justify-center h-full py-24 gap-4 px-6 dark:bg-slate-950">

@@ -4,7 +4,7 @@ import { entities } from './entities';
 import { functions } from './functions';
 import { apiUpload } from './http';
 
-export { getToken, setToken, apiFetch } from './http';
+export { getToken, setToken, apiFetch, TOKEN_KEY, onTokenChange } from './http';
 export { alfabank } from './alfabank';
 export { auth } from './auth';
 export { entities } from './entities';

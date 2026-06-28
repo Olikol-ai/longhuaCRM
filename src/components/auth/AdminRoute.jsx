@@ -1,23 +1,21 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
+import { AuthLoadingScreen, shouldBlockProtectedUI } from '@/lib/auth-gate';
 import { resolveRedirect } from '@/lib/routing';
 
-function RouteSpinner() {
-  return (
-    <div className="fixed inset-0 flex items-center justify-center">
-      <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
-    </div>
-  );
+function blockRoute(auth) {
+  return shouldBlockProtectedUI(auth);
 }
 
 export function AdminRoute({ children }) {
-  const { user, isLoadingAuth } = useAuth();
+  const auth = useAuth();
+  const { user } = auth;
 
-  if (isLoadingAuth) {
-    return <RouteSpinner />;
+  if (blockRoute(auth)) {
+    return <AuthLoadingScreen />;
   }
 
-  if (user?.role !== 'admin') {
+  if (user.role !== 'admin') {
     return <Navigate to={resolveRedirect(user)} replace />;
   }
 
@@ -25,16 +23,32 @@ export function AdminRoute({ children }) {
 }
 
 export function TeacherRoute({ children, allowAdmin = true }) {
-  const { user, isLoadingAuth } = useAuth();
+  const auth = useAuth();
+  const { user } = auth;
 
-  if (isLoadingAuth) {
-    return <RouteSpinner />;
+  if (blockRoute(auth)) {
+    return <AuthLoadingScreen />;
   }
 
   const allowed =
-    user?.role === 'teacher' || (allowAdmin && user?.role === 'admin');
+    user.role === 'teacher' || (allowAdmin && user.role === 'admin');
 
   if (!allowed) {
+    return <Navigate to={resolveRedirect(user)} replace />;
+  }
+
+  return children;
+}
+
+export function StudentRoute({ children }) {
+  const auth = useAuth();
+  const { user } = auth;
+
+  if (blockRoute(auth)) {
+    return <AuthLoadingScreen />;
+  }
+
+  if (user.role !== 'student') {
     return <Navigate to={resolveRedirect(user)} replace />;
   }
 

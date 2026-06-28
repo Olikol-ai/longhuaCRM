@@ -18,7 +18,12 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import { useAuth } from "@/lib/AuthContext";
-import { Button } from "@/components/ui/button";
+import {
+  AuthLoadingScreen,
+  isValidDashboardRole,
+  shouldBlockProtectedUI,
+  shouldBlockUntilRoleKnown,
+} from "@/lib/auth-gate";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const adminNav = [
@@ -46,50 +51,41 @@ const studentNav = [
   { name: "Настройки", icon: Settings, page: "Settings" },
 ];
 
+const NAV_BY_ROLE = {
+  admin: adminNav,
+  teacher: teacherNav,
+  student: studentNav,
+};
+
 export default function Layout({ children, currentPageName }) {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const { theme, toggleTheme } = useTheme();
-  const { user, isLoadingAuth, isAuthenticated, logout } = useAuth();
+  const auth = useAuth();
+  const { user, isAuthenticated, logout } = auth;
 
-  if (isLoadingAuth) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-10 w-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-muted-foreground">Загрузка...</p>
-        </div>
-      </div>
-    );
+  if (shouldBlockProtectedUI(auth)) {
+    return <AuthLoadingScreen />;
   }
 
   if (!isAuthenticated || !user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-6 p-8">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <BookOpen className="h-10 w-10 text-indigo-600" />
-            <h1 className="text-3xl font-bold text-foreground tracking-tight">Longhua Chinese</h1>
-          </div>
-          <p className="text-muted-foreground max-w-sm">Платформа управления языковой школой</p>
-          <Button
-            onClick={() => { window.location.href = '/login'; }}
-            className="bg-indigo-600 hover:bg-indigo-700 px-8 py-3 text-base"
-          >
-            Войти
-          </Button>
-        </div>
-      </div>
-    );
+    return <AuthLoadingScreen />;
   }
 
   const role = user.role;
-  const hasDashboard = user.onboarding_state === 'active' && role;
+  const hasDashboard = user.onboarding_state === 'active' && isValidDashboardRole(role);
 
   if (currentPageName === 'Welcome' || currentPageName === 'PendingApproval' || !hasDashboard) {
     return <>{children}</>;
   }
 
-  const navItems = role === 'admin' ? adminNav : role === 'teacher' ? teacherNav : studentNav;
+  if (shouldBlockUntilRoleKnown(user)) {
+    return <AuthLoadingScreen />;
+  }
+
+  const navItems = NAV_BY_ROLE[role];
+  if (!navItems) {
+    return <AuthLoadingScreen />;
+  }
 
   const fullName = user?.full_name || user?.email || "User";
 

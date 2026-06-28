@@ -8,6 +8,26 @@ import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { getGreetingName } from "@/lib/display-name";
 
+/** One row per student.id — guards against duplicate API rows. */
+function uniqueStudentsById(students) {
+  const byId = new Map();
+  for (const student of students) {
+    const id = String(student?.id ?? "").trim();
+    if (id && !byId.has(id)) {
+      byId.set(id, student);
+    }
+  }
+  return [...byId.values()];
+}
+
+function isActiveStudent(student) {
+  return student?.status !== "inactive";
+}
+
+function isLowLessonBalance(student) {
+  return (student?.lesson_balance ?? 0) <= 2;
+}
+
 export default function AdminDashboard({ user }) {
   const [lessons, setLessons] = useState([]);
   const [students, setStudents] = useState([]);
@@ -38,10 +58,12 @@ export default function AdminDashboard({ user }) {
   });
 
   const totalPaid = payments.reduce((s, p) => s + (p.amount || 0), 0);
-  const lowBalance = students.filter(s => (s.lesson_balance || 0) <= 2).length;
+  const activeStudents = uniqueStudentsById(students).filter(isActiveStudent);
+  const lowBalanceStudents = activeStudents.filter(isLowLessonBalance);
+  const lowBalance = lowBalanceStudents.length;
 
   // Birthdays in next 30 days
-  const upcomingBirthdays = students.filter(s => {
+  const upcomingBirthdays = uniqueStudentsById(students).filter(s => {
     if (!s.birthday || s.status === "inactive") return false;
     try {
       const today = new Date();
@@ -84,7 +106,7 @@ export default function AdminDashboard({ user }) {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Уроков сегодня" value={todayLessons.length} icon={CalendarDays} color="indigo" />
         <StatCard label="Уроков завтра" value={tomorrowLessons.length} icon={Clock} color="violet" />
-        <StatCard label="Всего учеников" value={students.filter(s => s.status !== "inactive").length} icon={GraduationCap} color="sky" />
+        <StatCard label="Всего учеников" value={activeStudents.length} icon={GraduationCap} color="sky" />
         <StatCard label="Всего преподавателей" value={teachers.filter(t => t.status !== "inactive").length} icon={Users} color="emerald" />
       </div>
 
@@ -170,9 +192,7 @@ export default function AdminDashboard({ user }) {
             <h3 className="text-sm font-semibold text-slate-700">Ученики с низким балансом</h3>
           </div>
           <div className="divide-y divide-slate-50">
-            {students
-              .filter(s => (s.lesson_balance || 0) <= 2 && s.status !== "inactive")
-              .map(s => (
+            {lowBalanceStudents.map(s => (
                 <div key={s.id} className="flex items-center gap-3 px-4 py-3">
                   <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center">
                     <span className="text-xs font-semibold text-indigo-600">{s.name[0]}</span>

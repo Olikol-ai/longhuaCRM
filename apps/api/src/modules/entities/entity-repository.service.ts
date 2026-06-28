@@ -39,6 +39,7 @@ import { AuditService } from '../audit/audit.service';
 import { recordToShopItemPayload, shopItemToRecord } from '../shop/shop.mapper';
 import { welcomeInputToRows, welcomeRowsToRecord } from '../welcome/welcome.mapper';
 import { StudentBalanceService } from '../students/student-balance.service';
+import { RoleEntitySyncService } from '../users/role-entity-sync.service';
 import { UsersRepository } from '../users/users.repository';
 import { EntityAccessService } from './entity-access.service';
 import { EntityAccessContext } from './entity-access.types';
@@ -71,6 +72,7 @@ export class EntityRepositoryService {
     private readonly paymentService: PaymentService,
     private readonly studentBalanceService: StudentBalanceService,
     private readonly audit: AuditService,
+    private readonly roleEntitySync: RoleEntitySyncService,
   ) {}
 
   isKnownEntity(entity: string): entity is EntityName {
@@ -209,6 +211,14 @@ export class EntityRepositoryService {
 
     if (entity === 'LessonMaterial') {
       return this.createLessonMaterial(input, context);
+    }
+
+    if (entity === 'Student') {
+      return this.roleEntitySync.upsertStudentFromCreate(input);
+    }
+
+    if (entity === 'Teacher') {
+      return this.roleEntitySync.upsertTeacherFromCreate(input);
     }
 
     const repo = this.getRepo(entity as CrmEntityName);

@@ -3,8 +3,8 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { pagesConfig } from './pages.config'
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
-import { getToken } from '@/api';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import { AuthLoadingScreen, shouldBlockProtectedUI } from '@/lib/auth-gate';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
 import AdminLessonMaterials from './pages/AdminLessonMaterials';
@@ -16,35 +16,36 @@ import Login from './pages/Login';
 import PendingApproval from './pages/PendingApproval';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import NameFormModal from '@/components/auth/NameFormModal';
-import RoleRouteGuard, { RoleHomeRedirect, OnboardingFallback } from '@/components/auth/RoleRouteGuard';
-import { AdminRoute, TeacherRoute } from '@/components/auth/AdminRoute';
+import RoleRouteGuard, { RoleHomeRedirect, OnboardingFallback, RootRedirect } from '@/components/auth/RoleRouteGuard';
+import { AdminRoute, TeacherRoute, StudentRoute } from '@/components/auth/AdminRoute';
 import { ONBOARDING_PATH } from '@/lib/routing';
 
-const { Pages, Layout, mainPage } = pagesConfig;
-const mainPageKey = mainPage ?? Object.keys(Pages)[0];
-const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
+const { Pages, Layout } = pagesConfig;
 
-const LayoutWrapper = ({ children, currentPageName }) => Layout ?
-  <Layout currentPageName={currentPageName}>{children}</Layout>
-  : <>{children}</>;
+const LayoutWrapper = ({ children, currentPageName }) => {
+  const auth = useAuth();
+  if (shouldBlockProtectedUI(auth)) {
+    return <AuthLoadingScreen />;
+  }
+  return Layout ?
+    <Layout currentPageName={currentPageName}>{children}</Layout>
+    : <>{children}</>;
+};
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, user, isAuthenticated, needsNameSetup, handleNameSetupComplete } = useAuth();
+  const auth = useAuth();
+  const {
+    isLoadingPublicSettings,
+    authError,
+    navigateToLogin,
+    user,
+    isAuthenticated,
+    needsNameSetup,
+    handleNameSetupComplete,
+  } = auth;
 
-  if (isLoadingPublicSettings || isLoadingAuth) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
-  if (getToken() && !isAuthenticated) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
-      </div>
-    );
+  if (isLoadingPublicSettings || shouldBlockProtectedUI(auth)) {
+    return <AuthLoadingScreen />;
   }
 
   if (!isAuthenticated) {
@@ -75,11 +76,7 @@ const AuthenticatedApp = () => {
         <Route path="/admin" element={<RoleHomeRedirect role="admin" />} />
         <Route path="/Students" element={<Navigate to="/UserManagement" replace />} />
         <Route path="/students" element={<Navigate to="/UserManagement" replace />} />
-        <Route path="/" element={
-          <LayoutWrapper currentPageName={mainPageKey}>
-            <MainPage />
-          </LayoutWrapper>
-        } />
+        <Route path="/" element={<RootRedirect />} />
         {Object.entries(Pages).map(([path, Page]) => {
           let element = (
             <LayoutWrapper currentPageName={path}>
@@ -91,13 +88,15 @@ const AuthenticatedApp = () => {
             element = <AdminRoute>{element}</AdminRoute>;
           } else if (['TeacherDashboard', 'TeacherSchedule'].includes(path)) {
             element = <TeacherRoute>{element}</TeacherRoute>;
+          } else if (['StudentDashboard', 'StudentLessons'].includes(path)) {
+            element = <StudentRoute>{element}</StudentRoute>;
           }
 
           return <Route key={path} path={`/${path}`} element={element} />;
         })}
         <Route path="/AdminLessonMaterials" element={<AdminRoute><LayoutWrapper currentPageName="AdminLessonMaterials"><AdminLessonMaterials /></LayoutWrapper></AdminRoute>} />
         <Route path="/MaterialsHub" element={<TeacherRoute><LayoutWrapper currentPageName="MaterialsHub"><MaterialsHub /></LayoutWrapper></TeacherRoute>} />
-        <Route path="/StudentLessonMaterials" element={<LayoutWrapper currentPageName="StudentLessonMaterials"><StudentLessonMaterials /></LayoutWrapper>} />
+        <Route path="/StudentLessonMaterials" element={<StudentRoute><LayoutWrapper currentPageName="StudentLessonMaterials"><StudentLessonMaterials /></LayoutWrapper></StudentRoute>} />
         <Route path="/UserManagement" element={<AdminRoute><LayoutWrapper currentPageName="UserManagement"><UserManagement /></LayoutWrapper></AdminRoute>} />
         <Route path="/AdminPanel" element={<AdminRoute><LayoutWrapper currentPageName="AdminPanel"><AdminPanel /></LayoutWrapper></AdminRoute>} />
         <Route path="*" element={<OnboardingFallback />} />
