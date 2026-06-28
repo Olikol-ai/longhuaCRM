@@ -20,6 +20,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { api } from '@/api';
 import { Loader2 } from "lucide-react";
+import { createWeeklyLessonSeries } from "@/lib/recurring-lessons";
 
 export default function LessonFormDialog({ open, onOpenChange, lesson, onSave }) {
   const [teachers, setTeachers] = useState([]);
@@ -37,7 +38,6 @@ export default function LessonFormDialog({ open, onOpenChange, lesson, onSave })
     status: "planned",
     notes: "",
     is_recurring: false,
-    recurring_weeks: 4,
   });
 
   useEffect(() => {
@@ -47,7 +47,6 @@ export default function LessonFormDialog({ open, onOpenChange, lesson, onSave })
         setFormData({
           ...lesson,
           is_recurring: false,
-          recurring_weeks: 4,
         });
       } else {
         setFormData({
@@ -62,7 +61,6 @@ export default function LessonFormDialog({ open, onOpenChange, lesson, onSave })
           status: "planned",
           notes: "",
           is_recurring: false,
-          recurring_weeks: 4,
         });
       }
     }
@@ -102,54 +100,31 @@ export default function LessonFormDialog({ open, onOpenChange, lesson, onSave })
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      if (formData.is_recurring && !lesson) {
-        const groupId = `rec_${Date.now()}`;
-        const lessons = [];
-        for (let i = 0; i < formData.recurring_weeks; i++) {
-          const d = new Date(formData.date);
-          d.setDate(d.getDate() + i * 7);
-          lessons.push({
-            teacher_id: formData.teacher_id,
-            teacher_name: formData.teacher_name,
-            teacher_first_name: formData.teacher_first_name || "",
-            teacher_last_name: formData.teacher_last_name || "",
-            student_id: formData.student_id,
-            student_name: formData.student_name,
-            student_first_name: formData.student_first_name || "",
-            student_last_name: formData.student_last_name || "",
-            date: d.toISOString().split("T")[0],
-            start_time: formData.start_time,
-            duration: formData.duration,
-            meeting_link: formData.meeting_link,
-            status: "planned",
-            notes: formData.notes,
-            is_recurring: true,
-            recurring_group_id: groupId,
-          });
-        }
-        await api.entities.Lesson.bulkCreate(lessons);
+      const baseData = {
+        teacher_id: formData.teacher_id,
+        teacher_name: formData.teacher_name,
+        teacher_first_name: formData.teacher_first_name || "",
+        teacher_last_name: formData.teacher_last_name || "",
+        student_id: formData.student_id,
+        student_name: formData.student_name,
+        student_first_name: formData.student_first_name || "",
+        student_last_name: formData.student_last_name || "",
+        date: formData.date,
+        start_time: formData.start_time,
+        duration: formData.duration,
+        meeting_link: formData.meeting_link,
+        status: formData.status,
+        notes: formData.notes,
+      };
+
+      if (lesson) {
+        await api.entities.Lesson.update(lesson.id, baseData);
       } else {
-        const data = {
-          teacher_id: formData.teacher_id,
-          teacher_name: formData.teacher_name,
-          teacher_first_name: formData.teacher_first_name || "",
-          teacher_last_name: formData.teacher_last_name || "",
-          student_id: formData.student_id,
-          student_name: formData.student_name,
-          student_first_name: formData.student_first_name || "",
-          student_last_name: formData.student_last_name || "",
-          date: formData.date,
-          start_time: formData.start_time,
-          duration: formData.duration,
-          meeting_link: formData.meeting_link,
-          status: formData.status,
-          notes: formData.notes,
-        };
-        if (lesson) {
-          await api.entities.Lesson.update(lesson.id, data);
-        } else {
-          await api.entities.Lesson.create(data);
-        }
+        await createWeeklyLessonSeries(
+          (payload) => api.entities.Lesson.create(payload),
+          baseData,
+          formData.is_recurring,
+        );
       }
       onSave?.();
       onOpenChange(false);
@@ -271,26 +246,17 @@ export default function LessonFormDialog({ open, onOpenChange, lesson, onSave })
           </div>
 
           {!lesson && (
-            <div className="border rounded-lg p-4 space-y-3 bg-slate-50">
+            <div className="border rounded-lg p-4 bg-slate-50">
               <div className="flex items-center justify-between">
-                <Label>Recurring Weekly</Label>
+                <div>
+                  <Label>Recurring Weekly</Label>
+                  <p className="text-xs text-slate-500 mt-1">Creates this lesson and another one week later</p>
+                </div>
                 <Switch
                   checked={formData.is_recurring}
                   onCheckedChange={(v) => setFormData({ ...formData, is_recurring: v })}
                 />
               </div>
-              {formData.is_recurring && (
-                <div className="space-y-2">
-                  <Label className="text-xs text-slate-500">Number of weeks</Label>
-                  <Input
-                    type="number"
-                    min={2}
-                    max={12}
-                    value={formData.recurring_weeks}
-                    onChange={(e) => setFormData({ ...formData, recurring_weeks: Number(e.target.value) })}
-                  />
-                </div>
-              )}
             </div>
           )}
         </div>

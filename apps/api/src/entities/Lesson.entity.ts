@@ -106,7 +106,17 @@ import {
   
     @Column({ name: 'recurring_group_id', type: 'uuid', nullable: true })
     recurringGroupId: string;
-  
+
+    @Index('IDX_LESSON_RECURRENCE_SERIES_ID')
+    @Column({ name: 'recurrence_series_id', type: 'uuid', nullable: true })
+    recurrenceSeriesId: string | null;
+
+    @Column({ name: 'recurrence_index', type: 'int', nullable: true })
+    recurrenceIndex: number | null;
+
+    @Column({ name: 'manually_modified', type: 'boolean', default: false })
+    manuallyModified: boolean;
+
     @Column({ name: 'balance_deducted', type: 'boolean', default: false })
     balanceDeducted: boolean;
   

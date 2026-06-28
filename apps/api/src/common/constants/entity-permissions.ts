@@ -172,6 +172,26 @@ export const ENTITY_PERMISSIONS: EntityPermissionsMatrix = {
     },
     student: noneAccess(),
   },
+  TeacherAvailabilityBooking: {
+    admin: readAll(),
+    teacher: readOwn(),
+    student: noneAccess(),
+  },
+  LessonSeries: {
+    admin: {
+      read: 'all',
+      create: 'none',
+      update: 'all',
+      delete: 'none',
+    },
+    teacher: {
+      read: 'own',
+      create: 'none',
+      update: 'own',
+      delete: 'none',
+    },
+    student: noneAccess(),
+  },
   AppSettings: {
     admin: fullAccess(),
     teacher: readAll(),

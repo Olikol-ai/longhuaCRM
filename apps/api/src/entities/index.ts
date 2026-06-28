@@ -2,6 +2,8 @@ import { AuditLogEntity } from './AuditLog.entity';
 import { TeacherAvailabilitySlotEntity } from './TeacherAvailabilitySlot.entity';
 import { LessonMaterialLinkEntity } from './LessonMaterialLink.entity';
 import { LessonMaterialTagEntity } from './LessonMaterialTag.entity';
+import { LessonSeriesStudentEntity } from './LessonSeriesStudent.entity';
+import { LessonSeriesExclusionEntity } from './LessonSeriesExclusion.entity';
 import { UserEntity } from './user.entity';
 import {
   StudentEntity,
@@ -16,6 +18,8 @@ import {
   TeacherPaymentEntity,
   MaterialAccessEntity,
   TeacherAvailabilityEntity,
+  TeacherAvailabilityBookingEntity,
+  LessonSeriesEntity,
   AlfaBankOrderEntity,
   AppSettingEntity,
   ShopItemEntity,
@@ -40,11 +44,15 @@ export const ALL_ENTITIES = [
   TeacherPaymentEntity,
   MaterialAccessEntity,
   TeacherAvailabilityEntity,
+  TeacherAvailabilityBookingEntity,
+  LessonSeriesEntity,
   AlfaBankOrderEntity,
   AppSettingEntity,
   ShopItemEntity,
   WelcomePageSettingEntity,
   TeacherAvailabilitySlotEntity,
+  LessonSeriesStudentEntity,
+  LessonSeriesExclusionEntity,
   LessonMaterialLinkEntity,
   LessonMaterialTagEntity,
 ];

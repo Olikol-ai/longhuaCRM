@@ -1,7 +1,17 @@
 import { useState } from "react";
-import { X, RefreshCw } from "lucide-react";
+import { createPortal } from "react-dom";
+import { X, RefreshCw, ChevronDown } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 
-const FORMAT_LABELS = { online: "Дистанционное", offline: "Очное" };
+const DROPDOWN_Z = "z-[200]";
 
 export default function LessonModal({ date, teachers, students, onSave, onClose, defaultTeacherId }) {
   const [form, setForm] = useState({
@@ -19,8 +29,8 @@ export default function LessonModal({ date, teachers, students, onSave, onClose,
     notes: "",
   });
   const [recurring, setRecurring] = useState(false);
-  const [recurringWeeks, setRecurringWeeks] = useState(4);
   const [saving, setSaving] = useState(false);
+  const [studentPickerOpen, setStudentPickerOpen] = useState(false);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -37,7 +47,6 @@ export default function LessonModal({ date, teachers, students, onSave, onClose,
     if (!form.teacher_id || form.student_ids.length === 0 || !form.date || !form.start_time) return;
     if (saving) return;
 
-    // Проверка: не ранее чем за 2 часа до начала урока
     const lessonDateTime = new Date(`${form.date}T${form.start_time}`);
     const now = new Date();
     const hoursUntilLesson = (lessonDateTime - now) / (1000 * 60 * 60);
@@ -61,59 +70,107 @@ export default function LessonModal({ date, teachers, students, onSave, onClose,
       student_first_name: selectedStudents[0]?.first_name || "",
       student_last_name: selectedStudents[0]?.last_name || "",
       duration: +form.duration,
-    }, recurring, recurringWeeks);
+    }, recurring);
     setSaving(false);
   };
 
   const activeStudents = students.filter(s => s.status !== "inactive");
+  const activeTeachers = teachers.filter(t => t.status !== "inactive");
+  const selectedStudentLabels = activeStudents
+    .filter(s => form.student_ids.includes(s.id))
+    .map(s => s.name);
 
-  return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] flex flex-col">
+  const modal = (
+    <div
+      className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] flex flex-col z-[100]"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 flex-shrink-0">
           <h3 className="text-base font-semibold text-slate-800">Запланировать урок</h3>
-          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg">
+          <button type="button" onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg">
             <X className="w-4 h-4 text-slate-500" />
           </button>
         </div>
-        <div className="p-6 space-y-4 overflow-y-auto flex-1">
+
+        <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0 overscroll-contain">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-xs font-medium text-slate-600 mb-1">Преподаватель *</label>
-              <select value={form.teacher_id} onChange={e => {
-                const t = teachers.find(x => x.id === e.target.value);
-                set("teacher_id", e.target.value);
-                set("teacher_name", t?.name || "");
-                set("teacher_first_name", t?.first_name || "");
-                set("teacher_last_name", t?.last_name || "");
-              }}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400">
-                <option value="">Выбрать преподавателя</option>
-                {teachers.filter(t => t.status !== "inactive").map(t => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
+              <Select
+                value={form.teacher_id}
+                onValueChange={(value) => {
+                  const t = activeTeachers.find(x => x.id === value);
+                  setForm(f => ({
+                    ...f,
+                    teacher_id: value,
+                    teacher_name: t?.name || "",
+                    teacher_first_name: t?.first_name || "",
+                    teacher_last_name: t?.last_name || "",
+                  }));
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Выбрать преподавателя" />
+                </SelectTrigger>
+                <SelectContent className={DROPDOWN_Z}>
+                  {activeTeachers.map(t => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            {/* Multi-student selector */}
             <div className="col-span-2">
               <label className="block text-xs font-medium text-slate-600 mb-1">
-                Ученики * {form.student_ids.length > 0 && <span className="text-indigo-600">({form.student_ids.length} выбрано)</span>}
+                Ученики * {form.student_ids.length > 0 && (
+                  <span className="text-indigo-600">({form.student_ids.length} выбрано)</span>
+                )}
               </label>
-              <div className="border border-slate-200 rounded-lg max-h-32 overflow-y-auto divide-y divide-slate-50">
-                {activeStudents.map(s => (
-                  <label key={s.id} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-50">
-                    <input
-                      type="checkbox"
-                      checked={form.student_ids.includes(s.id)}
-                      onChange={() => toggleStudent(s.id)}
-                      className="accent-indigo-600"
-                    />
-                    <span className="text-sm text-slate-700">{s.name}</span>
-                    <span className="text-xs text-slate-400 ml-auto">баланс: {s.lesson_balance || 0}</span>
-                  </label>
-                ))}
-              </div>
+              <Popover open={studentPickerOpen} onOpenChange={setStudentPickerOpen} modal={false}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex h-9 w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+                  >
+                    <span className={`truncate text-left ${form.student_ids.length === 0 ? "text-slate-400" : ""}`}>
+                      {form.student_ids.length === 0
+                        ? "Выбрать учеников"
+                        : selectedStudentLabels.join(", ")}
+                    </span>
+                    <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className={`${DROPDOWN_Z} w-[var(--radix-popover-trigger-width)] p-0`}
+                  align="start"
+                  sideOffset={4}
+                  onOpenAutoFocus={(e) => e.preventDefault()}
+                >
+                  <div className="max-h-48 overflow-y-auto overscroll-contain divide-y divide-slate-50">
+                    {activeStudents.length === 0 ? (
+                      <p className="px-3 py-4 text-sm text-slate-400 text-center">Нет доступных учеников</p>
+                    ) : (
+                      activeStudents.map(s => (
+                        <label
+                          key={s.id}
+                          className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-slate-50"
+                        >
+                          <Checkbox
+                            checked={form.student_ids.includes(s.id)}
+                            onCheckedChange={() => toggleStudent(s.id)}
+                          />
+                          <span className="text-sm text-slate-700 flex-1 min-w-0 truncate">{s.name}</span>
+                          <span className="text-xs text-slate-400 shrink-0">баланс: {s.lesson_balance || 0}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div>
@@ -128,18 +185,34 @@ export default function LessonModal({ date, teachers, students, onSave, onClose,
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Длительность (мин)</label>
-              <select value={form.duration} onChange={e => set("duration", e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400">
-                {[30, 45, 60, 90, 120].map(d => <option key={d} value={d}>{d} мин</option>)}
-              </select>
+              <Select
+                value={String(form.duration)}
+                onValueChange={(value) => set("duration", value)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className={DROPDOWN_Z}>
+                  {[30, 45, 60, 90, 120].map(d => (
+                    <SelectItem key={d} value={String(d)}>{d} мин</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Формат</label>
-              <select value={form.lesson_format} onChange={e => set("lesson_format", e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400">
-                <option value="online">Дистанционное</option>
-                <option value="offline">Очное</option>
-              </select>
+              <Select
+                value={form.lesson_format}
+                onValueChange={(value) => set("lesson_format", value)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className={DROPDOWN_Z}>
+                  <SelectItem value="online">Дистанционное</SelectItem>
+                  <SelectItem value="offline">Очное</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             {form.lesson_format === "online" && (
               <div className="col-span-2">
@@ -160,38 +233,25 @@ export default function LessonModal({ date, teachers, students, onSave, onClose,
             <RefreshCw className={`w-4 h-4 ${recurring ? "text-indigo-600" : "text-slate-400"}`} />
             <div>
               <p className={`text-xs font-semibold ${recurring ? "text-indigo-700" : "text-slate-600"}`}>Еженедельный повтор</p>
-              <p className="text-[10px] text-slate-400">Создать повторяющиеся уроки каждую неделю</p>
+              <p className="text-[10px] text-slate-400">Создаёт урок на выбранную дату и ещё один через неделю</p>
             </div>
             <div className={`ml-auto w-4 h-4 rounded border-2 flex items-center justify-center ${recurring ? "border-indigo-600 bg-indigo-600" : "border-slate-300"}`}>
               {recurring && <span className="text-white text-[8px] font-bold">✓</span>}
             </div>
           </div>
-
-          {recurring && (
-            <div className="flex items-center gap-3 px-1">
-              <label className="text-xs font-medium text-slate-600 whitespace-nowrap">Количество недель:</label>
-              <input
-                type="number"
-                min={2}
-                max={52}
-                value={recurringWeeks}
-                onChange={e => setRecurringWeeks(Math.max(2, Math.min(52, +e.target.value)))}
-                onClick={e => e.stopPropagation()}
-                className="w-20 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
-              />
-              <span className="text-xs text-slate-400">= {recurringWeeks} уроков</span>
-            </div>
-          )}
         </div>
+
         <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-100 flex-shrink-0">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-lg">Отмена</button>
-          <button onClick={handleSave}
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-lg">Отмена</button>
+          <button type="button" onClick={handleSave}
             disabled={!form.teacher_id || form.student_ids.length === 0 || saving}
             className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-40">
-            {saving ? "Создание..." : recurring ? `Создать ${recurringWeeks} уроков` : "Создать урок"}
+            {saving ? "Создание..." : recurring ? "Создать 2 урока" : "Создать урок"}
           </button>
         </div>
       </div>
     </div>
   );
+
+  return createPortal(modal, document.body);
 }

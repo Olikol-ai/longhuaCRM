@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, QueryFailedError, Repository } from 'typeorm';
 import {
   CRM_ENTITY_CLASS_MAP,
   CrmEntityName,
@@ -39,6 +39,10 @@ import { AuditService } from '../audit/audit.service';
 import { recordToShopItemPayload, shopItemToRecord } from '../shop/shop.mapper';
 import { welcomeInputToRows, welcomeRowsToRecord } from '../welcome/welcome.mapper';
 import { StudentBalanceService } from '../students/student-balance.service';
+import { LessonSeriesStudentEntity } from '../../entities/LessonSeriesStudent.entity';
+import { LessonSeriesEntity } from '../../entities/LessonSeries.entity';
+import { TeacherAvailabilityBookingService } from '../schedule/teacher-availability-booking.service';
+import { LessonSeriesService } from '../schedule/lesson-series.service';
 import { RoleEntitySyncService } from '../users/role-entity-sync.service';
 import { UsersRepository } from '../users/users.repository';
 import { EntityAccessService } from './entity-access.service';
@@ -73,6 +77,8 @@ export class EntityRepositoryService {
     private readonly studentBalanceService: StudentBalanceService,
     private readonly audit: AuditService,
     private readonly roleEntitySync: RoleEntitySyncService,
+    private readonly availabilityBooking: TeacherAvailabilityBookingService,
+    private readonly lessonSeries: LessonSeriesService,
   ) {}
 
   isKnownEntity(entity: string): entity is EntityName {
@@ -291,6 +297,10 @@ export class EntityRepositoryService {
       return this.updateLessonMaterial(id, input, row);
     }
 
+    if (entity === 'LessonSeries') {
+      return this.updateLessonSeries(id, input, row);
+    }
+
     const payload = recordToEntityPayload(input);
 
     if (entity === 'ShopSettings') {
@@ -364,7 +374,20 @@ export class EntityRepositoryService {
     }
 
     if (entity === 'Lesson') {
-      await this.getRepo('LessonStudent').delete({ lessonId: id });
+      const lessonRow = row as LessonEntity;
+      await this.dataSource.transaction(async (manager) => {
+        if (lessonRow.recurrenceSeriesId != null && lessonRow.recurrenceIndex != null) {
+          await this.lessonSeries.recordDeletedRecurrenceInstance(
+            lessonRow.recurrenceSeriesId,
+            lessonRow.recurrenceIndex,
+            manager,
+          );
+        }
+        await manager.getRepository(LessonStudentEntity).delete({ lessonId: id });
+        await this.availabilityBooking.cancelBookingsForLesson(id, manager);
+        await manager.getRepository(LessonEntity).delete({ id });
+      });
+      return;
     }
 
     if (entity === 'TeacherAvailability') {
@@ -676,6 +699,8 @@ export class EntityRepositoryService {
         return this.enrichLessonRecords(records);
       case 'TeacherAvailability':
         return this.enrichTeacherAvailabilityRecords(records);
+      case 'LessonSeries':
+        return this.enrichLessonSeriesRecords(records);
       case 'LessonMaterial':
         return this.enrichLessonMaterialRecords(records);
       default:
@@ -744,6 +769,35 @@ export class EntityRepositoryService {
       const material_ids = materialsByLesson.get(lessonId) ?? [];
       return { ...record, student_ids, student_names, material_ids };
     });
+  }
+
+  private async enrichLessonSeriesRecords(
+    records: Record<string, unknown>[],
+  ): Promise<Record<string, unknown>[]> {
+    const seriesIds = records.map((record) => String(record.id));
+    if (seriesIds.length === 0) {
+      return records;
+    }
+
+    const rows = await this.dataSource
+      .getRepository(LessonSeriesStudentEntity)
+      .createQueryBuilder('lss')
+      .where('lss.series_id IN (:...seriesIds)', { seriesIds })
+      .getMany();
+
+    const studentsBySeries = new Map<string, string[]>();
+    for (const row of rows) {
+      const seriesId = String(row.seriesId);
+      if (!studentsBySeries.has(seriesId)) {
+        studentsBySeries.set(seriesId, []);
+      }
+      studentsBySeries.get(seriesId)!.push(String(row.studentId));
+    }
+
+    return records.map((record) => ({
+      ...record,
+      student_ids: studentsBySeries.get(String(record.id)) ?? [],
+    }));
   }
 
   private async enrichTeacherAvailabilityRecords(
@@ -926,6 +980,44 @@ export class EntityRepositoryService {
     });
   }
 
+  private async updateLessonSeries(
+    id: string,
+    input: Record<string, unknown>,
+    _row: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const repo = this.getRepo('LessonSeries');
+    const managedRow = await repo.findOne({ where: { id } });
+    if (!managedRow) {
+      throw new NotFoundException('LessonSeries not found');
+    }
+
+    const allowed = new Set(['status', 'repeat_weekly', 'repeatWeekly']);
+    for (const key of Object.keys(input)) {
+      if (!allowed.has(key)) {
+        throw new ForbiddenException(
+          `LessonSeries field "${key}" cannot be updated directly`,
+        );
+      }
+    }
+
+    const payload = recordToEntityPayload(input);
+    if (payload.status !== undefined) {
+      managedRow.status = String(payload.status) as 'active' | 'paused' | 'stopped';
+    }
+    if (payload.repeatWeekly !== undefined) {
+      managedRow.repeatWeekly = Boolean(payload.repeatWeekly);
+    }
+
+    if (managedRow.status === 'stopped') {
+      managedRow.repeatWeekly = false;
+    }
+
+    managedRow.updatedDate = new Date();
+    const saved = await repo.save(managedRow);
+    const record = entityToRecord(saved as unknown as Record<string, unknown>);
+    return (await this.enrichLessonSeriesRecords([record]))[0];
+  }
+
   private async updateLessonMaterial(
     id: string,
     input: Record<string, unknown>,
@@ -955,43 +1047,188 @@ export class EntityRepositoryService {
     });
   }
 
-  private async createLesson(
+  async createLessonWithManager(
     input: Record<string, unknown>,
     _context: EntityAccessContext,
+    manager: EntityManager,
   ): Promise<Record<string, unknown>> {
     const { lessonInput, studentIds, materialIds } = this.normalizeLessonInput(input);
 
+    const saved = await this.persistLessonCreate(
+      lessonInput,
+      studentIds,
+      materialIds,
+      manager,
+    );
+
+    const lessonRepo = manager.getRepository(LessonEntity);
+    const refreshed = await lessonRepo.findOne({ where: { id: saved.id } });
+    const record = entityToRecord((refreshed ?? saved) as unknown as Record<string, unknown>);
+    return (await this.enrichLessonRecords([record]))[0];
+  }
+
+  private async createLesson(
+    input: Record<string, unknown>,
+    context: EntityAccessContext,
+  ): Promise<Record<string, unknown>> {
+    const { lessonInput, studentIds, materialIds } = this.normalizeLessonInput(input);
+    const isRecurring = Boolean(lessonInput.is_recurring ?? lessonInput.isRecurring);
+    const resolvedStudentIds =
+      studentIds ??
+      (lessonInput.student_id ? [String(lessonInput.student_id)] : []);
+
     return this.dataSource.transaction(async (manager) => {
+      let payloadInput: Record<string, unknown> = { ...lessonInput };
+      let bootstrapSecondInstance: { recurrenceIndex: number; date: string } | undefined;
+
+      if (isRecurring) {
+        const seriesMeta = await this.lessonSeries.prepareRecurringLessonCreate(
+          { lessonInput: payloadInput, studentIds: resolvedStudentIds },
+          manager,
+        );
+
+        if (seriesMeta.existingLessonId) {
+          const lessonRepo = manager.getRepository(LessonEntity);
+          const existing = await lessonRepo.findOne({
+            where: { id: seriesMeta.existingLessonId },
+          });
+          if (existing) {
+            const record = entityToRecord(existing as unknown as Record<string, unknown>);
+            return (await this.enrichLessonRecords([record]))[0];
+          }
+        }
+
+        bootstrapSecondInstance = seriesMeta.bootstrapSecondInstance;
+        payloadInput = {
+          ...payloadInput,
+          is_recurring: true,
+          recurring_group_id: seriesMeta.recurringGroupId,
+          recurrence_series_id: seriesMeta.recurrenceSeriesId,
+          recurrence_index: seriesMeta.recurrenceIndex,
+        };
+      }
+
+      const saved = await this.persistLessonCreate(
+        payloadInput,
+        studentIds,
+        materialIds,
+        manager,
+      );
+
+      if (bootstrapSecondInstance) {
+        const occupied = await this.lessonSeries.isSeriesInstanceOccupied(
+          String(payloadInput.recurrence_series_id),
+          bootstrapSecondInstance.recurrenceIndex,
+          String(saved.teacherId),
+          bootstrapSecondInstance.date,
+          saved.scheduleSlotId,
+          manager,
+        );
+
+        if (!occupied) {
+          const secondPayload: Record<string, unknown> = {
+            ...payloadInput,
+            id: randomUUID(),
+            date: bootstrapSecondInstance.date,
+            recurrence_index: bootstrapSecondInstance.recurrenceIndex,
+          };
+          await this.persistLessonCreate(
+            secondPayload,
+            studentIds,
+            materialIds,
+            manager,
+          );
+        }
+      }
+
       const lessonRepo = manager.getRepository(LessonEntity);
-      const now = new Date();
-      const id = lessonInput.id ? String(lessonInput.id) : randomUUID();
-      const payload = recordToEntityPayload(lessonInput);
-
-      const row = lessonRepo.create({
-        id,
-        ...payload,
-        createdDate: now,
-        updatedDate: now,
-      });
-
-      const saved = await lessonRepo.save(row);
-      const lessonId = String(saved.id);
-      const idsToSync =
-        studentIds ??
-        (saved.studentId ? [String(saved.studentId)] : []);
-
-      if (studentIds !== null || idsToSync.length > 0) {
-        await this.syncLessonStudents(lessonId, idsToSync, manager);
-        await this.refreshLessonStudentFields(lessonId, manager);
-      }
-
-      if (materialIds !== null) {
-        await this.syncLessonMaterialLinks(lessonId, materialIds, manager);
-      }
-
       const refreshed = await lessonRepo.findOne({ where: { id: saved.id } });
       const record = entityToRecord((refreshed ?? saved) as unknown as Record<string, unknown>);
       return (await this.enrichLessonRecords([record]))[0];
+    });
+  }
+
+  private async persistLessonCreate(
+    payloadInput: Record<string, unknown>,
+    studentIds: string[] | null,
+    materialIds: string[] | null,
+    manager: EntityManager,
+  ): Promise<LessonEntity> {
+    const lessonRepo = manager.getRepository(LessonEntity);
+    const now = new Date();
+    const id = payloadInput.id ? String(payloadInput.id) : randomUUID();
+    const payload = recordToEntityPayload(payloadInput);
+
+    const row = lessonRepo.create({
+      id,
+      ...payload,
+      createdDate: now,
+      updatedDate: now,
+    });
+
+    let saved: LessonEntity;
+    try {
+      saved = await lessonRepo.save(row);
+    } catch (error) {
+      const raced = await this.findRacedRecurringLesson(payloadInput, manager, error);
+      if (raced) {
+        return raced;
+      }
+      throw error;
+    }
+    const lessonId = String(saved.id);
+    const idsToSync =
+      studentIds ??
+      (saved.studentId ? [String(saved.studentId)] : []);
+
+    if (studentIds !== null || idsToSync.length > 0) {
+      await this.syncLessonStudents(lessonId, idsToSync, manager);
+      await this.refreshLessonStudentFields(lessonId, manager);
+    }
+
+    if (materialIds !== null) {
+      await this.syncLessonMaterialLinks(lessonId, materialIds, manager);
+    }
+
+    await this.availabilityBooking.createBookingForLesson(
+      {
+        lessonId,
+        teacherId: String(saved.teacherId),
+        date: String(saved.date),
+        startTime: String(saved.startTime),
+        duration: Number(saved.duration) || 60,
+      },
+      manager,
+    );
+
+    const refreshed = await lessonRepo.findOne({ where: { id: saved.id } });
+    return (refreshed ?? saved) as LessonEntity;
+  }
+
+  private async findRacedRecurringLesson(
+    payloadInput: Record<string, unknown>,
+    manager: EntityManager,
+    error: unknown,
+  ): Promise<LessonEntity | null> {
+    if (!(error instanceof QueryFailedError)) {
+      return null;
+    }
+    const driverError = (error as QueryFailedError & { driverError?: { code?: string } }).driverError;
+    if (driverError?.code !== '23505') {
+      return null;
+    }
+
+    const seriesId = payloadInput.recurrence_series_id ?? payloadInput.recurrenceSeriesId;
+    const recurrenceIndex = payloadInput.recurrence_index ?? payloadInput.recurrenceIndex;
+    if (seriesId == null || recurrenceIndex == null) {
+      return null;
+    }
+
+    return manager.getRepository(LessonEntity).findOne({
+      where: {
+        recurrenceSeriesId: String(seriesId),
+        recurrenceIndex: Number(recurrenceIndex),
+      },
     });
   }
 
@@ -1013,8 +1250,51 @@ export class EntityRepositoryService {
       }
 
       Object.assign(managedRow, payload);
+
+      const scheduleFieldsChanged =
+        input.teacher_id !== undefined ||
+        input.teacherId !== undefined ||
+        input.date !== undefined ||
+        input.start_time !== undefined ||
+        input.startTime !== undefined ||
+        input.duration !== undefined ||
+        input.schedule_slot_id !== undefined ||
+        input.scheduleSlotId !== undefined;
+
+      const contentFieldsChanged =
+        input.meeting_link !== undefined ||
+        input.meetingLink !== undefined ||
+        input.notes !== undefined ||
+        input.lesson_format !== undefined ||
+        input.lessonFormat !== undefined;
+
+      const studentsChanged = studentIds !== null;
+
+      if (scheduleFieldsChanged || contentFieldsChanged || studentsChanged) {
+        managedRow.manuallyModified = true;
+      }
+
       managedRow.updatedDate = new Date();
       const saved = await lessonRepo.save(managedRow);
+
+      const nextStatus = String(saved.status ?? 'planned');
+      const scheduleChanged = scheduleFieldsChanged;
+
+      if (nextStatus === 'cancelled') {
+        await this.availabilityBooking.cancelBookingsForLesson(id, manager);
+      } else if (scheduleChanged || lessonInput.status !== undefined) {
+        await this.availabilityBooking.syncBookingForLessonUpdate(
+          id,
+          {
+            lessonId: id,
+            teacherId: String(saved.teacherId),
+            date: String(saved.date),
+            startTime: String(saved.startTime),
+            duration: Number(saved.duration) || 60,
+          },
+          manager,
+        );
+      }
 
       if (studentIds !== null) {
         await this.syncLessonStudents(id, studentIds, manager);
@@ -1046,6 +1326,18 @@ export class EntityRepositoryService {
     if (entity === 'Payment' && !isAdmin) {
       throw new ForbiddenException(
         'Payment mutations must go through payment flows or administrator tools',
+      );
+    }
+
+    if (entity === 'TeacherAvailabilityBooking') {
+      throw new ForbiddenException(
+        'Availability bookings are managed automatically through lesson scheduling',
+      );
+    }
+
+    if (entity === 'LessonSeries' && action !== 'update') {
+      throw new ForbiddenException(
+        'Lesson series are managed automatically through lesson scheduling',
       );
     }
 

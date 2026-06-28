@@ -11,6 +11,8 @@ export { LessonBalanceEntity } from './LessonBalance.entity';
 export { TeacherPaymentEntity } from './TeacherPayment.entity';
 export { MaterialAccessEntity } from './MaterialAccess.entity';
 export { TeacherAvailabilityEntity } from './TeacherAvailability.entity';
+export { TeacherAvailabilityBookingEntity } from './TeacherAvailabilityBooking.entity';
+export { LessonSeriesEntity } from './LessonSeries.entity';
 export { AlfaBankOrderEntity } from './alfaBankOrder.entity';
 export { AppSettingEntity } from './AppSetting.entity';
 export { ShopItemEntity } from './ShopItem.entity';

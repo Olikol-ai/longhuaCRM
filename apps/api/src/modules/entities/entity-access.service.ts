@@ -147,6 +147,10 @@ export class EntityAccessService {
       }
       case 'Teacher':
         return String(record.user_id ?? '') === userId;
+      case 'TeacherAvailabilityBooking':
+        return ownedTeacherId != null && String(record.teacher_id ?? '') === ownedTeacherId;
+      case 'LessonSeries':
+        return ownedTeacherId != null && String(record.teacher_id ?? '') === ownedTeacherId;
       case 'MaterialAccess':
         return String(record.user_id ?? '') === userId;
       case 'TeacherAvailability':

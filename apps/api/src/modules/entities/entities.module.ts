@@ -7,6 +7,7 @@ import { CRM_ENTITY_CLASSES } from '../../common/constants/entity-registry';
 import { RolesGuard } from '../../common/guards/roles.guard';
 
 import { PaymentsModule } from '../payments/payments.module';
+import { ScheduleModule } from '../schedule/schedule.module';
 import { StudentsModule } from '../students/students.module';
 
 import { UsersModule } from '../users/users.module';
@@ -23,7 +24,7 @@ import { MaterialAccessCheckService } from './material-access-check.service';
 
 @Module({
 
-  imports: [UsersModule, PaymentsModule, StudentsModule, TypeOrmModule.forFeature(CRM_ENTITY_CLASSES)],
+  imports: [UsersModule, PaymentsModule, StudentsModule, ScheduleModule, TypeOrmModule.forFeature(CRM_ENTITY_CLASSES)],
 
   controllers: [EntitiesController, MaterialAccessController],
 

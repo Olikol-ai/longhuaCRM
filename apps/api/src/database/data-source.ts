@@ -14,6 +14,9 @@ import { SecurityHardening1730000000008 } from './migrations/1730000000008-Secur
 import { PaymentAndLessonStudentConstraints1730000000009 } from './migrations/1730000000009-PaymentAndLessonStudentConstraints';
 import { EliminateJsonbAndArrays1730000000010 } from './migrations/1730000000010-EliminateJsonbAndArrays';
 import { EnforceUserRoleEntityConsistency1730000000011 } from './migrations/1730000000011-EnforceUserRoleEntityConsistency';
+import { TeacherAvailabilityBookings1730000000012 } from './migrations/1730000000012-TeacherAvailabilityBookings';
+import { LessonSeries1730000000013 } from './migrations/1730000000013-LessonSeries';
+import { LessonSeriesHardening1730000000014 } from './migrations/1730000000014-LessonSeriesHardening';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -31,6 +34,9 @@ export default new DataSource({
     PaymentAndLessonStudentConstraints1730000000009,
     EliminateJsonbAndArrays1730000000010,
     EnforceUserRoleEntityConsistency1730000000011,
+    TeacherAvailabilityBookings1730000000012,
+    LessonSeries1730000000013,
+    LessonSeriesHardening1730000000014,
   ],
   synchronize: false,
 });

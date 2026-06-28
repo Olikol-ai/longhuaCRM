@@ -1,17 +1,30 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { ENTITY_NAMES } from '../../common/constants/entity-names';
 import { EntityRepositoryService } from '../entities/entity-repository.service';
+import { LessonSeriesService } from '../schedule/lesson-series.service';
 import { TelegramService } from '../telegram/telegram.service';
 
 @Injectable()
 export class JobsService {
+  private readonly logger = new Logger(JobsService.name);
+
   constructor(
     private readonly entityRepository: EntityRepositoryService,
+    private readonly lessonSeries: LessonSeriesService,
     private readonly telegramService: TelegramService,
     private readonly config: ConfigService,
   ) {}
+
+  @Cron('0 3 * * *')
+  async runDailyRecurringLessons() {
+    if (!this.config.get<boolean>('jobs.enabled')) return;
+    const result = await this.lessonSeries.maintainActiveSeries();
+    this.logger.log(
+      `Lesson series maintenance: created=${result.created}, skipped=${result.skipped}`,
+    );
+  }
 
   @Cron('0 12 * * *')
   async run24hReminders() {

@@ -16,6 +16,7 @@ import {
 } from "date-fns";
 import { ru } from "date-fns/locale";
 import LessonModal from "@/components/schedule/LessonModal";
+import { createWeeklyLessonSeries } from "@/lib/recurring-lessons";
 
 const STATUS_BG = {
   planned: "bg-indigo-500",
@@ -112,16 +113,11 @@ export default function TeacherSchedule() {
   const handleSaveLesson = async (data, recurring) => {
     if (!teacher) return;
     const lessonData = { ...data, teacher_id: teacher.id, teacher_name: teacher.name };
-    if (recurring) {
-      let d = parseISO(lessonData.date);
-      const groupId = Date.now().toString();
-      for (let i = 0; i < 4; i++) {
-        await api.entities.Lesson.create({ ...lessonData, date: format(d, "yyyy-MM-dd"), is_recurring: true, recurring_group_id: groupId });
-        d = addDays(d, 7);
-      }
-    } else {
-      await api.entities.Lesson.create(lessonData);
-    }
+    await createWeeklyLessonSeries(
+      (payload) => api.entities.Lesson.create(payload),
+      lessonData,
+      recurring,
+    );
     setShowModal(false);
     loadData();
   };

@@ -9,6 +9,7 @@ import {
 import { ChevronLeft, ChevronRight, Plus, CalendarDays } from "lucide-react";
 import LessonModal from "../components/schedule/LessonModal";
 import LessonDetailModal from "../components/schedule/LessonDetailModal";
+import { createWeeklyLessonSeries } from "@/lib/recurring-lessons";
 
 export default function Schedule() {
   const [view, setView] = useState("week");
@@ -22,6 +23,9 @@ export default function Schedule() {
   const [viewingLesson, setViewingLesson] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedTeacherId, setSelectedTeacherId] = useState('');
+  const [availabilitySlots, setAvailabilitySlots] = useState([]);
+  const [bookings, setBookings] = useState([]);
 
   const load = async () => {
     setLoading(true);
@@ -44,6 +48,32 @@ export default function Schedule() {
 
   useEffect(() => { load(); }, []);
 
+  useEffect(() => {
+    if (!selectedTeacherId) {
+      setAvailabilitySlots([]);
+      setBookings([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const [availabilityRecords, bookingRows] = await Promise.all([
+          api.entities.TeacherAvailability.filter({ teacher_id: selectedTeacherId }),
+          api.entities.TeacherAvailabilityBooking.filter({ teacher_id: selectedTeacherId }),
+        ]);
+        if (cancelled) return;
+        setAvailabilitySlots(availabilityRecords[0]?.slots || []);
+        setBookings(bookingRows.filter((row) => row.status === 'active'));
+      } catch {
+        if (!cancelled) {
+          setAvailabilitySlots([]);
+          setBookings([]);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedTeacherId, lessons]);
+
   const navigate = (dir) => {
     if (view === "week") setCurrent(dir === "next" ? addWeeks(current, 1) : subWeeks(current, 1));
     else if (view === "month") setCurrent(dir === "next" ? addMonths(current, 1) : subMonths(current, 1));
@@ -56,22 +86,13 @@ export default function Schedule() {
     return format(current, "EEEE, MMMM d, yyyy");
   };
 
-  const handleSave = async (data, recurring, recurringWeeks = 4) => {
+  const handleSave = async (data, recurring) => {
     try {
-      if (recurring) {
-        const dates = [];
-        let d = parseISO(data.date);
-        for (let i = 0; i < recurringWeeks; i++) {
-          dates.push(format(d, "yyyy-MM-dd"));
-          d = addDays(d, 7);
-        }
-        const groupId = Date.now().toString();
-        await Promise.all(dates.map(date =>
-          api.entities.Lesson.create({ ...data, date, is_recurring: true, recurring_group_id: groupId })
-        ));
-      } else {
-        await api.entities.Lesson.create(data);
-      }
+      await createWeeklyLessonSeries(
+        (payload) => api.entities.Lesson.create(payload),
+        data,
+        recurring,
+      );
       setShowModal(false);
       await load();
     } catch (err) {
@@ -128,6 +149,18 @@ export default function Schedule() {
           </button>
         </div>
         <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex-1">{title()}</h2>
+        {isAdmin && (
+          <select
+            value={selectedTeacherId}
+            onChange={(e) => setSelectedTeacherId(e.target.value)}
+            className="text-xs border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 max-w-[180px]"
+          >
+            <option value="">Все преподаватели</option>
+            {teachers.filter(t => t.status !== 'inactive').map(t => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+        )}
         <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
           {[["day", "День"], ["week", "Неделя"], ["month", "Месяц"]].map(([v, label]) => (
             <button key={v} onClick={() => setView(v)}
@@ -164,7 +197,10 @@ export default function Schedule() {
         ) : view === "week" ? (
           <WeekView current={current} hours={HOURS} getLessonsForDay={getLessonsForDay}
             onSlotClick={(date) => { if (isAdmin) { setSelectedDate(date); setShowModal(true); } }}
-            onLessonClick={setViewingLesson} />
+            onLessonClick={setViewingLesson}
+            selectedTeacherId={selectedTeacherId}
+            availabilitySlots={availabilitySlots}
+            bookings={bookings} />
         ) : (
           <DayView current={current} hours={HOURS} getLessonsForDay={getLessonsForDay}
             onLessonClick={setViewingLesson} />
@@ -274,12 +310,50 @@ function MonthView({ current, getLessonsForDay, onDayClick, onLessonClick }) {
   );
 }
 
-function WeekView({ current, hours, getLessonsForDay, onSlotClick, onLessonClick }) {
+function dayIndexFromDate(day) {
+  const weekday = day.getDay();
+  return weekday === 0 ? 6 : weekday - 1;
+}
+
+function parseHour(time) {
+  return parseInt(String(time || '0').split(':')[0] || 0, 10);
+}
+
+function hourOverlapsRange(hour, timeFrom, timeTo) {
+  const from = parseHour(timeFrom);
+  const toParts = String(timeTo || '').split(':');
+  const toHour = parseInt(toParts[0] || 0, 10);
+  const toMinute = parseInt(toParts[1] || 0, 10);
+  const endHour = toMinute > 0 ? toHour + 1 : toHour;
+  return hour >= from && hour < endHour;
+}
+
+function getCellAvailabilityState(day, hour, dateStr, availabilitySlots, bookings) {
+  const daySlots = availabilitySlots.filter((slot) => slot.day === dayIndexFromDate(day));
+  const hasAvailability = daySlots.some((slot) => hourOverlapsRange(hour, slot.from, slot.to));
+  const hasBooking = bookings.some(
+    (booking) => booking.date === dateStr && hourOverlapsRange(hour, booking.time_from, booking.time_to),
+  );
+  if (hasBooking) return 'booked';
+  if (hasAvailability) return 'available';
+  return 'blocked';
+}
+
+function WeekView({ current, hours, getLessonsForDay, onSlotClick, onLessonClick, selectedTeacherId, availabilitySlots, bookings }) {
   const start = startOfWeek(current, { weekStartsOn: 1 });
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
 
+  const showAvailability = Boolean(selectedTeacherId);
+
   return (
     <div className="flex flex-col min-w-[640px]">
+      {showAvailability && (
+        <div className="flex items-center gap-4 px-4 py-2 border-b border-slate-100 dark:border-slate-700 text-[11px] text-slate-500">
+          <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-300" /> Свободно</span>
+          <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-100 border border-red-300" /> Занято</span>
+          <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-slate-100 border border-slate-200" /> Недоступно</span>
+        </div>
+      )}
       {/* Day headers */}
       <div className="grid grid-cols-8 border-b border-slate-100 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900 z-10">
         <div className="py-3" />
@@ -304,6 +378,7 @@ function WeekView({ current, hours, getLessonsForDay, onSlotClick, onLessonClick
         </div>
         {days.map(day => {
           const dayLessons = getLessonsForDay(day);
+          const dateStr = format(day, "yyyy-MM-dd");
           return (
             <div key={day.toISOString()} className="border-l border-slate-100 dark:border-slate-700">
               {hours.map(h => {
@@ -311,10 +386,20 @@ function WeekView({ current, hours, getLessonsForDay, onSlotClick, onLessonClick
                   const lh = parseInt(l.start_time?.split(":")[0] || 0);
                   return lh === h;
                 });
+                const cellState = showAvailability
+                  ? getCellAvailabilityState(day, h, dateStr, availabilitySlots, bookings)
+                  : null;
+                const cellBg = cellState === 'booked'
+                  ? 'bg-red-50/80 dark:bg-red-950/20'
+                  : cellState === 'available'
+                    ? 'bg-emerald-50/70 dark:bg-emerald-950/20'
+                    : cellState === 'blocked'
+                      ? 'bg-slate-50/80 dark:bg-slate-800/40'
+                      : 'hover:bg-slate-50/50 dark:hover:bg-slate-800/50';
                 return (
                   <div key={h}
-                    className="h-16 border-b border-slate-50 dark:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors relative"
-                    onClick={() => onSlotClick(`${format(day, "yyyy-MM-dd")}`)}
+                    className={`h-16 border-b border-slate-50 dark:border-slate-700 cursor-pointer transition-colors relative ${cellBg}`}
+                    onClick={() => onSlotClick(dateStr)}
                   >
                     <div className="absolute inset-x-0.5 top-0.5 space-y-0.5">
                       {slotLessons.map(l => (
