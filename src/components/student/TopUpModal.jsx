@@ -15,6 +15,8 @@ export default function TopUpModal({ onClose }) {
   const [step, setStep] = useState(STEPS.SELECT);
   const [student, setStudent] = useState(null);
   const [paying, setPaying] = useState(false);
+  const [offlineNotice, setOfflineNotice] = useState('');
+  const [offlineError, setOfflineError] = useState('');
 
   useEffect(() => {
     if (isLoadingAuth) return;
@@ -69,19 +71,28 @@ export default function TopUpModal({ onClose }) {
         setPaying(false);
       }
     } else {
-      setStep(STEPS.DONE);
+      setPaying(true);
+      setOfflineNotice('');
+      setOfflineError('');
       try {
-        await api.alfabank.requestOfflinePayment({
+        const result = await api.alfabank.requestOfflinePayment({
           student_id: student.id,
           item_label: selected.label,
           amount: selected.price,
           method,
           item_id: selected.item_id,
         });
+        setStep(STEPS.DONE);
+        if (result.warning) {
+          setOfflineNotice(result.warning);
+        } else {
+          setOfflineNotice('Заявка отправлена администратору. Мы свяжемся с вами для подтверждения оплаты.');
+        }
       } catch (err) {
-        console.error('Offline payment notification failed:', err);
+        setOfflineError(err.message || 'Не удалось отправить заявку. Попробуйте позже или свяжитесь с администратором.');
+      } finally {
+        setPaying(false);
       }
-      setPaying(false);
     }
   };
 
@@ -223,6 +234,9 @@ export default function TopUpModal({ onClose }) {
           {/* Step: Payment */}
           {step === STEPS.PAYMENT && selected && (
             <div className="space-y-5">
+              {offlineError && (
+                <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{offlineError}</p>
+              )}
               <p className="text-sm text-slate-600">Выберите способ оплаты:</p>
               <div className="space-y-2">
                 {[
@@ -266,7 +280,7 @@ export default function TopUpModal({ onClose }) {
               <div>
                 <h3 className="text-lg font-bold text-slate-900">Заявка отправлена!</h3>
                 <p className="text-sm text-slate-500 mt-1">
-                  Администратор обработает ваш запрос и пополнит баланс в ближайшее время.
+                  {offlineNotice || 'Администратор обработает ваш запрос и пополнит баланс в ближайшее время.'}
                 </p>
               </div>
               <Button onClick={handleDone} className="w-full bg-indigo-600 hover:bg-indigo-700">

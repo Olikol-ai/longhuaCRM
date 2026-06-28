@@ -8,12 +8,13 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
 import * as crypto from 'crypto';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, QueryFailedError, Repository } from 'typeorm';
 import { normalizeRole } from '../../common/constants/roles';
 import { PaymentEntity } from '../../entities/Payment.entity';
 import { StudentEntity } from '../../entities/Student.entity';
 import { UserEntity } from '../../entities/user.entity';
 import { EntityRepositoryService } from '../entities/entity-repository.service';
+import { AuditService } from '../audit/audit.service';
 import { PaymentService } from '../payments/payment.service';
 import { SettingsService } from '../settings/settings.service';
 import { TelegramService } from '../telegram/telegram.service';
@@ -55,6 +56,7 @@ export class AlfaBankService {
     private readonly settingsService: SettingsService,
     private readonly telegramService: TelegramService,
     private readonly config: ConfigService,
+    private readonly audit: AuditService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -98,48 +100,25 @@ export class AlfaBankService {
       params.type,
     );
 
-    const paymentRepo = this.dataSource.getRepository(PaymentEntity);
-    let payment = await this.findReusablePendingPayment(
-      paymentRepo,
-      params.studentId,
+    const { payment, createdNew } = await this.acquirePendingPayment({
+      studentId: params.studentId,
       packageType,
-    );
-    let createdNew = false;
+      orderNumber,
+      amount,
+      lessonsAdded,
+    });
 
-    if (!payment) {
-      payment = paymentRepo.create({
-        id: crypto.randomUUID(),
-        studentId: params.studentId,
-        amount,
-        lessonsAdded,
-        packageType,
-        paymentDate: new Date().toISOString().split('T')[0],
-        notes: `Pending Alfa Bank - Order ${orderNumber}`,
-        orderNumber,
-        status: 'pending',
-        provider: 'alfa_bank',
-        currency: 'BYN',
-        createdDate: new Date(),
-        updatedDate: new Date(),
-      });
-      payment = await paymentRepo.save(payment);
-      createdNew = true;
-    } else {
-      if (!payment.orderNumber) {
-        payment.orderNumber = orderNumber;
-      }
-      const storedFormUrl = extractFormUrl(payment.notes);
-      if (storedFormUrl && payment.externalId) {
-        return {
-          ok: true,
-          orderId: payment.externalId,
-          redirectUrl: storedFormUrl,
-          paymentId: payment.id,
-          amount: Number(payment.amount),
-          lessonsAdded: payment.lessonsAdded ?? 0,
-          reused: true,
-        };
-      }
+    const storedFormUrl = extractFormUrl(payment.notes);
+    if (storedFormUrl && payment.externalId) {
+      return {
+        ok: true,
+        orderId: payment.externalId,
+        redirectUrl: storedFormUrl,
+        paymentId: payment.id,
+        amount: Number(payment.amount),
+        lessonsAdded: payment.lessonsAdded ?? 0,
+        reused: true,
+      };
     }
 
     const apiUrl = this.config.get('alfaBank.apiUrl');
@@ -178,7 +157,7 @@ export class AlfaBankService {
         String(alfaData.formUrl),
       );
       payment.updatedDate = new Date();
-      await paymentRepo.save(payment);
+      await this.dataSource.getRepository(PaymentEntity).save(payment);
 
       return {
         ok: true,
@@ -190,7 +169,7 @@ export class AlfaBankService {
       };
     } catch (error) {
       if (createdNew) {
-        await paymentRepo.delete({ id: payment.id });
+        await this.dataSource.getRepository(PaymentEntity).delete({ id: payment.id });
       }
       throw error;
     }
@@ -247,26 +226,119 @@ export class AlfaBankService {
     }
 
     if (notified === 0) {
-      this.logger.warn('Offline payment request recorded but no admin Telegram recipients found');
+      this.logger.warn(
+        `Offline payment request saved (student=${params.studentId}) but no admin Telegram recipients found`,
+      );
     }
 
-    return { ok: true, notified };
+    await this.audit.log({
+      actorUserId: params.userId,
+      action: 'offline_payment_request',
+      entityType: 'Student',
+      entityId: params.studentId,
+      summary: `${params.itemLabel} | ${params.amount} BYN | ${methodLabel} | notified=${notified}`,
+    });
+
+    return {
+      ok: true,
+      saved: true,
+      notified,
+      warning:
+        notified === 0
+          ? 'Заявка сохранена. Администратор пока не получил уведомление в Telegram — свяжитесь со школой напрямую.'
+          : undefined,
+    };
+  }
+
+  private async acquirePendingPayment(
+    input: {
+      studentId: string;
+      packageType: string;
+      orderNumber: string;
+      amount: number;
+      lessonsAdded: number;
+    },
+  ): Promise<{ payment: PaymentEntity; createdNew: boolean }> {
+    return this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(PaymentEntity);
+      const existing = await this.findReusablePendingPayment(
+        repo,
+        input.studentId,
+        input.packageType,
+        true,
+      );
+
+      if (existing) {
+        if (!existing.orderNumber) {
+          existing.orderNumber = input.orderNumber;
+          await repo.save(existing);
+        }
+        return { payment: existing, createdNew: false };
+      }
+
+      try {
+        const created = await repo.save(
+          repo.create({
+            id: crypto.randomUUID(),
+            studentId: input.studentId,
+            amount: input.amount,
+            lessonsAdded: input.lessonsAdded,
+            packageType: input.packageType,
+            paymentDate: new Date().toISOString().split('T')[0],
+            notes: `Pending Alfa Bank - Order ${input.orderNumber}`,
+            orderNumber: input.orderNumber,
+            status: 'pending',
+            provider: 'alfa_bank',
+            currency: 'BYN',
+            createdDate: new Date(),
+            updatedDate: new Date(),
+          }),
+        );
+        return { payment: created, createdNew: true };
+      } catch (error) {
+        if (this.isUniqueViolation(error)) {
+          const retry = await this.findReusablePendingPayment(
+            repo,
+            input.studentId,
+            input.packageType,
+            true,
+          );
+          if (retry) {
+            return { payment: retry, createdNew: false };
+          }
+        }
+        throw error;
+      }
+    });
+  }
+
+  private isUniqueViolation(error: unknown): boolean {
+    return (
+      error instanceof QueryFailedError &&
+      (error as QueryFailedError & { driverError?: { code?: string } }).driverError?.code ===
+        '23505'
+    );
   }
 
   private async findReusablePendingPayment(
     paymentRepo: Repository<PaymentEntity>,
     studentId: string,
     packageType: string,
+    forUpdate = false,
   ): Promise<PaymentEntity | null> {
-    const existing = await paymentRepo.findOne({
-      where: {
-        studentId,
-        packageType,
-        status: 'pending',
-        provider: 'alfa_bank',
-      },
-      order: { createdDate: 'DESC' },
-    });
+    const qb = paymentRepo
+      .createQueryBuilder('payment')
+      .where('payment.student_id = :studentId', { studentId })
+      .andWhere('payment.package_type = :packageType', { packageType })
+      .andWhere('payment.status = :status', { status: 'pending' })
+      .andWhere('payment.provider = :provider', { provider: 'alfa_bank' })
+      .orderBy('payment.created_date', 'DESC');
+
+    if (forUpdate) {
+      qb.setLock('pessimistic_write');
+    }
+
+    const existing = await qb.getOne();
 
     if (!existing) {
       return null;

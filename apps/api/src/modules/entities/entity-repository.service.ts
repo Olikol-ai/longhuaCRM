@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import {
   CRM_ENTITY_CLASS_MAP,
   CrmEntityName,
@@ -23,6 +23,7 @@ import {
   sortRecords,
 } from '../../common/utils/record.util';
 import { LessonStudentEntity } from '../../entities/LessonStudent.entity';
+import { LessonEntity } from '../../entities/Lesson.entity';
 import { PaymentEntity } from '../../entities/Payment.entity';
 import { ShopItemEntity } from '../../entities/ShopItem.entity';
 import { StudentEntity } from '../../entities/Student.entity';
@@ -212,6 +213,10 @@ export class EntityRepositoryService {
       await this.auditMaterialAccessChange(context, 'grant', saved as Record<string, unknown>);
     }
 
+    if (entity === 'LessonStudent') {
+      await this.refreshLessonStudentFields(String((saved as LessonStudentEntity).lessonId));
+    }
+
     return entityToRecord(saved as Record<string, unknown>);
   }
 
@@ -290,6 +295,15 @@ export class EntityRepositoryService {
       await this.auditMaterialAccessChange(context, 'update', entityToRecord(saved as Record<string, unknown>));
     }
 
+    if (entity === 'LessonStudent') {
+      await this.refreshLessonStudentFields(String((saved as LessonStudentEntity).lessonId));
+      const previousLessonId = String(currentRecord.lesson_id ?? currentRecord.lessonId ?? '');
+      const nextLessonId = String((saved as LessonStudentEntity).lessonId ?? '');
+      if (previousLessonId && previousLessonId !== nextLessonId) {
+        await this.refreshLessonStudentFields(previousLessonId);
+      }
+    }
+
     return entityToRecord(saved as Record<string, unknown>);
   }
 
@@ -312,6 +326,19 @@ export class EntityRepositoryService {
 
     if (entity === 'Payment') {
       await this.paymentService.delete(id);
+      return;
+    }
+
+    if (entity === 'Lesson') {
+      await this.getRepo('LessonStudent').delete({ lessonId: id });
+    }
+
+    if (entity === 'LessonStudent') {
+      const lessonId = String((row as LessonStudentEntity).lessonId ?? '');
+      await repo.delete({ id });
+      if (lessonId) {
+        await this.refreshLessonStudentFields(lessonId);
+      }
       return;
     }
 
@@ -411,16 +438,24 @@ export class EntityRepositoryService {
     return { lessonInput, studentIds };
   }
 
-  private async syncLessonStudents(lessonId: string, studentIds: string[]): Promise<void> {
-    const repo = this.getRepo('LessonStudent');
+  private async syncLessonStudents(
+    lessonId: string,
+    studentIds: string[],
+    manager?: EntityManager,
+  ): Promise<void> {
+    const repo = manager
+      ? manager.getRepository(LessonStudentEntity)
+      : this.getRepo('LessonStudent');
+    const uniqueIds = [...new Set(studentIds.map(String).filter(Boolean))];
+
     await repo.delete({ lessonId });
 
-    if (studentIds.length === 0) {
+    if (uniqueIds.length === 0) {
       return;
     }
 
     const now = new Date();
-    for (const studentId of studentIds) {
+    for (const studentId of uniqueIds) {
       await repo.save(
         repo.create({
           id: randomUUID(),
@@ -430,67 +465,105 @@ export class EntityRepositoryService {
           balanceDeducted: false,
           createdDate: now,
           updatedDate: now,
-        } as LessonStudentEntity),
+        }),
       );
     }
   }
 
+  private async refreshLessonStudentFields(
+    lessonId: string,
+    manager?: EntityManager,
+  ): Promise<void> {
+    if (!lessonId) return;
+
+    const lsRepo = manager
+      ? manager.getRepository(LessonStudentEntity)
+      : this.getRepo('LessonStudent');
+    const lessonRepo = manager
+      ? manager.getRepository(LessonEntity)
+      : this.getRepo('Lesson');
+
+    const lesson = await lessonRepo.findOne({ where: { id: lessonId } });
+    if (!lesson) return;
+
+    const rows = await lsRepo.find({ where: { lessonId } });
+    const ids = rows.map((row) => String(row.studentId));
+
+    lesson.studentIds = ids;
+    lesson.studentId = ids[0] ?? null;
+    lesson.lessonType = ids.length > 1 ? 'group' : 'individual';
+    lesson.updatedDate = new Date();
+    await lessonRepo.save(lesson);
+  }
+
   private async createLesson(
     input: Record<string, unknown>,
-    context: EntityAccessContext,
+    _context: EntityAccessContext,
   ): Promise<Record<string, unknown>> {
     const { lessonInput, studentIds } = this.normalizeLessonInput(input);
-    const repo = this.getRepo('Lesson');
-    const now = new Date();
-    const id = lessonInput.id ? String(lessonInput.id) : randomUUID();
-    const payload = recordToEntityPayload(lessonInput);
 
-    const row = repo.create({
-      id,
-      ...payload,
-      createdDate: now,
-      updatedDate: now,
+    return this.dataSource.transaction(async (manager) => {
+      const lessonRepo = manager.getRepository(LessonEntity);
+      const now = new Date();
+      const id = lessonInput.id ? String(lessonInput.id) : randomUUID();
+      const payload = recordToEntityPayload(lessonInput);
+
+      const row = lessonRepo.create({
+        id,
+        ...payload,
+        createdDate: now,
+        updatedDate: now,
+      });
+
+      const saved = await lessonRepo.save(row);
+      const idsToSync =
+        studentIds ??
+        (saved.studentId ? [String(saved.studentId)] : []);
+
+      if (studentIds !== null || idsToSync.length > 0) {
+        await this.syncLessonStudents(String(saved.id), idsToSync, manager);
+        await this.refreshLessonStudentFields(String(saved.id), manager);
+        const refreshed = await lessonRepo.findOne({ where: { id: saved.id } });
+        return entityToRecord((refreshed ?? saved) as unknown as Record<string, unknown>);
+      }
+
+      return entityToRecord(saved as unknown as Record<string, unknown>);
     });
-
-    const saved = await repo.save(row);
-    const idsToSync =
-      studentIds ??
-      (saved.studentId ? [String(saved.studentId)] : []);
-
-    if (idsToSync.length > 0) {
-      await this.syncLessonStudents(String(saved.id), idsToSync);
-    }
-
-    return entityToRecord(saved as Record<string, unknown>);
   }
 
   private async updateLesson(
     id: string,
     input: Record<string, unknown>,
-    context: EntityAccessContext,
+    _context: EntityAccessContext,
     row: Record<string, unknown>,
-    currentRecord: Record<string, unknown>,
+    _currentRecord: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
     const { lessonInput, studentIds } = this.normalizeLessonInput(input);
     const payload = recordToEntityPayload(lessonInput);
-    const repo = this.getRepo('Lesson');
 
-    Object.assign(row, payload);
-    (row as { updatedDate: Date }).updatedDate = new Date();
+    return this.dataSource.transaction(async (manager) => {
+      const lessonRepo = manager.getRepository(LessonEntity);
+      const managedRow = await lessonRepo.findOne({ where: { id } });
+      if (!managedRow) {
+        throw new NotFoundException('Lesson not found');
+      }
 
-    const saved = await repo.save(row);
+      Object.assign(managedRow, payload);
+      managedRow.updatedDate = new Date();
+      const saved = await lessonRepo.save(managedRow);
 
-    if (studentIds !== null) {
-      await this.syncLessonStudents(id, studentIds);
-    }
+      if (studentIds !== null) {
+        await this.syncLessonStudents(id, studentIds, manager);
+        await this.refreshLessonStudentFields(id, manager);
+      }
 
-    if (lessonInput.status !== undefined) {
-      await this.studentBalanceService.handleLessonStatusUpdate(id, String(lessonInput.status));
-      const refreshed = await repo.findOne({ where: { id } });
-      return entityToRecord(refreshed as Record<string, unknown>);
-    }
+      if (lessonInput.status !== undefined) {
+        await this.studentBalanceService.handleLessonStatusUpdate(id, String(lessonInput.status));
+      }
 
-    return entityToRecord(saved as Record<string, unknown>);
+      const refreshed = await lessonRepo.findOne({ where: { id } });
+      return entityToRecord((refreshed ?? saved) as unknown as Record<string, unknown>);
+    });
   }
 
   private assertGenericMutationPolicy(

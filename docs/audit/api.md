@@ -1,45 +1,62 @@
 # Аудит: API
 
+> **Обновлено (2026-06):** RBAC через `ENTITY_PERMISSIONS` + `EntityAccessService`. Generic CRUD не даёт полный доступ всем ролям. Auth: verify-code, resend-code, telegram-link. AlfaBank: idempotent init + `POST /api/alfabank/offline-payment-request`. Lesson: `student_ids` → sync `LessonStudent`.
+
 ## Endpoints
 
 ### Generic entities (`EntitiesController`)
 
-| Method | Path | Guard | Проблема |
-|--------|------|-------|----------|
+| Method | Path | Guard | Примечание |
+|--------|------|-------|------------|
 | GET | `/api/entities/:entity` | OptionalJwt | Public: WelcomePageSettings only |
-| POST | `/api/entities/:entity/filter` | JwtAuth | Любой user = filter all |
-| POST | `/api/entities/:entity` | JwtAuth | Любой user = create all |
-| PATCH | `/api/entities/:entity/:id` | JwtAuth | Любой user = update all |
-| DELETE | `/api/entities/:entity/:id` | JwtAuth | Любой user = delete all |
+| POST | `/api/entities/:entity/filter` | JwtAuth | RBAC + ownership filter |
+| POST | `/api/entities/:entity` | JwtAuth | RBAC; Lesson syncs LessonStudent |
+| PATCH | `/api/entities/:entity/:id` | JwtAuth | RBAC; Payment PATCH — admin only |
+| DELETE | `/api/entities/:entity/:id` | JwtAuth | RBAC |
 
-Файл: `entities.controller.ts`. DTO: **нет** (`Record<string, unknown>`).
+Файл: `entities.controller.ts`. DTO: **нет** (`Record<string, unknown>`) — по-прежнему generic payload.
 
 ### Auth (`AuthController`)
 
 | Method | Path | Guard | DTO |
 |--------|------|-------|-----|
-| POST | `/api/auth/login` | — | LoginDto |
-| POST | `/api/auth/register` | — | RegisterDto |
+| POST | `/api/auth/login` | rate limit | LoginDto |
+| POST | `/api/auth/register` | rate limit | RegisterDto |
+| POST | `/api/auth/verify-code` | JwtAuth | VerifyCodeDto |
+| POST | `/api/auth/resend-code` | JwtAuth | — |
+| POST | `/api/auth/telegram-link` | JwtAuth | — |
 | GET | `/api/auth/me` | JwtAuth | — |
 | PATCH | `/api/auth/me` | JwtAuth | UpdateMeDto |
 | GET | `/api/auth/public-settings` | — | — |
 
+### AlfaBank (`AlfaBankController`)
+
+| Method | Path | Guard |
+|--------|------|-------|
+| POST | `/api/alfabank/offline-payment-request` | JwtAuth (student/admin) |
+
+Init по-прежнему через `POST /api/functions/alfaBankInit`.
+
 ### Functions (`FunctionsController`)
 
-| Function | Auth | Проблема |
-|----------|------|----------|
-| tgDebug | public | OK for debug |
-| autoCompleteExpiredLessons | **none** | Cron callable by anyone |
-| sendLessonReminders* | **none** | Cron callable by anyone |
-| exportBackup, revokeAllAccess | admin inline | AdminGuard imported, unused |
-| alfaBankInit, sendTelegramMessage | auth user | OK |
+| Function | Auth | Примечание |
+|----------|------|------------|
+| exportBackup, revokeAllAccess, cron jobs | admin inline | Prefer `/api/jobs`, `/api/telegram/admin` |
+| alfaBankInit, checkPaymentStatus | auth user | Student ownership check in service |
+| sendTelegramMessage | admin | Не для student flows |
 
 ### Webhooks (`WebhooksController`)
 
 | Path | Auth |
 |------|------|
-| POST `/api/webhooks/telegram` | secret header (optional) |
+| POST `/api/webhooks/telegram` | secret header (required in production) |
 | POST `/api/webhooks/alfabank` | checksum in service |
+
+### Material access
+
+| Path | Guard |
+|------|-------|
+| GET `/api/material-access/check/:materialId` | JwtAuth |
 
 ### Legacy
 
@@ -53,27 +70,15 @@
 |------|------|
 | GET `/api/health` | none |
 
-## Цепочка API (текущая, сломанная)
+## Цепочка API (текущая)
 
 ```
 Frontend snake_case
-  → POST/PATCH /api/entities/:entity
-    → EntitiesController (no DTO)
-      → EntityRepositoryService (row.data)
-        → TypeORM
-          → PostgreSQL (jsonb OR columns)
-```
-
-## Целевая цепочка (этап 4)
-
-```
-Frontend
-  → /api/v2/students (DTO)
-    → StudentsController
-      → StudentsService
-        → StudentsRepository
-          → StudentEntity (relations)
-            → PostgreSQL
+  → /api/entities/:entity | /api/users | /api/auth/* | /api/alfabank/*
+    → Controller + JwtAuth + RBAC
+      → EntityRepositoryService | dedicated services
+        → TypeORM entities
+          → PostgreSQL (relational columns)
 ```
 
 ## Entity names (API param → Entity class)
