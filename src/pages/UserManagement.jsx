@@ -16,9 +16,14 @@ const ROLE_CONFIG = {
   admin:   { label: "Администратор", bg: "bg-violet-100", text: "text-violet-700", dot: "bg-violet-500", icon: Shield },
   teacher: { label: "Преподаватель", bg: "bg-emerald-100", text: "text-emerald-700", dot: "bg-emerald-500", icon: GraduationCap },
   student: { label: "Ученик", bg: "bg-blue-100", text: "text-blue-700", dot: "bg-blue-500", icon: Users },
-  pending: { label: "Ожидает", bg: "bg-amber-100", text: "text-amber-700", dot: "bg-amber-400", icon: Clock },
+  pending: { label: "Ожидает роли", bg: "bg-amber-100", text: "text-amber-700", dot: "bg-amber-400", icon: Clock },
   user:    { label: "Без роли", bg: "bg-slate-100", text: "text-slate-600", dot: "bg-slate-400", icon: UserCheck },
 };
+
+function displayRole(role) {
+  if (!role) return 'pending';
+  return role;
+}
 
 const ALL_ROLE_OPTIONS = ["admin", "teacher", "student", "pending", "user"];
 
@@ -139,9 +144,14 @@ function AccountsTab() {
 
   const load = async () => {
     setLoading(true);
-    const all = await api.entities.User.list();
-    setUsers(all);
-    setLoading(false);
+    try {
+      const all = await api.entities.User.list();
+      setUsers(all);
+    } catch (err) {
+      console.error('Failed to load users:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -153,7 +163,7 @@ function AccountsTab() {
       ? `${u.last_name} ${u.first_name}`
       : u.full_name || u.email;
     
-    await api.entities.User.update(userId, { role: newRole });
+    await api.entities.User.update(userId, { role: newRole, status: 'active' });
 
     if (newRole === "teacher") {
       const existing = await api.entities.Teacher.filter({ user_id: userId });
@@ -210,7 +220,7 @@ function AccountsTab() {
   ];
 
   const counts = ALL_ROLE_OPTIONS.reduce((acc, r) => {
-    acc[r] = users.filter(u => (u.role || "pending") === r).length;
+    acc[r] = users.filter(u => displayRole(u.role) === r).length;
     return acc;
   }, {});
 
@@ -222,7 +232,7 @@ function AccountsTab() {
   };
 
   const filtered = users.filter(u => {
-    const role = u.role || "pending";
+    const role = displayRole(u.role);
     const matchRole = roleFilter === "all" || role === roleFilter;
     const fullName = getFullName(u);
     const matchSearch = !search ||
@@ -292,7 +302,7 @@ function AccountsTab() {
             </thead>
             <tbody>
               {filtered.map((u, i) => {
-                const role = u.role || "pending";
+                const role = displayRole(u.role);
                 const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.user;
                 const displayName = getFullName(u);
                 const initials = displayName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
@@ -359,13 +369,19 @@ function StudentsTab() {
   const STATUS_LABEL = { active: "Активен", inactive: "Неактивен", paused: "Пауза" };
 
   const loadData = async () => {
-    const [s, t] = await Promise.all([
-      api.entities.Student.list("-created_date"),
-      api.entities.Teacher.list(),
-    ]);
-    setStudents(s);
-    setTeachers(t);
-    setLoading(false);
+    setLoading(true);
+    try {
+      const [s, t] = await Promise.all([
+        api.entities.Student.list("-created_date"),
+        api.entities.Teacher.list(),
+      ]);
+      setStudents(s);
+      setTeachers(t);
+    } catch (err) {
+      console.error('Failed to load students:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { loadData(); }, []);
@@ -508,15 +524,21 @@ function TeachersTab() {
   const [viewTeacher, setViewTeacher] = useState(null);
 
   const loadData = async () => {
-    const [t, s, l] = await Promise.all([
-      api.entities.Teacher.list("-created_date"),
-      api.entities.Student.list(),
-      api.entities.Lesson.list(),
-    ]);
-    setTeachers(t);
-    setStudents(s);
-    setLessons(l);
-    setLoading(false);
+    setLoading(true);
+    try {
+      const [t, s, l] = await Promise.all([
+        api.entities.Teacher.list("-created_date"),
+        api.entities.Student.list(),
+        api.entities.Lesson.list(),
+      ]);
+      setTeachers(t);
+      setStudents(s);
+      setLessons(l);
+    } catch (err) {
+      console.error('Failed to load teachers:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { loadData(); }, []);

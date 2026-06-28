@@ -1,11 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { AuthService } from '../auth/auth.service';
 import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
 export class TelegramService {
   private readonly logger = new Logger(TelegramService.name);
 
-  constructor(private readonly settingsService: SettingsService) {}
+  constructor(
+    private readonly settingsService: SettingsService,
+    private readonly authService: AuthService,
+  ) {}
 
   async getBotToken(): Promise<string | null> {
     return this.settingsService.getTelegramBotToken();
@@ -100,16 +104,69 @@ export class TelegramService {
 
   async handleUpdate(update: Record<string, unknown>) {
     const message = update.message as
-      | { text?: string; chat?: { id?: number }; from?: { first_name?: string } }
+      | {
+          text?: string;
+          chat?: { id?: number };
+          from?: { first_name?: string; username?: string; id?: number };
+        }
       | undefined;
-    if (!message?.text?.startsWith('/start') || !message.chat?.id) {
+    if (!message?.text || !message.chat?.id) {
       return { ok: true };
     }
 
-    const firstName = message.from?.first_name || 'Пользователь';
-    const welcomeMsg = `🎉 Спасибо за подключение уведомлений!\n\nПривет, ${firstName}! Ваш Telegram успешно привязан к платформе Longhua Chinese 🐉\n\nТеперь вы будете получать уведомления:\n• ✅ О завершении уроков\n• ⏰ Напоминания перед занятиями\n• 💳 О пополнении баланса\n\nУдачи в изучении китайского языка! 加油！`;
+    const text = message.text.trim();
+    const chatId = message.chat.id;
+    const username = message.from?.username ?? '';
 
-    await this.sendMessage(message.chat.id, welcomeMsg);
+    if (text.startsWith('/link ')) {
+      const token = text.slice(6).trim();
+      const linked = await this.authService.linkTelegramByToken(
+        token,
+        String(chatId),
+        username,
+      );
+      if (linked) {
+        await this.sendMessage(
+          chatId,
+          '✅ Telegram успешно привязан к вашему аккаунту Longhua Chinese!',
+        );
+      } else {
+        await this.sendMessage(
+          chatId,
+          '❌ Ссылка недействительна или истекла. Сгенерируйте новую в профиле.',
+        );
+      }
+      return { ok: true };
+    }
+
+    const startMatch = text.match(/^\/start(?:\s+link_(.+))?$/);
+    if (startMatch?.[1]) {
+      const token = startMatch[1].trim();
+      const linked = await this.authService.linkTelegramByToken(
+        token,
+        String(chatId),
+        username,
+      );
+      if (linked) {
+        await this.sendMessage(
+          chatId,
+          '✅ Telegram успешно привязан к вашему аккаунту Longhua Chinese!',
+        );
+      } else {
+        await this.sendMessage(
+          chatId,
+          '❌ Ссылка недействительна или истекла. Сгенерируйте новую в профиле.',
+        );
+      }
+      return { ok: true };
+    }
+
+    if (text.startsWith('/start')) {
+      const firstName = message.from?.first_name || 'Пользователь';
+      const welcomeMsg = `🎉 Спасибо за подключение уведомлений!\n\nПривет, ${firstName}! Ваш Telegram успешно привязан к платформе Longhua Chinese 🐉\n\nТеперь вы будете получать уведомления:\n• ✅ О завершении уроков\n• ⏰ Напоминания перед занятиями\n• 💳 О пополнении баланса\n\nУдачи в изучении китайского языка! 加油！`;
+      await this.sendMessage(chatId, welcomeMsg);
+    }
+
     return { ok: true };
   }
 }

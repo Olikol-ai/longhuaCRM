@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '@/api';
+import { resolveRedirect } from '@/lib/routing';
 import { BookOpen, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,13 +24,17 @@ export default function Login() {
 
     try {
       if (mode === 'login') {
-        await api.auth.login(email.trim(), password);
+        const result = await api.auth.login(email.trim(), password);
+        const fromUrl = searchParams.get('from_url');
+        const target = fromUrl || result.redirect_path || resolveRedirect(result.user);
+        navigate(target, { replace: true });
       } else {
-        await api.auth.register(email.trim(), password, firstName.trim(), lastName.trim());
+        const result = await api.auth.register(email.trim(), password, firstName.trim(), lastName.trim());
+        if (result.verification_code) {
+          sessionStorage.setItem('longhua_verification_code', result.verification_code);
+        }
+        navigate('/auth/pending-approval', { replace: true });
       }
-
-      const fromUrl = searchParams.get('from_url');
-      window.location.href = fromUrl || '/';
     } catch (err) {
       setError(err.message || 'Ошибка входа');
     } finally {
@@ -135,14 +140,6 @@ export default function Login() {
             </p>
           )}
         </div>
-
-        <button
-          type="button"
-          onClick={() => navigate('/Welcome')}
-          className="w-full mt-4 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-        >
-          На главную страницу
-        </button>
       </div>
     </div>
   );

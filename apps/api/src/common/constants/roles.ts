@@ -16,14 +16,3 @@ export function normalizeRole(role: string | undefined | null): NormalizedRole {
 export function isAppRole(role: string): role is AppRole {
   return (APP_ROLES as readonly string[]).includes(role);
 }
-
-export function canSelfAssignRole(
-  currentRole: string,
-  nextRole: string,
-): boolean {
-  const allowedTargets = ['teacher', 'student'];
-  if (!allowedTargets.includes(nextRole)) {
-    return false;
-  }
-  return currentRole === 'user' || currentRole === 'pending';
-}

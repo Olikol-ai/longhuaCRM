@@ -1,5 +1,11 @@
 import { apiFetch, getToken, setToken } from './http';
 
+function flattenAuthResult(result) {
+  if (result.token) setToken(result.token);
+  const { token: _token, user: profile, ...rest } = result;
+  return { ...(profile ?? {}), ...rest };
+}
+
 export const auth = {
   async me() {
     if (!getToken()) {
@@ -8,15 +14,11 @@ export const auth = {
       throw err;
     }
     const result = await apiFetch('/auth/me');
-    if (result.token) setToken(result.token);
-    const { token: _token, ...user } = result;
-    return user;
+    return flattenAuthResult(result);
   },
   async updateMe(data) {
     const result = await apiFetch('/auth/me', { method: 'PATCH', body: JSON.stringify(data) });
-    if (result.token) setToken(result.token);
-    const { token: _token, ...user } = result;
-    return user;
+    return flattenAuthResult(result);
   },
   logout() {
     setToken(null);
@@ -32,7 +34,7 @@ export const auth = {
       body: JSON.stringify({ email, password }),
     });
     setToken(result.token);
-    return result.user;
+    return flattenAuthResult(result);
   },
   async register(email, password, firstName, lastName) {
     const result = await apiFetch('/auth/register', {
@@ -45,6 +47,19 @@ export const auth = {
       }),
     });
     setToken(result.token);
-    return result.user;
+    return flattenAuthResult(result);
+  },
+  async verifyCode(code) {
+    const result = await apiFetch('/auth/verify-code', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+    return flattenAuthResult(result);
+  },
+  async resendCode() {
+    return apiFetch('/auth/resend-code', { method: 'POST' });
+  },
+  async createTelegramLink() {
+    return apiFetch('/auth/telegram-link', { method: 'POST' });
   },
 };

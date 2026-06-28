@@ -12,10 +12,12 @@ import { StudentsModule } from '../students/students.module';
 import { UsersModule } from '../users/users.module';
 
 import { EntitiesController } from './entities.controller';
+import { MaterialAccessController } from './material-access.controller';
 
 import { EntityAccessService } from './entity-access.service';
 
 import { EntityRepositoryService } from './entity-repository.service';
+import { MaterialAccessCheckService } from './material-access-check.service';
 
 
 
@@ -23,11 +25,11 @@ import { EntityRepositoryService } from './entity-repository.service';
 
   imports: [UsersModule, PaymentsModule, StudentsModule, TypeOrmModule.forFeature(CRM_ENTITY_CLASSES)],
 
-  controllers: [EntitiesController],
+  controllers: [EntitiesController, MaterialAccessController],
 
-  providers: [EntityRepositoryService, EntityAccessService, RolesGuard],
+  providers: [EntityRepositoryService, EntityAccessService, MaterialAccessCheckService, RolesGuard],
 
-  exports: [EntityRepositoryService, EntityAccessService, RolesGuard],
+  exports: [EntityRepositoryService, EntityAccessService, MaterialAccessCheckService, RolesGuard],
 
 })
 

@@ -24,6 +24,9 @@ import {
   
     @Column({ type: 'text', nullable: true })
     description: string;
+
+    @Column({ type: 'text', nullable: true })
+    notes: string;
   
     @Column({ name: 'file_url', type: 'text' })
     fileUrl: string;

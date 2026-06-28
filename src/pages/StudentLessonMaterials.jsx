@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { FileText, Video, Link, File, Loader2, BookOpen, ExternalLink, LayoutGrid, List } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
+import { useAuth } from "@/lib/AuthContext";
 
 const FILE_TYPE_ICONS = {
   pdf: { icon: FileText, color: "text-red-500", bg: "bg-red-50", label: "PDF" },
@@ -16,17 +17,25 @@ const FILE_TYPE_ICONS = {
 };
 
 export default function StudentLessonMaterials() {
+   const { user, isLoadingAuth } = useAuth();
    const [lessons, setLessons] = useState([]);
    const [materials, setMaterials] = useState([]);
    const [loading, setLoading] = useState(true);
    const [student, setStudent] = useState(null);
    const [viewMode, setViewMode] = useState("grouped"); // grouped | flat
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    if (isLoadingAuth) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    loadData();
+  }, [user?.id, isLoadingAuth]);
 
   const loadData = async () => {
-    const me = await api.auth.me();
-    const myStudents = await api.entities.Student.filter({ user_id: me.id });
+    if (!user) return;
+    const myStudents = await api.entities.Student.filter({ user_id: user.id });
     const s = myStudents[0];
     if (!s) { setLoading(false); return; }
     setStudent(s);
@@ -59,7 +68,7 @@ export default function StudentLessonMaterials() {
     setLoading(false);
   };
 
-  if (loading) {
+  if (loading || isLoadingAuth) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />

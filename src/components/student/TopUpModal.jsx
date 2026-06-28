@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { api } from '@/api';
+import { useAuth } from '@/lib/AuthContext';
 import { X, Package, GraduationCap, Check, CreditCard, Loader2, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const STEPS = { SELECT: "select", CONFIRM: "confirm", PAYMENT: "payment", DONE: "done" };
 
 export default function TopUpModal({ onClose }) {
+  const { user, isLoadingAuth } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("package");
@@ -15,17 +17,21 @@ export default function TopUpModal({ onClose }) {
   const [paying, setPaying] = useState(false);
 
   useEffect(() => {
+    if (isLoadingAuth) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
     Promise.all([
-      api.auth.me(),
+      api.entities.Student.filter({ user_id: user.id }),
       api.entities.ShopSettings.list("sort_order"),
-    ]).then(([user, data]) => {
-      api.entities.Student.filter({ user_id: user.id }).then((students) => {
-        setStudent(students[0]);
-        setItems(data.filter((i) => i.is_active));
-        setLoading(false);
-      });
+    ]).then(([students, data]) => {
+      setStudent(students[0]);
+      setItems(data.filter((i) => i.is_active));
+      setLoading(false);
     });
-  }, []);
+  }, [user, isLoadingAuth]);
 
   const filtered = items.filter((i) => i.type === tab);
 
@@ -63,13 +69,17 @@ export default function TopUpModal({ onClose }) {
         setPaying(false);
       }
     } else {
-      // Другие методы - уведомление администратору
       setStep(STEPS.DONE);
-      if (student.telegram_id) {
-        api.functions.invoke("sendTelegramMessage", {
-          chat_id: student.telegram_id,
-          text: `📋 Заявка на пополнение баланса\n\n${selected.label}\n💳 Сумма: ${selected.price} BYN\n💬 Способ: ${method === "erip" ? "ЕРИП" : "Наличные в офисе"}\n\nАдминистратор свяжется с вами в ближайшее время.`,
-        }).catch(() => {});
+      try {
+        await api.alfabank.requestOfflinePayment({
+          student_id: student.id,
+          item_label: selected.label,
+          amount: selected.price,
+          method,
+          item_id: selected.item_id,
+        });
+      } catch (err) {
+        console.error('Offline payment notification failed:', err);
       }
       setPaying(false);
     }

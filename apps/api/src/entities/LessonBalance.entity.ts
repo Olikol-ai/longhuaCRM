@@ -7,6 +7,7 @@ import {
     UpdateDateColumn,
   } from 'typeorm';
   
+/** @deprecated Legacy table — runtime uses students.lesson_balance. Not exposed via entity API. */
   @Entity('lesson_balances')
   export class LessonBalanceEntity {
     @PrimaryGeneratedColumn('uuid')

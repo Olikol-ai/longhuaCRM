@@ -78,7 +78,7 @@ export default function StudentDetail() {
     return (
       <div className="p-6 lg:p-8 text-center py-20">
         <p className="text-slate-500">Ученик не найден</p>
-        <Link to={createPageUrl("Students")}>
+        <Link to="/UserManagement">
           <Button variant="link" className="mt-2">Назад к ученикам</Button>
         </Link>
       </div>
@@ -96,7 +96,7 @@ export default function StudentDetail() {
   return (
     <div className="p-6 lg:p-8 max-w-5xl mx-auto">
       {/* Back */}
-      <Link to={createPageUrl("Students")} className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-6">
+      <Link to="/UserManagement" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-6">
         <ArrowLeft className="h-4 w-4" />
         Ученики
       </Link>

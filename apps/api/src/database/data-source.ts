@@ -8,6 +8,9 @@ import { MigrateJsonbData1730000000002 } from './migrations/1730000000002-Migrat
 import { DropJsonbColumn1730000000003 } from './migrations/1730000000003-DropJsonbColumn';
 import { PaymentContractFields1730000000004 } from './migrations/1730000000004-PaymentContractFields';
 import { ShopItemsTable1730000000005 } from './migrations/1730000000005-ShopItemsTable';
+import { UserOnboardingFields1730000000006 } from './migrations/1730000000006-UserOnboardingFields';
+import { NormalizeUserRoles1730000000007 } from './migrations/1730000000007-NormalizeUserRoles';
+import { SecurityHardening1730000000008 } from './migrations/1730000000008-SecurityHardening';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -19,6 +22,9 @@ export default new DataSource({
     DropJsonbColumn1730000000003,
     PaymentContractFields1730000000004,
     ShopItemsTable1730000000005,
+    UserOnboardingFields1730000000006,
+    NormalizeUserRoles1730000000007,
+    SecurityHardening1730000000008,
   ],
   synchronize: false,
 });

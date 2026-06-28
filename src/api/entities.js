@@ -41,6 +41,7 @@ function createEntityClient(entityName) {
 }
 
 const CRM_ENTITY_NAMES = entityNames;
+/** ShopSettings is the API name for shop catalog items (ShopItemEntity / shop_items). */
 const ENTITY_NAMES = [...CRM_ENTITY_NAMES, 'User'];
 
 const entities = {};

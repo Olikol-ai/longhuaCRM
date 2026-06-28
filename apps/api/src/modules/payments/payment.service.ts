@@ -5,10 +5,11 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { PaymentEntity } from '../../entities/Payment.entity';
 import { StudentEntity } from '../../entities/Student.entity';
 import { CourseEntity } from '../../entities/Course.entity';
+import { AuditService } from '../audit/audit.service';
 import { paymentToRecord, recordToPaymentPayload } from './payment.mapper';
 
 const SHOP_ITEM_TO_COURSE_TYPE: Record<string, CourseEntity['courseType']> = {
@@ -19,7 +20,10 @@ const SHOP_ITEM_TO_COURSE_TYPE: Record<string, CourseEntity['courseType']> = {
 
 @Injectable()
 export class PaymentService {
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly audit: AuditService,
+  ) {}
 
   isCoursePayment(packageType: string | null | undefined): boolean {
     if (!packageType) return false;
@@ -43,6 +47,10 @@ export class PaymentService {
       return null;
     }
     return packageType.slice('course:'.length) || null;
+  }
+
+  private paymentCourseMarker(paymentId: string): string {
+    return `payment:${paymentId}`;
   }
 
   async create(input: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -93,7 +101,14 @@ export class PaymentService {
       const saved = await paymentRepo.save(row);
 
       if (this.shouldApplyBalance(saved)) {
-        await this.applyBalanceDelta(studentRepo, student, lessonsAdded);
+        const before = student.lessonBalance ?? 0;
+        await this.applyBalanceDelta(manager, studentId, lessonsAdded);
+        await this.audit.log({
+          action: 'lesson_balance_change',
+          entityType: 'Student',
+          entityId: studentId,
+          summary: `manual payment ${saved.id}: balance ${before} → ${before + lessonsAdded}`,
+        });
       }
 
       return paymentToRecord(saved);
@@ -123,14 +138,11 @@ export class PaymentService {
       const nowApplies = this.shouldApplyBalance(saved);
 
       if (wasBalanceApplied || nowApplies) {
-        const student = await studentRepo.findOne({ where: { id: saved.studentId } });
-        if (student) {
-          const previousEffect = wasBalanceApplied ? previousLessons : 0;
-          const nextEffect = nowApplies ? (saved.lessonsAdded ?? 0) : 0;
-          const delta = nextEffect - previousEffect;
-          if (delta !== 0) {
-            await this.applyBalanceDelta(studentRepo, student, delta);
-          }
+        const previousEffect = wasBalanceApplied ? previousLessons : 0;
+        const nextEffect = nowApplies ? (saved.lessonsAdded ?? 0) : 0;
+        const delta = nextEffect - previousEffect;
+        if (delta !== 0) {
+          await this.applyBalanceDelta(manager, saved.studentId, delta);
         }
       }
 
@@ -141,18 +153,13 @@ export class PaymentService {
   async delete(id: string): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
       const paymentRepo = manager.getRepository(PaymentEntity);
-      const studentRepo = manager.getRepository(StudentEntity);
-
       const row = await paymentRepo.findOne({ where: { id } });
       if (!row) {
         throw new NotFoundException('Payment not found');
       }
 
       if (this.shouldApplyBalance(row)) {
-        const student = await studentRepo.findOne({ where: { id: row.studentId } });
-        if (student) {
-          await this.applyBalanceDelta(studentRepo, student, -(row.lessonsAdded ?? 0));
-        }
+        await this.applyBalanceDelta(manager, row.studentId, -(row.lessonsAdded ?? 0));
       }
 
       await paymentRepo.delete({ id });
@@ -210,6 +217,13 @@ export class PaymentService {
       row.updatedDate = new Date();
       await paymentRepo.save(row);
 
+      await this.audit.log({
+        action: 'payment_webhook',
+        entityType: 'Payment',
+        entityId: row.id,
+        summary: `order ${params.orderNumber} paid via webhook (${packageType ?? 'unknown'})`,
+      });
+
       const student = await studentRepo.findOne({ where: { id: row.studentId } });
       if (!student) {
         return { applied: true, paymentId: row.id, packageType };
@@ -217,12 +231,18 @@ export class PaymentService {
 
       if (this.isPackagePayment(packageType)) {
         const lessonsAdded = row.lessonsAdded ?? 0;
-        await this.applyBalanceDelta(studentRepo, student, lessonsAdded);
-        const refreshed = await studentRepo.findOne({ where: { id: row.studentId } });
+        const before = student.lessonBalance ?? 0;
+        const refreshed = await this.applyBalanceDelta(manager, row.studentId, lessonsAdded);
+        await this.audit.log({
+          action: 'lesson_balance_change',
+          entityType: 'Student',
+          entityId: row.studentId,
+          summary: `webhook ${row.id}: balance ${before} → ${refreshed.lessonBalance ?? 0}`,
+        });
         return {
           applied: true,
           paymentId: row.id,
-          student: refreshed ?? student,
+          student: refreshed,
           lessonsAdded,
           packageType,
           amount: Number(row.amount),
@@ -232,21 +252,30 @@ export class PaymentService {
       if (this.isCoursePayment(packageType)) {
         const courseType = this.resolveCourseType(packageType);
         const shopItemId = this.extractShopItemId(packageType);
-        await courseRepo.save(
-          courseRepo.create({
-            id: randomUUID(),
-            studentId: row.studentId,
-            studentName: student.name,
-            courseType,
-            courseName: shopItemId ?? 'Курс',
-            totalLessons: 35,
-            completedLessons: 0,
-            startDate: new Date().toISOString().split('T')[0],
-            status: 'active',
-            createdDate: new Date(),
-            updatedDate: new Date(),
-          }),
-        );
+        const marker = this.paymentCourseMarker(row.id);
+        const existingCourse = await courseRepo.findOne({
+          where: { studentId: row.studentId, notes: marker },
+        });
+
+        if (!existingCourse) {
+          await courseRepo.save(
+            courseRepo.create({
+              id: randomUUID(),
+              studentId: row.studentId,
+              studentName: student.name,
+              courseType,
+              courseName: shopItemId ?? 'Курс',
+              totalLessons: 35,
+              completedLessons: 0,
+              startDate: new Date().toISOString().split('T')[0],
+              status: 'active',
+              notes: marker,
+              createdDate: new Date(),
+              updatedDate: new Date(),
+            }),
+          );
+        }
+
         return {
           applied: true,
           paymentId: row.id,
@@ -269,12 +298,23 @@ export class PaymentService {
   }
 
   private async applyBalanceDelta(
-    studentRepo: Repository<StudentEntity>,
-    student: StudentEntity,
+    manager: EntityManager,
+    studentId: string,
     delta: number,
-  ): Promise<void> {
+  ): Promise<StudentEntity> {
+    const studentRepo = manager.getRepository(StudentEntity);
+    const student = await studentRepo
+      .createQueryBuilder('student')
+      .setLock('pessimistic_write')
+      .where('student.id = :id', { id: studentId })
+      .getOne();
+
+    if (!student) {
+      throw new NotFoundException('Student not found');
+    }
+
     student.lessonBalance = Math.max(0, (student.lessonBalance ?? 0) + delta);
     student.updatedDate = new Date();
-    await studentRepo.save(student);
+    return studentRepo.save(student);
   }
 }

@@ -1,3 +1,4 @@
+import { AuditLogEntity } from './AuditLog.entity';
 import { UserEntity } from './user.entity';
 import {
   StudentEntity,
@@ -22,6 +23,7 @@ export * from './user.entity';
 export * from './crm.entities';
 
 export const ALL_ENTITIES = [
+  AuditLogEntity,
   UserEntity,
   StudentEntity,
   TeacherEntity,

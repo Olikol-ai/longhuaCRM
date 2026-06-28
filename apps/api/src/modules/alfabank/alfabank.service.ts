@@ -8,13 +8,42 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
 import * as crypto from 'crypto';
-import { DataSource } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { normalizeRole } from '../../common/constants/roles';
+import { PaymentEntity } from '../../entities/Payment.entity';
 import { StudentEntity } from '../../entities/Student.entity';
+import { UserEntity } from '../../entities/user.entity';
 import { EntityRepositoryService } from '../entities/entity-repository.service';
 import { PaymentService } from '../payments/payment.service';
 import { SettingsService } from '../settings/settings.service';
 import { TelegramService } from '../telegram/telegram.service';
+
+const FORM_URL_PREFIX = '__form_url__:';
+const PENDING_TTL_MS = 24 * 60 * 60 * 1000;
+
+function buildIdempotencyOrderNumber(studentId: string, itemId: string, type: string): string {
+  const hash = crypto
+    .createHash('sha256')
+    .update(`${studentId}:${itemId}:${type}`)
+    .digest('hex')
+    .slice(0, 16);
+  return `ALF-${hash}`;
+}
+
+function extractFormUrl(notes: string | null | undefined): string | null {
+  if (!notes) return null;
+  const line = notes.split('\n').find((part) => part.startsWith(FORM_URL_PREFIX));
+  return line ? line.slice(FORM_URL_PREFIX.length).trim() : null;
+}
+
+function withFormUrl(notes: string | null | undefined, formUrl: string): string {
+  const cleaned = (notes ?? '')
+    .split('\n')
+    .filter((line) => !line.startsWith(FORM_URL_PREFIX))
+    .join('\n')
+    .trim();
+  return cleaned ? `${cleaned}\n${FORM_URL_PREFIX}${formUrl}` : `${FORM_URL_PREFIX}${formUrl}`;
+}
 
 @Injectable()
 export class AlfaBankService {
@@ -63,70 +92,195 @@ export class AlfaBankService {
     const lessonsAdded = Number(shopItem.lessons ?? 0);
     const packageType =
       params.type === 'course' ? `course:${params.itemId}` : 'package';
-    const orderNumber = `ALF-${Date.now()}`;
-
-    const payment = await this.entityRepository.create(
-      'Payment',
-      {
-        student_id: params.studentId,
-        amount,
-        lessons_added: lessonsAdded,
-        package_type: packageType,
-        payment_date: new Date().toISOString().split('T')[0],
-        comment: `Pending Alfa Bank - Order ${orderNumber}`,
-        order_number: orderNumber,
-        status: 'pending',
-        provider: 'alfa_bank',
-      },
-      ctx,
+    const orderNumber = buildIdempotencyOrderNumber(
+      params.studentId,
+      params.itemId,
+      params.type,
     );
 
+    const paymentRepo = this.dataSource.getRepository(PaymentEntity);
+    let payment = await this.findReusablePendingPayment(
+      paymentRepo,
+      params.studentId,
+      packageType,
+    );
+    let createdNew = false;
+
+    if (!payment) {
+      payment = paymentRepo.create({
+        id: crypto.randomUUID(),
+        studentId: params.studentId,
+        amount,
+        lessonsAdded,
+        packageType,
+        paymentDate: new Date().toISOString().split('T')[0],
+        notes: `Pending Alfa Bank - Order ${orderNumber}`,
+        orderNumber,
+        status: 'pending',
+        provider: 'alfa_bank',
+        currency: 'BYN',
+        createdDate: new Date(),
+        updatedDate: new Date(),
+      });
+      payment = await paymentRepo.save(payment);
+      createdNew = true;
+    } else {
+      if (!payment.orderNumber) {
+        payment.orderNumber = orderNumber;
+      }
+      const storedFormUrl = extractFormUrl(payment.notes);
+      if (storedFormUrl && payment.externalId) {
+        return {
+          ok: true,
+          orderId: payment.externalId,
+          redirectUrl: storedFormUrl,
+          paymentId: payment.id,
+          amount: Number(payment.amount),
+          lessonsAdded: payment.lessonsAdded ?? 0,
+          reused: true,
+        };
+      }
+    }
+
     const apiUrl = this.config.get('alfaBank.apiUrl');
+    const activeOrderNumber = payment.orderNumber || orderNumber;
     const alfaPayload = {
       userName: alfaMerchantId,
       password: alfaToken,
-      orderNumber,
+      orderNumber: activeOrderNumber,
       amount: Math.round(amount * 100),
       returnUrl: params.returnUrl || `${params.origin}/`,
       description: `${params.type === 'package' ? 'Пакет уроков' : 'Курс'} - ${params.itemId}`,
       clientId: params.studentId,
-      expirationDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      expirationDate: new Date(Date.now() + PENDING_TTL_MS).toISOString(),
       language: 'RU',
     };
 
-    const alfaRes = await fetch(`${apiUrl}/register.do`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams(
-        Object.fromEntries(
-          Object.entries(alfaPayload).map(([key, value]) => [key, String(value)]),
-        ),
-      ).toString(),
-    });
+    try {
+      const alfaRes = await fetch(`${apiUrl}/register.do`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(
+          Object.fromEntries(
+            Object.entries(alfaPayload).map(([key, value]) => [key, String(value)]),
+          ),
+        ).toString(),
+      });
 
-    const alfaData = await alfaRes.json();
-    if (alfaData.errorCode !== undefined && alfaData.errorCode !== 0) {
-      throw new Error(alfaData.errorMessage || 'Payment gateway error');
+      const alfaData = await alfaRes.json();
+      if (alfaData.errorCode !== undefined && alfaData.errorCode !== 0) {
+        throw new Error(alfaData.errorMessage || 'Payment gateway error');
+      }
+
+      payment.externalId = String(alfaData.orderId);
+      payment.notes = withFormUrl(
+        `Alfa Bank - orderId: ${alfaData.orderId} - ${activeOrderNumber}`,
+        String(alfaData.formUrl),
+      );
+      payment.updatedDate = new Date();
+      await paymentRepo.save(payment);
+
+      return {
+        ok: true,
+        orderId: alfaData.orderId,
+        redirectUrl: alfaData.formUrl,
+        paymentId: payment.id,
+        amount,
+        lessonsAdded,
+      };
+    } catch (error) {
+      if (createdNew) {
+        await paymentRepo.delete({ id: payment.id });
+      }
+      throw error;
+    }
+  }
+
+  async requestOfflinePayment(params: {
+    userId: string;
+    userRole: string;
+    studentId: string;
+    itemLabel: string;
+    amount: number;
+    method: string;
+    itemId?: string;
+  }) {
+    await this.assertStudentAccess(params.userId, params.userRole, params.studentId);
+
+    const student = await this.dataSource.getRepository(StudentEntity).findOne({
+      where: { id: params.studentId },
+    });
+    if (!student) {
+      throw new NotFoundException('Student not found');
     }
 
-    await this.entityRepository.update(
-      'Payment',
-      String(payment.id),
-      {
-        comment: `Alfa Bank - orderId: ${alfaData.orderId} - ${orderNumber}`,
-        external_id: String(alfaData.orderId),
-      },
-      ctx,
-    );
+    const methodLabel =
+      params.method === 'erip'
+        ? 'ЕРИП'
+        : params.method === 'cash'
+          ? 'Наличные в офисе'
+          : params.method;
 
-    return {
-      ok: true,
-      orderId: alfaData.orderId,
-      redirectUrl: alfaData.formUrl,
-      paymentId: payment.id,
-      amount,
-      lessonsAdded,
-    };
+    const message =
+      `📋 Заявка на пополнение баланса\n\n` +
+      `👤 ${student.name}\n` +
+      `📦 ${params.itemLabel}\n` +
+      `💳 ${params.amount} BYN\n` +
+      `💬 Способ: ${methodLabel}` +
+      (params.itemId ? `\n🆔 ${params.itemId}` : '');
+
+    const adminUsers = await this.dataSource.getRepository(UserEntity).find({
+      where: { role: 'admin', status: 'active' },
+    });
+
+    let notified = 0;
+    for (const admin of adminUsers) {
+      if (!admin.telegramId?.trim()) continue;
+      try {
+        await this.telegramService.sendMessage(admin.telegramId, message);
+        notified += 1;
+      } catch (error) {
+        this.logger.warn(
+          `Failed to notify admin ${admin.id} via Telegram: ${(error as Error).message}`,
+        );
+      }
+    }
+
+    if (notified === 0) {
+      this.logger.warn('Offline payment request recorded but no admin Telegram recipients found');
+    }
+
+    return { ok: true, notified };
+  }
+
+  private async findReusablePendingPayment(
+    paymentRepo: Repository<PaymentEntity>,
+    studentId: string,
+    packageType: string,
+  ): Promise<PaymentEntity | null> {
+    const existing = await paymentRepo.findOne({
+      where: {
+        studentId,
+        packageType,
+        status: 'pending',
+        provider: 'alfa_bank',
+      },
+      order: { createdDate: 'DESC' },
+    });
+
+    if (!existing) {
+      return null;
+    }
+
+    const ageMs = Date.now() - existing.createdDate.getTime();
+    if (ageMs >= PENDING_TTL_MS) {
+      existing.status = 'failed';
+      existing.updatedDate = new Date();
+      await paymentRepo.save(existing);
+      return null;
+    }
+
+    return existing;
   }
 
   private async assertStudentAccess(

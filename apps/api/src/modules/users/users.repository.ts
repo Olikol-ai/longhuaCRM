@@ -32,6 +32,21 @@ export class UsersRepository implements OnModuleInit {
     return this.usersRepo.findOne({ where: { id } });
   }
 
+  findByLinkToken(token: string): Promise<UserEntity | null> {
+    return this.usersRepo.findOne({ where: { telegramLinkToken: token } });
+  }
+
+  findByTelegramId(telegramId: string): Promise<UserEntity | null> {
+    if (!telegramId) return Promise.resolve(null);
+    return this.usersRepo.findOne({ where: { telegramId } });
+  }
+
+  findByPhone(phone: string): Promise<UserEntity | null> {
+    const trimmed = phone?.trim();
+    if (!trimmed) return Promise.resolve(null);
+    return this.usersRepo.findOne({ where: { phone: trimmed } });
+  }
+
   async save(user: UserEntity): Promise<UserEntity> {
     return this.usersRepo.save(user);
   }
@@ -57,10 +72,16 @@ export class UsersRepository implements OnModuleInit {
       email,
       passwordHash: bcrypt.hashSync(password, 10),
       role: 'admin',
+      status: 'active',
+      verificationCode: null,
+      verificationAttempts: 0,
       firstName: 'Admin',
       lastName: 'Longhua',
       phone: '',
       telegramId: '',
+      telegramUsername: '',
+      telegramLinkToken: null,
+      telegramLinkExpires: null,
       createdDate: now,
       updatedDate: now,
     });

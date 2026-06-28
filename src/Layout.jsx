@@ -1,5 +1,5 @@
 import React from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import {
   LayoutDashboard,
@@ -48,7 +48,6 @@ const studentNav = [
 
 export default function Layout({ children, currentPageName }) {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
-  const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const { user, isLoadingAuth, isAuthenticated, logout } = useAuth();
 
@@ -83,29 +82,14 @@ export default function Layout({ children, currentPageName }) {
     );
   }
 
-  const role = user.role || "pending";
+  const role = user.role;
+  const hasDashboard = user.onboarding_state === 'active' && role;
 
-  if ((role === "pending" || role === "user") && currentPageName !== "Welcome") {
-    navigate(createPageUrl("Welcome"), { replace: true });
-    return null;
-  }
-
-  if (currentPageName === "Welcome" && role !== "pending" && role !== "user") {
-    const dest = role === "admin" ? "Dashboard" : role === "teacher" ? "TeacherDashboard" : "StudentDashboard";
-    navigate(createPageUrl(dest), { replace: true });
-    return null;
-  }
-
-  if (role === "student" && currentPageName === "Dashboard") {
-    navigate(createPageUrl("StudentDashboard"), { replace: true });
-    return null;
-  }
-
-  if (currentPageName === "Welcome") {
+  if (currentPageName === 'Welcome' || currentPageName === 'PendingApproval' || !hasDashboard) {
     return <>{children}</>;
   }
 
-  const navItems = role === "admin" ? adminNav : role === "teacher" ? teacherNav : studentNav;
+  const navItems = role === 'admin' ? adminNav : role === 'teacher' ? teacherNav : studentNav;
 
   const fullName = user?.full_name || user?.email || "User";
 

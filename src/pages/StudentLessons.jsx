@@ -15,6 +15,7 @@ import {
   Moon,
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
+import { useAuth } from "@/lib/AuthContext";
 import {
   format,
   startOfMonth,
@@ -59,6 +60,7 @@ const STATUS_LABELS = {
 const WEEK_DAYS_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
 export default function StudentLessons() {
+  const { user, isLoadingAuth } = useAuth();
   const [lessons, setLessons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -68,15 +70,22 @@ export default function StudentLessons() {
   const [filter, setFilter] = useState("all"); // "all" | "upcoming" | "past"
   const { theme, toggleTheme } = useTheme();
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    if (isLoadingAuth) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    loadData();
+  }, [user?.id, isLoadingAuth]);
 
   const loadData = async () => {
-    const me = await api.auth.me();
+    if (!user) return;
     const [allStudents, allLessons] = await Promise.all([
       api.entities.Student.list(),
       api.entities.Lesson.list("-date", 300),
     ]);
-    const student = allStudents.find((s) => s.user_id === me.id || s.email === me.email);
+    const student = allStudents.find((s) => s.user_id === user.id || s.email === user.email);
     if (student) {
       setLessons(allLessons.filter((l) => l.student_id === student.id));
     }
@@ -114,7 +123,7 @@ export default function StudentLessons() {
     });
   }, [lessons, filter, sortAsc]);
 
-  if (loading) {
+  if (loading || isLoadingAuth) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />

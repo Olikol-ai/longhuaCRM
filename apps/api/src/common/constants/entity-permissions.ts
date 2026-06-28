@@ -142,16 +142,6 @@ export const ENTITY_PERMISSIONS: EntityPermissionsMatrix = {
       delete: 'none',
     },
   },
-  LessonBalance: {
-    admin: fullAccess(),
-    teacher: readAll(),
-    student: {
-      read: 'own',
-      create: 'none',
-      update: 'none',
-      delete: 'none',
-    },
-  },
   TeacherPayment: {
     admin: fullAccess(),
     teacher: {
@@ -181,16 +171,6 @@ export const ENTITY_PERMISSIONS: EntityPermissionsMatrix = {
       delete: 'own',
     },
     student: noneAccess(),
-  },
-  AlfaBankOrder: {
-    admin: fullAccess(),
-    teacher: noneAccess(),
-    student: {
-      read: 'own',
-      create: 'none',
-      update: 'none',
-      delete: 'none',
-    },
   },
   AppSettings: {
     admin: fullAccess(),

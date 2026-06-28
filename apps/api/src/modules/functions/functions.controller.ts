@@ -11,6 +11,7 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { normalizeRole } from '../../common/constants/roles';
 import { OptionalJwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -29,6 +30,7 @@ export class FunctionsController {
     private readonly telegramService: TelegramService,
     private readonly alfaBankService: AlfaBankService,
     private readonly jobsService: JobsService,
+    private readonly config: ConfigService,
   ) {}
 
   @Post(':name')
@@ -106,8 +108,10 @@ export class FunctionsController {
         return this.jobsService.exportBackup();
       case 'fixWebhook':
       case 'registerTelegramWebhook':
-      case 'clearTelegramUpdates':
-        return this.telegramService.registerWebhook(webhookUrl);
+      case 'clearTelegramUpdates': {
+        const secret = this.config.get<string>('telegram.webhookSecret') || undefined;
+        return this.telegramService.registerWebhook(webhookUrl, secret);
+      }
       case 'checkBotInfo':
         return this.telegramService.getBotInfo();
       case 'autoCompleteExpiredLessons':

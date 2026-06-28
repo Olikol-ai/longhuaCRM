@@ -1,8 +1,6 @@
 import {
-  AlfaBankOrderEntity,
   AppSettingEntity,
   CourseEntity,
-  LessonBalanceEntity,
   LessonEntity,
   LessonMaterialEntity,
   LessonStudentEntity,
@@ -27,11 +25,9 @@ export const CRM_ENTITY_CLASS_MAP = {
   LessonMaterial: LessonMaterialEntity,
   ScheduleSlot: ScheduleSlotEntity,
   LessonStudent: LessonStudentEntity,
-  LessonBalance: LessonBalanceEntity,
   TeacherPayment: TeacherPaymentEntity,
   MaterialAccess: MaterialAccessEntity,
   TeacherAvailability: TeacherAvailabilityEntity,
-  AlfaBankOrder: AlfaBankOrderEntity,
   AppSettings: AppSettingEntity,
   ShopSettings: ShopItemEntity,
   WelcomePageSettings: WelcomePageSettingEntity,
@@ -56,6 +52,15 @@ export const USER_BLOCKED_UPDATE_FIELDS = new Set([
 export const STUDENT_BALANCE_BLOCKED_FIELDS = new Set([
   'lesson_balance',
   'lessonBalance',
+]);
+
+/** API name for shop catalog (maps to ShopItemEntity / shop_items table). */
+export const SHOP_CATALOG_ENTITY = 'ShopSettings' as const;
+
+/** Sensitive AppSettings keys — mutations are admin-only and audited. */
+export const APP_SETTINGS_SENSITIVE_KEYS = new Set([
+  'telegram_bot_token',
+  'alfa_bank_token',
 ]);
 
 export function isCrmEntityName(name: string): name is CrmEntityName {

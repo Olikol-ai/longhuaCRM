@@ -1,27 +1,27 @@
 import React, { useState, useEffect } from "react";
 import { api } from '@/api';
+import { useAuth } from '@/lib/AuthContext';
 import { grantAccess, revokeAccess } from "@/lib/materialAccess";
 import { X, Users, Lock, Save, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function AccessControlModal({ material, course, onClose, onSave }) {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [students, setStudents] = useState([]);
-  const [user, setUser] = useState(null);
   const [selectedStudentIds, setSelectedStudentIds] = useState([]);
   const [initialGrantedUserIds, setInitialGrantedUserIds] = useState(new Set());
 
   useEffect(() => {
-    const load = async () => {
-      const me = await api.auth.me();
-      setUser(me);
+    if (!user) return;
 
+    const load = async () => {
       const [sts, accesses] = await Promise.all([
         api.entities.Student.list(),
         api.entities.MaterialAccess.filter({
           material_id: material.id,
-          granted_by_role: me.role === "admin" ? "ADMIN" : "TEACHER",
+          granted_by_role: user.role === "admin" ? "ADMIN" : "TEACHER",
         }),
       ]);
 
@@ -39,7 +39,7 @@ export default function AccessControlModal({ material, course, onClose, onSave }
       setLoading(false);
     };
     load();
-  }, [material.id]);
+  }, [material.id, user?.id]);
 
   const toggleStudent = (id) => {
     setSelectedStudentIds((current) =>

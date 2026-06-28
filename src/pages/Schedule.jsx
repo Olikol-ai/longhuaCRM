@@ -21,17 +21,25 @@ export default function Schedule() {
   const [selectedDate, setSelectedDate] = useState(null);
   const [viewingLesson, setViewingLesson] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const load = async () => {
-    const [l, t, s] = await Promise.all([
-      api.entities.Lesson.list("-date", 500),
-      api.entities.Teacher.list(),
-      api.entities.Student.list(),
-    ]);
-    setLessons(l);
-    setTeachers(t);
-    setStudents(s);
-    setLoading(false);
+    setLoading(true);
+    setError('');
+    try {
+      const [l, t, s] = await Promise.all([
+        api.entities.Lesson.list("-date", 500),
+        api.entities.Teacher.list(),
+        api.entities.Student.list(),
+      ]);
+      setLessons(l);
+      setTeachers(t);
+      setStudents(s);
+    } catch (err) {
+      setError(err.message || 'Не удалось загрузить расписание');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -49,34 +57,46 @@ export default function Schedule() {
   };
 
   const handleSave = async (data, recurring, recurringWeeks = 4) => {
-    if (recurring) {
-      const dates = [];
-      let d = parseISO(data.date);
-      for (let i = 0; i < recurringWeeks; i++) {
-        dates.push(format(d, "yyyy-MM-dd"));
-        d = addDays(d, 7);
+    try {
+      if (recurring) {
+        const dates = [];
+        let d = parseISO(data.date);
+        for (let i = 0; i < recurringWeeks; i++) {
+          dates.push(format(d, "yyyy-MM-dd"));
+          d = addDays(d, 7);
+        }
+        const groupId = Date.now().toString();
+        await Promise.all(dates.map(date =>
+          api.entities.Lesson.create({ ...data, date, is_recurring: true, recurring_group_id: groupId })
+        ));
+      } else {
+        await api.entities.Lesson.create(data);
       }
-      const groupId = Date.now().toString();
-      await Promise.all(dates.map(date =>
-        api.entities.Lesson.create({ ...data, date, is_recurring: true, recurring_group_id: groupId })
-      ));
-    } else {
-      await api.entities.Lesson.create(data);
+      setShowModal(false);
+      await load();
+    } catch (err) {
+      alert(err.message || 'Не удалось сохранить урок');
     }
-    setShowModal(false);
-    load();
   };
 
   const handleUpdate = async (id, data) => {
-    await api.entities.Lesson.update(id, data);
-    setViewingLesson(null);
-    load();
+    try {
+      await api.entities.Lesson.update(id, data);
+      setViewingLesson(null);
+      await load();
+    } catch (err) {
+      alert(err.message || 'Не удалось обновить урок');
+    }
   };
 
   const handleDelete = async (id) => {
-    await api.entities.Lesson.delete(id);
-    setViewingLesson(null);
-    load();
+    try {
+      await api.entities.Lesson.delete(id);
+      setViewingLesson(null);
+      await load();
+    } catch (err) {
+      alert(err.message || 'Не удалось удалить урок');
+    }
   };
 
   const getLessonsForDay = (day) =>
@@ -130,6 +150,9 @@ export default function Schedule() {
 
       {/* Calendar body */}
       <div className="flex-1 overflow-auto bg-white dark:bg-slate-900">
+        {error && (
+          <div className="mx-6 mt-4 rounded-lg bg-red-50 text-red-700 text-sm px-4 py-3">{error}</div>
+        )}
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />

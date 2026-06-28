@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { api, getToken } from '@/api';
+import { api, getToken, setToken } from '@/api';
 
 const AuthContext = createContext();
 
@@ -31,6 +31,18 @@ export const AuthProvider = ({ children }) => {
       setIsLoadingAuth(true);
       const currentUser = await api.auth.me();
 
+      if (currentUser.onboarding_state === 'blocked') {
+        setToken(null);
+        setUser(null);
+        setIsAuthenticated(false);
+        setIsLoadingAuth(false);
+        setAuthError({
+          type: 'blocked',
+          message: 'Account is blocked',
+        });
+        return;
+      }
+
       if (!currentUser.first_name || !currentUser.last_name) {
         setUser(currentUser);
         setIsAuthenticated(true);
@@ -46,8 +58,10 @@ export const AuthProvider = ({ children }) => {
       console.error('User auth check failed:', error);
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
+      setUser(null);
 
       if (error.status === 401 || error.status === 403) {
+        setToken(null);
         setAuthError({
           type: 'auth_required',
           message: 'Authentication required',

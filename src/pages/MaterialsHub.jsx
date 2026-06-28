@@ -12,6 +12,7 @@ import {
 import GrantAccessModal from "@/components/materials/GrantAccessModal";
 import AccessManageModal from "@/components/materials/AccessManageModal";
 import MaterialFormDialog from "@/components/materials/MaterialFormDialog";
+import { useAuth } from "@/lib/AuthContext";
 
 const FILE_TYPE_ICONS = {
   pdf: { icon: FileText, color: "text-red-500", bg: "bg-red-50", label: "PDF" },
@@ -22,9 +23,9 @@ const FILE_TYPE_ICONS = {
 };
 
 export default function MaterialsHub() {
+  const { user, isLoadingAuth } = useAuth();
   const [materials, setMaterials] = useState([]);
   const [courses, setCourses] = useState([]);
-  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedMaterialIds, setSelectedMaterialIds] = useState(new Set());
@@ -43,12 +44,16 @@ export default function MaterialsHub() {
   const [selectedMaterialForAccess, setSelectedMaterialForAccess] = useState(null);
 
   useEffect(() => {
+    if (isLoadingAuth) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     loadData();
-  }, []);
+  }, [user?.id, isLoadingAuth]);
 
   const loadData = async () => {
-    const me = await api.auth.me();
-    setUser(me);
+    if (!user) return;
 
     const [allMats, c] = await Promise.all([
       api.entities.LessonMaterial.list("-created_date"),
@@ -57,10 +62,10 @@ export default function MaterialsHub() {
 
     // Если учитель - фильтруем по доступу
     let m = allMats;
-    if (me.role === "teacher") {
+    if (user.role === "teacher") {
       const accessibleMats = [];
       for (const mat of allMats) {
-        const hasAccess = await hasAccessToMaterial(me.id, mat.id);
+        const hasAccess = await hasAccessToMaterial(user.id, mat.id);
         if (hasAccess) {
           accessibleMats.push(mat);
         }
@@ -171,7 +176,7 @@ export default function MaterialsHub() {
     (m.block_name || "").toLowerCase().includes(search.toLowerCase())
   );
 
-  if (loading) {
+  if (loading || isLoadingAuth) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />

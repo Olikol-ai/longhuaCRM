@@ -94,7 +94,7 @@ export default function AdminDashboard({ user }) {
           <p className="text-sm text-amber-700 font-medium">
             У {lowBalance} {lowBalance > 1 ? "учеников" : "ученика"} осталось 2 урока или меньше
           </p>
-          <Link to={createPageUrl("Students")} className="ml-auto text-xs font-semibold text-amber-600 hover:underline flex items-center gap-1">
+          <Link to="/UserManagement" className="ml-auto text-xs font-semibold text-amber-600 hover:underline flex items-center gap-1">
             View <ArrowRight className="w-3 h-3" />
           </Link>
         </div>

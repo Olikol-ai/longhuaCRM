@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { api } from '@/api';
 import { Loader2 } from "lucide-react";
+import { formatBelarusPhone, PHONE_PLACEHOLDER } from "@/utils/phone";
 
 export default function StudentFormDialog({ open, onOpenChange, student, onSave }) {
   const [teachers, setTeachers] = useState([]);
@@ -109,8 +110,8 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
               <Label>Телефон</Label>
               <Input
                 value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="+1 234 567 890"
+                onChange={(e) => setFormData({ ...formData, phone: formatBelarusPhone(e.target.value) })}
+                placeholder={PHONE_PLACEHOLDER}
               />
             </div>
             <div className="space-y-2">

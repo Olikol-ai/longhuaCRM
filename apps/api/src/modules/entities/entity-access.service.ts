@@ -155,8 +155,6 @@ export class EntityAccessService {
         return ownedTeacherId != null && String(record.teacher_id ?? '') === ownedTeacherId;
       case 'Payment':
       case 'Course':
-      case 'LessonBalance':
-      case 'AlfaBankOrder':
         return visibleStudentIds.includes(String(record.student_id ?? ''));
       case 'LessonStudent':
         return visibleStudentIds.includes(String(record.student_id ?? ''));

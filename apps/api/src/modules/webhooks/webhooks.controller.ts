@@ -30,6 +30,12 @@ export class WebhooksController {
     @Headers('x-telegram-bot-api-secret-token') secretToken?: string,
   ) {
     const expectedSecret = this.config.get<string>('telegram.webhookSecret');
+    const isProduction = this.config.get<string>('nodeEnv') === 'production';
+
+    if (isProduction && !expectedSecret) {
+      throw new ForbiddenException('TELEGRAM_WEBHOOK_SECRET is required in production');
+    }
+
     if (expectedSecret && secretToken !== expectedSecret) {
       throw new UnauthorizedException('Invalid Telegram webhook secret');
     }

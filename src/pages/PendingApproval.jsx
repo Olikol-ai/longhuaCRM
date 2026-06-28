@@ -1,0 +1,170 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { api } from '@/api';
+import { useAuth } from '@/lib/AuthContext';
+import { resolveRedirect } from '@/lib/routing';
+import { BookOpen, Clock, KeyRound, Loader2, LogOut, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+
+const DEFAULTS = {
+  school_name: 'Longhua Chinese',
+  title: 'Аккаунт создан',
+  subtitle: 'Платформа управления языковой школой',
+  body_text:
+    'Спасибо за регистрацию!\n\nПосле подтверждения кода администратор назначит вам роль — затем откроется доступ к платформе.',
+  info_text: 'Если у вас есть вопросы — свяжитесь с администратором школы.',
+};
+
+export default function PendingApproval() {
+  const { user, logout, checkAppState } = useAuth();
+  const navigate = useNavigate();
+  const [settings] = useState(DEFAULTS);
+  const [code, setCode] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [error, setError] = useState('');
+
+  const storedCode = sessionStorage.getItem('longhua_verification_code');
+  const needsVerification = user?.onboarding_state === 'needs_verification';
+  const waitingForRole = user?.onboarding_state === 'awaiting_role';
+  const isBlocked = user?.onboarding_state === 'blocked';
+
+  const handleVerify = async (e) => {
+    e.preventDefault();
+    setError('');
+    setVerifying(true);
+    try {
+      const result = await api.auth.verifyCode(code.trim());
+      sessionStorage.removeItem('longhua_verification_code');
+      await checkAppState();
+      if (result.onboarding_state === 'active') {
+        navigate(result.redirect_path, { replace: true });
+      }
+    } catch (err) {
+      setError(err.message || 'Неверный код');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-slate-50 flex items-center justify-center p-6">
+      <div className="max-w-lg w-full text-center space-y-8">
+        <div className="flex items-center justify-center gap-3">
+          <div className="h-14 w-14 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
+            <BookOpen className="h-7 w-7 text-white" />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{settings.school_name}</h1>
+          <p className="text-slate-500 text-sm">{settings.subtitle}</p>
+        </div>
+
+        <div className="bg-white rounded-3xl shadow-xl shadow-slate-100 border border-slate-100 p-10 space-y-6 text-left">
+          <div className="flex items-center justify-center">
+            <div className="h-20 w-20 rounded-full bg-amber-50 flex items-center justify-center">
+              {waitingForRole ? (
+                <CheckCircle2 className="h-10 w-10 text-emerald-500" />
+              ) : (
+                <Clock className="h-10 w-10 text-amber-500" />
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-3 text-center">
+            <h2 className="text-xl font-bold text-slate-800">
+              {user?.full_name
+                ? `Здравствуйте, ${user.full_name.split(' ')[0]}!`
+                : settings.title}
+            </h2>
+
+            {isBlocked && (
+              <p className="text-red-600 font-medium">
+                Аккаунт заблокирован. Обратитесь к администратору.
+              </p>
+            )}
+
+            {needsVerification && (
+              <>
+                <p className="text-slate-500 leading-relaxed">
+                  Введите код подтверждения для активации аккаунта.
+                </p>
+                {storedCode && (
+                  <p className="text-sm bg-indigo-50 text-indigo-700 rounded-xl px-4 py-3">
+                    Ваш код: <span className="font-mono font-bold">{storedCode}</span>
+                  </p>
+                )}
+                <form onSubmit={handleVerify} className="space-y-3 pt-2">
+                  <div className="relative">
+                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input
+                      value={code}
+                      onChange={(e) => setCode(e.target.value)}
+                      placeholder="000000"
+                      className="pl-10 text-center font-mono tracking-widest"
+                      maxLength={6}
+                      required
+                    />
+                  </div>
+                  {error && (
+                    <p className="text-sm text-red-600 bg-red-50 p-2 rounded-lg">{error}</p>
+                  )}
+                  <Button type="submit" disabled={verifying} className="w-full bg-indigo-600 hover:bg-indigo-700">
+                    {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Подтвердить код'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={async () => {
+                      setError('');
+                      try {
+                        await api.auth.resendCode();
+                        setError('');
+                        alert('Новый код отправлен. Проверьте сообщение от администратора.');
+                      } catch (err) {
+                        setError(err.message || 'Не удалось запросить новый код');
+                      }
+                    }}
+                  >
+                    Запросить новый код
+                  </Button>
+                </form>
+              </>
+            )}
+
+            {waitingForRole && (
+              <>
+                <p className="text-emerald-600 font-medium">Аккаунт активирован ✓</p>
+                <p className="text-slate-500 leading-relaxed">
+                  Ожидайте подтверждения администратора. После назначения роли вы автоматически получите доступ.
+                </p>
+                {settings.body_text.split('\n').filter(Boolean).map((line, i) => (
+                  <p key={i} className="text-slate-500 leading-relaxed text-sm">{line}</p>
+                ))}
+              </>
+            )}
+          </div>
+
+          <div className="bg-indigo-50 rounded-2xl px-6 py-4 flex items-start gap-3">
+            <Sparkles className="h-5 w-5 text-indigo-500 shrink-0 mt-0.5" />
+            <p className="text-sm text-indigo-700">{settings.info_text}</p>
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center gap-3">
+          {user && (
+            <p className="text-xs text-slate-400">
+              Вы вошли как: <span className="font-medium text-slate-600">{user.email}</span>
+            </p>
+          )}
+          <Button variant="ghost" size="sm" onClick={logout} className="text-slate-400 hover:text-slate-600 gap-2">
+            <LogOut className="h-4 w-4" />
+            Выйти
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -12,15 +12,23 @@ export default function Payments() {
   const [editingPayment, setEditingPayment] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [search, setSearch] = useState("");
+  const [error, setError] = useState("");
 
   const load = async () => {
-    const [p, s] = await Promise.all([
-      api.entities.Payment.list("-payment_date", 200),
-      api.entities.Student.list(),
-    ]);
-    setPayments(p);
-    setStudents(s);
-    setLoading(false);
+    setLoading(true);
+    setError("");
+    try {
+      const [p, s] = await Promise.all([
+        api.entities.Payment.list("-payment_date", 200),
+        api.entities.Student.list(),
+      ]);
+      setPayments(p);
+      setStudents(s);
+    } catch (err) {
+      setError(err.message || "Не удалось загрузить платежи");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -58,6 +66,9 @@ export default function Payments() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
+      {error && (
+        <div className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-4 py-3">{error}</div>
+      )}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Платежи</h2>

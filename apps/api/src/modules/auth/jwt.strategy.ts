@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { JwtPayload } from '../../modules/auth/auth.service';
+import { normalizeUserRole } from '../../modules/auth/onboarding';
 import { UsersRepository } from '../users/users.repository';
 
 @Injectable()
@@ -27,10 +28,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('User not found');
     }
 
+    if (row.status === 'blocked') {
+      throw new UnauthorizedException('Account is blocked');
+    }
+
+    const role = normalizeUserRole(row.role);
+
     return {
       sub: row.id,
       email: row.email,
-      role: row.role || 'pending',
+      role: role ?? '',
     };
   }
 }

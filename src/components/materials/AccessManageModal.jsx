@@ -2,11 +2,9 @@ import React, { useState, useEffect } from "react";
 import { api } from '@/api';
 import { revokeAccess } from "@/lib/materialAccess";
 import { Users, Loader2, Trash2, ChevronDown, ChevronUp } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
 export default function AccessManageModal({ closeTab }) {
-  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [accesses, setAccesses] = useState([]);
   const [students, setStudents] = useState([]);
@@ -20,9 +18,6 @@ export default function AccessManageModal({ closeTab }) {
   }, []);
 
   const loadData = async () => {
-    const me = await api.auth.me();
-    setUser(me);
-
     const [sts, trs, mats, accs] = await Promise.all([
       api.entities.Student.list(),
       api.entities.Teacher.list(),

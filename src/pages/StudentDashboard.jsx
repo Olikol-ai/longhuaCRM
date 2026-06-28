@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import StatCard from "@/components/dashboard/StatCard";
 import TopUpModal from "@/components/student/TopUpModal";
+import { useAuth } from "@/lib/AuthContext";
 import { useTheme } from "@/lib/ThemeContext";
 
 const STATUS_LABELS = {
@@ -27,7 +28,7 @@ const STATUS_COLORS = {
 };
 
 export default function StudentDashboard() {
-  const [user, setUser] = useState(null);
+  const { user, isLoadingAuth } = useAuth();
   const [student, setStudent] = useState(null);
   const [lessons, setLessons] = useState([]);
   const [teacher, setTeacher] = useState(null);
@@ -38,13 +39,19 @@ export default function StudentDashboard() {
   const [sortAsc, setSortAsc] = useState(true);
   const { theme, toggleTheme } = useTheme();
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    if (isLoadingAuth) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    loadData();
+  }, [user?.id, isLoadingAuth]);
 
   const loadData = async () => {
-    const me = await api.auth.me();
-    setUser(me);
+    if (!user) return;
     const [myStudents, allLessons, allTeachers] = await Promise.all([
-      api.entities.Student.filter({ user_id: me.id }),
+      api.entities.Student.filter({ user_id: user.id }),
       api.entities.Lesson.list("-date", 200),
       api.entities.Teacher.list(),
     ]);
@@ -59,7 +66,7 @@ export default function StudentDashboard() {
     setLoading(false);
   };
 
-  if (loading) {
+  if (loading || isLoadingAuth) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />

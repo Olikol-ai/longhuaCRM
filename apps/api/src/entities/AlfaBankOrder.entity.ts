@@ -10,6 +10,7 @@ import {
   export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'cancelled';
   export type OrderType = 'package' | 'course';
   
+/** @deprecated Legacy table — runtime uses payments table. Not exposed via entity API. */
   @Entity('alfa_bank_orders')
   export class AlfaBankOrderEntity {
     @PrimaryGeneratedColumn('uuid')

@@ -9,6 +9,7 @@ export default function MaterialFormDialog({ onClose, onSave }) {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
+    notes: "",
     course_id: "",
     block_name: "",
     file_type: "other",
@@ -78,6 +79,7 @@ export default function MaterialFormDialog({ onClose, onSave }) {
       await api.entities.LessonMaterial.create({
         title: formData.title,
         description: formData.description || "",
+        notes: formData.notes || "",
         course_id: formData.course_id,
         block_name: formData.block_name || "",
         file_type: formData.file_type,
@@ -168,9 +170,25 @@ export default function MaterialFormDialog({ onClose, onSave }) {
               onChange={e =>
                 setFormData(prev => ({ ...prev, description: e.target.value }))
               }
-              placeholder="Описание материала"
+              placeholder="Краткое описание для учеников"
               className="w-full px-3 py-2 border border-input rounded-lg text-sm"
-              rows="3"
+              rows="2"
+            />
+          </div>
+
+          {/* Internal notes */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">
+              Заметки (внутренние)
+            </label>
+            <textarea
+              value={formData.notes}
+              onChange={e =>
+                setFormData(prev => ({ ...prev, notes: e.target.value }))
+              }
+              placeholder="Заметки для администраторов и преподавателей"
+              className="w-full px-3 py-2 border border-input rounded-lg text-sm"
+              rows="2"
             />
           </div>
 

@@ -7,6 +7,7 @@ import { join } from 'path';
 import configuration from './config/configuration';
 import { validateEnv } from './config/env.validation';
 import { ALL_ENTITIES } from './entities';
+import { AuditModule } from './modules/audit/audit.module';
 import { AlfaBankModule } from './modules/alfabank/alfabank.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { EntitiesModule } from './modules/entities/entities.module';
@@ -57,6 +58,7 @@ const serveFrontend = process.env.SERVE_FRONTEND !== 'false';
           }),
         ]
       : []),
+    AuditModule,
     UsersModule,
     UploadsModule,
     EntitiesModule,

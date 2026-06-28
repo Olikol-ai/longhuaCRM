@@ -9,6 +9,7 @@ import { DataSource, Repository } from 'typeorm';
 import {
   CRM_ENTITY_CLASS_MAP,
   CrmEntityName,
+  APP_SETTINGS_SENSITIVE_KEYS,
   isGenericEntityName,
   STUDENT_BALANCE_BLOCKED_FIELDS,
   USER_BLOCKED_UPDATE_FIELDS,
@@ -21,17 +22,36 @@ import {
   recordToEntityPayload,
   sortRecords,
 } from '../../common/utils/record.util';
+import { LessonStudentEntity } from '../../entities/LessonStudent.entity';
 import { PaymentEntity } from '../../entities/Payment.entity';
 import { ShopItemEntity } from '../../entities/ShopItem.entity';
+import { StudentEntity } from '../../entities/Student.entity';
 import { WelcomePageSettingEntity } from '../../entities/WelcomePageSetting.entity';
 import { paymentToRecord } from '../payments/payment.mapper';
 import { PaymentService } from '../payments/payment.service';
+import { AuditService } from '../audit/audit.service';
 import { recordToShopItemPayload, shopItemToRecord } from '../shop/shop.mapper';
 import { welcomeInputToRows, welcomeRowsToRecord } from '../welcome/welcome.mapper';
 import { StudentBalanceService } from '../students/student-balance.service';
 import { UsersRepository } from '../users/users.repository';
 import { EntityAccessService } from './entity-access.service';
 import { EntityAccessContext } from './entity-access.types';
+
+/** Fields that non-admin users must never mutate via generic entity API. */
+const GLOBAL_SENSITIVE_FIELDS = new Set([
+  'role',
+  'status',
+  'verification_code',
+  'verificationCode',
+  'verification_attempts',
+  'verificationAttempts',
+  'password_hash',
+  'passwordHash',
+  'telegram_link_token',
+  'telegramLinkToken',
+  'telegram_link_expires',
+  'telegramLinkExpires',
+]);
 
 @Injectable()
 export class EntityRepositoryService {
@@ -44,6 +64,7 @@ export class EntityRepositoryService {
     private readonly entityAccess: EntityAccessService,
     private readonly paymentService: PaymentService,
     private readonly studentBalanceService: StudentBalanceService,
+    private readonly audit: AuditService,
   ) {}
 
   isKnownEntity(entity: string): entity is EntityName {
@@ -145,6 +166,7 @@ export class EntityRepositoryService {
     this.assertNotGenericUser(entity);
     this.entityAccess.assertCanCreatePayload(entity, context, input);
     this.assertNoSensitiveFields(entity, input, context);
+    this.assertGenericMutationPolicy(entity, 'create', context);
 
     if (entity === 'Payment') {
       return this.paymentService.create(input);
@@ -168,6 +190,10 @@ export class EntityRepositoryService {
       return this.upsertWelcomePageSettings(input);
     }
 
+    if (entity === 'Lesson') {
+      return this.createLesson(input, context);
+    }
+
     const repo = this.getRepo(entity as CrmEntityName);
     const now = new Date();
     const id = input.id ? String(input.id) : randomUUID();
@@ -181,6 +207,11 @@ export class EntityRepositoryService {
     });
 
     const saved = await repo.save(row);
+
+    if (entity === 'MaterialAccess') {
+      await this.auditMaterialAccessChange(context, 'grant', saved as Record<string, unknown>);
+    }
+
     return entityToRecord(saved as Record<string, unknown>);
   }
 
@@ -193,6 +224,7 @@ export class EntityRepositoryService {
     this.assertNotGenericUser(entity);
     this.entityAccess.assertCan(entity, 'update', context);
     this.assertNoSensitiveFields(entity, input, context);
+    this.assertGenericMutationPolicy(entity, 'update', context);
 
     if (entity === 'WelcomePageSettings') {
       return this.upsertWelcomePageSettings(input);
@@ -216,6 +248,10 @@ export class EntityRepositoryService {
       return this.paymentService.update(id, input);
     }
 
+    if (entity === 'Lesson') {
+      return this.updateLesson(id, input, context, row, currentRecord);
+    }
+
     const payload = recordToEntityPayload(input);
 
     if (entity === 'ShopSettings') {
@@ -225,25 +261,42 @@ export class EntityRepositoryService {
       return shopItemToRecord(saved as ShopItemEntity);
     }
 
-    if (entity === 'Lesson' && input.status !== undefined) {
-      Object.assign(row, payload);
-      (row as { updatedDate: Date }).updatedDate = new Date();
-      const saved = await repo.save(row);
-      await this.studentBalanceService.handleLessonStatusUpdate(id, String(input.status));
-      const refreshed = await repo.findOne({ where: { id } });
-      return entityToRecord(refreshed as Record<string, unknown>);
+    if (entity === 'AppSettings') {
+      await this.auditAppSettingsMutation(context, 'update', input, currentRecord);
     }
 
     Object.assign(row, payload);
     (row as { updatedDate: Date }).updatedDate = new Date();
 
+    const prevBalance =
+      entity === 'Student' ? (currentRecord.lesson_balance ?? currentRecord.lessonBalance) : undefined;
+
     const saved = await repo.save(row);
+
+    if (entity === 'Student' && prevBalance !== undefined) {
+      const nextBalance = (saved as StudentEntity).lessonBalance;
+      if (Number(prevBalance) !== Number(nextBalance)) {
+        await this.audit.log({
+          actorUserId: context.userId,
+          action: 'lesson_balance_change',
+          entityType: 'Student',
+          entityId: id,
+          summary: `balance: ${prevBalance} → ${nextBalance}`,
+        });
+      }
+    }
+
+    if (entity === 'MaterialAccess') {
+      await this.auditMaterialAccessChange(context, 'update', entityToRecord(saved as Record<string, unknown>));
+    }
+
     return entityToRecord(saved as Record<string, unknown>);
   }
 
   async delete(entity: EntityName, id: string, context: EntityAccessContext) {
     this.assertNotGenericUser(entity);
     this.entityAccess.assertCan(entity, 'delete', context);
+    this.assertGenericMutationPolicy(entity, 'delete', context);
 
     const repo = this.getRepo(entity as CrmEntityName);
     const row = await repo.findOne({ where: { id } });
@@ -302,6 +355,10 @@ export class EntityRepositoryService {
         throw new ForbiddenException(`Field "${key}" cannot be updated without admin role`);
       }
 
+      if (!isAdmin && GLOBAL_SENSITIVE_FIELDS.has(key)) {
+        throw new ForbiddenException(`Field "${key}" cannot be updated without admin role`);
+      }
+
       if (
         entity === 'Student' &&
         !isAdmin &&
@@ -312,6 +369,181 @@ export class EntityRepositoryService {
         );
       }
     }
+  }
+
+  private parseStudentIds(input: Record<string, unknown>): string[] | null {
+    if ('student_ids' in input) {
+      const value = input.student_ids;
+      if (Array.isArray(value)) {
+        return value.map(String).filter(Boolean);
+      }
+      if (typeof value === 'string' && value.trim()) {
+        return value.split(',').map((part) => part.trim()).filter(Boolean);
+      }
+      return [];
+    }
+    if ('studentIds' in input) {
+      const value = input.studentIds;
+      if (Array.isArray(value)) {
+        return value.map(String).filter(Boolean);
+      }
+    }
+    return null;
+  }
+
+  private normalizeLessonInput(input: Record<string, unknown>): {
+    lessonInput: Record<string, unknown>;
+    studentIds: string[] | null;
+  } {
+    const studentIds = this.parseStudentIds(input);
+    const lessonInput = { ...input };
+    delete lessonInput.student_ids;
+    delete lessonInput.studentIds;
+
+    if (studentIds !== null) {
+      lessonInput.student_ids = studentIds;
+      if (studentIds.length > 0) {
+        lessonInput.student_id = studentIds[0];
+        lessonInput.lesson_type = studentIds.length > 1 ? 'group' : 'individual';
+      }
+    }
+
+    return { lessonInput, studentIds };
+  }
+
+  private async syncLessonStudents(lessonId: string, studentIds: string[]): Promise<void> {
+    const repo = this.getRepo('LessonStudent');
+    await repo.delete({ lessonId });
+
+    if (studentIds.length === 0) {
+      return;
+    }
+
+    const now = new Date();
+    for (const studentId of studentIds) {
+      await repo.save(
+        repo.create({
+          id: randomUUID(),
+          lessonId,
+          studentId,
+          attendanceStatus: 'enrolled',
+          balanceDeducted: false,
+          createdDate: now,
+          updatedDate: now,
+        } as LessonStudentEntity),
+      );
+    }
+  }
+
+  private async createLesson(
+    input: Record<string, unknown>,
+    context: EntityAccessContext,
+  ): Promise<Record<string, unknown>> {
+    const { lessonInput, studentIds } = this.normalizeLessonInput(input);
+    const repo = this.getRepo('Lesson');
+    const now = new Date();
+    const id = lessonInput.id ? String(lessonInput.id) : randomUUID();
+    const payload = recordToEntityPayload(lessonInput);
+
+    const row = repo.create({
+      id,
+      ...payload,
+      createdDate: now,
+      updatedDate: now,
+    });
+
+    const saved = await repo.save(row);
+    const idsToSync =
+      studentIds ??
+      (saved.studentId ? [String(saved.studentId)] : []);
+
+    if (idsToSync.length > 0) {
+      await this.syncLessonStudents(String(saved.id), idsToSync);
+    }
+
+    return entityToRecord(saved as Record<string, unknown>);
+  }
+
+  private async updateLesson(
+    id: string,
+    input: Record<string, unknown>,
+    context: EntityAccessContext,
+    row: Record<string, unknown>,
+    currentRecord: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const { lessonInput, studentIds } = this.normalizeLessonInput(input);
+    const payload = recordToEntityPayload(lessonInput);
+    const repo = this.getRepo('Lesson');
+
+    Object.assign(row, payload);
+    (row as { updatedDate: Date }).updatedDate = new Date();
+
+    const saved = await repo.save(row);
+
+    if (studentIds !== null) {
+      await this.syncLessonStudents(id, studentIds);
+    }
+
+    if (lessonInput.status !== undefined) {
+      await this.studentBalanceService.handleLessonStatusUpdate(id, String(lessonInput.status));
+      const refreshed = await repo.findOne({ where: { id } });
+      return entityToRecord(refreshed as Record<string, unknown>);
+    }
+
+    return entityToRecord(saved as Record<string, unknown>);
+  }
+
+  private assertGenericMutationPolicy(
+    entity: EntityName,
+    action: 'create' | 'update' | 'delete',
+    context: EntityAccessContext,
+  ): void {
+    const isAdmin =
+      normalizeRole(context.role) === 'admin' || context.userId === 'system';
+
+    if (entity === 'Payment' && !isAdmin) {
+      throw new ForbiddenException(
+        'Payment mutations must go through payment flows or administrator tools',
+      );
+    }
+
+    if (entity === 'AppSettings' && action === 'create' && !isAdmin) {
+      throw new ForbiddenException('AppSettings can only be modified by administrators');
+    }
+  }
+
+  private async auditAppSettingsMutation(
+    context: EntityAccessContext,
+    action: 'create' | 'update',
+    input: Record<string, unknown>,
+    current?: Record<string, unknown>,
+  ): Promise<void> {
+    const key = String(input.key ?? current?.key ?? '');
+    if (!APP_SETTINGS_SENSITIVE_KEYS.has(key)) {
+      return;
+    }
+
+    await this.audit.log({
+      actorUserId: context.userId,
+      action: 'app_settings_change',
+      entityType: 'AppSettings',
+      entityId: key,
+      summary: `${action} sensitive setting "${key}"`,
+    });
+  }
+
+  private async auditMaterialAccessChange(
+    context: EntityAccessContext,
+    action: 'grant' | 'update',
+    record: Record<string, unknown>,
+  ) {
+    await this.audit.log({
+      actorUserId: context.userId,
+      action: action === 'grant' ? 'material_access_grant' : 'material_access_update',
+      entityType: 'MaterialAccess',
+      entityId: String(record.id ?? ''),
+      summary: `user=${record.user_id ?? record.userId} material=${record.material_id ?? record.materialId} access=${record.access}`,
+    });
   }
 
   private async upsertWelcomePageSettings(
