@@ -53,12 +53,6 @@ import {
     @Column({ name: 'student_last_name', type: 'text', nullable: true })
     studentLastName: string;
   
-    @Column({ name: 'student_ids', type: 'simple-array', nullable: true })
-    studentIds: string[];
-  
-    @Column({ name: 'student_names', type: 'simple-array', nullable: true })
-    studentNames: string[];
-  
     @Column({ type: 'date' })
     date: string;
   
@@ -112,9 +106,6 @@ import {
   
     @Column({ name: 'recurring_group_id', type: 'uuid', nullable: true })
     recurringGroupId: string;
-  
-    @Column({ name: 'material_ids', type: 'simple-array', nullable: true })
-    materialIds: string[];
   
     @Column({ name: 'balance_deducted', type: 'boolean', default: false })
     balanceDeducted: boolean;

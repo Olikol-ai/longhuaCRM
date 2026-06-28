@@ -12,6 +12,7 @@ import { UserOnboardingFields1730000000006 } from './migrations/1730000000006-Us
 import { NormalizeUserRoles1730000000007 } from './migrations/1730000000007-NormalizeUserRoles';
 import { SecurityHardening1730000000008 } from './migrations/1730000000008-SecurityHardening';
 import { PaymentAndLessonStudentConstraints1730000000009 } from './migrations/1730000000009-PaymentAndLessonStudentConstraints';
+import { EliminateJsonbAndArrays1730000000010 } from './migrations/1730000000010-EliminateJsonbAndArrays';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -27,6 +28,7 @@ export default new DataSource({
     NormalizeUserRoles1730000000007,
     SecurityHardening1730000000008,
     PaymentAndLessonStudentConstraints1730000000009,
+    EliminateJsonbAndArrays1730000000010,
   ],
   synchronize: false,
 });

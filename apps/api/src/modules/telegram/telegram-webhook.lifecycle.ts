@@ -63,8 +63,14 @@ export class TelegramWebhookLifecycleService implements OnApplicationBootstrap, 
 
     try {
       const secret = this.config.get<string>('telegram.webhookSecret');
-      await this.telegramService.registerWebhook(webhookUrl, secret || undefined);
-      this.logger.log('Telegram webhook registered successfully');
+      const result = await this.telegramService.registerWebhook(webhookUrl, secret || undefined);
+      if (result.set?.ok) {
+        this.logger.log('Telegram webhook registered successfully');
+      } else {
+        this.logger.error(
+          `Telegram webhook registration failed: ${result.set?.description ?? 'Telegram setWebhook returned ok=false'}`,
+        );
+      }
     } catch (error) {
       this.logger.error(`Failed to register Telegram webhook: ${(error as Error).message}`);
     }

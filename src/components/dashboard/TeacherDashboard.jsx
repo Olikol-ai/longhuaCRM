@@ -3,6 +3,7 @@ import { api } from '@/api';
 import { format, isToday, isTomorrow, parseISO, addDays } from "date-fns";
 import { CalendarDays, Clock, CheckCircle2, XCircle, Video } from "lucide-react";
 import StatCard from "./StatCard";
+import { getGreetingName } from "@/lib/display-name";
 
 export default function TeacherDashboard({ user }) {
   const [lessons, setLessons] = useState([]);
@@ -54,7 +55,7 @@ export default function TeacherDashboard({ user }) {
   return (
     <div className="p-6 space-y-6 max-w-4xl mx-auto">
       <div>
-        <h2 className="text-xl font-bold text-slate-800">Добро пожаловать, {user?.full_name?.split(" ")[0] || "Преподаватель"}</h2>
+        <h2 className="text-xl font-bold text-slate-800">Добро пожаловать, {getGreetingName(user) || "Преподаватель"}</h2>
         <p className="text-sm text-slate-400 mt-0.5">Обзор вашего расписания</p>
       </div>
 

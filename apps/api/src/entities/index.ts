@@ -1,4 +1,7 @@
 import { AuditLogEntity } from './AuditLog.entity';
+import { TeacherAvailabilitySlotEntity } from './TeacherAvailabilitySlot.entity';
+import { LessonMaterialLinkEntity } from './LessonMaterialLink.entity';
+import { LessonMaterialTagEntity } from './LessonMaterialTag.entity';
 import { UserEntity } from './user.entity';
 import {
   StudentEntity,
@@ -41,4 +44,7 @@ export const ALL_ENTITIES = [
   AppSettingEntity,
   ShopItemEntity,
   WelcomePageSettingEntity,
+  TeacherAvailabilitySlotEntity,
+  LessonMaterialLinkEntity,
+  LessonMaterialTagEntity,
 ];

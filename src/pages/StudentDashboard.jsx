@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import StatCard from "@/components/dashboard/StatCard";
 import TopUpModal from "@/components/student/TopUpModal";
 import { useAuth } from "@/lib/AuthContext";
+import { getGreetingName } from "@/lib/display-name";
 import { useTheme } from "@/lib/ThemeContext";
 
 const STATUS_LABELS = {
@@ -109,7 +110,7 @@ export default function StudentDashboard() {
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
-            Добро пожаловать, {student.name.split(" ")[0]} 👋
+            Добро пожаловать, {getGreetingName(student) || getGreetingName(user) || "ученик"} 👋
           </h1>
           <p className="text-sm text-slate-500 mt-1">
             {format(new Date(), "EEEE, d MMMM yyyy", { locale: ru })}

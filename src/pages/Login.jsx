@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '@/api';
+import { useAuth } from '@/lib/AuthContext';
 import { resolveRedirect } from '@/lib/routing';
 import { BookOpen, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { establishSession } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -24,15 +26,17 @@ export default function Login() {
 
     try {
       if (mode === 'login') {
-        const result = await api.auth.login(email.trim(), password);
+        await api.auth.login(email.trim(), password);
+        const sessionUser = await establishSession();
         const fromUrl = searchParams.get('from_url');
-        const target = fromUrl || result.redirect_path || resolveRedirect(result.user);
+        const target = fromUrl || sessionUser?.redirect_path || resolveRedirect(sessionUser);
         navigate(target, { replace: true });
       } else {
         const result = await api.auth.register(email.trim(), password, firstName.trim(), lastName.trim());
         if (result.verification_code) {
           sessionStorage.setItem('longhua_verification_code', result.verification_code);
         }
+        await establishSession();
         navigate('/auth/pending-approval', { replace: true });
       }
     } catch (err) {

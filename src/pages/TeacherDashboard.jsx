@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import MaterialPickerDialog from "@/components/materials/MaterialPickerDialog";
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
+import { getGreetingName } from '@/lib/display-name';
 import { format } from "date-fns";
 import { Calendar, CheckCircle2, XCircle, Clock, Loader2, Sun, Moon } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
@@ -93,7 +94,7 @@ export default function TeacherDashboard() {
     <div className="p-6 lg:p-8 max-w-5xl mx-auto dark:bg-slate-950 min-h-screen">
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Добро пожаловать, {teacher.name}</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Добро пожаловать, {getGreetingName(teacher) || getGreetingName(user) || "Преподаватель"}</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
         </div>
         <button onClick={toggleTheme}

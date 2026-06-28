@@ -46,9 +46,6 @@ import {
     @Column({ name: 'block_name', type: 'text', nullable: true })
     blockName: string;
   
-    @Column({ name: 'tags', type: 'simple-array', nullable: true })
-    tags: string[];
-  
     @CreateDateColumn({ name: 'created_date', type: 'timestamptz' })
     createdDate: Date;
   

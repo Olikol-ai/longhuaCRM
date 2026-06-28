@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { LessonEntity } from '../../entities/Lesson.entity';
+import { LessonStudentEntity } from '../../entities/LessonStudent.entity';
 import { StudentEntity } from '../../entities/Student.entity';
 
 const BALANCE_DEDUCT_STATUSES = new Set(['completed', 'missed_no_notice']);
@@ -24,7 +25,7 @@ export class StudentBalanceService {
         return;
       }
 
-      const studentIds = this.resolveStudentIds(lesson);
+      const studentIds = await this.resolveStudentIds(lessonId, manager);
       for (const studentId of studentIds) {
         const student = await studentRepo.findOne({ where: { id: studentId } });
         if (!student) continue;
@@ -39,11 +40,19 @@ export class StudentBalanceService {
     });
   }
 
-  private resolveStudentIds(lesson: LessonEntity): string[] {
-    if (lesson.studentIds?.length) {
-      return lesson.studentIds.filter(Boolean);
+  private async resolveStudentIds(
+    lessonId: string,
+    manager: EntityManager,
+  ): Promise<string[]> {
+    const lsRepo = manager.getRepository(LessonStudentEntity);
+    const rows = await lsRepo.find({ where: { lessonId } });
+    const ids = rows.map((row) => String(row.studentId)).filter(Boolean);
+    if (ids.length > 0) {
+      return ids;
     }
-    if (lesson.studentId) {
+
+    const lesson = await manager.getRepository(LessonEntity).findOne({ where: { id: lessonId } });
+    if (lesson?.studentId) {
       return [lesson.studentId];
     }
     return [];

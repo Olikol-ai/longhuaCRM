@@ -16,20 +16,6 @@ import {
     @Column({ name: 'teacher_id', type: 'uuid' })
     teacherId: string;
   
-    /**
-     * Stored as JSONB:
-     * [
-     *   { day: 0, from: "10:00", to: "12:00" },
-     *   ...
-     * ]
-     */
-    @Column({ type: 'jsonb', nullable: true })
-    slots: {
-      day: number;
-      from: string;
-      to: string;
-    }[];
-  
     @CreateDateColumn({ name: 'created_date', type: 'timestamptz' })
     createdDate: Date;
   

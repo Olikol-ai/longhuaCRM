@@ -6,6 +6,7 @@ import StatCard from "./StatCard";
 import LessonRow from "./LessonRow";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { getGreetingName } from "@/lib/display-name";
 
 export default function AdminDashboard({ user }) {
   const [lessons, setLessons] = useState([]);
@@ -70,7 +71,7 @@ export default function AdminDashboard({ user }) {
     );
   }
 
-  const userName = user?.full_name || "Администратор";
+  const userName = getGreetingName(user) || "Администратор";
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">

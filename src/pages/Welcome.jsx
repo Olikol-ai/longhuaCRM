@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { api } from '@/api';
 import { useAuth } from "@/lib/AuthContext";
+import { getGreetingName } from "@/lib/display-name";
 import { BookOpen, Clock, Sparkles, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -21,6 +22,8 @@ export default function Welcome() {
       if (data.length > 0) setSettings({ ...DEFAULTS, ...data[0] });
     }).catch(() => {});
   }, []);
+
+  const greetingName = getGreetingName(user);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-slate-50 flex items-center justify-center p-6">
@@ -49,7 +52,7 @@ export default function Welcome() {
 
           <div className="space-y-3">
             <h2 className="text-xl font-bold text-slate-800 text-center">
-              {user?.full_name ? `Добро пожаловать, ${user.full_name.split(" ")[0]}!` : settings.title}
+              {greetingName ? `Добро пожаловать, ${greetingName}!` : settings.title}
             </h2>
             {settings.body_text.split("\n").filter(Boolean).map((line, i) => (
               <p key={i} className="text-slate-500 leading-relaxed">{line}</p>
