@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { DataSource, EntityManager } from 'typeorm';
@@ -8,12 +8,14 @@ import { LessonMaterialTagEntity } from '../../entities/LessonMaterialTag.entity
 import { TeacherAvailabilityEntity } from '../../entities/TeacherAvailability.entity';
 import { TeacherAvailabilitySlotEntity } from '../../entities/TeacherAvailabilitySlot.entity';
 import { EntityEnrichmentService } from './entity-enrichment.service';
+import { CourseFolderService } from './course-folder.service';
 
 @Injectable()
 export class ScheduleOrchestratorService {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly enrichment: EntityEnrichmentService,
+    private readonly courseFolderService: CourseFolderService,
   ) {}
 
   async createTeacherAvailability(
@@ -86,6 +88,13 @@ export class ScheduleOrchestratorService {
     const tags = this.parseTags(input);
     const payload = { ...input };
     delete payload.tags;
+    this.assertMaterialHasSource(payload);
+    this.assertMaterialHasCourse(payload);
+
+    const entityPayload = recordToEntityPayload(payload);
+    const courseId = String(entityPayload.courseId ?? payload.course_id ?? '').trim();
+    const folderId = this.normalizeOptionalId(entityPayload.folderId ?? payload.folder_id);
+    await this.courseFolderService.validateMaterialFolder(courseId, folderId);
 
     return this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(LessonMaterialEntity);
@@ -122,6 +131,17 @@ export class ScheduleOrchestratorService {
       if (!managedRow) {
         throw new NotFoundException('LessonMaterial not found');
       }
+
+      this.assertMaterialHasSource(payload, managedRow);
+
+      const courseId = String(
+        payload.course_id ?? payload.courseId ?? managedRow.courseId ?? '',
+      ).trim();
+      const folderId =
+        'folder_id' in payload || 'folderId' in payload
+          ? this.normalizeOptionalId(payload.folder_id ?? payload.folderId)
+          : managedRow.folderId;
+      await this.courseFolderService.validateMaterialFolder(courseId, folderId);
 
       Object.assign(managedRow, recordToEntityPayload(payload));
       managedRow.updatedDate = new Date();
@@ -222,5 +242,32 @@ export class ScheduleOrchestratorService {
         }),
       );
     }
+  }
+
+  private assertMaterialHasCourse(payload: Record<string, unknown>): void {
+    const courseId = String(payload.course_id ?? payload.courseId ?? '').trim();
+    if (!courseId) {
+      throw new BadRequestException('course_id is required');
+    }
+  }
+
+  private assertMaterialHasSource(
+    payload: Record<string, unknown>,
+    existing?: Pick<LessonMaterialEntity, 'fileUrl' | 'externalLink'>,
+  ): void {
+    const fileUrl = String(
+      payload.fileUrl ?? payload.file_url ?? existing?.fileUrl ?? '',
+    ).trim();
+    const externalLink = String(
+      payload.externalLink ?? payload.external_link ?? existing?.externalLink ?? '',
+    ).trim();
+    if (!fileUrl && !externalLink) {
+      throw new BadRequestException('Material requires a file upload or external link');
+    }
+  }
+
+  private normalizeOptionalId(value: unknown): string | null {
+    const id = String(value ?? '').trim();
+    return id || null;
   }
 }

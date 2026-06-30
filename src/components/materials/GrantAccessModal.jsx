@@ -31,7 +31,9 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
     setMaterials(mats);
     setStudents(sts);
     setTeachers(trs);
-    if (user?.role === "teacher") {
+    if (user?.teacher_profile_id) {
+      setTeacherEntityId(user.teacher_profile_id);
+    } else if (user?.has_teacher_profile) {
       const ownTeacher = trs.find((t) => t.user_id === user.id);
       setTeacherEntityId(ownTeacher?.id ?? null);
     }
@@ -88,7 +90,8 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
     }
   };
 
-  const visibleStudents = user?.role === "teacher"
+  const isTeacherScope = Boolean(user?.has_teacher_profile && user?.role !== "admin");
+  const visibleStudents = isTeacherScope && teacherEntityId
     ? students.filter((s) => s.assigned_teacher === teacherEntityId)
     : students;
 

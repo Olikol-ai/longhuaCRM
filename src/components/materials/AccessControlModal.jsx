@@ -80,7 +80,7 @@ export default function AccessControlModal({ material, course, onClose, onSave }
   if (loading) {
     return (
       <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
-        <div className="bg-white rounded-2xl p-8">
+        <div className="bg-card rounded-2xl p-8">
           <Loader2 className="h-6 w-6 animate-spin text-indigo-600 mx-auto" />
         </div>
       </div>
@@ -89,36 +89,36 @@ export default function AccessControlModal({ material, course, onClose, onSave }
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white">
+      <div className="bg-card rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto border border-border">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Управление доступом</h2>
-            <p className="text-xs text-slate-500 mt-0.5">{material.title}</p>
+            <h2 className="text-lg font-bold text-foreground">Управление доступом</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">{material.title}</p>
             {course?.course_name && (
-              <p className="text-xs text-slate-400">{course.course_name}</p>
+              <p className="text-xs text-muted-foreground">{course.course_name}</p>
             )}
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
-            <X className="h-5 w-5 text-slate-400" />
+          <button onClick={onClose} className="p-2 hover:bg-muted rounded-xl transition-colors">
+            <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
 
         <div className="p-6 space-y-6">
-          <div className="p-4 bg-blue-50 rounded-xl border border-blue-200 text-sm text-blue-700 flex items-start gap-2">
+          <div className="p-4 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-300 flex items-start gap-2">
             <Lock className="h-4 w-4 mt-0.5 shrink-0" />
             <p>Доступ выдаётся по учётной записи ученика (user_id). Изменения сохраняются на сервере.</p>
           </div>
 
           <div className="space-y-3">
-            <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+            <p className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Users className="h-4 w-4" /> Выберите учеников
             </p>
-            <div className="border border-slate-200 rounded-xl divide-y max-h-64 overflow-y-auto">
+            <div className="border border-border rounded-xl divide-y divide-border max-h-64 overflow-y-auto">
               {students.length === 0 ? (
-                <div className="p-4 text-center text-sm text-slate-500">Нет учеников</div>
+                <div className="p-4 text-center text-sm text-muted-foreground">Нет учеников</div>
               ) : (
                 students.map((s) => (
-                  <label key={s.id} className="flex items-center gap-3 p-3 hover:bg-slate-50 cursor-pointer">
+                  <label key={s.id} className="flex items-center gap-3 p-3 hover:bg-muted/50 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={selectedStudentIds.includes(s.id)}
@@ -127,8 +127,8 @@ export default function AccessControlModal({ material, course, onClose, onSave }
                       className="rounded accent-indigo-600"
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-slate-800">{s.name}</p>
-                      <p className="text-xs text-slate-400">
+                      <p className="text-sm text-foreground">{s.name}</p>
+                      <p className="text-xs text-muted-foreground">
                         {s.user_id ? s.email : "Нет привязанного аккаунта"}
                       </p>
                     </div>
@@ -136,13 +136,13 @@ export default function AccessControlModal({ material, course, onClose, onSave }
                 ))
               )}
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               Выбрано: {selectedStudentIds.length} из {students.length}
             </p>
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100 sticky bottom-0 bg-white">
+        <div className="flex justify-end gap-3 px-6 py-4 border-t border-border sticky bottom-0 bg-card">
           <Button variant="outline" onClick={onClose}>Отмена</Button>
           <Button onClick={handleSave} disabled={saving} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}

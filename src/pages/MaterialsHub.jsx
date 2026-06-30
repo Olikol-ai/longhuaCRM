@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { api } from '@/api';
-import { hasAccessToMaterial } from "@/lib/materialAccess";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,20 +11,23 @@ import {
 import GrantAccessModal from "@/components/materials/GrantAccessModal";
 import AccessManageModal from "@/components/materials/AccessManageModal";
 import MaterialFormDialog from "@/components/materials/MaterialFormDialog";
+import CourseFolderTree from "@/components/materials/CourseFolderTree";
 import { useAuth } from "@/lib/AuthContext";
+import { getMaterialUrl } from "@/lib/materialUrl";
 
 const FILE_TYPE_ICONS = {
-  pdf: { icon: FileText, color: "text-red-500", bg: "bg-red-50", label: "PDF" },
-  pptx: { icon: FileText, color: "text-orange-500", bg: "bg-orange-50", label: "PPTX" },
-  video: { icon: Video, color: "text-blue-500", bg: "bg-blue-50", label: "Видео" },
-  link: { icon: Link2, color: "text-indigo-500", bg: "bg-indigo-50", label: "Ссылка" },
-  other: { icon: File, color: "text-slate-500", bg: "bg-slate-50", label: "Файл" },
+  pdf: { icon: FileText, color: "text-red-500", bg: "bg-red-50 dark:bg-red-950/40", label: "PDF" },
+  pptx: { icon: FileText, color: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-950/40", label: "PPTX" },
+  video: { icon: Video, color: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-950/40", label: "Видео" },
+  link: { icon: Link2, color: "text-indigo-500", bg: "bg-indigo-50 dark:bg-indigo-950/40", label: "Ссылка" },
+  other: { icon: File, color: "text-slate-500", bg: "bg-slate-50 dark:bg-slate-800", label: "Файл" },
 };
 
 export default function MaterialsHub() {
   const { user, isLoadingAuth } = useAuth();
   const [materials, setMaterials] = useState([]);
   const [courses, setCourses] = useState([]);
+  const [folders, setFolders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedMaterialIds, setSelectedMaterialIds] = useState(new Set());
@@ -42,6 +44,20 @@ export default function MaterialsHub() {
     total_lessons: 35,
   });
   const [selectedMaterialForAccess, setSelectedMaterialForAccess] = useState(null);
+  const [materialFormContext, setMaterialFormContext] = useState({ courseId: "", folderId: null });
+
+  const openMaterialForm = (context = {}) => {
+    const courseId = context.courseId || expandedCourse || courses[0]?.id;
+    if (!courseId) {
+      alert("Сначала создайте курс");
+      return;
+    }
+    setMaterialFormContext({
+      courseId,
+      folderId: context.folderId ?? null,
+    });
+    setShowMaterialForm(true);
+  };
 
   useEffect(() => {
     if (isLoadingAuth) return;
@@ -55,31 +71,20 @@ export default function MaterialsHub() {
   const loadData = async () => {
     if (!user) return;
 
-    const [allMats, c] = await Promise.all([
+    const [allMats, c, f] = await Promise.all([
       api.entities.LessonMaterial.list("-created_date"),
       api.entities.Course.list(),
+      api.entities.CourseFolder.list(),
     ]);
 
-    // Если учитель - фильтруем по доступу
-    let m = allMats;
-    if (user.role === "teacher") {
-      const accessibleMats = [];
-      for (const mat of allMats) {
-        const hasAccess = await hasAccessToMaterial(user.id, mat.id);
-        if (hasAccess) {
-          accessibleMats.push(mat);
-        }
-      }
-      m = accessibleMats;
-    }
-
-    setMaterials(m);
+    setMaterials(allMats);
     setCourses(c);
+    setFolders(f);
     setLoading(false);
   };
 
   const isAdmin = user?.role === "admin";
-  const isTeacher = user?.role === "teacher";
+  const isTeacher = Boolean(user?.has_teacher_profile);
 
   const handleSaveCourse = async () => {
     if (!courseFormData.course_name) {
@@ -190,12 +195,12 @@ export default function MaterialsHub() {
       <div className="mb-8">
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Материалы уроков</h1>
-            <p className="text-sm text-slate-500 mt-2">Управление материалами и доступом</p>
+            <h1 className="text-3xl font-bold text-foreground">Материалы уроков</h1>
+            <p className="text-sm text-muted-foreground mt-2">Управление материалами и доступом</p>
           </div>
-          {isAdmin && (
+          {isAdmin && adminTab !== "courses" && (
             <Button
-              onClick={() => setShowMaterialForm(true)}
+              onClick={() => openMaterialForm()}
               className="bg-indigo-600 hover:bg-indigo-700 gap-2"
             >
               <Plus className="h-4 w-4" />
@@ -212,7 +217,7 @@ export default function MaterialsHub() {
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                 adminTab === "courses"
                   ? "bg-indigo-600 text-white"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
               }`}
             >
               Курсы
@@ -222,7 +227,7 @@ export default function MaterialsHub() {
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                 adminTab === "materials"
                   ? "bg-indigo-600 text-white"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
               }`}
             >
               Материалы
@@ -232,7 +237,7 @@ export default function MaterialsHub() {
               className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
                 adminTab === "access"
                   ? "bg-indigo-600 text-white"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
               }`}
             >
               <Lock className="h-4 w-4" />
@@ -246,10 +251,10 @@ export default function MaterialsHub() {
       {isAdmin && adminTab === "courses" && (
         <div className="space-y-6">
           {showCourseForm && (
-            <Card className="p-6 bg-slate-50 border-2 border-indigo-200">
+            <Card className="p-6 bg-muted/30 border-2 border-indigo-200 dark:border-indigo-800">
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Название курса *
                   </label>
                   <Input
@@ -263,7 +268,7 @@ export default function MaterialsHub() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                    <label className="block text-sm font-medium text-foreground mb-2">
                       Тип курса
                     </label>
                     <select
@@ -271,7 +276,7 @@ export default function MaterialsHub() {
                       onChange={e =>
                         setCourseFormData(prev => ({ ...prev, course_type: e.target.value }))
                       }
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                      className="w-full px-3 py-2 border border-input rounded-lg text-sm bg-background text-foreground"
                     >
                       <option value="basic_beginner">Базовый</option>
                       <option value="advanced_beginner">Продвинутый начинающий</option>
@@ -280,7 +285,7 @@ export default function MaterialsHub() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                    <label className="block text-sm font-medium text-foreground mb-2">
                       Количество уроков
                     </label>
                     <Input
@@ -310,7 +315,7 @@ export default function MaterialsHub() {
           )}
 
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-slate-900">Курсы</h2>
+            <h2 className="text-lg font-bold text-foreground">Курсы</h2>
             {!showCourseForm && (
               <Button
                 onClick={() => setShowCourseForm(true)}
@@ -331,19 +336,19 @@ export default function MaterialsHub() {
                   <div className="flex items-center justify-between">
                     <button
                       onClick={() => setExpandedCourse(isExpanded ? null : course.id)}
-                      className="flex-1 flex items-center gap-3 text-left hover:bg-slate-50 rounded px-2 py-1 transition-colors"
+                      className="flex-1 flex items-center gap-3 text-left hover:bg-muted/50 rounded px-2 py-1 transition-colors"
                     >
                       {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       <span className="text-amber-500">📁</span>
                       <div className="flex-1">
-                        <p className="font-semibold text-slate-900">{course.course_name || course.course_type}</p>
-                        <p className="text-xs text-slate-500">{courseMaterials.length} материалов</p>
+                        <p className="font-semibold text-foreground">{course.course_name || course.course_type}</p>
+                        <p className="text-xs text-muted-foreground">{courseMaterials.length} материалов</p>
                       </div>
                     </button>
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleEditCourse(course)}
-                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                        className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded transition-colors"
                         title="Редактировать"
                       >
                         <Edit2 className="h-4 w-4" />
@@ -351,7 +356,7 @@ export default function MaterialsHub() {
                       <button
                         onClick={() => handleDeleteCourse(course.id)}
                         disabled={deleting === course.id}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                        className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded transition-colors disabled:opacity-50"
                         title="Удалить"
                       >
                         {deleting === course.id ? (
@@ -364,40 +369,17 @@ export default function MaterialsHub() {
                   </div>
 
                   {isExpanded && (
-                    <div className="mt-4 pt-4 border-t border-slate-200 space-y-2">
-                      {courseMaterials.length === 0 ? (
-                        <p className="text-sm text-slate-500 text-center py-4">Материалов нет</p>
-                      ) : (
-                        courseMaterials.map(mat => {
-                          const typeInfo = FILE_TYPE_ICONS[mat.file_type] || FILE_TYPE_ICONS.other;
-                          const IconComp = typeInfo.icon;
-                          return (
-                            <div key={mat.id} className="flex items-center gap-2 p-2 bg-slate-50 rounded">
-                              <IconComp className={`h-4 w-4 ${typeInfo.color}`} />
-                              <span className="text-sm text-slate-700 flex-1">{mat.title}</span>
-                              <button
-                                onClick={() => setSelectedMaterialForAccess(mat.id)}
-                                className="p-1 text-indigo-600 hover:bg-indigo-100 rounded transition-colors text-xs font-medium"
-                                title="Предоставить доступ"
-                              >
-                                <Lock className="h-3 w-3" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteMaterial(mat.id)}
-                                disabled={deleting === mat.id}
-                                className="p-1 text-red-600 hover:bg-red-100 rounded transition-colors disabled:opacity-50"
-                              >
-                                {deleting === mat.id ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  <Trash2 className="h-3 w-3" />
-                                )}
-                              </button>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
+                    <CourseFolderTree
+                      course={course}
+                      folders={folders}
+                      materials={materials}
+                      onRefresh={loadData}
+                      onConfigureAccess={setSelectedMaterialForAccess}
+                      onDeleteMaterial={handleDeleteMaterial}
+                      onAddMaterial={(folderId) => openMaterialForm({ courseId: course.id, folderId })}
+                      deleting={deleting}
+                      fileTypeIcons={FILE_TYPE_ICONS}
+                    />
                   )}
                 </Card>
               );
@@ -423,8 +405,8 @@ export default function MaterialsHub() {
 
       {/* Selection toolbar */}
       {selectedMaterialIds.size > 0 && adminTab === "materials" && (
-        <div className="mb-6 flex items-center justify-between p-3 bg-indigo-50 rounded-lg border border-indigo-200 flex-wrap gap-3">
-          <span className="text-sm text-indigo-700 font-medium">
+        <div className="mb-6 flex items-center justify-between p-3 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg border border-indigo-200 dark:border-indigo-800 flex-wrap gap-3">
+          <span className="text-sm text-indigo-700 dark:text-indigo-300 font-medium">
             Выбрано {selectedMaterialIds.size} материал{selectedMaterialIds.size % 10 === 1 ? "" : "ов"}
           </span>
           <div className="flex gap-2 flex-wrap">
@@ -452,8 +434,8 @@ export default function MaterialsHub() {
       {/* Materials Grid */}
       {filteredMaterials.length === 0 ? (
         <Card className="p-12 text-center border-dashed">
-          <FileText className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-          <p className="text-slate-600 font-medium">
+          <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <p className="text-muted-foreground font-medium">
             {search ? "Материалы не найдены" : "Материалы еще не добавлены"}
           </p>
         </Card>
@@ -470,7 +452,7 @@ export default function MaterialsHub() {
             return (
               <div key={courseId}>
                 {course && (
-                  <h2 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                  <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
                     <span className="text-amber-500">📁</span>
                     {course.course_name || course.course_type}
                   </h2>
@@ -486,8 +468,8 @@ export default function MaterialsHub() {
                         key={mat.id}
                         className={`relative group p-4 rounded-lg border transition-all ${
                           isSelected
-                            ? "bg-indigo-50 border-indigo-300"
-                            : "bg-white border-slate-200 hover:border-indigo-200 hover:shadow-sm"
+                            ? "bg-indigo-50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700"
+                            : "bg-card border-border hover:border-indigo-200 dark:hover:border-indigo-800 hover:shadow-sm"
                         }`}
                       >
                         {isAdmin && (
@@ -504,27 +486,27 @@ export default function MaterialsHub() {
                             <IconComp className={`h-5 w-5 ${typeInfo.color}`} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-900 truncate">
+                            <p className="text-sm font-medium text-foreground truncate">
                               {mat.title}
                             </p>
                             {mat.block_name && (
-                              <p className="text-xs text-slate-500 mt-0.5">{mat.block_name}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">{mat.block_name}</p>
                             )}
                           </div>
                         </div>
 
                         {mat.description && (
-                          <p className="text-xs text-slate-600 line-clamp-2 mb-3 pl-7">
+                          <p className="text-xs text-muted-foreground line-clamp-2 mb-3 pl-7">
                             {mat.description}
                           </p>
                         )}
 
                         <div className="flex gap-2 pl-7">
                           <a
-                            href={mat.file_url}
+                            href={getMaterialUrl(mat)}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-indigo-200"
+                            className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded-lg transition-colors border border-indigo-200 dark:border-indigo-800"
                           >
                             <Eye className="h-3 w-3" />
                             Открыть
@@ -533,7 +515,7 @@ export default function MaterialsHub() {
                             <button
                               onClick={() => handleDeleteMaterial(mat.id)}
                               disabled={deleting === mat.id}
-                              className="px-2 py-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                              className="px-2 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors disabled:opacity-50"
                               title="Удалить"
                             >
                               {deleting === mat.id ? (
@@ -553,8 +535,9 @@ export default function MaterialsHub() {
           })}
         </div>
       )}
+        </>
+      )}
 
-      {/* Modals */}
       {showGrantAccess && selectedMaterialIds.size > 0 && (
         <GrantAccessModal
           user={user}
@@ -582,14 +565,14 @@ export default function MaterialsHub() {
 
       {showMaterialForm && (
         <MaterialFormDialog
+          defaultCourseId={materialFormContext.courseId}
+          defaultFolderId={materialFormContext.folderId}
           onClose={() => setShowMaterialForm(false)}
           onSave={() => {
             setShowMaterialForm(false);
             loadData();
           }}
         />
-      )}
-        </>
       )}
     </div>
   );

@@ -33,13 +33,13 @@ export default function CourseFormDialog({ course, onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+      <div className="bg-card rounded-2xl w-full max-w-sm shadow-xl border border-border">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 bg-amber-50 rounded-lg flex items-center justify-center">
+            <div className="h-8 w-8 bg-amber-50 dark:bg-amber-950/40 rounded-lg flex items-center justify-center">
               <Folder className="h-4 w-4 text-amber-500" />
             </div>
-            <h3 className="text-base font-semibold text-slate-800">
+            <h3 className="text-base font-semibold text-foreground">
               {course ? "Переименовать курс" : "Новый курс"}
             </h3>
           </div>

@@ -13,6 +13,7 @@ import { validateRegistrationEmail } from '../../common/security/email-validatio
 import { RateLimitService } from '../../common/security/rate-limit.service';
 import { AuditService } from '../audit/audit.service';
 import { UsersRepository } from '../users/users.repository';
+import { UserProfileService } from '../users/user-profile.service';
 import { userToRecord } from '../users/user.mapper';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -60,6 +61,7 @@ function authResponse(row: Awaited<ReturnType<UsersRepository['findById']>>, sig
 export class AuthService {
   constructor(
     private readonly usersRepository: UsersRepository,
+    private readonly userProfileService: UserProfileService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
     private readonly rateLimit: RateLimitService,
@@ -89,7 +91,7 @@ export class AuthService {
     this.rateLimit.reset(`login-ip:${clientIp}`);
     this.rateLimit.reset(`login:${normalizedEmail}`);
 
-    return authResponse(row, (u) => this.signToken(u));
+    return this.attachProfileFields(authResponse(row, (u) => this.signToken(u)), row.id);
   }
 
   async register(dto: RegisterDto, clientIp: string) {
@@ -146,8 +148,9 @@ export class AuthService {
     });
 
     const response = authResponse(row, (u) => this.signToken(u));
+    const withProfiles = await this.attachProfileFields(response, row.id);
     return {
-      ...response,
+      ...withProfiles,
       verification_code: verificationCode,
     };
   }
@@ -155,7 +158,23 @@ export class AuthService {
   async getMe(userId: string) {
     const row = await this.usersRepository.findById(userId);
     if (!row) throw new UnauthorizedException('User not found');
-    return authResponse(row, (u) => this.signToken(u));
+    const response = authResponse(row, (u) => this.signToken(u));
+    return this.attachProfileFields(response, userId);
+  }
+
+  private async attachProfileFields(
+    response: ReturnType<typeof authResponse>,
+    userId: string,
+  ) {
+    const profiles = await this.userProfileService.resolveProfiles(userId);
+    const profileFields = this.userProfileService.toProfileFields(profiles);
+    return {
+      ...response,
+      user: {
+        ...(response.user as Record<string, unknown>),
+        ...profileFields,
+      },
+    };
   }
 
   async updateMe(userId: string, dto: UpdateMeDto) {
@@ -210,7 +229,7 @@ export class AuthService {
     row.updatedDate = new Date();
 
     const saved = await this.usersRepository.save(row);
-    return authResponse(saved, (u) => this.signToken(u));
+    return this.attachProfileFields(authResponse(saved, (u) => this.signToken(u)), saved.id);
   }
 
   async verifyCode(userId: string, code: string) {
@@ -219,7 +238,7 @@ export class AuthService {
 
     const onboarding = getOnboardingContext(row);
     if (onboarding.onboarding_state !== 'needs_verification') {
-      return authResponse(row, (u) => this.signToken(u));
+      return this.attachProfileFields(authResponse(row, (u) => this.signToken(u)), row.id);
     }
 
     if ((row.verificationAttempts ?? 0) >= MAX_VERIFY_ATTEMPTS) {

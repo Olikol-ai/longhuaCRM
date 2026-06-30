@@ -28,8 +28,11 @@ import {
     @Column({ type: 'text', nullable: true })
     notes: string;
   
-    @Column({ name: 'file_url', type: 'text' })
-    fileUrl: string;
+    @Column({ name: 'file_url', type: 'text', nullable: true })
+    fileUrl: string | null;
+
+    @Column({ name: 'external_link', type: 'text', nullable: true })
+    externalLink: string | null;
   
     @Column({
       name: 'file_type',
@@ -42,6 +45,10 @@ import {
     @Index('IDX_LESSON_MATERIAL_COURSE_ID')
     @Column({ name: 'course_id', type: 'uuid' })
     courseId: string;
+
+    @Index('IDX_LESSON_MATERIAL_FOLDER_ID')
+    @Column({ name: 'folder_id', type: 'uuid', nullable: true })
+    folderId: string | null;
   
     @Column({ name: 'block_name', type: 'text', nullable: true })
     blockName: string;

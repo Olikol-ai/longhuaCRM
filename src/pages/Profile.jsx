@@ -19,12 +19,16 @@ export default function Profile() {
       let telegramId = user.telegram_id || "";
       let birthday = "";
 
-      if (user.role === "student") {
-        const students = await api.entities.Student.filter({ user_id: user.id });
+      if (user.role === "student" || user.has_student_profile) {
+        const students = user.student_profile_id
+          ? await api.entities.Student.filter({ id: user.student_profile_id })
+          : await api.entities.Student.filter({ user_id: user.id });
         birthday = students[0]?.birthday || "";
         if (!telegramId && students[0]?.telegram_id) telegramId = students[0].telegram_id;
-      } else if (user.role === "teacher") {
-        let teachers = await api.entities.Teacher.filter({ user_id: user.id });
+      } else if (user.role === "teacher" || user.has_teacher_profile) {
+        let teachers = user.teacher_profile_id
+          ? await api.entities.Teacher.filter({ id: user.teacher_profile_id })
+          : await api.entities.Teacher.filter({ user_id: user.id });
         if (!teachers.length) teachers = await api.entities.Teacher.filter({ email: user.email });
         if (!telegramId && teachers[0]?.telegram_id) telegramId = teachers[0].telegram_id;
       }
@@ -47,16 +51,20 @@ export default function Profile() {
       telegram_id: form.telegram_id,
     });
 
-    if (user.role === "student") {
-      const students = await api.entities.Student.filter({ user_id: user.id });
+    if (user.role === "student" || user.has_student_profile) {
+      const students = user.student_profile_id
+        ? await api.entities.Student.filter({ id: user.student_profile_id })
+        : await api.entities.Student.filter({ user_id: user.id });
       if (students.length > 0) {
         await api.entities.Student.update(students[0].id, {
           telegram_id: form.telegram_id,
           birthday: form.birthday,
         });
       }
-    } else if (user.role === "teacher") {
-      let teachers = await api.entities.Teacher.filter({ user_id: user.id });
+    } else if (user.role === "teacher" || user.has_teacher_profile) {
+      let teachers = user.teacher_profile_id
+        ? await api.entities.Teacher.filter({ id: user.teacher_profile_id })
+        : await api.entities.Teacher.filter({ user_id: user.id });
       if (!teachers.length) teachers = await api.entities.Teacher.filter({ email: user.email });
       if (teachers.length > 0) {
         await api.entities.Teacher.update(teachers[0].id, {
@@ -158,7 +166,7 @@ export default function Profile() {
               placeholder="123456789"
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
           </div>
-          {user.role === "student" && (
+          {user.has_student_profile && (
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Дата рождения</label>
               <input type="date" value={form.birthday} onChange={e => set("birthday", e.target.value)}

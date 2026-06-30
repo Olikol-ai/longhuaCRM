@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LessonMaterialTagEntity } from '../../entities/LessonMaterialTag.entity';
+import { CourseEntity } from '../../entities/Course.entity';
+import { CourseFolderEntity } from '../../entities/CourseFolder.entity';
+import { LessonMaterialEntity } from '../../entities/LessonMaterial.entity';
 import { LessonEntity } from '../../entities/Lesson.entity';
 import { LessonMaterialLinkEntity } from '../../entities/LessonMaterialLink.entity';
 import { LessonSeriesEntity } from '../../entities/LessonSeries.entity';
@@ -18,6 +21,7 @@ import { LessonRepositoryService } from './lesson-repository.service';
 import { LessonSeriesOrchestratorService } from './lesson-series-orchestrator.service';
 import { LessonSeriesService } from './lesson-series.service';
 import { ScheduleOrchestratorService } from './schedule-orchestrator.service';
+import { CourseFolderService } from './course-folder.service';
 import { TeacherAvailabilityBookingService } from './teacher-availability-booking.service';
 
 @Module({
@@ -33,6 +37,9 @@ import { TeacherAvailabilityBookingService } from './teacher-availability-bookin
       LessonSeriesStudentEntity,
       LessonSeriesExclusionEntity,
       LessonMaterialTagEntity,
+      CourseFolderEntity,
+      CourseEntity,
+      LessonMaterialEntity,
       StudentEntity,
       TeacherEntity,
     ]),
@@ -43,6 +50,7 @@ import { TeacherAvailabilityBookingService } from './teacher-availability-bookin
     LessonOrchestratorService,
     LessonSeriesOrchestratorService,
     ScheduleOrchestratorService,
+    CourseFolderService,
     TeacherAvailabilityBookingService,
     LessonSeriesService,
   ],
@@ -52,6 +60,7 @@ import { TeacherAvailabilityBookingService } from './teacher-availability-bookin
     LessonOrchestratorService,
     LessonSeriesOrchestratorService,
     ScheduleOrchestratorService,
+    CourseFolderService,
     TeacherAvailabilityBookingService,
     LessonSeriesService,
   ],

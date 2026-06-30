@@ -25,20 +25,18 @@ export class RoleEntitySyncService {
     const role = newRole.trim().toLowerCase();
 
     if (role === 'student') {
-      await this.unlinkTeachersForUser(user.id);
       await this.ensureStudentProfile(user);
       return;
     }
 
     if (role === 'teacher') {
-      await this.unlinkStudentsForUser(user.id);
       await this.ensureTeacherProfile(user);
       return;
     }
 
-    if (role === 'admin') {
-      await this.unlinkTeachersForUser(user.id);
-      await this.unlinkStudentsForUser(user.id);
+    if (role === 'admin' || role === 'pending' || role === 'user' || role === '') {
+      await this.detachTeachersForUser(user.id);
+      await this.detachStudentsForUser(user.id);
     }
   }
 
@@ -90,23 +88,23 @@ export class RoleEntitySyncService {
     return this.insertTeacher(payload, input.id);
   }
 
-  private async unlinkTeachersForUser(userId: string): Promise<void> {
+  /** Detach login link only — preserve profile data and status for role restoration. */
+  private async detachTeachersForUser(userId: string): Promise<void> {
     await this.teacherRepo.update(
       { userId },
       {
         userId: null,
-        status: 'inactive',
         updatedDate: new Date(),
       } as unknown as Partial<TeacherEntity>,
     );
   }
 
-  private async unlinkStudentsForUser(userId: string): Promise<void> {
+  /** Detach login link only — preserve profile data and status for role restoration. */
+  private async detachStudentsForUser(userId: string): Promise<void> {
     await this.studentRepo.update(
       { userId },
       {
         userId: null,
-        status: 'inactive',
         updatedDate: new Date(),
       } as unknown as Partial<StudentEntity>,
     );
@@ -118,6 +116,12 @@ export class RoleEntitySyncService {
       (user.email
         ? await this.studentRepo.findOne({ where: { email: user.email } })
         : null);
+
+    if (row) {
+      if (row.userId && row.userId !== user.id) {
+        row = null;
+      }
+    }
 
     const now = new Date();
     if (row) {
@@ -154,6 +158,12 @@ export class RoleEntitySyncService {
       (user.email
         ? await this.teacherRepo.findOne({ where: { email: user.email } })
         : null);
+
+    if (row) {
+      if (row.userId && row.userId !== user.id) {
+        row = null;
+      }
+    }
 
     const now = new Date();
     if (row) {

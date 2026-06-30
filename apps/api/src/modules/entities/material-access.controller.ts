@@ -14,7 +14,11 @@ export class MaterialAccessController {
     @CurrentUser() user: JwtPayload,
     @Param('materialId') materialId: string,
   ) {
-    const hasAccess = await this.materialAccessCheck.hasAccess(user.sub, materialId);
+    const hasAccess = await this.materialAccessCheck.canAccessMaterial(
+      user.sub,
+      materialId,
+      user.role,
+    );
     return { has_access: hasAccess };
   }
 }

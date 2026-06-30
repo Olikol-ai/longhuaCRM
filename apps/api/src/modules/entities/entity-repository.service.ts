@@ -31,6 +31,8 @@ import { UsersRepository } from '../users/users.repository';
 import { EntityAccessService } from './entity-access.service';
 import { EntityAccessContext } from './entity-access.types';
 import { EntityEnrichmentService } from '../schedule/entity-enrichment.service';
+import { MaterialAccessCheckService } from '../entities/material-access-check.service';
+import { SecureFilesService } from '../files/secure-files.service';
 
 const GLOBAL_SENSITIVE_FIELDS = new Set([
   'role',
@@ -57,6 +59,8 @@ export class EntityRepositoryService {
     private readonly usersRepository: UsersRepository,
     private readonly entityAccess: EntityAccessService,
     private readonly enrichment: EntityEnrichmentService,
+    private readonly materialAccessCheck: MaterialAccessCheckService,
+    private readonly secureFiles: SecureFilesService,
   ) {}
 
   isKnownEntity(entity: string): entity is EntityName {
@@ -154,6 +158,18 @@ export class EntityRepositoryService {
       records = this.entityAccess.filterReadableRecords(entity, context, records);
     }
 
+    if (entity === 'LessonMaterial' && context && context.role !== 'admin') {
+      records = await this.materialAccessCheck.filterReadableMaterials(context, records);
+    }
+
+    if (entity === 'LessonMaterial' && context?.userId && context.userId !== 'system') {
+      records = this.secureFiles.maskMaterialFileUrls(
+        records,
+        context.userId,
+        context.role,
+      );
+    }
+
     return this.applySortAndLimit(records, sortField, limit);
   }
 
@@ -176,6 +192,26 @@ export class EntityRepositoryService {
     const record = this.toRecord(entity, row);
     const enriched = (await this.enrichment.enrich(entity, [record]))[0];
     this.entityAccess.assertCanAccessRecord(entity, 'read', context, enriched);
+
+    if (entity === 'LessonMaterial' && context.role !== 'admin') {
+      const allowed = await this.materialAccessCheck.canAccessMaterial(
+        context.userId,
+        id,
+        context.role,
+      );
+      if (!allowed) {
+        throw new ForbiddenException('Forbidden: no access to this material');
+      }
+    }
+
+    if (entity === 'LessonMaterial' && context.userId && context.userId !== 'system') {
+      return this.secureFiles.maskMaterialFileUrls(
+        [enriched],
+        context.userId,
+        context.role,
+      )[0];
+    }
+
     return enriched;
   }
 

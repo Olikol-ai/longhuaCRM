@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { api } from '@/api';
-import { hasAccessToMaterial } from "@/lib/materialAccess";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Video, Link, File, Loader2, BookOpen, ExternalLink, LayoutGrid, List } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { useAuth } from "@/lib/AuthContext";
+import { getMaterialUrl } from "@/lib/materialUrl";
 
 const FILE_TYPE_ICONS = {
   pdf: { icon: FileText, color: "text-red-500", bg: "bg-red-50", label: "PDF" },
@@ -35,7 +34,9 @@ export default function StudentLessonMaterials() {
 
   const loadData = async () => {
     if (!user) return;
-    const myStudents = await api.entities.Student.filter({ user_id: user.id });
+    const myStudents = user.student_profile_id
+      ? await api.entities.Student.filter({ id: user.student_profile_id })
+      : await api.entities.Student.filter({ user_id: user.id });
     const s = myStudents[0];
     if (!s) { setLoading(false); return; }
     setStudent(s);
@@ -54,16 +55,8 @@ export default function StudentLessonMaterials() {
     
     if (allMaterialIds.length > 0) {
       const allMats = await api.entities.LessonMaterial.list("-created_date", 500);
-      
-      // Фильтруем по доступу
-      const accessibleMats = [];
-      for (const mat of allMats.filter(m => allMaterialIds.includes(m.id))) {
-        const hasAccess = await hasAccessToMaterial(s.user_id, mat.id);
-        if (hasAccess) {
-          accessibleMats.push(mat);
-        }
-      }
-      setMaterials(accessibleMats);
+      const lessonMaterialIds = new Set(allMaterialIds);
+      setMaterials(allMats.filter(m => lessonMaterialIds.has(m.id)));
     }
     setLoading(false);
   };
@@ -147,7 +140,7 @@ export default function StudentLessonMaterials() {
                     const typeInfo = FILE_TYPE_ICONS[mat.file_type] || FILE_TYPE_ICONS.other;
                     const IconComp = typeInfo.icon;
                     return (
-                      <a key={mat.id} href={mat.file_url} target="_blank" rel="noopener noreferrer">
+                      <a key={mat.id} href={getMaterialUrl(mat)} target="_blank" rel="noopener noreferrer">
                         <Card className="p-4 hover:shadow-lg transition-all cursor-pointer hover:border-indigo-300 h-full flex flex-col">
                           <div className="flex items-start justify-between mb-3">
                             <div className={`h-10 w-10 rounded-lg ${typeInfo.bg} flex items-center justify-center`}>
@@ -172,7 +165,7 @@ export default function StudentLessonMaterials() {
             const typeInfo = FILE_TYPE_ICONS[mat.file_type] || FILE_TYPE_ICONS.other;
             const IconComp = typeInfo.icon;
             return (
-              <a key={`${lesson.id}-${mat.id}`} href={mat.file_url} target="_blank" rel="noopener noreferrer">
+              <a key={`${lesson.id}-${mat.id}`} href={getMaterialUrl(mat)} target="_blank" rel="noopener noreferrer">
                 <Card className="p-4 hover:shadow-lg transition-all cursor-pointer hover:border-indigo-300 h-full flex flex-col">
                   <div className="flex items-start justify-between mb-3">
                     <div className={`h-10 w-10 rounded-lg ${typeInfo.bg} flex items-center justify-center`}>

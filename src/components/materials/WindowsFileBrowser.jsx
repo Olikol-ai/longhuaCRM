@@ -12,13 +12,14 @@ import MaterialFormDialog from "./MaterialFormDialog";
 import CourseFormDialog from "./CourseFormDialog";
 import DeleteConfirmModal from "@/components/common/DeleteConfirmModal";
 import AccessControlModal from "./AccessControlModal";
+import { getMaterialUrl } from "@/lib/materialUrl";
 
 const FILE_TYPE_ICONS = {
   pdf: { icon: FileText, color: "text-red-500", bg: "bg-red-50" },
   pptx: { icon: FileText, color: "text-orange-500", bg: "bg-orange-50" },
   video: { icon: Video, color: "text-blue-500", bg: "bg-blue-50" },
   link: { icon: Link2, color: "text-indigo-500", bg: "bg-indigo-50" },
-  other: { icon: File, color: "text-slate-500", bg: "bg-slate-50" },
+  other: { icon: File, color: "text-slate-500", bg: "bg-slate-50 dark:bg-slate-800" },
 };
 
 export default function WindowsFileBrowser() {
@@ -133,9 +134,9 @@ export default function WindowsFileBrowser() {
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
-      <div className="h-screen flex flex-col bg-slate-50">
+      <div className="h-screen flex flex-col bg-background">
         {/* Top toolbar */}
-        <div className="bg-white border-b border-slate-200 px-4 py-2.5 flex items-center gap-3 shrink-0">
+        <div className="bg-card border-b border-border px-4 py-2.5 flex items-center gap-3 shrink-0">
           <div className="flex items-center gap-1.5 text-sm flex-1 min-w-0">
             <button
               onClick={() => setSelectedCourse(null)}
@@ -206,7 +207,7 @@ export default function WindowsFileBrowser() {
               <div
                 ref={provided.innerRef}
                 {...provided.droppableProps}
-                className="w-56 bg-white border-r border-slate-200 flex flex-col shrink-0"
+                className="w-56 bg-card border-r border-border flex flex-col shrink-0"
               >
                 <div className="px-3 py-2.5 border-b border-slate-100">
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Курсы</p>
@@ -298,7 +299,7 @@ export default function WindowsFileBrowser() {
             ) : (
               /* Course contents with DnD */
               <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-slate-100 bg-white flex items-center gap-3">
+                <div className="px-4 py-2.5 border-b border-border bg-card flex items-center gap-3">
                   <button
                     onClick={() => setSelectedCourse(null)}
                     className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700"
@@ -353,7 +354,7 @@ export default function WindowsFileBrowser() {
                                     <div {...provided.dragHandleProps} className="absolute top-1 left-1 opacity-0 group-hover:opacity-100">
                                       <GripVertical className="h-3.5 w-3.5 text-slate-400" />
                                     </div>
-                                    <a href={mat.file_url} target="_blank" rel="noopener noreferrer">
+                                    <a href={getMaterialUrl(mat)} target="_blank" rel="noopener noreferrer">
                                       <div className={`h-14 w-14 rounded-2xl ${typeInfo.bg} flex items-center justify-center`}>
                                         <IconComp className={`h-7 w-7 ${typeInfo.color}`} />
                                       </div>

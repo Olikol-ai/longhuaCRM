@@ -4,6 +4,7 @@
   "Lesson",
   "Payment",
   "Course",
+  "CourseFolder",
   "LessonMaterial",
   "ScheduleSlot",
   "LessonStudent",

@@ -11,6 +11,7 @@ import { AuditModule } from './modules/audit/audit.module';
 import { AlfaBankModule } from './modules/alfabank/alfabank.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { EntitiesModule } from './modules/entities/entities.module';
+import { SecureFilesModule } from './modules/files/secure-files.module';
 import { FunctionsModule } from './modules/functions/functions.module';
 import { HealthModule } from './modules/health/health.module';
 import { JobsModule } from './modules/jobs/jobs.module';
@@ -45,11 +46,7 @@ const serveFrontend = process.env.SERVE_FRONTEND !== 'false';
       }),
     }),
     ScheduleModule.forRoot(),
-    ServeStaticModule.forRoot({
-      rootPath: join(process.cwd(), 'uploads'),
-      serveRoot: '/uploads',
-      exclude: ['/api{*path}'],
-    }),
+    SecureFilesModule,
     ...(serveFrontend
       ? [
           ServeStaticModule.forRoot({

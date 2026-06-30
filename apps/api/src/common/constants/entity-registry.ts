@@ -1,6 +1,7 @@
 import {
   AppSettingEntity,
   CourseEntity,
+  CourseFolderEntity,
   LessonEntity,
   LessonMaterialEntity,
   LessonStudentEntity,
@@ -24,6 +25,7 @@ export const CRM_ENTITY_CLASS_MAP = {
   Lesson: LessonEntity,
   Payment: PaymentEntity,
   Course: CourseEntity,
+  CourseFolder: CourseFolderEntity,
   LessonMaterial: LessonMaterialEntity,
   ScheduleSlot: ScheduleSlotEntity,
   LessonStudent: LessonStudentEntity,

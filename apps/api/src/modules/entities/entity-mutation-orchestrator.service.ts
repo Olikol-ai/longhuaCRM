@@ -13,7 +13,10 @@ import { PaymentService } from '../payments/payment.service';
 import { LessonOrchestratorService } from '../schedule/lesson-orchestrator.service';
 import { LessonSeriesOrchestratorService } from '../schedule/lesson-series-orchestrator.service';
 import { ScheduleOrchestratorService } from '../schedule/schedule-orchestrator.service';
+import { CourseFolderService } from '../schedule/course-folder.service';
 import { RoleEntitySyncService } from '../users/role-entity-sync.service';
+import { MaterialAccessGrantService } from './material-access-grant.service';
+import { SecureFilesService } from '../files/secure-files.service';
 import { welcomeInputToRows, welcomeRowsToRecord } from '../welcome/welcome.mapper';
 import { LessonRepositoryService } from '../schedule/lesson-repository.service';
 import { EntityAccessContext } from './entity-access.types';
@@ -28,6 +31,9 @@ export class EntityMutationOrchestratorService {
     private readonly lessonOrchestrator: LessonOrchestratorService,
     private readonly lessonSeriesOrchestrator: LessonSeriesOrchestratorService,
     private readonly scheduleOrchestrator: ScheduleOrchestratorService,
+    private readonly courseFolderService: CourseFolderService,
+    private readonly materialAccessGrant: MaterialAccessGrantService,
+    private readonly secureFiles: SecureFilesService,
     private readonly lessonRepository: LessonRepositoryService,
     private readonly audit: AuditService,
   ) {}
@@ -64,7 +70,17 @@ export class EntityMutationOrchestratorService {
     }
 
     if (entity === 'LessonMaterial') {
-      return this.scheduleOrchestrator.createLessonMaterial(input);
+      const saved = await this.scheduleOrchestrator.createLessonMaterial(input);
+      await this.materialAccessGrant.grantCreatorAccess(String(saved.id), context);
+      return this.secureFiles.maskMaterialFileUrls(
+        [saved],
+        context.userId,
+        context.role,
+      )[0];
+    }
+
+    if (entity === 'CourseFolder') {
+      return this.courseFolderService.create(input);
     }
 
     if (entity === 'Student') {
@@ -115,7 +131,16 @@ export class EntityMutationOrchestratorService {
     }
 
     if (entity === 'LessonMaterial') {
-      return this.scheduleOrchestrator.updateLessonMaterial(id, input);
+      const saved = await this.scheduleOrchestrator.updateLessonMaterial(id, input);
+      return this.secureFiles.maskMaterialFileUrls(
+        [saved],
+        context.userId,
+        context.role,
+      )[0];
+    }
+
+    if (entity === 'CourseFolder') {
+      return this.courseFolderService.update(id, input, row);
     }
 
     if (entity === 'LessonSeries') {
@@ -192,6 +217,11 @@ export class EntityMutationOrchestratorService {
       if (lessonId) {
         await this.lessonRepository.refreshLessonStudentFields(lessonId);
       }
+      return;
+    }
+
+    if (entity === 'CourseFolder') {
+      await this.courseFolderService.delete(id);
       return;
     }
 

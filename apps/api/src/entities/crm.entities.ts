@@ -2,6 +2,7 @@ export { StudentEntity } from './Student.entity';
 export { TeacherEntity } from './Teacher.entity';
 export { LessonEntity } from './Lesson.entity';
 export { CourseEntity } from './Course.entity';
+export { CourseFolderEntity } from './CourseFolder.entity';
 export { PaymentEntity } from './Payment.entity';
 export { UserEntity } from './user.entity';
 export { LessonMaterialEntity } from './LessonMaterial.entity';

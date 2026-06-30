@@ -122,6 +122,11 @@ export const ENTITY_PERMISSIONS: EntityPermissionsMatrix = {
       delete: 'none',
     },
   },
+  CourseFolder: {
+    admin: fullAccess(),
+    teacher: readAllWriteAll(),
+    student: readAll(),
+  },
   LessonMaterial: {
     admin: fullAccess(),
     teacher: readAllWriteAll(),
