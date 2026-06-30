@@ -356,8 +356,10 @@ function StudentsTab() {
       ...payments.map(p => api.entities.Payment.delete(p.id)),
       ...courses.map(c => api.entities.Course.delete(c.id)),
     ]);
+    if (deleteTarget.user_id) {
+      await api.entities.Student.update(deleteTarget.id, { user_id: null }).catch(() => {});
+    }
     await api.entities.Student.delete(deleteTarget.id);
-    if (deleteTarget.user_id) await api.entities.User.delete(deleteTarget.user_id).catch(() => {});
     setDeleteTarget(null);
     setDeleting(false);
     loadData();
@@ -510,6 +512,9 @@ function TeachersTab() {
       return;
     }
     setDeleting(true);
+    if (deleteTarget.user_id) {
+      await api.entities.Teacher.update(deleteTarget.id, { user_id: null }).catch(() => {});
+    }
     await api.entities.Teacher.delete(deleteTarget.id);
     setDeleteTarget(null);
     setDeleting(false);

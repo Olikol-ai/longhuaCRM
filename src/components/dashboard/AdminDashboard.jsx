@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { api } from '@/api';
 import { format, isToday, isTomorrow, parseISO, differenceInDays } from "date-fns";
-import { CalendarDays, Users, GraduationCap, AlertCircle, Clock, TrendingUp, ArrowRight, Cake } from "lucide-react";
+import { CalendarDays, Users, GraduationCap, AlertCircle, Clock, ArrowRight, Cake } from "lucide-react";
 import StatCard from "./StatCard";
 import LessonRow from "./LessonRow";
 import { Link } from "react-router-dom";
-import { createPageUrl } from "@/utils";
 import { getGreetingName } from "@/lib/display-name";
+import { Card } from "@/components/ui/card";
 
 /** One row per student.id — guards against duplicate API rows. */
 function uniqueStudentsById(students) {
@@ -28,11 +28,25 @@ function isLowLessonBalance(student) {
   return (student?.lesson_balance ?? 0) <= 2;
 }
 
+function DashboardSection({ title, subtitle, icon: Icon, iconClass, children }) {
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex items-center justify-between px-4 pt-4 pb-2">
+        <div className="flex items-center gap-2">
+          {Icon && <Icon className={`w-4 h-4 ${iconClass || "text-muted-foreground"}`} />}
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        </div>
+        {subtitle && <span className="text-xs text-muted-foreground">{subtitle}</span>}
+      </div>
+      <div className="px-2 pb-3">{children}</div>
+    </Card>
+  );
+}
+
 export default function AdminDashboard({ user }) {
   const [lessons, setLessons] = useState([]);
   const [students, setStudents] = useState([]);
   const [teachers, setTeachers] = useState([]);
-  const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -40,12 +54,10 @@ export default function AdminDashboard({ user }) {
       api.entities.Lesson.list("-date", 200),
       api.entities.Student.list(),
       api.entities.Teacher.list(),
-      api.entities.Payment.list("-payment_date", 100),
-    ]).then(([l, s, t, p]) => {
+    ]).then(([l, s, t]) => {
       setLessons(l);
       setStudents(s);
       setTeachers(t);
-      setPayments(p);
       setLoading(false);
     });
   }, []);
@@ -57,12 +69,10 @@ export default function AdminDashboard({ user }) {
     try { return isTomorrow(parseISO(l.date)) && l.status !== "cancelled"; } catch { return false; }
   });
 
-  const totalPaid = payments.reduce((s, p) => s + (p.amount || 0), 0);
   const activeStudents = uniqueStudentsById(students).filter(isActiveStudent);
   const lowBalanceStudents = activeStudents.filter(isLowLessonBalance);
   const lowBalance = lowBalanceStudents.length;
 
-  // Birthdays in next 30 days
   const upcomingBirthdays = uniqueStudentsById(students).filter(s => {
     if (!s.birthday || s.status === "inactive") return false;
     try {
@@ -87,7 +97,7 @@ export default function AdminDashboard({ user }) {
     return (
       <div className="p-6 space-y-4">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-24 bg-slate-100 rounded-xl animate-pulse" />
+          <div key={i} className="h-24 bg-muted rounded-xl animate-pulse" />
         ))}
       </div>
     );
@@ -98,11 +108,10 @@ export default function AdminDashboard({ user }) {
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
       <div>
-        <h2 className="text-xl font-bold text-slate-800">{getGreeting()}, {userName}</h2>
-        <p className="text-sm text-slate-400 mt-0.5">Вот что происходит сегодня</p>
+        <h2 className="text-xl font-bold text-foreground">{getGreeting()}, {userName}</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">Вот что происходит сегодня</p>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Уроков сегодня" value={todayLessons.length} icon={CalendarDays} color="indigo" />
         <StatCard label="Уроков завтра" value={tomorrowLessons.length} icon={Clock} color="violet" />
@@ -110,103 +119,85 @@ export default function AdminDashboard({ user }) {
         <StatCard label="Всего преподавателей" value={teachers.filter(t => t.status !== "inactive").length} icon={Users} color="emerald" />
       </div>
 
-      {/* Alerts */}
       {lowBalance > 0 && (
-        <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-100 rounded-xl">
-          <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
-          <p className="text-sm text-amber-700 font-medium">
+        <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/50 rounded-xl">
+          <AlertCircle className="w-4 h-4 text-amber-500 dark:text-amber-400 flex-shrink-0" />
+          <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">
             У {lowBalance} {lowBalance > 1 ? "учеников" : "ученика"} осталось 2 урока или меньше
           </p>
-          <Link to="/UserManagement" className="ml-auto text-xs font-semibold text-amber-600 hover:underline flex items-center gap-1">
+          <Link to="/UserManagement" className="ml-auto text-xs font-semibold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1">
             View <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
       )}
 
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Today */}
-        <div className="bg-white rounded-xl border border-slate-100">
-          <div className="flex items-center justify-between px-4 pt-4 pb-2">
-            <h3 className="text-sm font-semibold text-slate-700">Уроки сегодня</h3>
-            <span className="text-xs text-slate-400">{format(new Date(), "MMM d")}</span>
-          </div>
-          <div className="px-2 pb-3 space-y-0.5">
+        <DashboardSection title="Уроки сегодня" subtitle={format(new Date(), "MMM d")}>
+          <div className="space-y-0.5">
             {todayLessons.length === 0 ? (
-              <p className="text-xs text-slate-400 text-center py-6">Уроков сегодня нет</p>
+              <p className="text-xs text-muted-foreground text-center py-6">Уроков сегодня нет</p>
             ) : (
               todayLessons
                 .sort((a, b) => a.start_time?.localeCompare(b.start_time))
                 .map(l => <LessonRow key={l.id} lesson={l} />)
             )}
           </div>
-        </div>
+        </DashboardSection>
 
-        {/* Tomorrow */}
-        <div className="bg-white rounded-xl border border-slate-100">
-          <div className="flex items-center justify-between px-4 pt-4 pb-2">
-            <h3 className="text-sm font-semibold text-slate-700">Уроки завтра</h3>
-            <span className="text-xs text-slate-400">{format(new Date(Date.now() + 86400000), "MMM d")}</span>
-          </div>
-          <div className="px-2 pb-3 space-y-0.5">
+        <DashboardSection title="Уроки завтра" subtitle={format(new Date(Date.now() + 86400000), "MMM d")}>
+          <div className="space-y-0.5">
             {tomorrowLessons.length === 0 ? (
-              <p className="text-xs text-slate-400 text-center py-6">Уроков завтра нет</p>
+              <p className="text-xs text-muted-foreground text-center py-6">Уроков завтра нет</p>
             ) : (
               tomorrowLessons
                 .sort((a, b) => a.start_time?.localeCompare(b.start_time))
                 .map(l => <LessonRow key={l.id} lesson={l} />)
             )}
           </div>
-        </div>
+        </DashboardSection>
       </div>
 
-      {/* Upcoming birthdays */}
       {upcomingBirthdays.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-100">
-          <div className="px-4 pt-4 pb-2 flex items-center gap-2">
-            <Cake className="w-4 h-4 text-pink-400" />
-            <h3 className="text-sm font-semibold text-slate-700">Дни рождения (ближайшие 30 дней)</h3>
-          </div>
-          <div className="divide-y divide-slate-50">
+        <DashboardSection title="Дни рождения (ближайшие 30 дней)" icon={Cake} iconClass="text-pink-400">
+          <div className="divide-y divide-border">
             {upcomingBirthdays.map(s => (
-              <div key={s.id} className="flex items-center gap-3 px-4 py-3">
-                <div className="w-7 h-7 rounded-full bg-pink-100 flex items-center justify-center">
-                  <span className="text-xs font-semibold text-pink-600">{s.name[0]}</span>
+              <div key={s.id} className="flex items-center gap-3 px-2 py-3">
+                <div className="w-7 h-7 rounded-full bg-pink-100 dark:bg-pink-950/50 flex items-center justify-center">
+                  <span className="text-xs font-semibold text-pink-600 dark:text-pink-400">{s.name[0]}</span>
                 </div>
-                <span className="text-sm text-slate-700 flex-1">{s.name}</span>
+                <span className="text-sm text-foreground flex-1">{s.name}</span>
                 <div className="text-right">
-                  <p className="text-xs font-semibold text-slate-700">{format(s.birthdayDate, "d MMMM")}</p>
-                  <p className="text-[10px] text-slate-400">
+                  <p className="text-xs font-semibold text-foreground">{format(s.birthdayDate, "d MMMM")}</p>
+                  <p className="text-[10px] text-muted-foreground">
                     {s.daysUntil === 0 ? "🎂 Сегодня!" : `через ${s.daysUntil} дн.`}
                   </p>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </DashboardSection>
       )}
 
-      {/* Low balance students */}
       {lowBalance > 0 && (
-        <div className="bg-white rounded-xl border border-slate-100">
-          <div className="px-4 pt-4 pb-2">
-            <h3 className="text-sm font-semibold text-slate-700">Ученики с низким балансом</h3>
-          </div>
-          <div className="divide-y divide-slate-50">
+        <DashboardSection title="Ученики с низким балансом">
+          <div className="divide-y divide-border">
             {lowBalanceStudents.map(s => (
-                <div key={s.id} className="flex items-center gap-3 px-4 py-3">
-                  <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center">
-                    <span className="text-xs font-semibold text-indigo-600">{s.name[0]}</span>
-                  </div>
-                  <span className="text-sm text-slate-700 flex-1">{s.name}</span>
-                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                    (s.lesson_balance || 0) === 0 ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"
-                  }`}>
-                    Осталось уроков: {s.lesson_balance || 0}
-                  </span>
+              <div key={s.id} className="flex items-center gap-3 px-2 py-3">
+                <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-950/50 flex items-center justify-center">
+                  <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">{s.name[0]}</span>
                 </div>
-              ))}
+                <span className="text-sm text-foreground flex-1">{s.name}</span>
+                <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                  (s.lesson_balance || 0) === 0
+                    ? "bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-400"
+                    : "bg-amber-100 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400"
+                }`}>
+                  Осталось уроков: {s.lesson_balance || 0}
+                </span>
+              </div>
+            ))}
           </div>
-        </div>
+        </DashboardSection>
       )}
     </div>
   );

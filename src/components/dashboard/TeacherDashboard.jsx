@@ -1,9 +1,23 @@
 import { useState, useEffect } from "react";
 import { api } from '@/api';
-import { format, isToday, isTomorrow, parseISO, addDays } from "date-fns";
+import { format, isToday, parseISO } from "date-fns";
 import { CalendarDays, Clock, CheckCircle2, XCircle, Video } from "lucide-react";
 import StatCard from "./StatCard";
 import { getGreetingName } from "@/lib/display-name";
+import { Card } from "@/components/ui/card";
+
+const STATUS_LABELS = {
+  planned: "Запланировано",
+  completed: "Проведено",
+  cancelled: "Отменено",
+  rescheduled: "Перенесено",
+};
+
+const statusBadge = {
+  completed: "bg-emerald-100 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400",
+  cancelled: "bg-red-100 text-red-500 dark:bg-red-950/50 dark:text-red-400",
+  planned: "bg-sky-100 text-sky-600 dark:bg-sky-950/50 dark:text-sky-400",
+};
 
 export default function TeacherDashboard({ user }) {
   const [lessons, setLessons] = useState([]);
@@ -48,15 +62,15 @@ export default function TeacherDashboard({ user }) {
 
   if (loading) return (
     <div className="p-6 space-y-4">
-      {[...Array(3)].map((_, i) => <div key={i} className="h-20 bg-slate-100 rounded-xl animate-pulse" />)}
+      {[...Array(3)].map((_, i) => <div key={i} className="h-20 bg-muted rounded-xl animate-pulse" />)}
     </div>
   );
 
   return (
     <div className="p-6 space-y-6 max-w-4xl mx-auto">
       <div>
-        <h2 className="text-xl font-bold text-slate-800">Добро пожаловать, {getGreetingName(user) || "Преподаватель"}</h2>
-        <p className="text-sm text-slate-400 mt-0.5">Обзор вашего расписания</p>
+        <h2 className="text-xl font-bold text-foreground">Добро пожаловать, {getGreetingName(user) || "Преподаватель"}</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">Обзор вашего расписания</p>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
@@ -65,45 +79,43 @@ export default function TeacherDashboard({ user }) {
         <StatCard label="Завершено" value={completedThisMonth} icon={CheckCircle2} color="emerald" />
       </div>
 
-      {/* Today */}
-      <div className="bg-white rounded-xl border border-slate-100">
-        <div className="px-4 pt-4 pb-2 border-b border-slate-50">
-          <h3 className="text-sm font-semibold text-slate-700">Сегодня — {format(new Date(), "EEEE, MMM d")}</h3>
+      <Card className="overflow-hidden">
+        <div className="px-4 pt-4 pb-2 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">Сегодня — {format(new Date(), "EEEE, MMM d")}</h3>
         </div>
-        <div className="divide-y divide-slate-50">
+        <div className="divide-y divide-border">
           {todayLessons.length === 0 ? (
-            <p className="text-xs text-slate-400 text-center py-8">Уроков сегодня нет</p>
+            <p className="text-xs text-muted-foreground text-center py-8">Уроков сегодня нет</p>
           ) : (
             todayLessons.map(lesson => (
               <div key={lesson.id} className="flex items-center gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-slate-700">
-                    {lesson.student_names?.join(", ") || lesson.student_name}
-                  </span>
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
-                      lesson.status === "completed" ? "bg-emerald-100 text-emerald-600" :
-                      lesson.status === "cancelled" ? "bg-red-100 text-red-500" : "bg-sky-100 text-sky-600"
-                    }`}>{{ planned: "Запланировано", completed: "Проведено", cancelled: "Отменено", rescheduled: "Перенесено" }[lesson.status] || lesson.status}</span>
+                    <span className="text-sm font-medium text-foreground">
+                      {lesson.student_names?.join(", ") || lesson.student_name}
+                    </span>
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${statusBadge[lesson.status] || statusBadge.planned}`}>
+                      {STATUS_LABELS[lesson.status] || lesson.status}
+                    </span>
                   </div>
                   <div className="flex items-center gap-3 mt-0.5">
-                    <span className="text-xs text-slate-400 flex items-center gap-1">
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
                       <Clock className="w-3 h-3" /> {lesson.start_time} · {lesson.duration || 60}min
                     </span>
                     {lesson.meeting_link && (
                       <a href={lesson.meeting_link} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-indigo-500 hover:text-indigo-700 flex items-center gap-1">
+                        className="text-xs text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 flex items-center gap-1">
                         <Video className="w-3 h-3" /> Войти
                       </a>
                     )}
                   </div>
                 </div>
                 {lesson.status === "planned" && (
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-1.5 flex-wrap justify-end">
                     <button
                       onClick={() => markLesson(lesson, "completed")}
                       disabled={updating === lesson.id}
-                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors"
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60 rounded-lg transition-colors"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       Завершить
@@ -111,7 +123,7 @@ export default function TeacherDashboard({ user }) {
                     <button
                       onClick={() => markLesson(lesson, "cancelled")}
                       disabled={updating === lesson.id}
-                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-950/60 rounded-lg transition-colors"
                     >
                       <XCircle className="w-3.5 h-3.5" />
                       Отменить
@@ -119,7 +131,7 @@ export default function TeacherDashboard({ user }) {
                     <button
                       onClick={() => markLesson(lesson, "missed_no_notice")}
                       disabled={updating === lesson.id}
-                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg transition-colors"
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-orange-50 text-orange-600 hover:bg-orange-100 dark:bg-orange-950/40 dark:text-orange-400 dark:hover:bg-orange-950/60 rounded-lg transition-colors"
                     >
                       <XCircle className="w-3.5 h-3.5" />
                       Пропущено
@@ -130,33 +142,32 @@ export default function TeacherDashboard({ user }) {
             ))
           )}
         </div>
-      </div>
+      </Card>
 
-      {/* Upcoming */}
-      <div className="bg-white rounded-xl border border-slate-100">
-        <div className="px-4 pt-4 pb-2 border-b border-slate-50">
-          <h3 className="text-sm font-semibold text-slate-700">Предстоящие уроки</h3>
+      <Card className="overflow-hidden">
+        <div className="px-4 pt-4 pb-2 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">Предстоящие уроки</h3>
         </div>
-        <div className="divide-y divide-slate-50">
+        <div className="divide-y divide-border">
           {upcomingLessons.length === 0 ? (
-            <p className="text-xs text-slate-400 text-center py-8">Предстоящих уроков нет</p>
+            <p className="text-xs text-muted-foreground text-center py-8">Предстоящих уроков нет</p>
           ) : (
             upcomingLessons.map(lesson => (
               <div key={lesson.id} className="flex items-center gap-3 px-4 py-3">
                 <div className="text-center w-10 flex-shrink-0">
-                  <p className="text-xs font-bold text-indigo-600">{format(parseISO(lesson.date), "d")}</p>
-                  <p className="text-[10px] text-slate-400">{format(parseISO(lesson.date), "MMM")}</p>
+                  <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400">{format(parseISO(lesson.date), "d")}</p>
+                  <p className="text-[10px] text-muted-foreground">{format(parseISO(lesson.date), "MMM")}</p>
                 </div>
-                <div className="w-px h-8 bg-slate-100" />
+                <div className="w-px h-8 bg-border" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-slate-700">
+                  <p className="text-sm font-medium text-foreground">
                     {lesson.student_names?.join(", ") || lesson.student_name}
                   </p>
-                  <p className="text-xs text-slate-400">{lesson.start_time} · {lesson.duration || 60}мин</p>
+                  <p className="text-xs text-muted-foreground">{lesson.start_time} · {lesson.duration || 60}мин</p>
                 </div>
                 {lesson.meeting_link && (
                   <a href={lesson.meeting_link} target="_blank" rel="noopener noreferrer"
-                    className="text-xs text-indigo-500 hover:text-indigo-700 flex items-center gap-1">
+                    className="text-xs text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 flex items-center gap-1">
                     <Video className="w-3 h-3" /> Войти
                   </a>
                 )}
@@ -164,7 +175,7 @@ export default function TeacherDashboard({ user }) {
             ))
           )}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

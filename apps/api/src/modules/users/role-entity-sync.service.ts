@@ -25,11 +25,13 @@ export class RoleEntitySyncService {
     const role = newRole.trim().toLowerCase();
 
     if (role === 'student') {
+      await this.detachTeachersForUser(user.id);
       await this.ensureStudentProfile(user);
       return;
     }
 
     if (role === 'teacher') {
+      await this.detachStudentsForUser(user.id);
       await this.ensureTeacherProfile(user);
       return;
     }
