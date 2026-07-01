@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { addDays, format, parseISO } from "date-fns";
 import { X, RefreshCw, ChevronDown } from "lucide-react";
+import { api } from "@/api";
+import TeacherAvailabilityPanel, { dayIndexFromDate } from "./TeacherAvailabilityPanel";
 import {
   Select,
   SelectContent,
@@ -31,8 +34,59 @@ export default function LessonModal({ date, teachers, students, onSave, onClose,
   const [recurring, setRecurring] = useState(false);
   const [saving, setSaving] = useState(false);
   const [studentPickerOpen, setStudentPickerOpen] = useState(false);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [teacherSchedule, setTeacherSchedule] = useState({ hasSchedule: false, slots: [] });
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  useEffect(() => {
+    if (!form.teacher_id) {
+      setTeacherSchedule({ hasSchedule: false, slots: [] });
+      return;
+    }
+
+    let cancelled = false;
+    setScheduleLoading(true);
+    api.schedule.getTeacherAvailability(form.teacher_id)
+      .then((data) => {
+        if (!cancelled) {
+          setTeacherSchedule({
+            hasSchedule: Boolean(data?.hasSchedule),
+            slots: Array.isArray(data?.slots) ? data.slots : [],
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTeacherSchedule({ hasSchedule: false, slots: [] });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setScheduleLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [form.teacher_id]);
+
+  const slotsForDay = useMemo(() => {
+    if (!form.date || !teacherSchedule.hasSchedule) return [];
+    const dayIndex = dayIndexFromDate(form.date);
+    return teacherSchedule.slots.filter((slot) => slot.day === dayIndex);
+  }, [form.date, teacherSchedule]);
+
+  const validateTeacherAvailability = async (date, startTime, duration) => {
+    if (!form.teacher_id || !date || !startTime) return true;
+    const result = await api.schedule.checkTeacherAvailability(form.teacher_id, {
+      date,
+      start_time: startTime,
+      duration,
+    });
+    if (!result?.available) {
+      alert(result?.message || "Преподаватель в это время не работает. Урок не может быть назначен.");
+      return false;
+    }
+    return true;
+  };
 
   const toggleStudent = (id) => {
     setForm(f => {
@@ -55,23 +109,41 @@ export default function LessonModal({ date, teachers, students, onSave, onClose,
       return;
     }
 
+    const duration = +form.duration;
+    const datesToCheck = recurring
+      ? [
+          form.date,
+          format(addDays(parseISO(form.date), 7), "yyyy-MM-dd"),
+        ]
+      : [form.date];
+
     setSaving(true);
-    const teacher = teachers.find(t => t.id === form.teacher_id);
-    const selectedStudents = students.filter(s => form.student_ids.includes(s.id));
-    const student_names = selectedStudents.map(s => s.name);
-    await onSave({
-      ...form,
-      teacher_name: teacher?.name || form.teacher_name || "",
-      teacher_first_name: teacher?.first_name || form.teacher_first_name || "",
-      teacher_last_name: teacher?.last_name || form.teacher_last_name || "",
-      student_id: form.student_ids[0],
-      student_name: student_names[0] || "",
-      student_names,
-      student_first_name: selectedStudents[0]?.first_name || "",
-      student_last_name: selectedStudents[0]?.last_name || "",
-      duration: +form.duration,
-    }, recurring);
-    setSaving(false);
+    try {
+      for (const lessonDate of datesToCheck) {
+        const ok = await validateTeacherAvailability(lessonDate, form.start_time, duration);
+        if (!ok) return;
+      }
+
+      const teacher = teachers.find(t => t.id === form.teacher_id);
+      const selectedStudents = students.filter(s => form.student_ids.includes(s.id));
+      const student_names = selectedStudents.map(s => s.name);
+      await onSave({
+        ...form,
+        teacher_name: teacher?.name || form.teacher_name || "",
+        teacher_first_name: teacher?.first_name || form.teacher_first_name || "",
+        teacher_last_name: teacher?.last_name || form.teacher_last_name || "",
+        student_id: form.student_ids[0],
+        student_name: student_names[0] || "",
+        student_names,
+        student_first_name: selectedStudents[0]?.first_name || "",
+        student_last_name: selectedStudents[0]?.last_name || "",
+        duration,
+      }, recurring);
+    } catch (err) {
+      alert(err?.message || "Не удалось создать урок");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const activeStudents = students.filter(s => s.status !== "inactive");
@@ -183,6 +255,12 @@ export default function LessonModal({ date, teachers, students, onSave, onClose,
               <input type="time" value={form.start_time} onChange={e => set("start_time", e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
             </div>
+            <TeacherAvailabilityPanel
+              loading={scheduleLoading}
+              hasSchedule={teacherSchedule.hasSchedule}
+              slotsForDay={slotsForDay}
+              selectedDate={form.date}
+            />
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Длительность (мин)</label>
               <Select

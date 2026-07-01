@@ -12,6 +12,7 @@ import { randomBytes, randomInt, randomUUID } from 'crypto';
 import { validateRegistrationEmail } from '../../common/security/email-validation';
 import { RateLimitService } from '../../common/security/rate-limit.service';
 import { AuditService } from '../audit/audit.service';
+import { MailService } from '../mail/mail.service';
 import { UsersRepository } from '../users/users.repository';
 import { UserProfileService } from '../users/user-profile.service';
 import { userToRecord } from '../users/user.mapper';
@@ -66,6 +67,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly rateLimit: RateLimitService,
     private readonly audit: AuditService,
+    private readonly mail: MailService,
   ) {}
 
   async login(dto: LoginDto, clientIp: string) {
@@ -149,9 +151,14 @@ export class AuthService {
 
     const response = authResponse(row, (u) => this.signToken(u));
     const withProfiles = await this.attachProfileFields(response, row.id);
+    const emailDelivery = await this.mail.sendVerificationCode(
+      normalizedEmail,
+      verificationCode,
+    );
     return {
       ...withProfiles,
-      verification_code: verificationCode,
+      email_sent: emailDelivery.sent,
+      email_status: emailDelivery.status,
     };
   }
 
@@ -299,7 +306,16 @@ export class AuthService {
       summary: 'Verification code regenerated',
     });
 
-    return { ok: true, verification_code: verificationCode };
+    const emailDelivery = await this.mail.sendVerificationCode(
+      row.email,
+      verificationCode,
+    );
+
+    return {
+      ok: true,
+      email_sent: emailDelivery.sent,
+      email_status: emailDelivery.status,
+    };
   }
 
   async createTelegramLinkToken(userId: string) {

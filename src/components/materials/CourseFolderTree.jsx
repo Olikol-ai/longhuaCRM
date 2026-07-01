@@ -7,7 +7,6 @@ import {
   ChevronRight,
   FolderPlus,
   Loader2,
-  Lock,
   Plus,
   Trash2,
 } from "lucide-react";
@@ -18,7 +17,6 @@ function FolderNode({
   materials,
   depth,
   onRefresh,
-  onConfigureAccess,
   onDeleteMaterial,
   onAddMaterial,
   deleting,
@@ -129,7 +127,6 @@ function FolderNode({
               materials={materials}
               depth={depth + 1}
               onRefresh={onRefresh}
-              onConfigureAccess={onConfigureAccess}
               onDeleteMaterial={onDeleteMaterial}
               onAddMaterial={onAddMaterial}
               deleting={deleting}
@@ -143,13 +140,6 @@ function FolderNode({
               <div key={mat.id} className="flex items-center gap-2 p-2 ml-6 bg-muted/40 rounded">
                 <IconComp className={`h-4 w-4 ${typeInfo.color}`} />
                 <span className="text-sm text-foreground flex-1">{mat.title}</span>
-                <button
-                  onClick={() => onConfigureAccess(mat.id)}
-                  className="p-1 text-indigo-600 hover:bg-indigo-100 dark:hover:bg-indigo-950 rounded text-xs font-medium"
-                  title="Настроить доступ"
-                >
-                  <Lock className="h-3 w-3" />
-                </button>
                 <button
                   onClick={() => onDeleteMaterial(mat.id)}
                   disabled={deleting === mat.id}
@@ -175,7 +165,6 @@ export default function CourseFolderTree({
   folders,
   materials,
   onRefresh,
-  onConfigureAccess,
   onDeleteMaterial,
   onAddMaterial,
   deleting,
@@ -265,7 +254,6 @@ export default function CourseFolderTree({
           materials={materials.filter((m) => m.course_id === course.id)}
           depth={0}
           onRefresh={onRefresh}
-          onConfigureAccess={onConfigureAccess}
           onDeleteMaterial={onDeleteMaterial}
           onAddMaterial={onAddMaterial}
           deleting={deleting}
@@ -280,13 +268,6 @@ export default function CourseFolderTree({
           <div key={mat.id} className="flex items-center gap-2 p-2 bg-muted/40 rounded">
             <IconComp className={`h-4 w-4 ${typeInfo.color}`} />
             <span className="text-sm text-foreground flex-1">{mat.title}</span>
-            <button
-              onClick={() => onConfigureAccess(mat.id)}
-              className="p-1 text-indigo-600 hover:bg-indigo-100 dark:hover:bg-indigo-950 rounded text-xs font-medium"
-              title="Настроить доступ"
-            >
-              <Lock className="h-3 w-3" />
-            </button>
             <button
               onClick={() => onDeleteMaterial(mat.id)}
               disabled={deleting === mat.id}

@@ -20,11 +20,10 @@ export class MaterialAccessCheckService {
       return true;
     }
 
-    const accesses = await this.accessRepo.find({
-      where: { userId, materialId },
+    const row = await this.accessRepo.findOne({
+      where: { userId, materialId, access: true },
     });
-
-    return this.evaluateAccessRows(accesses);
+    return Boolean(row);
   }
 
   async canAccessMaterial(
@@ -72,42 +71,17 @@ export class MaterialAccessCheckService {
       return new Set(materialIds);
     }
 
-    const accesses = await this.accessRepo.find({
-      where: { userId, materialId: In(materialIds) },
+    const rows = await this.accessRepo.find({
+      where: { userId, materialId: In(materialIds), access: true },
     });
 
-    const byMaterial = new Map<string, MaterialAccessEntity[]>();
-    for (const row of accesses) {
-      const list = byMaterial.get(row.materialId) ?? [];
-      list.push(row);
-      byMaterial.set(row.materialId, list);
-    }
-
-    const allowed = new Set<string>();
-    for (const materialId of materialIds) {
-      if (this.evaluateAccessRows(byMaterial.get(materialId) ?? [])) {
-        allowed.add(materialId);
-      }
-    }
-    return allowed;
+    return new Set(rows.map((row) => row.materialId));
   }
 
-  private evaluateAccessRows(accesses: MaterialAccessEntity[]): boolean {
-    const adminDeny = accesses.find(
-      (a) => a.grantedByRole === 'ADMIN' && a.access === false,
-    );
-    if (adminDeny) return false;
-
-    const adminAllow = accesses.find(
-      (a) => a.grantedByRole === 'ADMIN' && a.access === true,
-    );
-    if (adminAllow) return true;
-
-    const teacherAllow = accesses.find(
-      (a) => a.grantedByRole === 'TEACHER' && a.access === true,
-    );
-    if (teacherAllow) return true;
-
-    return false;
+  async getGrantedMaterialIds(userId: string): Promise<Set<string>> {
+    const rows = await this.accessRepo.find({
+      where: { userId, access: true },
+    });
+    return new Set(rows.map((row) => row.materialId));
   }
 }

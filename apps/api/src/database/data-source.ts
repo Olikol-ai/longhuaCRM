@@ -17,6 +17,10 @@ import { EnforceUserRoleEntityConsistency1730000000011 } from './migrations/1730
 import { TeacherAvailabilityBookings1730000000012 } from './migrations/1730000000012-TeacherAvailabilityBookings';
 import { LessonSeries1730000000013 } from './migrations/1730000000013-LessonSeries';
 import { LessonSeriesHardening1730000000014 } from './migrations/1730000000014-LessonSeriesHardening';
+import { MaterialsEnhancements1730000000015 } from './migrations/1730000000015-MaterialsEnhancements';
+import { DataIntegrityRepair1730000000016 } from './migrations/1730000000016-DataIntegrityRepair';
+import { ProductionHardening1730000000017 } from './migrations/1730000000017-ProductionHardening';
+import { UnifyMaterialAccess1730000000018 } from './migrations/1730000000018-UnifyMaterialAccess';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -37,6 +41,10 @@ export default new DataSource({
     TeacherAvailabilityBookings1730000000012,
     LessonSeries1730000000013,
     LessonSeriesHardening1730000000014,
+    MaterialsEnhancements1730000000015,
+    DataIntegrityRepair1730000000016,
+    ProductionHardening1730000000017,
+    UnifyMaterialAccess1730000000018,
   ],
   synchronize: false,
 });

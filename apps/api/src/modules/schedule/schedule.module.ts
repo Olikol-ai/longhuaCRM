@@ -22,7 +22,9 @@ import { LessonSeriesOrchestratorService } from './lesson-series-orchestrator.se
 import { LessonSeriesService } from './lesson-series.service';
 import { ScheduleOrchestratorService } from './schedule-orchestrator.service';
 import { CourseFolderService } from './course-folder.service';
+import { ScheduleController } from './schedule.controller';
 import { TeacherAvailabilityBookingService } from './teacher-availability-booking.service';
+import { TeacherAvailabilityService } from './teacher-availability.service';
 
 @Module({
   imports: [
@@ -44,6 +46,7 @@ import { TeacherAvailabilityBookingService } from './teacher-availability-bookin
       TeacherEntity,
     ]),
   ],
+  controllers: [ScheduleController],
   providers: [
     LessonRepositoryService,
     EntityEnrichmentService,
@@ -51,6 +54,7 @@ import { TeacherAvailabilityBookingService } from './teacher-availability-bookin
     LessonSeriesOrchestratorService,
     ScheduleOrchestratorService,
     CourseFolderService,
+    TeacherAvailabilityService,
     TeacherAvailabilityBookingService,
     LessonSeriesService,
   ],
@@ -61,6 +65,7 @@ import { TeacherAvailabilityBookingService } from './teacher-availability-bookin
     LessonSeriesOrchestratorService,
     ScheduleOrchestratorService,
     CourseFolderService,
+    TeacherAvailabilityService,
     TeacherAvailabilityBookingService,
     LessonSeriesService,
   ],

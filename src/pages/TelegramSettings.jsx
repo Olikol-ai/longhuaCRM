@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
 import { api } from '@/api';
 import { Send, Save, CheckCircle2, TestTube, Info, Eye, Webhook, RefreshCw } from "lucide-react";
+import { Card } from "@/components/ui/card";
+
+const fieldCls = "w-full px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500/20";
+const fieldMono = `${fieldCls} font-mono`;
+const btnOutline = "px-3 py-2 text-xs font-medium border border-border rounded-lg hover:bg-muted text-muted-foreground flex items-center gap-1.5";
 
 export default function TelegramSettings() {
   const [token, setToken] = useState("");
@@ -136,35 +141,33 @@ export default function TelegramSettings() {
           <Send className="w-5 h-5 text-blue-600" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Telegram Bot</h2>
-          <p className="text-sm text-slate-400">Настройка уведомлений через @LonghuaChinese_bot</p>
+          <h2 className="text-xl font-bold text-foreground">Telegram Bot</h2>
+          <p className="text-sm text-muted-foreground">Настройка уведомлений через @LonghuaChinese_bot</p>
         </div>
       </div>
 
       {/* Token */}
-      <div className="bg-white rounded-2xl border border-slate-100 p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-slate-700">Токен бота</h3>
+      <Card className="p-5 space-y-4">
+        <h3 className="text-sm font-semibold text-foreground">Токен бота</h3>
         {savedMasked && !showInput ? (
           <div className="flex items-center gap-3">
-            <div className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-sm text-slate-600">
+            <div className="flex-1 px-3 py-2 bg-muted border border-border rounded-lg font-mono text-sm text-muted-foreground">
               {savedMasked}
             </div>
-            <button onClick={() => setShowInput(true)}
-              className="px-3 py-2 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 flex items-center gap-1.5">
+            <button onClick={() => setShowInput(true)} className={btnOutline}>
               <Eye className="w-3.5 h-3.5" /> Изменить
             </button>
-            {saved && <span className="text-xs text-emerald-600 font-medium flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Сохранено!</span>}
+            {saved && <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Сохранено!</span>}
           </div>
         ) : (
           <>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-muted-foreground">
               Создайте бота через{" "}
               <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline font-medium">@BotFather</a>
               {" "}и вставьте полученный токен ниже.
             </p>
             <input type="text" value={token} onChange={e => setToken(e.target.value)}
-              placeholder="1234567890:ABCdefGHIjklMNOpqrSTUvwxYZ"
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+              placeholder="1234567890:ABCdefGHIjklMNOpqrSTUvwxYZ" className={fieldMono} />
             <div className="flex gap-2">
               <button onClick={saveToken} disabled={saving || !token.trim()}
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50">
@@ -172,21 +175,20 @@ export default function TelegramSettings() {
               </button>
               {showInput && savedMasked && (
                 <button onClick={() => { setShowInput(false); setToken(""); }}
-                  className="px-4 py-2 text-sm font-medium border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600">
+                  className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted text-muted-foreground">
                   Отмена
                 </button>
               )}
             </div>
           </>
         )}
-      </div>
+      </Card>
 
-      {/* Webhook */}
-      <div className="bg-white rounded-2xl border border-slate-100 p-5 space-y-4">
+      <Card className="p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-slate-700">Webhook (вебхук)</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Telegram стучится к нам напрямую — ответ мгновенный</p>
+            <h3 className="text-sm font-semibold text-foreground">Webhook (вебхук)</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Telegram стучится к нам напрямую — ответ мгновенный</p>
           </div>
           <button
             onClick={registerWebhook}
@@ -199,7 +201,7 @@ export default function TelegramSettings() {
         </div>
 
         {webhookStatus && (
-          <div className={`rounded-xl px-4 py-3 text-sm ${webhookStatus.ok ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`}>
+          <div className={`rounded-xl px-4 py-3 text-sm ${webhookStatus.ok ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300" : "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400"}`}>
             {webhookStatus.ok ? (
               <div>
                 <p className="font-semibold">✅ Вебхук активен!</p>
@@ -212,28 +214,25 @@ export default function TelegramSettings() {
           </div>
         )}
 
-        <div className="bg-slate-50 rounded-xl p-3 text-xs text-slate-500">
+        <div className="bg-muted rounded-xl p-3 text-xs text-muted-foreground">
           Вебхук уже зарегистрирован. Нажмите кнопку только если бот перестал отвечать на <span className="font-mono">/start</span>.
         </div>
-      </div>
+      </Card>
 
-      {/* Test messages */}
-      <div className="bg-white rounded-2xl border border-slate-100 p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-slate-700">Тест уведомлений</h3>
+      <Card className="p-5 space-y-4">
+        <h3 className="text-sm font-semibold text-foreground">Тест уведомлений</h3>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Тип получателя</label>
-            <select value={testTarget.type} onChange={e => setTestTarget(p => ({ ...p, type: e.target.value, id: "" }))}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Тип получателя</label>
+            <select value={testTarget.type} onChange={e => setTestTarget(p => ({ ...p, type: e.target.value, id: "" }))} className={fieldCls}>
               <option value="student">Ученик</option>
               <option value="teacher">Преподаватель</option>
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Получатель</label>
-            <select value={testTarget.id} onChange={e => setTestTarget(p => ({ ...p, id: e.target.value }))}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Получатель</label>
+            <select value={testTarget.id} onChange={e => setTestTarget(p => ({ ...p, id: e.target.value }))} className={fieldCls}>
               <option value="">Выбрать...</option>
               {(testTarget.type === "student" ? students : teachers).map(u => (
                 <option key={u.id} value={u.id}>{u.name}{u.telegram_id ? "" : " ⚠️ нет TG ID"}</option>
@@ -243,26 +242,23 @@ export default function TelegramSettings() {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Тип сообщения</label>
-          <select value={testTarget.msgType} onChange={e => setTestTarget(p => ({ ...p, msgType: e.target.value }))}
-            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+          <label className="block text-xs font-medium text-muted-foreground mb-1">Тип сообщения</label>
+          <select value={testTarget.msgType} onChange={e => setTestTarget(p => ({ ...p, msgType: e.target.value }))} className={fieldCls}>
             {getMessageTemplates().map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
         </div>
 
         {testTarget.msgType === "custom" && (
           <textarea value={testTarget.customMsg} onChange={e => setTestTarget(p => ({ ...p, customMsg: e.target.value }))}
-            placeholder="Введите текст сообщения..."
-            rows={3}
-            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none" />
+            placeholder="Введите текст сообщения..." rows={3} className={`${fieldCls} resize-none`} />
         )}
 
         {testTarget.id && (
-          <div className="bg-slate-50 rounded-xl p-3">
-            <p className="text-xs font-medium text-slate-500 mb-1">Предпросмотр сообщения:</p>
-            <p className="text-xs text-slate-700 whitespace-pre-line font-mono">{buildMessage()}</p>
+          <div className="bg-muted rounded-xl p-3">
+            <p className="text-xs font-medium text-muted-foreground mb-1">Предпросмотр сообщения:</p>
+            <p className="text-xs text-foreground whitespace-pre-line font-mono">{buildMessage()}</p>
             {!selectedTarget?.telegram_id && (
-              <p className="text-xs text-amber-600 mt-2 font-medium">⚠️ У этого пользователя не указан Telegram ID в профиле</p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 font-medium">⚠️ У этого пользователя не указан Telegram ID в профиле</p>
             )}
           </div>
         )}
@@ -274,15 +270,14 @@ export default function TelegramSettings() {
         </button>
 
         {testResult && (
-          <div className={`rounded-xl px-3 py-2 text-sm font-medium ${testResult === "success" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`}>
+          <div className={`rounded-xl px-3 py-2 text-sm font-medium ${testResult === "success" ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300" : "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400"}`}>
             {testResult === "success" ? "✅ Сообщение отправлено успешно!" : `❌ ${testResult}`}
           </div>
         )}
-      </div>
+      </Card>
 
-      {/* Auto notifications */}
-      <div className="bg-white rounded-2xl border border-slate-100 p-5">
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Автоматические уведомления</h3>
+      <Card className="p-5">
+        <h3 className="text-sm font-semibold text-foreground mb-3">Автоматические уведомления</h3>
         <div className="space-y-3">
           {[
             { trigger: "Урок завершён (преподаватель отметил)", msg: "✅ Урок завершён. Осталось уроков: X", active: true },
@@ -291,33 +286,32 @@ export default function TelegramSettings() {
             { trigger: "/start в боте", msg: "🎉 Спасибо за подключение уведомлений!", active: true },
             { trigger: "Подключение Telegram в профиле", msg: "🎉 Уведомления активированы!", active: true },
           ].map((item, i) => (
-            <div key={i} className="flex items-start gap-3 py-2 border-b border-slate-50 last:border-0">
+            <div key={i} className="flex items-start gap-3 py-2 border-b border-border last:border-0">
               <div className="mt-0.5 w-2 h-2 rounded-full flex-shrink-0 bg-emerald-400" />
               <div>
-                <p className="text-xs font-semibold text-slate-700">{item.trigger}</p>
-                <p className="text-xs text-slate-400 font-mono mt-0.5">"{item.msg}"</p>
+                <p className="text-xs font-semibold text-foreground">{item.trigger}</p>
+                <p className="text-xs text-muted-foreground font-mono mt-0.5">"{item.msg}"</p>
               </div>
-              <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+              <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
                 АКТИВНО
               </span>
             </div>
           ))}
         </div>
-      </div>
+      </Card>
 
-      {/* How it works */}
-      <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 space-y-2">
-        <p className="text-xs font-semibold text-amber-800">⚙️ Как ученики подключают уведомления:</p>
-        <ol className="list-decimal list-inside space-y-1 text-xs text-slate-600">
-          <li>Открывают бота <span className="font-semibold">@LonghuaChinese_bot</span> в Telegram</li>
-          <li>Нажимают <span className="font-mono bg-slate-100 px-1 rounded">/start</span> — бот автоматически ответит ✅</li>
+      <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/50 rounded-xl p-4 space-y-2">
+        <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">⚙️ Как ученики подключают уведомления:</p>
+        <ol className="list-decimal list-inside space-y-1 text-xs text-muted-foreground">
+          <li>Открывают бота <span className="font-semibold text-foreground">@LonghuaChinese_bot</span> в Telegram</li>
+          <li>Нажимают <span className="font-mono bg-muted px-1 rounded">/start</span> — бот автоматически ответит ✅</li>
           <li>Копируют свой Telegram ID и вводят его в профиле на сайте</li>
         </ol>
       </div>
 
-      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex gap-3">
-        <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
-        <p className="text-xs text-blue-700">
+      <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 rounded-xl p-4 flex gap-3">
+        <Info className="w-4 h-4 text-blue-500 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-blue-700 dark:text-blue-300">
           Токен сохраняется в базе данных приложения и доступен только администратору. Для работы уведомлений ученики и преподаватели должны указать свой Telegram ID в профиле.
         </p>
       </div>

@@ -15,6 +15,8 @@ import { EntityMutationOrchestratorService } from './entity-mutation-orchestrato
 import { EntityRepositoryService } from './entity-repository.service';
 import { MaterialAccessCheckService } from './material-access-check.service';
 import { MaterialAccessGrantService } from './material-access-grant.service';
+import { MaterialAccessManagementService } from './material-access-management.service';
+import { MaterialAccessWriteService } from './material-access-write.service';
 
 @Module({
   imports: [AuditModule, UsersModule, PaymentsModule, StudentsModule, ScheduleModule, SecureFilesModule, TypeOrmModule.forFeature(CRM_ENTITY_CLASSES)],
@@ -24,7 +26,9 @@ import { MaterialAccessGrantService } from './material-access-grant.service';
     EntityMutationOrchestratorService,
     EntityAccessService,
     MaterialAccessCheckService,
+    MaterialAccessWriteService,
     MaterialAccessGrantService,
+    MaterialAccessManagementService,
     RolesGuard,
   ],
   exports: [
@@ -32,7 +36,9 @@ import { MaterialAccessGrantService } from './material-access-grant.service';
     EntityMutationOrchestratorService,
     EntityAccessService,
     MaterialAccessCheckService,
+    MaterialAccessWriteService,
     MaterialAccessGrantService,
+    MaterialAccessManagementService,
     RolesGuard,
   ],
 })

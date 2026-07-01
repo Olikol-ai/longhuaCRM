@@ -15,12 +15,14 @@ import { LessonSeriesOrchestratorService } from '../schedule/lesson-series-orche
 import { ScheduleOrchestratorService } from '../schedule/schedule-orchestrator.service';
 import { CourseFolderService } from '../schedule/course-folder.service';
 import { RoleEntitySyncService } from '../users/role-entity-sync.service';
+import { ProfileRelationsService } from '../users/profile-relations.service';
 import { MaterialAccessGrantService } from './material-access-grant.service';
 import { SecureFilesService } from '../files/secure-files.service';
 import { welcomeInputToRows, welcomeRowsToRecord } from '../welcome/welcome.mapper';
 import { LessonRepositoryService } from '../schedule/lesson-repository.service';
 import { EntityAccessContext } from './entity-access.types';
 import { EntityRepositoryService } from './entity-repository.service';
+import { ProfileDeleteResult } from '../users/profile-relations.service';
 
 @Injectable()
 export class EntityMutationOrchestratorService {
@@ -28,6 +30,7 @@ export class EntityMutationOrchestratorService {
     private readonly repository: EntityRepositoryService,
     private readonly paymentService: PaymentService,
     private readonly roleEntitySync: RoleEntitySyncService,
+    private readonly profileRelations: ProfileRelationsService,
     private readonly lessonOrchestrator: LessonOrchestratorService,
     private readonly lessonSeriesOrchestrator: LessonSeriesOrchestratorService,
     private readonly scheduleOrchestrator: ScheduleOrchestratorService,
@@ -191,7 +194,11 @@ export class EntityMutationOrchestratorService {
     return entityToRecord(saved as Record<string, unknown>);
   }
 
-  async delete(entity: EntityName, id: string, context: EntityAccessContext): Promise<void> {
+  async delete(
+    entity: EntityName,
+    id: string,
+    context: EntityAccessContext,
+  ): Promise<ProfileDeleteResult | void> {
     await this.repository.assertDelete(entity, id, context);
 
     if (entity === 'Payment') {
@@ -223,6 +230,14 @@ export class EntityMutationOrchestratorService {
     if (entity === 'CourseFolder') {
       await this.courseFolderService.delete(id);
       return;
+    }
+
+    if (entity === 'Student') {
+      return this.profileRelations.deleteStudent(id);
+    }
+
+    if (entity === 'Teacher') {
+      return this.profileRelations.deleteTeacher(id);
     }
 
     await this.repository.deleteRowById(entity as CrmEntityName, id);

@@ -3,6 +3,9 @@ import { api } from '@/api';
 import { Plus, CreditCard, TrendingUp, Search, Pencil, Trash2 } from "lucide-react";
 import PaymentModal from "../components/payments/PaymentModal";
 import { format, parseISO } from "date-fns";
+import { Card } from "@/components/ui/card";
+
+const inputCls = "w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400";
 
 export default function Payments() {
   const [payments, setPayments] = useState([]);
@@ -10,7 +13,6 @@ export default function Payments() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingPayment, setEditingPayment] = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
 
@@ -67,12 +69,12 @@ export default function Payments() {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       {error && (
-        <div className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-4 py-3">{error}</div>
+        <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 text-sm px-4 py-3">{error}</div>
       )}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Платежи</h2>
-          <p className="text-sm text-slate-400">{payments.length} записей всего</p>
+          <h2 className="text-xl font-bold text-foreground">Платежи</h2>
+          <p className="text-sm text-muted-foreground">{payments.length} записей всего</p>
         </div>
         <button
           onClick={() => { setEditingPayment(null); setShowModal(true); }}
@@ -82,102 +84,99 @@ export default function Payments() {
         </button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white border border-slate-100 rounded-xl p-5">
-          <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center mb-3">
-            <CreditCard className="w-4 h-4 text-emerald-600" />
+        <Card className="p-5">
+          <div className="w-8 h-8 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg flex items-center justify-center mb-3">
+            <CreditCard className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <p className="text-2xl font-bold text-slate-800">{totalRevenue.toLocaleString()} BYN</p>
-          <p className="text-xs text-slate-400 mt-0.5">Общая выручка</p>
-        </div>
-        <div className="bg-white border border-slate-100 rounded-xl p-5">
-          <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center mb-3">
-            <TrendingUp className="w-4 h-4 text-indigo-600" />
+          <p className="text-2xl font-bold text-foreground">{totalRevenue.toLocaleString()} BYN</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Общая выручка</p>
+        </Card>
+        <Card className="p-5">
+          <div className="w-8 h-8 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg flex items-center justify-center mb-3">
+            <TrendingUp className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
           </div>
-          <p className="text-2xl font-bold text-slate-800">{monthRevenue.toLocaleString()} BYN</p>
-          <p className="text-xs text-slate-400 mt-0.5">В этом месяце</p>
-        </div>
-        <div className="bg-white border border-slate-100 rounded-xl p-5">
-          <div className="w-8 h-8 bg-violet-50 rounded-lg flex items-center justify-center mb-3">
-            <CreditCard className="w-4 h-4 text-violet-600" />
+          <p className="text-2xl font-bold text-foreground">{monthRevenue.toLocaleString()} BYN</p>
+          <p className="text-xs text-muted-foreground mt-0.5">В этом месяце</p>
+        </Card>
+        <Card className="p-5">
+          <div className="w-8 h-8 bg-violet-50 dark:bg-violet-950/40 rounded-lg flex items-center justify-center mb-3">
+            <CreditCard className="w-4 h-4 text-violet-600 dark:text-violet-400" />
           </div>
-          <p className="text-2xl font-bold text-slate-800">{thisMonth.length}</p>
-          <p className="text-xs text-slate-400 mt-0.5">Платежей за месяц</p>
-        </div>
+          <p className="text-2xl font-bold text-foreground">{thisMonth.length}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Платежей за месяц</p>
+        </Card>
       </div>
 
-      {/* Search */}
       <div className="relative max-w-xs mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Поиск по ученику..."
-          className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+          className={inputCls} />
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-100 overflow-hidden">
+      <Card className="overflow-hidden">
         {loading ? (
           <div className="space-y-px">
-            {[...Array(5)].map((_, i) => <div key={i} className="h-14 bg-slate-50 animate-pulse" />)}
+            {[...Array(5)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse" />)}
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12">
-            <CreditCard className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-            <p className="text-sm text-slate-400">Платежи не найдены</p>
+            <CreditCard className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">Платежи не найдены</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left text-xs font-semibold text-slate-400 px-4 py-3">Ученик</th>
-                  <th className="text-left text-xs font-semibold text-slate-400 px-4 py-3">Сумма (BYN)</th>
-                  <th className="text-left text-xs font-semibold text-slate-400 px-4 py-3">Уроков добавлено</th>
-                  <th className="text-left text-xs font-semibold text-slate-400 px-4 py-3">Дата</th>
-                  <th className="text-left text-xs font-semibold text-slate-400 px-4 py-3 hidden md:table-cell">Комментарий</th>
+                <tr className="border-b border-border">
+                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Ученик</th>
+                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Сумма (BYN)</th>
+                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Уроков добавлено</th>
+                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Дата</th>
+                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3 hidden md:table-cell">Комментарий</th>
                   <th className="px-4 py-3"></th>
-                  </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                  {filtered.map(payment => (
-                  <tr key={payment.id} className="hover:bg-slate-50/50">
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filtered.map(payment => (
+                  <tr key={payment.id} className="hover:bg-muted/50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center">
-                          <span className="text-xs font-semibold text-indigo-600">
+                        <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-950/50 flex items-center justify-center">
+                          <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
                             {(payment.student_name || "?")[0]}
                           </span>
                         </div>
-                        <span className="text-sm font-medium text-slate-700">{payment.student_name}</span>
+                        <span className="text-sm font-medium text-foreground">{payment.student_name}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-sm font-semibold text-emerald-600">{payment.amount} BYN</span>
+                      <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{payment.amount} BYN</span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-xs font-semibold bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full">
+                      <span className="text-xs font-semibold bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded-full">
                         +{payment.lessons_added} уроков
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-sm text-slate-600">{payment.payment_date}</span>
+                      <span className="text-sm text-muted-foreground">{payment.payment_date}</span>
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
-                      <span className="text-xs text-slate-400">{payment.comment || "—"}</span>
+                      <span className="text-xs text-muted-foreground">{payment.comment || "—"}</span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => { setEditingPayment(payment); setShowModal(true); }}
-                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          className="p-1.5 text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-lg transition-colors"
                           title="Редактировать"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleDelete(payment)}
-                          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition-colors"
                           title="Удалить"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -185,12 +184,12 @@ export default function Payments() {
                       </div>
                     </td>
                   </tr>
-                  ))}
+                ))}
               </tbody>
             </table>
           </div>
         )}
-      </div>
+      </Card>
 
       {showModal && (
         <PaymentModal

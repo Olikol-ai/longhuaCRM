@@ -2,6 +2,8 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { format } from "date-fns";
 
+const fieldCls = "w-full px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400";
+
 export default function PaymentModal({ students, onSave, onClose, initialData }) {
   const [form, setForm] = useState({
     student_id: initialData?.student_id || "",
@@ -27,18 +29,17 @@ export default function PaymentModal({ students, onSave, onClose, initialData })
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h3 className="text-base font-semibold text-slate-800">{isEdit ? "Редактировать платёж" : "Добавить платёж"}</h3>
-          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg">
-            <X className="w-4 h-4 text-slate-500" />
+      <div className="bg-card text-card-foreground rounded-2xl w-full max-w-md shadow-xl border border-border">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h3 className="text-base font-semibold text-foreground">{isEdit ? "Редактировать платёж" : "Добавить платёж"}</h3>
+          <button onClick={onClose} className="p-1.5 hover:bg-muted rounded-lg">
+            <X className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
         <div className="p-6 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Ученик *</label>
-            <select value={form.student_id} onChange={e => set("student_id", e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400">
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Ученик *</label>
+            <select value={form.student_id} onChange={e => set("student_id", e.target.value)} className={fieldCls}>
               <option value="">Выбрать ученика</option>
               {students.filter(s => s.status !== "inactive").map(s => (
                 <option key={s.id} value={s.id}>{s.name} (баланс: {s.lesson_balance || 0})</option>
@@ -47,38 +48,34 @@ export default function PaymentModal({ students, onSave, onClose, initialData })
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Сумма (BYN) *</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Сумма (BYN) *</label>
               <input type="number" min="0" value={form.amount} onChange={e => set("amount", e.target.value)}
-                placeholder="0.00"
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+                placeholder="0.00" className={fieldCls} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Куплено уроков *</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Куплено уроков *</label>
               <input type="number" min="1" value={form.lessons_added} onChange={e => set("lessons_added", e.target.value)}
-                placeholder="0"
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+                placeholder="0" className={fieldCls} />
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Дата платежа</label>
-            <input type="date" value={form.payment_date} onChange={e => set("payment_date", e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Дата платежа</label>
+            <input type="date" value={form.payment_date} onChange={e => set("payment_date", e.target.value)} className={fieldCls} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Комментарий</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Комментарий</label>
             <textarea value={form.comment} onChange={e => set("comment", e.target.value)} rows={2}
-              placeholder="Необязательная заметка..."
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 resize-none" />
+              placeholder="Необязательная заметка..." className={`${fieldCls} resize-none`} />
           </div>
 
           {form.student_id && form.lessons_added && (
-            <div className="bg-indigo-50 rounded-xl p-3 text-sm text-indigo-700">
+            <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-xl p-3 text-sm text-indigo-700 dark:text-indigo-300">
               Сумма: <strong>{form.amount} BYN</strong> · Баланс увеличится на <strong>{form.lessons_added}</strong> уроков
             </div>
           )}
         </div>
-        <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-100">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-lg">Отмена</button>
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-border">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted rounded-lg">Отмена</button>
           <button onClick={handleSave}
             className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
             {isEdit ? "Сохранить изменения" : "Сохранить платёж"}

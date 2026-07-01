@@ -90,23 +90,25 @@ export class RoleEntitySyncService {
     return this.insertTeacher(payload, input.id);
   }
 
-  /** Detach login link only — preserve profile data and status for role restoration. */
+  /** Detach login link — preserve profile data; hide from role-specific lists until restored. */
   private async detachTeachersForUser(userId: string): Promise<void> {
     await this.teacherRepo.update(
       { userId },
       {
         userId: null,
+        status: 'inactive',
         updatedDate: new Date(),
       } as unknown as Partial<TeacherEntity>,
     );
   }
 
-  /** Detach login link only — preserve profile data and status for role restoration. */
+  /** Detach login link — preserve profile data; hide from role-specific lists until restored. */
   private async detachStudentsForUser(userId: string): Promise<void> {
     await this.studentRepo.update(
       { userId },
       {
         userId: null,
+        status: 'inactive',
         updatedDate: new Date(),
       } as unknown as Partial<StudentEntity>,
     );

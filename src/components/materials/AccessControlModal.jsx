@@ -21,11 +21,22 @@ export default function AccessControlModal({ material, course, onClose, onSave }
         api.entities.Student.list(),
         api.entities.MaterialAccess.filter({
           material_id: material.id,
-          granted_by_role: user.role === "admin" ? "ADMIN" : "TEACHER",
         }),
       ]);
 
-      setStudents(sts);
+      let visibleStudents = sts;
+      if (user.role === "teacher") {
+        const teacherId =
+          user.teacher_profile_id ||
+          (await api.entities.Teacher.filter({ user_id: user.id }))[0]?.id;
+        if (teacherId) {
+          visibleStudents = sts.filter((s) => s.assigned_teacher === teacherId);
+        } else {
+          visibleStudents = [];
+        }
+      }
+
+      setStudents(visibleStudents);
 
       const grantedUserIds = new Set(
         accesses.filter((a) => a.access === true).map((a) => a.user_id),
@@ -65,7 +76,7 @@ export default function AccessControlModal({ material, course, onClose, onSave }
         if (shouldGrant && !wasGranted) {
           await grantAccess(student.user_id, material.id, grantRole, user.id);
         } else if (!shouldGrant && wasGranted) {
-          await revokeAccess(student.user_id, material.id, grantRole);
+          await revokeAccess(student.user_id, material.id);
         }
       }
 

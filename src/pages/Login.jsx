@@ -34,9 +34,11 @@ export default function Login() {
         navigate(resolveRedirect(sessionUser), { replace: true });
       } else {
         const result = await api.auth.register(email.trim(), password, firstName.trim(), lastName.trim());
-        if (result.verification_code) {
-          sessionStorage.setItem('longhua_verification_code', result.verification_code);
-        }
+        sessionStorage.setItem(
+          'longhua_verification_email_sent',
+          result.email_sent ? '1' : '0',
+        );
+        sessionStorage.removeItem('longhua_verification_code');
         await establishSession({ force: true });
         navigate('/auth/pending-approval', { replace: true });
       }

@@ -9,12 +9,8 @@ export async function hasAccessToMaterial(userId, materialId) {
 }
 
 /**
- * Выдает доступ к материалу
- * @param {string} userId - ID пользователя
- * @param {string} materialId - ID материала
- * @param {string} grantedByRole - ADMIN или TEACHER
- * @param {string} grantedByUserId - ID пользователя, который выдает доступ
- * @returns {Promise}
+ * Выдаёт доступ к материалу (единая запись на user_id + material_id).
+ * grantedByRole — только аудит «кто последним изменил», не влияет на проверку доступа.
  */
 export async function grantAccess(userId, materialId, grantedByRole, grantedByUserId) {
   const { api } = await import('@/api');
@@ -44,12 +40,12 @@ export async function grantAccess(userId, materialId, grantedByRole, grantedByUs
   const existing = await api.entities.MaterialAccess.filter({
     user_id: userId,
     material_id: materialId,
-    granted_by_role: grantedByRole,
   });
 
   if (existing.length > 0) {
     await api.entities.MaterialAccess.update(existing[0].id, {
       access: true,
+      granted_by_role: grantedByRole,
     });
   } else {
     await api.entities.MaterialAccess.create({
@@ -62,28 +58,18 @@ export async function grantAccess(userId, materialId, grantedByRole, grantedByUs
 }
 
 /**
- * Отзывает доступ у пользователя
+ * Отзывает доступ (удаляет единую запись user_id + material_id).
  */
-export async function revokeAccess(userId, materialId, revokedByRole) {
+export async function revokeAccess(userId, materialId) {
   const { api } = await import('@/api');
 
   const existing = await api.entities.MaterialAccess.filter({
     user_id: userId,
     material_id: materialId,
-    granted_by_role: revokedByRole,
   });
 
-  if (existing.length > 0) {
-    await api.entities.MaterialAccess.delete(existing[0].id);
-  }
-
-  if (revokedByRole === 'ADMIN') {
-    await api.entities.MaterialAccess.create({
-      user_id: userId,
-      material_id: materialId,
-      granted_by_role: 'ADMIN',
-      access: false,
-    });
+  for (const row of existing) {
+    await api.entities.MaterialAccess.delete(row.id);
   }
 }
 
@@ -101,4 +87,15 @@ export async function filterMaterialsByAccess(materials, userId) {
   }
 
   return accessibleMaterials;
+}
+
+export async function fetchUserAccessEditor(userId) {
+  return apiFetch(`/material-access/user/${userId}/editor`);
+}
+
+export async function syncUserMaterialAccess(userId, materialIds) {
+  return apiFetch(`/material-access/user/${userId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ material_ids: materialIds }),
+  });
 }

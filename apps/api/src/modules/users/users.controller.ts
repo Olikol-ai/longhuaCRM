@@ -19,6 +19,7 @@ import { JwtPayload } from '../auth/auth.service';
 import { toDbRole } from '../auth/onboarding';
 import { AuditService } from '../audit/audit.service';
 import { RoleEntitySyncService } from './role-entity-sync.service';
+import { ProfileRelationsService } from './profile-relations.service';
 import { UsersRepository } from './users.repository';
 import { userToRecord } from './user.mapper';
 
@@ -30,6 +31,7 @@ export class UsersController {
     private readonly usersRepository: UsersRepository,
     private readonly audit: AuditService,
     private readonly roleEntitySync: RoleEntitySyncService,
+    private readonly profileRelations: ProfileRelationsService,
   ) {}
 
   @Get()
@@ -106,7 +108,8 @@ export class UsersController {
   async delete(@Param('id') id: string) {
     const row = await this.usersRepository.findById(id);
     if (!row) throw new NotFoundException('User not found');
+    const { orphanStudents } = await this.profileRelations.deleteProfilesForUser(id);
     await this.usersRepository.delete(id);
-    return { ok: true };
+    return { ok: true, orphanStudents };
   }
 }

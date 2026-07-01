@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
@@ -23,8 +23,17 @@ export default function PendingApproval() {
   const [code, setCode] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState('');
+  const [emailSent, setEmailSent] = useState(true);
 
-  const storedCode = sessionStorage.getItem('longhua_verification_code');
+  useEffect(() => {
+    const flag = sessionStorage.getItem('longhua_verification_email_sent');
+    if (flag != null) {
+      setEmailSent(flag === '1');
+      sessionStorage.removeItem('longhua_verification_email_sent');
+    }
+    sessionStorage.removeItem('longhua_verification_code');
+  }, []);
+
   const needsVerification = user?.onboarding_state === 'needs_verification';
   const waitingForRole = user?.onboarding_state === 'awaiting_role';
   const isBlocked = user?.onboarding_state === 'blocked';
@@ -36,6 +45,7 @@ export default function PendingApproval() {
     try {
       await api.auth.verifyCode(code.trim());
       sessionStorage.removeItem('longhua_verification_code');
+      sessionStorage.removeItem('longhua_verification_email_sent');
       const sessionUser = await establishSession({ force: true });
       if (sessionUser?.onboarding_state === 'active') {
         navigate(resolveRedirect(sessionUser), { replace: true });
@@ -88,11 +98,13 @@ export default function PendingApproval() {
             {needsVerification && (
               <>
                 <p className="text-slate-500 leading-relaxed">
-                  Введите код подтверждения для активации аккаунта.
+                  {emailSent
+                    ? `Мы отправили код подтверждения на ${user?.email || 'ваш email'}. Введите его ниже.`
+                    : 'Не удалось отправить письмо с кодом. Запросите новый код или обратитесь к администратору.'}
                 </p>
-                {storedCode && (
-                  <p className="text-sm bg-indigo-50 text-indigo-700 rounded-xl px-4 py-3">
-                    Ваш код: <span className="font-mono font-bold">{storedCode}</span>
+                {!emailSent && (
+                  <p className="text-sm text-amber-700 bg-amber-50 rounded-xl px-4 py-3">
+                    Email-сервис временно недоступен. Код не отображается в интерфейсе — попробуйте «Запросить новый код» позже.
                   </p>
                 )}
                 <form onSubmit={handleVerify} className="space-y-3 pt-2">
@@ -120,9 +132,14 @@ export default function PendingApproval() {
                     onClick={async () => {
                       setError('');
                       try {
-                        await api.auth.resendCode();
-                        setError('');
-                        alert('Новый код отправлен. Проверьте сообщение от администратора.');
+                        const result = await api.auth.resendCode();
+                        if (result.email_sent) {
+                          setEmailSent(true);
+                          setError('');
+                        } else {
+                          setEmailSent(false);
+                          setError('Не удалось отправить письмо. Попробуйте позже или обратитесь к администратору.');
+                        }
                       } catch (err) {
                         setError(err.message || 'Не удалось запросить новый код');
                       }

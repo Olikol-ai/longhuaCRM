@@ -2,15 +2,10 @@ import { useState, useEffect } from "react";
 import { api } from '@/api';
 import { Save, Plus, Trash2, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { TIME_OPTIONS } from "@/lib/time-slots";
 
 const DAYS = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"];
 const DAYS_SHORT = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
-
-const TIMES = [];
-for (let h = 7; h <= 23; h++) {
-  TIMES.push(`${String(h).padStart(2, "0")}:00`);
-  if (h < 23) TIMES.push(`${String(h).padStart(2, "0")}:30`);
-}
 
 export default function TeacherAvailabilityTab({ teacher }) {
   const [slots, setSlots] = useState(Array.from({ length: 7 }, () => []));
@@ -160,7 +155,7 @@ export default function TeacherAvailabilityTab({ teacher }) {
                           onChange={e => updateSlot(dayIndex, slotIndex, "from", e.target.value)}
                           className="text-sm font-semibold text-slate-800 bg-transparent border-none outline-none cursor-pointer"
                         >
-                          {TIMES.map(t => <option key={t} value={t}>{t}</option>)}
+                          {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                         <span className="text-xs text-slate-500 font-medium">до</span>
                         <select
@@ -168,7 +163,7 @@ export default function TeacherAvailabilityTab({ teacher }) {
                           onChange={e => updateSlot(dayIndex, slotIndex, "to", e.target.value)}
                           className="text-sm font-semibold text-slate-800 bg-transparent border-none outline-none cursor-pointer"
                         >
-                          {TIMES.map(t => <option key={t} value={t}>{t}</option>)}
+                          {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                         <button
                           onClick={() => removeSlot(dayIndex, slotIndex)}

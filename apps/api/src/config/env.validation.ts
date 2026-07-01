@@ -77,6 +77,31 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   APP_PUBLIC_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  SMTP_HOST?: string;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  SMTP_PORT?: number;
+
+  @IsBoolean()
+  @IsOptional()
+  SMTP_SECURE?: boolean;
+
+  @IsString()
+  @IsOptional()
+  SMTP_USER?: string;
+
+  @IsString()
+  @IsOptional()
+  SMTP_PASS?: string;
+
+  @IsString()
+  @IsOptional()
+  SMTP_FROM?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

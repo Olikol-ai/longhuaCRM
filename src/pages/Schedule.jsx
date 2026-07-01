@@ -10,6 +10,7 @@ import { ChevronLeft, ChevronRight, Plus, CalendarDays } from "lucide-react";
 import LessonModal from "../components/schedule/LessonModal";
 import LessonDetailModal from "../components/schedule/LessonDetailModal";
 import { createWeeklyLessonSeries } from "@/lib/recurring-lessons";
+import { DAY_HOURS } from "@/lib/time-slots";
 
 export default function Schedule() {
   const [view, setView] = useState("week");
@@ -128,7 +129,7 @@ export default function Schedule() {
   const role = user?.role;
   const isAdmin = role === "admin";
 
-  const HOURS = Array.from({ length: 14 }, (_, i) => i + 7); // 7am - 8pm
+  const HOURS = DAY_HOURS;
 
   return (
     <div className="flex flex-col h-full dark:bg-slate-950">
@@ -212,6 +213,7 @@ export default function Schedule() {
           date={selectedDate}
           teachers={teachers}
           students={students}
+          defaultTeacherId={selectedTeacherId}
           onSave={handleSave}
           onClose={() => setShowModal(false)}
         />
@@ -329,12 +331,17 @@ function hourOverlapsRange(hour, timeFrom, timeTo) {
 }
 
 function getCellAvailabilityState(day, hour, dateStr, availabilitySlots, bookings) {
-  const daySlots = availabilitySlots.filter((slot) => slot.day === dayIndexFromDate(day));
-  const hasAvailability = daySlots.some((slot) => hourOverlapsRange(hour, slot.from, slot.to));
   const hasBooking = bookings.some(
     (booking) => booking.date === dateStr && hourOverlapsRange(hour, booking.time_from, booking.time_to),
   );
   if (hasBooking) return 'booked';
+
+  if (availabilitySlots.length === 0) {
+    return null;
+  }
+
+  const daySlots = availabilitySlots.filter((slot) => slot.day === dayIndexFromDate(day));
+  const hasAvailability = daySlots.some((slot) => hourOverlapsRange(hour, slot.from, slot.to));
   if (hasAvailability) return 'available';
   return 'blocked';
 }
@@ -372,7 +379,7 @@ function WeekView({ current, hours, getLessonsForDay, onSlotClick, onLessonClick
         <div>
           {hours.map(h => (
             <div key={h} className="h-16 border-b border-slate-50 dark:border-slate-700 flex items-start justify-end pr-3 pt-1">
-              <span className="text-[10px] text-slate-300 dark:text-slate-600 font-medium">{h}:00</span>
+              <span className="text-[10px] text-slate-300 dark:text-slate-600 font-medium">{String(h).padStart(2, "0")}:00</span>
             </div>
           ))}
         </div>
@@ -427,7 +434,7 @@ function DayView({ current, hours, getLessonsForDay, onLessonClick }) {
           return (
             <div key={h} className="flex gap-4 border-b border-slate-50 dark:border-slate-700 min-h-[56px]">
               <div className="w-16 flex-shrink-0 flex items-start justify-end pr-4 pt-3">
-                <span className="text-xs text-slate-300 dark:text-slate-600 font-medium">{h}:00</span>
+                <span className="text-xs text-slate-300 dark:text-slate-600 font-medium">{String(h).padStart(2, "0")}:00</span>
               </div>
               <div className="flex-1 py-1.5 space-y-1">
                 {slotLessons.map(l => (

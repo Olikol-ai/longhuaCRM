@@ -1,9 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { api } from "@/api";
-import { X, Upload, Loader2, File, Link2 } from "lucide-react";
+import { X, Upload, Loader2, File, Link2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+
+function getErrorMessage(err) {
+  return (
+    err?.data?.message ||
+    err?.message ||
+    "Не удалось сохранить материал. Проверьте файл и попробуйте снова."
+  );
+}
 
 export default function MaterialFormDialog({ onClose, onSave, defaultCourseId = "", defaultFolderId = null }) {
   const [formData, setFormData] = useState({
@@ -22,6 +30,7 @@ export default function MaterialFormDialog({ onClose, onSave, defaultCourseId = 
   const [folders, setFolders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
 
   useEffect(() => {
     loadCourses();
@@ -36,17 +45,32 @@ export default function MaterialFormDialog({ onClose, onSave, defaultCourseId = 
   }, [formData.course_id]);
 
   const loadCourses = async () => {
-    const c = await api.entities.Course.list();
-    setCourses(c);
-    if (!formData.course_id && c.length > 0) {
-      setFormData((prev) => ({ ...prev, course_id: c[0].id }));
+    try {
+      const c = await api.entities.Course.list();
+      setCourses(Array.isArray(c) ? c : []);
+      if (!formData.course_id && c.length > 0) {
+        setFormData((prev) => ({ ...prev, course_id: c[0].id }));
+      }
+    } catch (err) {
+      console.error("Failed to load courses for material form:", err);
+      setCourses([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const loadFolders = async (courseId) => {
-    const all = await api.entities.CourseFolder.filter({ course_id: courseId });
-    setFolders(all);
+    try {
+      const all = await api.entities.CourseFolder.filter({ course_id: courseId });
+      setFolders(Array.isArray(all) ? all : []);
+    } catch (err) {
+      console.error("Failed to load folders for material form:", err);
+      setFolders([]);
+    }
+  };
+
+  const dismissSaveError = () => {
+    setSaveError(null);
   };
 
   const detectFileType = (filename) => {
@@ -100,10 +124,11 @@ export default function MaterialFormDialog({ onClose, onSave, defaultCourseId = 
 
   const handleSave = async () => {
     if (!canSave) {
-      alert("Заполните обязательные поля");
+      setSaveError("Заполните обязательные поля");
       return;
     }
 
+    setSaveError(null);
     setSaving(true);
     try {
       let fileUrl = null;
@@ -130,7 +155,7 @@ export default function MaterialFormDialog({ onClose, onSave, defaultCourseId = 
       onSave();
     } catch (err) {
       console.error("Save error:", err);
-      alert("Ошибка при загрузке материала");
+      setSaveError(getErrorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -157,6 +182,24 @@ export default function MaterialFormDialog({ onClose, onSave, defaultCourseId = 
         </div>
 
         <div className="p-6 space-y-4">
+          {saveError && (
+            <div className="p-4 rounded-lg border border-destructive/50 bg-destructive/5 space-y-3">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                <p className="text-sm text-destructive">{saveError}</p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={dismissSaveError}
+                className="w-full"
+              >
+                OK
+              </Button>
+            </div>
+          )}
+
           <div className="flex gap-2">
             <button
               type="button"

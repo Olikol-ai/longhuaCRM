@@ -2,6 +2,7 @@ import { alfabank } from './alfabank';
 import { auth } from './auth';
 import { entities } from './entities';
 import { functions } from './functions';
+import { schedule } from './schedule';
 import { apiUpload } from './http';
 
 export { getToken, setToken, apiFetch, TOKEN_KEY, onTokenChange } from './http';
@@ -9,6 +10,7 @@ export { alfabank } from './alfabank';
 export { auth } from './auth';
 export { entities } from './entities';
 export { functions } from './functions';
+export { schedule } from './schedule';
 
 /** Unified API client — all frontend requests go through /api/* */
 export const api = {
@@ -16,6 +18,7 @@ export const api = {
   alfabank,
   entities,
   functions,
+  schedule,
   uploads: {
     async uploadFile({ file }) {
       const result = await apiUpload(file);

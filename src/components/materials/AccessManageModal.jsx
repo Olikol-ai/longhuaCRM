@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 
 export default function AccessManageModal({ closeTab }) {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [accesses, setAccesses] = useState([]);
   const [students, setStudents] = useState([]);
   const [teachers, setTeachers] = useState([]);
@@ -18,18 +19,56 @@ export default function AccessManageModal({ closeTab }) {
   }, []);
 
   const loadData = async () => {
-    const [sts, trs, mats, accs] = await Promise.all([
-      api.entities.Student.list(),
-      api.entities.Teacher.list(),
-      api.entities.LessonMaterial.list(),
-      api.entities.MaterialAccess.list(),
-    ]);
+    setLoadError(null);
+    try {
+      const [stsResult, trsResult, matsResult, accsResult] = await Promise.allSettled([
+        api.entities.Student.list(),
+        api.entities.Teacher.list(),
+        api.entities.LessonMaterial.list(),
+        api.entities.MaterialAccess.list(),
+      ]);
 
-    setStudents(sts);
-    setTeachers(trs);
-    setMaterials(mats);
-    setAccesses(accs.filter(a => a.access === true)); // Показываем только активные доступы
-    setLoading(false);
+      if (stsResult.status === "fulfilled") {
+        setStudents(Array.isArray(stsResult.value) ? stsResult.value : []);
+      } else {
+        console.error("Failed to load students:", stsResult.reason);
+        setStudents([]);
+      }
+
+      if (trsResult.status === "fulfilled") {
+        setTeachers(Array.isArray(trsResult.value) ? trsResult.value : []);
+      } else {
+        console.error("Failed to load teachers:", trsResult.reason);
+        setTeachers([]);
+      }
+
+      if (matsResult.status === "fulfilled") {
+        setMaterials(Array.isArray(matsResult.value) ? matsResult.value : []);
+      } else {
+        console.error("Failed to load materials:", matsResult.reason);
+        setMaterials([]);
+      }
+
+      if (accsResult.status === "fulfilled") {
+        const accs = Array.isArray(accsResult.value) ? accsResult.value : [];
+        setAccesses(accs.filter((a) => a.access === true));
+      } else {
+        console.error("Failed to load access records:", accsResult.reason);
+        setAccesses([]);
+      }
+
+      const failed = [stsResult, trsResult, matsResult, accsResult].filter(
+        (r) => r.status === "rejected",
+      );
+      if (failed.length > 0) {
+        setLoadError("Не удалось загрузить данные доступа");
+      }
+    } catch (err) {
+      console.error("AccessManageModal loadData error:", err);
+      setLoadError("Не удалось загрузить данные доступа");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getMaterialTitle = (matId) => {
@@ -72,12 +111,12 @@ export default function AccessManageModal({ closeTab }) {
     );
   };
 
-  const handleRemoveAccess = async (materialId, userId, grantedByRole) => {
+  const handleRemoveAccess = async (materialId, userId) => {
     if (!confirm("Забрать доступ к этому материалу?")) return;
 
     setDeleting(materialId);
     try {
-      await revokeAccess(userId, materialId, grantedByRole);
+      await revokeAccess(userId, materialId);
       await loadData();
     } catch (err) {
       console.error("Remove access error:", err);
@@ -99,6 +138,12 @@ export default function AccessManageModal({ closeTab }) {
 
   return (
     <div className="space-y-4">
+      {loadError && (
+        <Card className="p-4 border-destructive/50 bg-destructive/5">
+          <p className="text-sm text-destructive">{loadError}</p>
+        </Card>
+      )}
+
       {usersWithAccess.length === 0 ? (
         <Card className="p-12 text-center border-dashed">
           <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -160,7 +205,7 @@ export default function AccessManageModal({ closeTab }) {
                     </div>
                     <button
                       onClick={() =>
-                        handleRemoveAccess(mat.materialId, userAccess.userId, mat.grantedByRole)
+                        handleRemoveAccess(mat.materialId, userAccess.userId)
                       }
                       disabled={deleting === mat.materialId}
                       className="ml-2 p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors disabled:opacity-50 shrink-0"

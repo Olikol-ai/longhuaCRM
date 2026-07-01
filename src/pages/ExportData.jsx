@@ -106,28 +106,34 @@ export default function ExportData() {
   ];
 
   const colorMap = {
-    sky: "bg-sky-50 border-sky-100 hover:bg-sky-100",
-    emerald: "bg-emerald-50 border-emerald-100 hover:bg-emerald-100",
-    indigo: "bg-indigo-50 border-indigo-100 hover:bg-indigo-100",
-    violet: "bg-violet-50 border-violet-100 hover:bg-violet-100",
-    amber: "bg-amber-50 border-amber-100 hover:bg-amber-100",
+    sky: "bg-sky-50 dark:bg-sky-950/30 border-sky-100 dark:border-sky-900/50 hover:bg-sky-100 dark:hover:bg-sky-950/50",
+    emerald: "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-100 dark:border-emerald-900/50 hover:bg-emerald-100 dark:hover:bg-emerald-950/50",
+    indigo: "bg-indigo-50 dark:bg-indigo-950/30 border-indigo-100 dark:border-indigo-900/50 hover:bg-indigo-100 dark:hover:bg-indigo-950/50",
+    violet: "bg-violet-50 dark:bg-violet-950/30 border-violet-100 dark:border-violet-900/50 hover:bg-violet-100 dark:hover:bg-violet-950/50",
+    amber: "bg-amber-50 dark:bg-amber-950/30 border-amber-100 dark:border-amber-900/50 hover:bg-amber-100 dark:hover:bg-amber-950/50",
   };
-  const iconColor = { sky: "text-sky-600", emerald: "text-emerald-600", indigo: "text-indigo-600", violet: "text-violet-600", amber: "text-amber-600" };
+  const iconColor = {
+    sky: "text-sky-600 dark:text-sky-400",
+    emerald: "text-emerald-600 dark:text-emerald-400",
+    indigo: "text-indigo-600 dark:text-indigo-400",
+    violet: "text-violet-600 dark:text-violet-400",
+    amber: "text-amber-600 dark:text-amber-400",
+  };
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-slate-800">Экспорт данных</h2>
-        <p className="text-sm text-slate-400">Скачайте данные в формате CSV для загрузки в 1С или Excel</p>
+        <h2 className="text-xl font-bold text-foreground">Экспорт данных</h2>
+        <p className="text-sm text-muted-foreground">Скачайте данные в формате CSV для загрузки в 1С или Excel</p>
       </div>
 
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
+      <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-xl p-4 text-sm text-amber-700 dark:text-amber-300">
         Файлы экспортируются в формате CSV с кодировкой UTF-8 BOM — совместимо с Excel и 1С.
       </div>
 
       {loading ? (
         <div className="space-y-3">
-          {[...Array(5)].map((_, i) => <div key={i} className="h-20 bg-slate-100 rounded-xl animate-pulse" />)}
+          {[...Array(5)].map((_, i) => <div key={i} className="h-20 bg-muted rounded-xl animate-pulse" />)}
         </div>
       ) : (
         <div className="space-y-3">
@@ -136,14 +142,14 @@ export default function ExportData() {
               <div className="flex items-center gap-3">
                 <item.icon className={`w-5 h-5 ${iconColor[item.color]}`} />
                 <div>
-                  <p className="text-sm font-semibold text-slate-700">{item.label}</p>
-                  <p className="text-xs text-slate-400">{item.desc}</p>
+                  <p className="text-sm font-semibold text-foreground">{item.label}</p>
+                  <p className="text-xs text-muted-foreground">{item.desc}</p>
                 </div>
               </div>
               <button
                 onClick={() => doExport(item.id)}
                 disabled={exporting === item.id}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors">
+                className="flex items-center gap-2 px-4 py-2 bg-card border border-border text-muted-foreground text-sm font-medium rounded-lg hover:bg-muted disabled:opacity-50 transition-colors">
                 <Download className="w-4 h-4" />
                 {exporting === item.id ? "Подготовка..." : "Скачать CSV"}
               </button>

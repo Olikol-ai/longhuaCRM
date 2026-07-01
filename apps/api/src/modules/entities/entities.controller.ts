@@ -97,8 +97,11 @@ export class EntitiesController {
   ) {
     const entityName = this.ensureEntity(entity);
     const context = await this.entityAccess.createContext(user.sub, user.role);
-    await this.mutations.delete(entityName, id, context);
-    return { success: true };
+    const result = await this.mutations.delete(entityName, id, context);
+    return {
+      success: true,
+      orphanStudents: result?.orphanStudents ?? [],
+    };
   }
 
   private ensureEntity(entity: string): EntityName {

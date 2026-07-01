@@ -9,7 +9,7 @@ import {
   Eye, Trash2, Lock, Upload, Plus, FolderPlus, Edit2, ChevronDown, ChevronRight
 } from "lucide-react";
 import GrantAccessModal from "@/components/materials/GrantAccessModal";
-import AccessManageModal from "@/components/materials/AccessManageModal";
+import AccessManagementPanel from "@/components/materials/AccessManagementPanel";
 import MaterialFormDialog from "@/components/materials/MaterialFormDialog";
 import CourseFolderTree from "@/components/materials/CourseFolderTree";
 import { useAuth } from "@/lib/AuthContext";
@@ -33,6 +33,7 @@ export default function MaterialsHub() {
   const [selectedMaterialIds, setSelectedMaterialIds] = useState(new Set());
   const [showGrantAccess, setShowGrantAccess] = useState(false);
   const [adminTab, setAdminTab] = useState("courses"); // "courses" | "materials" | "access"
+  const [teacherTab, setTeacherTab] = useState("materials"); // "materials" | "access"
   const [showMaterialForm, setShowMaterialForm] = useState(false);
   const [showCourseForm, setShowCourseForm] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
@@ -71,20 +72,44 @@ export default function MaterialsHub() {
   const loadData = async () => {
     if (!user) return;
 
-    const [allMats, c, f] = await Promise.all([
-      api.entities.LessonMaterial.list("-created_date"),
-      api.entities.Course.list(),
-      api.entities.CourseFolder.list(),
-    ]);
+    try {
+      const [matsResult, coursesResult, foldersResult] = await Promise.allSettled([
+        api.entities.LessonMaterial.list("-created_date"),
+        api.entities.Course.list(),
+        api.entities.CourseFolder.list(),
+      ]);
 
-    setMaterials(allMats);
-    setCourses(c);
-    setFolders(f);
-    setLoading(false);
+      if (matsResult.status === "fulfilled") {
+        setMaterials(Array.isArray(matsResult.value) ? matsResult.value : []);
+      } else {
+        console.error("Failed to load materials:", matsResult.reason);
+        setMaterials([]);
+      }
+
+      if (coursesResult.status === "fulfilled") {
+        setCourses(Array.isArray(coursesResult.value) ? coursesResult.value : []);
+      } else {
+        console.error("Failed to load courses:", coursesResult.reason);
+        setCourses([]);
+      }
+
+      if (foldersResult.status === "fulfilled") {
+        setFolders(Array.isArray(foldersResult.value) ? foldersResult.value : []);
+      } else {
+        console.error("Failed to load folders:", foldersResult.reason);
+        setFolders([]);
+      }
+    } catch (err) {
+      console.error("MaterialsHub loadData error:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const isAdmin = user?.role === "admin";
-  const isTeacher = Boolean(user?.has_teacher_profile);
+  const isTeacher = user?.role === "teacher" || Boolean(user?.has_teacher_profile);
+  const showMaterialsTab = isAdmin ? adminTab === "materials" : teacherTab === "materials";
+  const showAccessTab = isAdmin ? adminTab === "access" : teacherTab === "access";
 
   const handleSaveCourse = async () => {
     if (!courseFormData.course_name) {
@@ -245,6 +270,33 @@ export default function MaterialsHub() {
             </button>
           </div>
         )}
+
+        {/* Teacher tabs */}
+        {isTeacher && !isAdmin && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => setTeacherTab("materials")}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                teacherTab === "materials"
+                  ? "bg-indigo-600 text-white"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+            >
+              Материалы
+            </button>
+            <button
+              onClick={() => setTeacherTab("access")}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                teacherTab === "access"
+                  ? "bg-indigo-600 text-white"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+            >
+              <Lock className="h-4 w-4" />
+              Доступ
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Courses Management Tab */}
@@ -374,7 +426,6 @@ export default function MaterialsHub() {
                       folders={folders}
                       materials={materials}
                       onRefresh={loadData}
-                      onConfigureAccess={setSelectedMaterialForAccess}
                       onDeleteMaterial={handleDeleteMaterial}
                       onAddMaterial={(folderId) => openMaterialForm({ courseId: course.id, folderId })}
                       deleting={deleting}
@@ -389,7 +440,7 @@ export default function MaterialsHub() {
       )}
 
       {/* Search */}
-      {(!isAdmin || adminTab === "materials") && (
+      {showMaterialsTab && (
         <div className="mb-6">
           <div className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -404,7 +455,7 @@ export default function MaterialsHub() {
       )}
 
       {/* Selection toolbar */}
-      {selectedMaterialIds.size > 0 && adminTab === "materials" && (
+      {selectedMaterialIds.size > 0 && showMaterialsTab && isAdmin && (
         <div className="mb-6 flex items-center justify-between p-3 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg border border-indigo-200 dark:border-indigo-800 flex-wrap gap-3">
           <span className="text-sm text-indigo-700 dark:text-indigo-300 font-medium">
             Выбрано {selectedMaterialIds.size} материал{selectedMaterialIds.size % 10 === 1 ? "" : "ов"}
@@ -426,17 +477,17 @@ export default function MaterialsHub() {
         </div>
       )}
 
-      {/* Admin Access Management Tab */}
-      {isAdmin && adminTab === "access" ? (
-        <AccessManageModal closeTab={() => setAdminTab("materials")} />
-      ) : isAdmin && adminTab === "courses" ? null : (
+      {/* Access Management Tab */}
+      {showAccessTab ? (
+        <AccessManagementPanel isAdmin={isAdmin} />
+      ) : isAdmin && adminTab === "courses" ? null : showMaterialsTab ? (
         <>
       {/* Materials Grid */}
       {filteredMaterials.length === 0 ? (
         <Card className="p-12 text-center border-dashed">
           <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
           <p className="text-muted-foreground font-medium">
-            {search ? "Материалы не найдены" : "Материалы еще не добавлены"}
+            {search ? "Материалы не найдены" : "Нет доступных материалов"}
           </p>
         </Card>
       ) : (
@@ -536,7 +587,7 @@ export default function MaterialsHub() {
         </div>
       )}
         </>
-      )}
+      ) : null}
 
       {showGrantAccess && selectedMaterialIds.size > 0 && (
         <GrantAccessModal

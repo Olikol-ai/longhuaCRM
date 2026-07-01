@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { api } from '@/api';
 import { Loader2, Save, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 
 const DEFAULTS = {
@@ -52,8 +53,8 @@ export default function WelcomePageEditor() {
     <div className="p-6 max-w-2xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Страница приветствия</h1>
-          <p className="text-sm text-slate-500 mt-1">Редактирование текста, который видят новые пользователи</p>
+          <h1 className="text-2xl font-bold text-foreground">Страница приветствия</h1>
+          <p className="text-sm text-muted-foreground mt-1">Редактирование текста, который видят новые пользователи</p>
         </div>
         <Button onClick={handleSave} disabled={saving} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -61,32 +62,31 @@ export default function WelcomePageEditor() {
         </Button>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
+      <Card className="p-6 space-y-5">
         <Field label="Название школы" value={form.school_name} onChange={v => set("school_name", v)} />
         <Field label="Заголовок" value={form.title} onChange={v => set("title", v)} />
         <Field label="Подзаголовок" value={form.subtitle} onChange={v => set("subtitle", v)} />
         <Field label="Основной текст" value={form.body_text} onChange={v => set("body_text", v)} multiline />
         <Field label="Текст информационного блока (синий)" value={form.info_text} onChange={v => set("info_text", v)} multiline />
-      </div>
+      </Card>
 
-      {/* Preview */}
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <Eye className="h-4 w-4 text-slate-400" />
-          <p className="text-sm font-semibold text-slate-600">Предпросмотр</p>
+          <Eye className="h-4 w-4 text-muted-foreground" />
+          <p className="text-sm font-semibold text-muted-foreground">Предпросмотр</p>
         </div>
-        <div className="bg-gradient-to-br from-indigo-50 via-white to-slate-50 rounded-2xl border border-slate-200 p-8 text-center space-y-5">
-          <p className="text-xl font-bold text-slate-900">{form.school_name}</p>
-          <p className="text-slate-500 text-xs">{form.subtitle}</p>
-          <div className="bg-white rounded-2xl shadow-md border border-slate-100 p-6 space-y-4 text-left max-w-sm mx-auto">
-            <h2 className="text-lg font-bold text-slate-800 text-center">{form.title}</h2>
+        <div className="bg-gradient-to-br from-indigo-50 via-background to-muted dark:from-indigo-950/30 dark:via-background dark:to-muted rounded-2xl border border-border p-8 text-center space-y-5">
+          <p className="text-xl font-bold text-foreground">{form.school_name}</p>
+          <p className="text-muted-foreground text-xs">{form.subtitle}</p>
+          <Card className="p-6 space-y-4 text-left max-w-sm mx-auto">
+            <h2 className="text-lg font-bold text-foreground text-center">{form.title}</h2>
             {form.body_text.split("\n").filter(Boolean).map((line, i) => (
-              <p key={i} className="text-slate-500 text-sm">{line}</p>
+              <p key={i} className="text-muted-foreground text-sm">{line}</p>
             ))}
-            <div className="bg-indigo-50 rounded-xl px-4 py-3 text-sm text-indigo-700">
+            <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-xl px-4 py-3 text-sm text-indigo-700 dark:text-indigo-300">
               {form.info_text}
             </div>
-          </div>
+          </Card>
         </div>
       </div>
     </div>
@@ -94,10 +94,10 @@ export default function WelcomePageEditor() {
 }
 
 function Field({ label, value, onChange, multiline }) {
-  const cls = "w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400";
+  const cls = "w-full px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400";
   return (
     <div>
-      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
+      <label className="block text-xs font-medium text-muted-foreground mb-1">{label}</label>
       {multiline ? (
         <textarea value={value} onChange={e => onChange(e.target.value)} rows={3} className={`${cls} resize-none`} />
       ) : (

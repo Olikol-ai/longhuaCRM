@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { api } from '@/api';
 import { format, parseISO, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { Download, GraduationCap, DollarSign } from "lucide-react";
+import { Card } from "@/components/ui/card";
+
+const fieldCls = "px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500/20";
 
 const MONTHS = Array.from({ length: 6 }, (_, i) => {
   const d = subMonths(new Date(), i);
@@ -68,7 +71,7 @@ export default function Salary() {
 
   if (loading) return (
     <div className="p-6 space-y-4">
-      {[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-slate-100 rounded-xl animate-pulse" />)}
+      {[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-muted rounded-xl animate-pulse" />)}
     </div>
   );
 
@@ -76,16 +79,15 @@ export default function Salary() {
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Зарплата преподавателей</h2>
-          <p className="text-sm text-slate-400">Расчёт за проведённые уроки</p>
+          <h2 className="text-xl font-bold text-foreground">Зарплата преподавателей</h2>
+          <p className="text-sm text-muted-foreground">Расчёт за проведённые уроки</p>
         </div>
         <div className="flex gap-2">
-          <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
-            className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+          <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className={fieldCls}>
             {MONTHS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
           </select>
           <button onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50">
+            className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground text-sm font-medium rounded-lg hover:bg-muted">
             <Download className="w-4 h-4" /> CSV
           </button>
         </div>
@@ -103,57 +105,57 @@ export default function Salary() {
       {/* Teacher cards */}
       <div className="space-y-3">
         {teachers.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-xl border border-slate-100">
-            <GraduationCap className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-            <p className="text-sm text-slate-400">Нет преподавателей</p>
-          </div>
+          <Card className="text-center py-12">
+            <GraduationCap className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">Нет преподавателей</p>
+          </Card>
         ) : teacherSalaries.map(teacher => (
-          <div key={teacher.id} className="bg-white rounded-xl border border-slate-100 p-5">
+          <Card key={teacher.id} className="p-5">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center">
-                  <span className="text-sm font-bold text-indigo-600">{teacher.name?.[0]}</span>
+                <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-950/50 flex items-center justify-center">
+                  <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400">{teacher.name?.[0]}</span>
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-800">{teacher.name}</p>
-                  <p className="text-xs text-slate-400">
+                  <p className="font-semibold text-foreground">{teacher.name}</p>
+                  <p className="text-xs text-muted-foreground">
                     Ставка: {teacher.hourly_rate ? `${teacher.hourly_rate} BYN/час` : "не указана"}
                   </p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-xl font-bold text-slate-800">{teacher.salary.toLocaleString()} BYN</p>
-                <p className="text-xs text-slate-400">
+                <p className="text-xl font-bold text-foreground">{teacher.salary.toLocaleString()} BYN</p>
+                <p className="text-xs text-muted-foreground">
                   {teacher.paidLessons.length} уроков · {teacher.totalHours.toFixed(1)} ч
                 </p>
               </div>
             </div>
 
             {teacher.paidLessons.length > 0 && (
-              <div className="mt-4 pt-3 border-t border-slate-50 grid grid-cols-3 gap-4">
+              <div className="mt-4 pt-3 border-t border-border grid grid-cols-3 gap-4">
                 <div className="text-center">
-                  <p className="text-lg font-bold text-emerald-600">{teacher.completedCount}</p>
-                  <p className="text-[11px] text-slate-400">Проведено</p>
+                  <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{teacher.completedCount}</p>
+                  <p className="text-[11px] text-muted-foreground">Проведено</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-lg font-bold text-orange-600">{teacher.missedNoNoticeCount}</p>
-                  <p className="text-[11px] text-slate-400">Без предупреждения</p>
+                  <p className="text-lg font-bold text-orange-600 dark:text-orange-400">{teacher.missedNoNoticeCount}</p>
+                  <p className="text-[11px] text-muted-foreground">Без предупреждения</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-lg font-bold text-slate-700">{teacher.totalHours.toFixed(1)}</p>
-                  <p className="text-[11px] text-slate-400">Часов</p>
+                  <p className="text-lg font-bold text-foreground">{teacher.totalHours.toFixed(1)}</p>
+                  <p className="text-[11px] text-muted-foreground">Часов</p>
                 </div>
               </div>
             )}
 
             {teacher.paidLessons.length === 0 && (
-              <p className="text-xs text-slate-400 mt-3 text-center">Нет проведённых уроков за этот месяц</p>
+              <p className="text-xs text-muted-foreground mt-3 text-center">Нет проведённых уроков за этот месяц</p>
             )}
-          </div>
+          </Card>
         ))}
       </div>
 
-      <div className="bg-slate-50 rounded-xl p-4 text-xs text-slate-500">
+      <div className="bg-muted rounded-xl p-4 text-xs text-muted-foreground">
         <p className="font-medium mb-1">Примечание</p>
         <p>Зарплата начисляется за уроки со статусом «Проведено» и «Пропущено без предупреждения».</p>
         <p>Формула: ставка (BYN/час) × продолжительность урока (часы).</p>

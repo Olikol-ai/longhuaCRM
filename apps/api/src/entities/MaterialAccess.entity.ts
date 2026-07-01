@@ -9,7 +9,7 @@ import {
 
 export type GrantedByRole = 'ADMIN' | 'TEACHER';
 
-@Index('IDX_MATERIAL_ACCESS_USER_MATERIAL_ROLE', ['userId', 'materialId', 'grantedByRole'], {
+@Index('IDX_MATERIAL_ACCESS_USER_MATERIAL', ['userId', 'materialId'], {
   unique: true,
 })
 @Entity('material_access')

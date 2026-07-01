@@ -35,7 +35,7 @@ import {
   
     @Index('IDX_STUDENT_ASSIGNED_TEACHER')
     @Column({ name: 'assigned_teacher', type: 'uuid', nullable: true })
-    assignedTeacher: string;
+    assignedTeacher: string | null;
   
     @Column({ name: 'lesson_balance', type: 'int', default: 0 })
     lessonBalance: number;

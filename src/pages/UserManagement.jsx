@@ -11,6 +11,20 @@ import StudentFormDialog from "@/components/students/StudentFormDialog";
 import TeacherFormDialog from "@/components/teachers/TeacherFormDialog";
 import TeacherDetailModal from "@/components/teachers/TeacherDetailModal";
 import DeleteConfirmModal from "@/components/common/DeleteConfirmModal";
+import { toast } from "@/components/ui/use-toast";
+
+function showOrphanStudentsNotice(result) {
+  const orphans = result?.orphanStudents;
+  if (!Array.isArray(orphans) || orphans.length === 0) return;
+  const names = orphans.map((s) => s.name).filter(Boolean);
+  const preview = names.slice(0, 5).join(", ");
+  const more = names.length > 5 ? ` и ещё ${names.length - 5}` : "";
+  toast({
+    title: "Есть ученики без преподавателя",
+    description: `${orphans.length}: ${preview}${more}`,
+    variant: "destructive",
+  });
+}
 
 const ROLE_CONFIG = {
   admin:   { label: "Администратор", bg: "bg-violet-100", text: "text-violet-700", dot: "bg-violet-500", icon: Shield },
@@ -26,6 +40,36 @@ function displayRole(role) {
 }
 
 const ALL_ROLE_OPTIONS = ["admin", "teacher", "student", "pending", "user"];
+
+/** Profiles visible in Students tab: active + linked user has student role (or no linked account). */
+function visibleStudents(students, users) {
+  const roleByUserId = new Map(users.map((u) => [u.id, displayRole(u.role)]));
+  const seenUserIds = new Set();
+  return students.filter((s) => {
+    if (s.status === "inactive") return false;
+    if (!s.user_id) return true;
+    const role = roleByUserId.get(s.user_id);
+    if (role !== "student") return false;
+    if (seenUserIds.has(s.user_id)) return false;
+    seenUserIds.add(s.user_id);
+    return true;
+  });
+}
+
+/** Profiles visible in Teachers tab: active + linked user has teacher role (or no linked account). */
+function visibleTeachers(teachers, users) {
+  const roleByUserId = new Map(users.map((u) => [u.id, displayRole(u.role)]));
+  const seenUserIds = new Set();
+  return teachers.filter((t) => {
+    if (t.status === "inactive") return false;
+    if (!t.user_id) return true;
+    const role = roleByUserId.get(t.user_id);
+    if (role !== "teacher") return false;
+    if (seenUserIds.has(t.user_id)) return false;
+    seenUserIds.add(t.user_id);
+    return true;
+  });
+}
 
 function RoleBadge({ role }) {
   const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.user;
@@ -134,41 +178,31 @@ function ConfirmDeleteModal({ user, onConfirm, onCancel }) {
 }
 
 // ─── Tab: Accounts ─────────────────────────────────────────────────────────────
-function AccountsTab() {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+function AccountsTab({ users, loading, onReload, onRoleChange }) {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [updating, setUpdating] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const all = await api.entities.User.list();
-      setUsers(all);
-    } catch (err) {
-      console.error('Failed to load users:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { load(); }, []);
-
   const changeRole = async (userId, newRole) => {
     setUpdating(userId);
-    await api.entities.User.update(userId, { role: newRole, status: 'active' });
-    await load();
+    await onRoleChange(userId, newRole);
     setUpdating(null);
   };
 
   const deleteUser = async (u) => {
     setUpdating(u.id);
     setDeleteConfirm(null);
-    await api.entities.User.delete(u.id);
-    await load();
-    setUpdating(null);
+    try {
+      const result = await api.entities.User.delete(u.id);
+      showOrphanStudentsNotice(result);
+      await onReload();
+    } catch (err) {
+      console.error("Failed to delete user:", err);
+      alert(err?.message || "Не удалось удалить пользователя");
+    } finally {
+      setUpdating(null);
+    }
   };
 
   const FILTER_TABS = [
@@ -308,11 +342,8 @@ function AccountsTab() {
 }
 
 // ─── Tab: Students ─────────────────────────────────────────────────────────────
-function StudentsTab() {
-  const [students, setStudents] = useState([]);
-  const [teachers, setTeachers] = useState([]);
+function StudentsTab({ students, teachers, loading, onReload }) {
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editStudent, setEditStudent] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -325,44 +356,20 @@ function StudentsTab() {
   };
   const STATUS_LABEL = { active: "Активен", inactive: "Неактивен", paused: "Пауза" };
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const [s, t] = await Promise.all([
-        api.entities.Student.list("-created_date"),
-        api.entities.Teacher.list(),
-      ]);
-      setStudents(s);
-      setTeachers(t);
-    } catch (err) {
-      console.error('Failed to load students:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { loadData(); }, []);
-
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    const [lessons, payments, courses] = await Promise.all([
-      api.entities.Lesson.filter({ student_id: deleteTarget.id }),
-      api.entities.Payment.filter({ student_id: deleteTarget.id }),
-      api.entities.Course.filter({ student_id: deleteTarget.id }),
-    ]);
-    await Promise.all([
-      ...lessons.map(l => api.entities.Lesson.delete(l.id)),
-      ...payments.map(p => api.entities.Payment.delete(p.id)),
-      ...courses.map(c => api.entities.Course.delete(c.id)),
-    ]);
-    if (deleteTarget.user_id) {
-      await api.entities.Student.update(deleteTarget.id, { user_id: null }).catch(() => {});
+    try {
+      const result = await api.entities.Student.delete(deleteTarget.id);
+      showOrphanStudentsNotice(result);
+      setDeleteTarget(null);
+      await onReload();
+    } catch (err) {
+      console.error("Failed to delete student:", err);
+      alert(err?.message || "Не удалось удалить ученика");
+    } finally {
+      setDeleting(false);
     }
-    await api.entities.Student.delete(deleteTarget.id);
-    setDeleteTarget(null);
-    setDeleting(false);
-    loadData();
   };
 
   const getTeacherName = (id) => teachers.find(t => t.id === id)?.name || "—";
@@ -464,43 +471,24 @@ function StudentsTab() {
           loading={deleting}
         />
       )}
-      <StudentFormDialog open={showForm} onOpenChange={setShowForm} student={editStudent} onSave={loadData} />
+      <StudentFormDialog open={showForm} onOpenChange={setShowForm} student={editStudent} onSave={onReload} />
     </div>
   );
 }
 
 // ─── Tab: Teachers ─────────────────────────────────────────────────────────────
-function TeachersTab() {
-  const [teachers, setTeachers] = useState([]);
-  const [students, setStudents] = useState([]);
+function TeachersTab({ teachers, students, loading, onReload }) {
   const [lessons, setLessons] = useState([]);
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editTeacher, setEditTeacher] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [viewTeacher, setViewTeacher] = useState(null);
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const [t, s, l] = await Promise.all([
-        api.entities.Teacher.list("-created_date"),
-        api.entities.Student.list(),
-        api.entities.Lesson.list(),
-      ]);
-      setTeachers(t);
-      setStudents(s);
-      setLessons(l);
-    } catch (err) {
-      console.error('Failed to load teachers:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    api.entities.Lesson.list().then(setLessons).catch(() => setLessons([]));
+  }, [teachers]);
 
   const hasActiveLessons = (id) => lessons.some(l => l.teacher_id === id && l.status === "planned");
 
@@ -512,13 +500,17 @@ function TeachersTab() {
       return;
     }
     setDeleting(true);
-    if (deleteTarget.user_id) {
-      await api.entities.Teacher.update(deleteTarget.id, { user_id: null }).catch(() => {});
+    try {
+      const result = await api.entities.Teacher.delete(deleteTarget.id);
+      showOrphanStudentsNotice(result);
+      setDeleteTarget(null);
+      await onReload();
+    } catch (err) {
+      console.error("Failed to delete teacher:", err);
+      alert(err?.message || "Не удалось удалить преподавателя");
+    } finally {
+      setDeleting(false);
     }
-    await api.entities.Teacher.delete(deleteTarget.id);
-    setDeleteTarget(null);
-    setDeleting(false);
-    loadData();
   };
 
   const getStudentCount = (id) => students.filter(s => s.assigned_teacher === id && s.status === "active").length;
@@ -621,7 +613,7 @@ function TeachersTab() {
           onClose={() => setViewTeacher(null)}
         />
       )}
-      <TeacherFormDialog open={showForm} onOpenChange={setShowForm} teacher={editTeacher} onSave={loadData} />
+      <TeacherFormDialog open={showForm} onOpenChange={setShowForm} teacher={editTeacher} onSave={onReload} />
     </div>
   );
 }
@@ -635,6 +627,40 @@ const TABS = [
 
 export default function UserManagement() {
   const [activeTab, setActiveTab] = useState("accounts");
+  const [users, setUsers] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadAll = async () => {
+    setLoading(true);
+    try {
+      const [u, s, t] = await Promise.all([
+        api.entities.User.list(),
+        api.entities.Student.list("-created_date"),
+        api.entities.Teacher.list("-created_date"),
+      ]);
+      setUsers(u);
+      setStudents(s);
+      setTeachers(t);
+    } catch (err) {
+      console.error("Failed to load user management data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAll();
+  }, []);
+
+  const handleRoleChange = async (userId, newRole) => {
+    await api.entities.User.update(userId, { role: newRole, status: "active" });
+    await loadAll();
+  };
+
+  const displayStudents = visibleStudents(students, users);
+  const displayTeachers = visibleTeachers(teachers, users);
 
   return (
     <div className="p-6 lg:p-8 max-w-6xl mx-auto">
@@ -657,9 +683,30 @@ export default function UserManagement() {
         })}
       </div>
 
-      {activeTab === "accounts" && <AccountsTab />}
-      {activeTab === "students" && <StudentsTab />}
-      {activeTab === "teachers" && <TeachersTab />}
+      {activeTab === "accounts" && (
+        <AccountsTab
+          users={users}
+          loading={loading}
+          onReload={loadAll}
+          onRoleChange={handleRoleChange}
+        />
+      )}
+      {activeTab === "students" && (
+        <StudentsTab
+          students={displayStudents}
+          teachers={displayTeachers}
+          loading={loading}
+          onReload={loadAll}
+        />
+      )}
+      {activeTab === "teachers" && (
+        <TeachersTab
+          teachers={displayTeachers}
+          students={displayStudents}
+          loading={loading}
+          onReload={loadAll}
+        />
+      )}
     </div>
   );
 }
