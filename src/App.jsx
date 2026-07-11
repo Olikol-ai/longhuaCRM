@@ -114,6 +114,7 @@ function App() {
           <Router>
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path={ONBOARDING_PATH} element={<PendingApproval />} />
               <Route path="*" element={<AuthenticatedApp />} />
             </Routes>
           </Router>

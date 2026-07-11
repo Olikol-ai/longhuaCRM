@@ -34,12 +34,12 @@ export default function Login() {
         navigate(resolveRedirect(sessionUser), { replace: true });
       } else {
         const result = await api.auth.register(email.trim(), password, firstName.trim(), lastName.trim());
+        sessionStorage.setItem('longhua_pending_registration_email', result.email || email.trim());
         sessionStorage.setItem(
           'longhua_verification_email_sent',
           result.email_sent ? '1' : '0',
         );
         sessionStorage.removeItem('longhua_verification_code');
-        await establishSession({ force: true });
         navigate('/auth/pending-approval', { replace: true });
       }
     } catch (err) {
@@ -140,12 +140,6 @@ export default function Login() {
               )}
             </Button>
           </form>
-
-          {mode === 'login' && (
-            <p className="text-xs text-center text-slate-400">
-              Администратор по умолчанию: admin@longhua.local / admin123
-            </p>
-          )}
         </div>
       </div>
     </div>

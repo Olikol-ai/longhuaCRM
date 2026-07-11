@@ -21,6 +21,8 @@ import { MaterialsEnhancements1730000000015 } from './migrations/1730000000015-M
 import { DataIntegrityRepair1730000000016 } from './migrations/1730000000016-DataIntegrityRepair';
 import { ProductionHardening1730000000017 } from './migrations/1730000000017-ProductionHardening';
 import { UnifyMaterialAccess1730000000018 } from './migrations/1730000000018-UnifyMaterialAccess';
+import { VerificationCodeHardening1730000000019 } from './migrations/1730000000019-VerificationCodeHardening';
+import { PendingRegistration1730000000020 } from './migrations/1730000000020-PendingRegistration';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -45,6 +47,8 @@ export default new DataSource({
     DataIntegrityRepair1730000000016,
     ProductionHardening1730000000017,
     UnifyMaterialAccess1730000000018,
+    VerificationCodeHardening1730000000019,
+    PendingRegistration1730000000020,
   ],
   synchronize: false,
 });

@@ -80,25 +80,61 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
+  MAIL_HOST?: string;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  MAIL_PORT?: number;
+
+  @IsBoolean()
+  @IsOptional()
+  MAIL_SECURE?: boolean;
+
+  @IsString()
+  @IsOptional()
+  MAIL_USER?: string;
+
+  @IsString()
+  @IsOptional()
+  MAIL_PASS?: string;
+
+  @IsString()
+  @IsOptional()
+  MAIL_FROM?: string;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  PENDING_REGISTRATION_TTL_HOURS?: number;
+
+  /** @deprecated Use MAIL_* variables */
+  @IsString()
+  @IsOptional()
   SMTP_HOST?: string;
 
+  /** @deprecated Use MAIL_* variables */
   @IsInt()
   @Min(1)
   @IsOptional()
   SMTP_PORT?: number;
 
+  /** @deprecated Use MAIL_* variables */
   @IsBoolean()
   @IsOptional()
   SMTP_SECURE?: boolean;
 
+  /** @deprecated Use MAIL_* variables */
   @IsString()
   @IsOptional()
   SMTP_USER?: string;
 
+  /** @deprecated Use MAIL_* variables */
   @IsString()
   @IsOptional()
   SMTP_PASS?: string;
 
+  /** @deprecated Use MAIL_* variables */
   @IsString()
   @IsOptional()
   SMTP_FROM?: string;

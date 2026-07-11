@@ -74,6 +74,8 @@ export class UsersController {
     ) {
       row.status = 'active';
       row.verificationCode = null;
+      row.verificationCodeExpiresAt = null;
+      row.verificationCodeSentAt = null;
       row.verificationAttempts = 0;
     }
 

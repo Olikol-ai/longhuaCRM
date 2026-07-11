@@ -18,11 +18,20 @@ export class UserEntity {
   @Column({ default: 'pending' })
   status: string;
 
+  @Column({ name: 'email_verified', default: false })
+  emailVerified: boolean;
+
   @Column({ name: 'verification_code', type: 'text', nullable: true })
   verificationCode: string | null;
 
   @Column({ name: 'verification_attempts', type: 'int', default: 0 })
   verificationAttempts: number;
+
+  @Column({ name: 'verification_code_expires_at', type: 'timestamptz', nullable: true })
+  verificationCodeExpiresAt: Date | null;
+
+  @Column({ name: 'verification_code_sent_at', type: 'timestamptz', nullable: true })
+  verificationCodeSentAt: Date | null;
 
   @Column({ name: 'first_name', default: '' })
   firstName: string;

@@ -47,9 +47,11 @@ export async function apiFetch(path, options = {}) {
   }
 
   if (!res.ok) {
-    const err = new Error(data.message || data.error || 'Request failed');
+    const payload = typeof data.message === 'object' && data.message !== null ? data.message : data;
+    const err = new Error(payload.message || data.error || 'Request failed');
     err.status = res.status;
-    err.data = data;
+    err.data = payload;
+    err.retryAfter = payload.retryAfter ?? data.retryAfter;
     throw err;
   }
   return data;

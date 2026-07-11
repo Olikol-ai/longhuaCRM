@@ -4,6 +4,7 @@ import { LessonMaterialLinkEntity } from './LessonMaterialLink.entity';
 import { LessonMaterialTagEntity } from './LessonMaterialTag.entity';
 import { LessonSeriesStudentEntity } from './LessonSeriesStudent.entity';
 import { LessonSeriesExclusionEntity } from './LessonSeriesExclusion.entity';
+import { PendingRegistrationEntity } from './pending-registration.entity';
 import { UserEntity } from './user.entity';
 import {
   StudentEntity,
@@ -27,11 +28,13 @@ import {
   WelcomePageSettingEntity,
 } from './crm.entities';
 
+export * from './pending-registration.entity';
 export * from './user.entity';
 export * from './crm.entities';
 
 export const ALL_ENTITIES = [
   AuditLogEntity,
+  PendingRegistrationEntity,
   UserEntity,
   StudentEntity,
   TeacherEntity,

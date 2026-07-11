@@ -22,6 +22,7 @@ export const auth = {
   },
   logout() {
     setToken(null);
+    sessionStorage.removeItem('longhua_pending_registration_email');
     window.location.href = '/login';
   },
   redirectToLogin(redirectUrl) {
@@ -46,9 +47,22 @@ export const auth = {
         last_name: lastName,
       }),
     });
-    setToken(result.token);
+    return result;
+  },
+  async verifyRegistration(email, code) {
+    const result = await apiFetch('/auth/verify-registration', {
+      method: 'POST',
+      body: JSON.stringify({ email, code }),
+    });
     return flattenAuthResult(result);
   },
+  async resendRegistrationCode(email) {
+    return apiFetch('/auth/resend-registration-code', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+  /** @deprecated Legacy flow */
   async verifyCode(code) {
     const result = await apiFetch('/auth/verify-code', {
       method: 'POST',
@@ -56,6 +70,7 @@ export const auth = {
     });
     return flattenAuthResult(result);
   },
+  /** @deprecated Legacy flow */
   async resendCode() {
     return apiFetch('/auth/resend-code', { method: 'POST' });
   },

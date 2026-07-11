@@ -10,7 +10,12 @@ export class RateLimitService {
   private readonly buckets = new Map<string, BucketEntry>();
 
   /** Returns true if allowed; throws 429 if limit exceeded. */
-  assertAllowed(key: string, maxAttempts: number, windowMs: number): void {
+  assertAllowed(
+    key: string,
+    maxAttempts: number,
+    windowMs: number,
+    message = 'Too many attempts',
+  ): void {
     const now = Date.now();
     const entry = this.buckets.get(key);
 
@@ -20,9 +25,13 @@ export class RateLimitService {
     }
 
     if (entry.count >= maxAttempts) {
-      const retryAfterSec = Math.ceil((entry.resetAt - now) / 1000);
+      const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
       throw new HttpException(
-        `Too many attempts. Retry in ${retryAfterSec}s.`,
+        {
+          success: false,
+          message,
+          retryAfter,
+        },
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }

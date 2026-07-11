@@ -1,13 +1,15 @@
 import { Body, Controller, Get, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { getClientIp } from '../../common/security/client-ip';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AuthService, JwtPayload } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResendRegistrationDto } from './dto/resend-registration.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { VerifyRegistrationDto } from './dto/verify-registration.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -23,15 +25,31 @@ export class AuthController {
     return this.authService.register(dto, getClientIp(req));
   }
 
-  @Post('verify-code')
-  @UseGuards(JwtAuthGuard)
-  verifyCode(@CurrentUser() user: JwtPayload, @Body() dto: VerifyCodeDto) {
-    return this.authService.verifyCode(user.sub, dto.code);
+  @Post('verify-registration')
+  verifyRegistration(@Body() dto: VerifyRegistrationDto, @Req() req: Request) {
+    return this.authService.verifyRegistration(dto.email, dto.code, getClientIp(req));
   }
 
+  @Post('resend-registration-code')
+  resendRegistrationCode(@Body() dto: ResendRegistrationDto) {
+    return this.authService.resendRegistrationCode(dto.email);
+  }
+
+  /** @deprecated Legacy endpoint for users created before PendingRegistration */
+  @Post('verify-code')
+  @UseGuards(JwtAuthGuard)
+  verifyCodeLegacy(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: VerifyCodeDto,
+    @Req() req: Request,
+  ) {
+    return this.authService.verifyCode(user.sub, dto.code, getClientIp(req));
+  }
+
+  /** @deprecated Legacy endpoint for users created before PendingRegistration */
   @Post('resend-code')
   @UseGuards(JwtAuthGuard)
-  resendCode(@CurrentUser() user: JwtPayload) {
+  resendCodeLegacy(@CurrentUser() user: JwtPayload) {
     return this.authService.resendVerificationCode(user.sub);
   }
 

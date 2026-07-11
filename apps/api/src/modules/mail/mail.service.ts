@@ -1,19 +1,42 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
+import { smtpTestEmail, verificationCodeEmail } from './mail.templates';
 
 export type MailSendResult = {
   sent: boolean;
   status: 'sent' | 'email_not_sent';
+  error?: string;
+};
+
+export type MailTestResult = {
+  success: boolean;
+  error?: string;
 };
 
 @Injectable()
-export class MailService {
+export class MailService implements OnModuleInit {
   private readonly logger = new Logger(MailService.name);
   private transporter: Transporter | null = null;
+  private verifyPromise: Promise<void> | null = null;
 
   constructor(private readonly config: ConfigService) {}
+
+  async onModuleInit(): Promise<void> {
+    if (!this.isConfigured()) {
+      this.logger.warn(
+        'Mail SMTP is not configured — set MAIL_HOST, MAIL_USER and MAIL_PASS in .env',
+      );
+      return;
+    }
+
+    try {
+      await this.ensureVerified();
+    } catch {
+      // ensureVerified already logs the full error
+    }
+  }
 
   isConfigured(): boolean {
     const host = this.config.get<string>('mail.host');
@@ -25,54 +48,137 @@ export class MailService {
   async sendVerificationCode(to: string, code: string): Promise<MailSendResult> {
     if (!this.isConfigured()) {
       this.logger.warn(
-        `[verification] SMTP not configured — code for ${to}: ${code}`,
+        `[verification] SMTP not configured — email to ${to} was not sent`,
       );
-      return { sent: false, status: 'email_not_sent' };
+      return { sent: false, status: 'email_not_sent', error: 'SMTP not configured' };
     }
 
-    const from = this.config.get<string>('mail.from') ?? this.config.get<string>('mail.user');
-    const subject = 'Код подтверждения — Longhua Chinese';
-    const text = [
-      'Здравствуйте!',
-      '',
-      'Вы зарегистрировались в Longhua Chinese.',
-      `Код подтверждения: ${code}`,
-      '',
-      'Введите этот код на странице подтверждения аккаунта.',
-      'Если вы не регистрировались — проигнорируйте это письмо.',
-    ].join('\n');
-    const html = `
-      <p>Здравствуйте!</p>
-      <p>Вы зарегистрировались в <strong>Longhua Chinese</strong>.</p>
-      <p>Код подтверждения:</p>
-      <p style="font-size:24px;font-weight:bold;letter-spacing:4px;">${code}</p>
-      <p>Введите этот код на странице подтверждения аккаунта.</p>
-      <p style="color:#666;font-size:13px;">Если вы не регистрировались — проигнорируйте это письмо.</p>
-    `.trim();
+    const template = verificationCodeEmail(code);
+    return this.sendMail(to, template.subject, template.text, template.html, 'verification');
+  }
+
+  async sendTestEmail(to: string): Promise<MailTestResult> {
+    if (!this.isConfigured()) {
+      const error = 'SMTP not configured (MAIL_HOST, MAIL_USER, MAIL_PASS required)';
+      this.logger.error(`[test] ${error}`);
+      return { success: false, error };
+    }
+
+    const template = smtpTestEmail();
+    const result = await this.sendMail(
+      to,
+      template.subject,
+      template.text,
+      template.html,
+      'test',
+    );
+
+    if (result.sent) {
+      return { success: true };
+    }
+
+    return { success: false, error: result.error ?? 'Unknown SMTP error' };
+  }
+
+  private async sendMail(
+    to: string,
+    subject: string,
+    text: string,
+    html: string,
+    context: string,
+  ): Promise<MailSendResult> {
+    const from = this.getFromAddress();
 
     try {
-      await this.getTransporter().sendMail({ from, to, subject, text, html });
-      this.logger.log(`Verification email sent to ${to}`);
+      await this.ensureVerified();
+      const info = await this.getTransporter().sendMail({ from, to, subject, text, html });
+      if (context === 'verification') {
+        this.logger.log(`Verification email sent to ${to}`);
+      } else {
+        this.logger.log(
+          `[${context}] Email sent to ${to} (messageId=${info.messageId ?? 'n/a'})`,
+        );
+      }
       return { sent: true, status: 'sent' };
     } catch (error) {
-      this.logger.error(`Failed to send verification email to ${to}`, error as Error);
-      this.logger.warn(`[verification] fallback log for ${to}: ${code}`);
-      return { sent: false, status: 'email_not_sent' };
+      const errorMessage = this.logMailError(context, error);
+      return { sent: false, status: 'email_not_sent', error: errorMessage };
     }
+  }
+
+  private async ensureVerified(): Promise<void> {
+    if (!this.verifyPromise) {
+      this.verifyPromise = this.getTransporter()
+        .verify()
+        .then(() => {
+          this.logger.log('SMTP connection established');
+        })
+        .catch((error) => {
+          this.verifyPromise = null;
+          this.logMailError('SMTP verify', error);
+          throw error;
+        });
+    }
+
+    await this.verifyPromise;
+  }
+
+  private getFromAddress(): string {
+    return (
+      this.config.get<string>('mail.from') ??
+      this.config.get<string>('mail.user') ??
+      'Longhua Chinese <noreply@localhost>'
+    );
   }
 
   private getTransporter(): Transporter {
     if (!this.transporter) {
+      const host = this.config.get<string>('mail.host');
+      const port = this.config.get<number>('mail.port');
+      const secure = this.config.get<boolean>('mail.secure');
+      const user = this.config.get<string>('mail.user');
+      const pass = this.config.get<string>('mail.pass');
+
+      this.logger.log(
+        `Creating SMTP transporter: host=${host} port=${port} secure=${secure} user=${user}`,
+      );
+
       this.transporter = nodemailer.createTransport({
-        host: this.config.get<string>('mail.host'),
-        port: this.config.get<number>('mail.port'),
-        secure: this.config.get<boolean>('mail.secure'),
-        auth: {
-          user: this.config.get<string>('mail.user'),
-          pass: this.config.get<string>('mail.pass'),
-        },
+        host,
+        port,
+        secure,
+        auth: { user, pass },
       });
     }
+
     return this.transporter;
+  }
+
+  private logMailError(context: string, error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+
+    this.logger.error(`[${context}] ${message}`);
+    if (stack) {
+      this.logger.error(stack);
+    }
+
+    if (error && typeof error === 'object' && 'response' in error) {
+      const smtpResponse = (error as { response?: string }).response;
+      if (smtpResponse) {
+        this.logger.error(`[${context}] SMTP response: ${smtpResponse}`);
+      }
+    }
+
+    if (error && typeof error === 'object' && 'responseCode' in error) {
+      const code = (error as { responseCode?: number }).responseCode;
+      if (code != null) {
+        this.logger.error(`[${context}] SMTP responseCode: ${code}`);
+      }
+    }
+
+    console.error(`[MailService:${context}]`, error);
+
+    return stack ? `${message}\n${stack}` : message;
   }
 }

@@ -33,11 +33,14 @@ export default () => ({
   serveFrontend: process.env.SERVE_FRONTEND !== 'false',
   appPublicUrl: process.env.APP_PUBLIC_URL,
   mail: {
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT ?? '587', 10),
-    secure: process.env.SMTP_SECURE === 'true',
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-    from: process.env.SMTP_FROM,
+    host: process.env.MAIL_HOST ?? process.env.SMTP_HOST,
+    port: parseInt(process.env.MAIL_PORT ?? process.env.SMTP_PORT ?? '465', 10),
+    secure: (process.env.MAIL_SECURE ?? process.env.SMTP_SECURE ?? 'true') === 'true',
+    user: process.env.MAIL_USER ?? process.env.SMTP_USER,
+    pass: process.env.MAIL_PASS ?? process.env.SMTP_PASS ?? '',
+    from: process.env.MAIL_FROM ?? process.env.SMTP_FROM,
+  },
+  pendingRegistration: {
+    ttlHours: parseInt(process.env.PENDING_REGISTRATION_TTL_HOURS ?? '24', 10),
   },
 });
