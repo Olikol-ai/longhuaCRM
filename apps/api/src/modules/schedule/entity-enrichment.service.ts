@@ -2,9 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { EntityName } from '../../common/constants/entity-names';
-import { LessonMaterialTagEntity } from '../../entities/LessonMaterialTag.entity';
-import { LessonSeriesStudentEntity } from '../../entities/LessonSeriesStudent.entity';
-import { TeacherAvailabilitySlotEntity } from '../../entities/TeacherAvailabilitySlot.entity';
+import { LessonMaterialTagEntity } from '../../entities/lesson-material-tag.entity';
+import { LessonSeriesStudentEntity } from '../../entities/lesson-series-student.entity';
+import { TeacherAvailabilitySlotEntity } from '../../entities/teacher-availability-slot.entity';
 import { LessonRepositoryService } from './lesson-repository.service';
 
 @Injectable()

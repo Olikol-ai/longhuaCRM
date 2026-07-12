@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { StudentEntity } from '../../entities/Student.entity';
-import { TeacherEntity } from '../../entities/Teacher.entity';
+import { StudentEntity } from '../../entities/student.entity';
+import { TeacherEntity } from '../../entities/teacher.entity';
 
 export interface UserProfileSnapshot {
   studentProfileId: string | null;

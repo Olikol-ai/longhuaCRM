@@ -1,7 +1,7 @@
 import { useAuth } from "@/lib/AuthContext";
 import { AuthLoadingScreen, isValidDashboardRole, shouldBlockProtectedUI } from "@/lib/auth-gate";
 import AdminDashboard from "@/components/dashboard/AdminDashboard";
-import TeacherDashboard from "@/components/dashboard/TeacherDashboard";
+import TeacherRoleDashboard from "@/components/dashboard/TeacherRoleDashboard";
 
 export default function Dashboard() {
   const auth = useAuth();
@@ -24,7 +24,7 @@ export default function Dashboard() {
   }
 
   if (user.role === "admin") return <AdminDashboard user={user} />;
-  if (user.role === "teacher") return <TeacherDashboard user={user} />;
+  if (user.role === "teacher") return <TeacherRoleDashboard user={user} />;
 
   return (
     <div className="flex flex-col items-center justify-center h-full py-24 gap-4 px-6">

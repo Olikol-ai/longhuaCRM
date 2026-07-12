@@ -9,7 +9,7 @@ import { createReadStream, existsSync } from 'fs';
 import { basename, join, normalize } from 'path';
 import { Repository } from 'typeorm';
 import { normalizeRole } from '../../common/constants/roles';
-import { LessonMaterialEntity } from '../../entities/LessonMaterial.entity';
+import { LessonMaterialEntity } from '../../entities/lesson-material.entity';
 import { MaterialAccessCheckService } from '../entities/material-access-check.service';
 import { SignedFilePayload, SignedFileUrlService } from './signed-file-url.service';
 

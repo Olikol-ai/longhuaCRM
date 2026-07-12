@@ -6,9 +6,9 @@ import {
 import { InjectDataSource } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { DataSource, EntityManager, Repository } from 'typeorm';
-import { PaymentEntity } from '../../entities/Payment.entity';
-import { StudentEntity } from '../../entities/Student.entity';
-import { CourseEntity } from '../../entities/Course.entity';
+import { PaymentEntity } from '../../entities/payment.entity';
+import { StudentEntity } from '../../entities/student.entity';
+import { CourseEntity } from '../../entities/course.entity';
 import { AuditService } from '../audit/audit.service';
 import { paymentToRecord, recordToPaymentPayload } from './payment.mapper';
 

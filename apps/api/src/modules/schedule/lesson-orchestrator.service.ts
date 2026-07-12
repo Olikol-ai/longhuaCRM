@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
-import { LessonEntity } from '../../entities/Lesson.entity';
+import { LessonEntity } from '../../entities/lesson.entity';
 import { EntityAccessContext } from '../entities/entity-access.types';
 import { StudentBalanceService } from '../students/student-balance.service';
 import { LessonRepositoryService } from './lesson-repository.service';

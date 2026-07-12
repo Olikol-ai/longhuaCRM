@@ -6,11 +6,11 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import { GrantedByRole, MaterialAccessEntity } from '../../entities/MaterialAccess.entity';
-import { CourseEntity } from '../../entities/Course.entity';
-import { LessonMaterialEntity } from '../../entities/LessonMaterial.entity';
-import { StudentEntity } from '../../entities/Student.entity';
-import { TeacherEntity } from '../../entities/Teacher.entity';
+import { GrantedByRole, MaterialAccessEntity } from '../../entities/material-access.entity';
+import { CourseEntity } from '../../entities/course.entity';
+import { LessonMaterialEntity } from '../../entities/lesson-material.entity';
+import { StudentEntity } from '../../entities/student.entity';
+import { TeacherEntity } from '../../entities/teacher.entity';
 import { EntityAccessContext } from './entity-access.types';
 import { MaterialAccessCheckService } from './material-access-check.service';
 import { MaterialAccessWriteService } from './material-access-write.service';

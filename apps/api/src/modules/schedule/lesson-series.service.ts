@@ -6,12 +6,12 @@ import {
 import { InjectDataSource } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { DataSource, EntityManager, In, QueryFailedError } from 'typeorm';
-import { LessonEntity } from '../../entities/Lesson.entity';
-import { LessonSeriesEntity } from '../../entities/LessonSeries.entity';
-import { LessonSeriesExclusionEntity } from '../../entities/LessonSeriesExclusion.entity';
-import { LessonSeriesStudentEntity } from '../../entities/LessonSeriesStudent.entity';
-import { StudentEntity } from '../../entities/Student.entity';
-import { TeacherEntity } from '../../entities/Teacher.entity';
+import { LessonEntity } from '../../entities/lesson.entity';
+import { LessonSeriesEntity } from '../../entities/lesson-series.entity';
+import { LessonSeriesExclusionEntity } from '../../entities/lesson-series-exclusion.entity';
+import { LessonSeriesStudentEntity } from '../../entities/lesson-series-student.entity';
+import { StudentEntity } from '../../entities/student.entity';
+import { TeacherEntity } from '../../entities/teacher.entity';
 import { addUtcDays, normalizeSeriesTime } from './lesson-series-date.util';
 
 export type RecurringLessonPrepareInput = {

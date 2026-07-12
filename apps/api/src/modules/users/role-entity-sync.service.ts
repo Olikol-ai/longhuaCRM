@@ -3,8 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
 import { entityToRecord, recordToEntityPayload } from '../../common/utils/record.util';
-import { StudentEntity } from '../../entities/Student.entity';
-import { TeacherEntity } from '../../entities/Teacher.entity';
+import { StudentEntity } from '../../entities/student.entity';
+import { TeacherEntity } from '../../entities/teacher.entity';
 import { UserEntity } from '../../entities/user.entity';
 
 export type RoleEntityUserContext = Pick<

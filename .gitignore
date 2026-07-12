@@ -2,6 +2,9 @@
 .env
 .env.*
 
+# Local MCP config (may contain DATABASE_URL credentials)
+.cursor/mcp.json
+
 # Logs
 logs
 *.log

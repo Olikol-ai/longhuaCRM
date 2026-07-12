@@ -20,6 +20,13 @@ import RoleRouteGuard, { RoleHomeRedirect, OnboardingFallback, RootRedirect } fr
 import { AdminRoute, TeacherRoute, StudentRoute } from '@/components/auth/AdminRoute';
 import { ONBOARDING_PATH } from '@/lib/routing';
 
+/**
+ * Route registration: see docs/frontend-routing.md
+ * - Public routes: /login, onboarding
+ * - pages.config Pages → /{PageName} with role guards below
+ * - Manual admin/teacher/student routes declared after the Pages map
+ */
+
 const { Pages, Layout } = pagesConfig;
 
 const LayoutWrapper = ({ children, currentPageName }) => {

@@ -3,10 +3,10 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { DataSource, EntityManager } from 'typeorm';
 import { entityToRecord, recordToEntityPayload } from '../../common/utils/record.util';
-import { LessonMaterialEntity } from '../../entities/LessonMaterial.entity';
-import { LessonMaterialTagEntity } from '../../entities/LessonMaterialTag.entity';
-import { TeacherAvailabilityEntity } from '../../entities/TeacherAvailability.entity';
-import { TeacherAvailabilitySlotEntity } from '../../entities/TeacherAvailabilitySlot.entity';
+import { LessonMaterialEntity } from '../../entities/lesson-material.entity';
+import { LessonMaterialTagEntity } from '../../entities/lesson-material-tag.entity';
+import { TeacherAvailabilityEntity } from '../../entities/teacher-availability.entity';
+import { TeacherAvailabilitySlotEntity } from '../../entities/teacher-availability-slot.entity';
 import { EntityEnrichmentService } from './entity-enrichment.service';
 import { CourseFolderService } from './course-folder.service';
 

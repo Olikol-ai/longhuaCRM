@@ -19,7 +19,7 @@ const statusBadge = {
   planned: "bg-sky-100 text-sky-600 dark:bg-sky-950/50 dark:text-sky-400",
 };
 
-export default function TeacherDashboard({ user }) {
+export default function TeacherRoleDashboard({ user }) {
   const [lessons, setLessons] = useState([]);
   const [teacher, setTeacher] = useState(null);
   const [loading, setLoading] = useState(true);

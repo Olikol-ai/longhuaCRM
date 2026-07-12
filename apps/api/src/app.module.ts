@@ -7,6 +7,7 @@ import { join } from 'path';
 import configuration from './config/configuration';
 import { validateEnv } from './config/env.validation';
 import { ALL_ENTITIES } from './entities';
+import { GuardsModule } from './common/guards/guards.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { MailModule } from './modules/mail/mail.module';
 import { AlfaBankModule } from './modules/alfabank/alfabank.module';
@@ -47,6 +48,7 @@ const serveFrontend = process.env.SERVE_FRONTEND !== 'false';
       }),
     }),
     ScheduleModule.forRoot(),
+    GuardsModule,
     SecureFilesModule,
     ...(serveFrontend
       ? [

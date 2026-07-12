@@ -12,8 +12,8 @@ import {
 } from '../../common/constants/entity-permissions';
 import { EntityName } from '../../common/constants/entity-names';
 import { normalizeRole } from '../../common/constants/roles';
-import { StudentEntity } from '../../entities/Student.entity';
-import { TeacherEntity } from '../../entities/Teacher.entity';
+import { StudentEntity } from '../../entities/student.entity';
+import { TeacherEntity } from '../../entities/teacher.entity';
 import { EntityAccessContext, OwnershipContext } from './entity-access.types';
 
 @Injectable()

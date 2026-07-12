@@ -1,4 +1,4 @@
-import { ShopItemEntity } from '../../entities/ShopItem.entity';
+import { ShopItemEntity } from '../../entities/shop-item.entity';
 
 export function shopItemToRecord(row: ShopItemEntity): Record<string, unknown> {
   return {

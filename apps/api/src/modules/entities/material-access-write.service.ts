@@ -5,7 +5,7 @@ import { Repository } from 'typeorm';
 import {
   GrantedByRole,
   MaterialAccessEntity,
-} from '../../entities/MaterialAccess.entity';
+} from '../../entities/material-access.entity';
 
 /**
  * Single source of truth for material access writes.

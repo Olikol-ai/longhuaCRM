@@ -1,4 +1,4 @@
-import { WelcomePageSettingEntity } from '../../entities/WelcomePageSetting.entity';
+import { WelcomePageSettingEntity } from '../../entities/welcome-page-setting.entity';
 
 export const WELCOME_PAGE_FIELDS = [
   'school_name',

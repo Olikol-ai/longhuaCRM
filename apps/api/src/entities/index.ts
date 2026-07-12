@@ -1,9 +1,9 @@
-import { AuditLogEntity } from './AuditLog.entity';
-import { TeacherAvailabilitySlotEntity } from './TeacherAvailabilitySlot.entity';
-import { LessonMaterialLinkEntity } from './LessonMaterialLink.entity';
-import { LessonMaterialTagEntity } from './LessonMaterialTag.entity';
-import { LessonSeriesStudentEntity } from './LessonSeriesStudent.entity';
-import { LessonSeriesExclusionEntity } from './LessonSeriesExclusion.entity';
+import { AuditLogEntity } from './audit-log.entity';
+import { TeacherAvailabilitySlotEntity } from './teacher-availability-slot.entity';
+import { LessonMaterialLinkEntity } from './lesson-material-link.entity';
+import { LessonMaterialTagEntity } from './lesson-material-tag.entity';
+import { LessonSeriesStudentEntity } from './lesson-series-student.entity';
+import { LessonSeriesExclusionEntity } from './lesson-series-exclusion.entity';
 import { PendingRegistrationEntity } from './pending-registration.entity';
 import { UserEntity } from './user.entity';
 import {

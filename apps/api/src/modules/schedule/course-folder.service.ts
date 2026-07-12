@@ -3,9 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { Repository, In } from 'typeorm';
 import { entityToRecord, recordToEntityPayload } from '../../common/utils/record.util';
-import { CourseEntity } from '../../entities/Course.entity';
-import { CourseFolderEntity } from '../../entities/CourseFolder.entity';
-import { LessonMaterialEntity } from '../../entities/LessonMaterial.entity';
+import { CourseEntity } from '../../entities/course.entity';
+import { CourseFolderEntity } from '../../entities/course-folder.entity';
+import { LessonMaterialEntity } from '../../entities/lesson-material.entity';
 
 @Injectable()
 export class CourseFolderService {

@@ -1,0 +1,17 @@
+---
+alwaysApply: true
+---
+
+Assume the user is not an experienced programmer.
+
+Whenever implementation is requested:
+
+- Always provide complete files instead of fragments.
+- Always provide exact file paths.
+- Always specify filenames.
+- Always explain where to insert code.
+- Never omit required imports.
+- Never use placeholders like "...existing code...".
+- Never skip implementation steps.
+- Explain every important change.
+- Finish the implementation completely before stopping.

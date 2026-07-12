@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import { MaterialAccessEntity } from '../../entities/MaterialAccess.entity';
+import { MaterialAccessEntity } from '../../entities/material-access.entity';
 import { EntityAccessContext } from './entity-access.types';
 
 @Injectable()

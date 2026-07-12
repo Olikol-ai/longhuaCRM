@@ -1,4 +1,4 @@
-import { PaymentEntity } from '../../entities/Payment.entity';
+import { PaymentEntity } from '../../entities/payment.entity';
 
 export function paymentToRecord(row: PaymentEntity): Record<string, unknown> {
   const paymentDate =

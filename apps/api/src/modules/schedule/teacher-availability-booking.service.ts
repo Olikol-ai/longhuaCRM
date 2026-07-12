@@ -2,7 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { DataSource, EntityManager } from 'typeorm';
-import { TeacherAvailabilityBookingEntity } from '../../entities/TeacherAvailabilityBooking.entity';
+import { TeacherAvailabilityBookingEntity } from '../../entities/teacher-availability-booking.entity';
 import { TeacherAvailabilityService } from './teacher-availability.service';
 
 export type LessonBookingInput = {

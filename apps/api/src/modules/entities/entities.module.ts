@@ -1,7 +1,6 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CRM_ENTITY_CLASSES } from '../../common/constants/entity-registry';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { AuditModule } from '../audit/audit.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { ScheduleModule } from '../schedule/schedule.module';
@@ -19,7 +18,15 @@ import { MaterialAccessManagementService } from './material-access-management.se
 import { MaterialAccessWriteService } from './material-access-write.service';
 
 @Module({
-  imports: [AuditModule, UsersModule, PaymentsModule, StudentsModule, ScheduleModule, SecureFilesModule, TypeOrmModule.forFeature(CRM_ENTITY_CLASSES)],
+  imports: [
+    AuditModule,
+    UsersModule,
+    PaymentsModule,
+    StudentsModule,
+    ScheduleModule,
+    forwardRef(() => SecureFilesModule),
+    TypeOrmModule.forFeature(CRM_ENTITY_CLASSES),
+  ],
   controllers: [EntitiesController, MaterialAccessController],
   providers: [
     EntityRepositoryService,
@@ -29,7 +36,6 @@ import { MaterialAccessWriteService } from './material-access-write.service';
     MaterialAccessWriteService,
     MaterialAccessGrantService,
     MaterialAccessManagementService,
-    RolesGuard,
   ],
   exports: [
     EntityRepositoryService,
@@ -39,7 +45,6 @@ import { MaterialAccessWriteService } from './material-access-write.service';
     MaterialAccessWriteService,
     MaterialAccessGrantService,
     MaterialAccessManagementService,
-    RolesGuard,
   ],
 })
 export class EntitiesModule {}

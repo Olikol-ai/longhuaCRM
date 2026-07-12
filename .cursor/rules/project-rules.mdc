@@ -2,24 +2,120 @@
 alwaysApply: true
 ---
 
-LonghuaCRM uses NestJS + PostgreSQL + TypeORM.
+# LonghuaCRM Project Rules
 
-Never introduce json_record or JSON storage for stable business entities.
+## Tech Stack
+
+- Backend: NestJS
+- ORM: TypeORM
+- Database: PostgreSQL
+- Language: TypeScript
+- Package manager: npm
+
+## Architecture
 
 Always preserve existing business logic.
 
-When modifying Entities, verify:
-- relations
-- repositories
-- services
-- controllers
+Never rewrite working functionality unless explicitly requested.
+
+Prefer incremental refactoring over large rewrites.
+
+Never introduce breaking changes without explaining them.
+
+Always follow NestJS best practices.
+
+Business logic belongs in Services.
+
+Controllers should remain thin.
+
+Use dependency injection.
+
+Never duplicate business logic.
+
+## Database
+
+Never introduce json_record or JSON/JSONB storage for stable business entities.
+
+Always use relational entities.
+
+Every database schema change must include a TypeORM migration.
+
+Never enable synchronize=true.
+
+When modifying an Entity, always verify:
+
+- Entity relations
+- Repository
+- Service
+- Controller
 - DTOs
-- imports
-- migrations
+- Validation decorators
+- Imports
+- Migrations
 
-After every significant refactor:
+## Code Quality
+
+Always use strict typing.
+
+Avoid any unless absolutely unavoidable.
+
+Reuse existing services whenever possible.
+
+Remove dead code after refactoring.
+
+Do not leave TODO or FIXME comments unless explicitly requested.
+
+## Validation
+
+Validate every incoming DTO.
+
+Use class-validator decorators.
+
+Never trust client input.
+
+## Error Handling
+
+Use NestJS exceptions.
+
+Provide meaningful error messages.
+
+Avoid silent failures.
+
+## Security
+
+Never generate SQL vulnerable to injection.
+
+Never expose secrets.
+
+Always validate external input.
+
+Escape user-controlled values where appropriate.
+
+## Refactoring
+
+When changing one module, check for affected modules.
+
+Update imports automatically.
+
+Fix all compilation errors.
+
+Do not stop after the first error.
+
+## Build
+
+After every significant change:
+
 1. Run npm run build
-2. Fix compilation errors
-3. Continue until the project builds successfully.
+2. Fix every compilation error
+3. Repeat until the project builds successfully
 
-Never stop after the first error.
+Do not finish the task while the project does not compile.
+
+## Response Style
+
+When making architectural changes:
+
+- explain why
+- explain trade-offs
+- keep changes minimal
+- preserve backward compatibility whenever possible

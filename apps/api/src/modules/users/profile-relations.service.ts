@@ -5,16 +5,16 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, IsNull } from 'typeorm';
-import { AlfaBankOrderEntity } from '../../entities/alfaBankOrder.entity';
-import { CourseEntity } from '../../entities/Course.entity';
-import { LessonEntity } from '../../entities/Lesson.entity';
-import { LessonSeriesStudentEntity } from '../../entities/LessonSeriesStudent.entity';
-import { LessonStudentEntity } from '../../entities/LessonStudent.entity';
-import { PaymentEntity } from '../../entities/Payment.entity';
-import { ScheduleSlotEntity } from '../../entities/ScheduleSlot.entity';
-import { StudentEntity } from '../../entities/Student.entity';
-import { TeacherEntity } from '../../entities/Teacher.entity';
-import { TeacherPaymentEntity } from '../../entities/TeacherPayment.entity';
+import { AlfaBankOrderEntity } from '../../entities/alfabank-order.entity';
+import { CourseEntity } from '../../entities/course.entity';
+import { LessonEntity } from '../../entities/lesson.entity';
+import { LessonSeriesStudentEntity } from '../../entities/lesson-series-student.entity';
+import { LessonStudentEntity } from '../../entities/lesson-student.entity';
+import { PaymentEntity } from '../../entities/payment.entity';
+import { ScheduleSlotEntity } from '../../entities/schedule-slot.entity';
+import { StudentEntity } from '../../entities/student.entity';
+import { TeacherEntity } from '../../entities/teacher.entity';
+import { TeacherPaymentEntity } from '../../entities/teacher-payment.entity';
 
 export interface OrphanStudentRecord {
   id: string;

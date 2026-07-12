@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
-import { LessonEntity } from '../../entities/Lesson.entity';
-import { LessonStudentEntity } from '../../entities/LessonStudent.entity';
-import { StudentEntity } from '../../entities/Student.entity';
+import { LessonEntity } from '../../entities/lesson.entity';
+import { LessonStudentEntity } from '../../entities/lesson-student.entity';
+import { StudentEntity } from '../../entities/student.entity';
 
 const BALANCE_DEDUCT_STATUSES = new Set(['completed', 'missed_no_notice']);
 

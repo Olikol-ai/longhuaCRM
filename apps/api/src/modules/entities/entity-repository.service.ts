@@ -21,9 +21,9 @@ import {
   recordToEntityPayload,
   sortRecords,
 } from '../../common/utils/record.util';
-import { PaymentEntity } from '../../entities/Payment.entity';
-import { ShopItemEntity } from '../../entities/ShopItem.entity';
-import { WelcomePageSettingEntity } from '../../entities/WelcomePageSetting.entity';
+import { PaymentEntity } from '../../entities/payment.entity';
+import { ShopItemEntity } from '../../entities/shop-item.entity';
+import { WelcomePageSettingEntity } from '../../entities/welcome-page-setting.entity';
 import { paymentToRecord } from '../payments/payment.mapper';
 import { recordToShopItemPayload, shopItemToRecord } from '../shop/shop.mapper';
 import { welcomeRowsToRecord } from '../welcome/welcome.mapper';

@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import { TeacherAvailabilitySlotEntity } from '../../entities/TeacherAvailabilitySlot.entity';
-import { TeacherEntity } from '../../entities/Teacher.entity';
+import { TeacherAvailabilitySlotEntity } from '../../entities/teacher-availability-slot.entity';
+import { TeacherEntity } from '../../entities/teacher.entity';
 
 export type AvailabilitySlot = {
   day: number;

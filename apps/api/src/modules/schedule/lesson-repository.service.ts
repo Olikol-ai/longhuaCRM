@@ -3,10 +3,10 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { DataSource, EntityManager, QueryFailedError } from 'typeorm';
 import { entityToRecord, recordToEntityPayload } from '../../common/utils/record.util';
-import { LessonEntity } from '../../entities/Lesson.entity';
-import { LessonMaterialLinkEntity } from '../../entities/LessonMaterialLink.entity';
-import { LessonStudentEntity } from '../../entities/LessonStudent.entity';
-import { StudentEntity } from '../../entities/Student.entity';
+import { LessonEntity } from '../../entities/lesson.entity';
+import { LessonMaterialLinkEntity } from '../../entities/lesson-material-link.entity';
+import { LessonStudentEntity } from '../../entities/lesson-student.entity';
+import { StudentEntity } from '../../entities/student.entity';
 
 @Injectable()
 export class LessonRepositoryService {

@@ -1,6 +1,10 @@
 /**
- * pages.config.js - Page routing configuration
- * 
+ * pages.config.js — Page registry for auto-generated routes in App.jsx.
+ *
+ * Routing source of truth: see docs/frontend-routing.md
+ * - Role-based and manual routes live in App.jsx
+ * - Path helpers and guards live in lib/routing.js
+ *
  * This file is AUTO-GENERATED. Do not add imports or modify PAGES manually.
  * Pages are auto-registered when you create files in the ./pages/ folder.
  * 

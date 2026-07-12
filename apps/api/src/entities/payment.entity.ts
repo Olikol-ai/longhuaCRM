@@ -8,7 +8,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { StudentEntity } from './Student.entity';
+import { StudentEntity } from './student.entity';
 
 export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded';
 export type PaymentProvider = 'alfa_bank' | 'cash' | 'manual';

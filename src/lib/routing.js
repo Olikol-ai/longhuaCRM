@@ -1,4 +1,5 @@
-/** Routing helpers — role-based paths after auth is fully resolved. */
+/** Routing helpers — role-based paths after auth is fully resolved.
+ *  See docs/frontend-routing.md for how this relates to App.jsx and pages.config.js */
 
 import { isValidDashboardRole } from './auth-gate';
 

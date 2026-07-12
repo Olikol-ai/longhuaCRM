@@ -1,0 +1,39 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"]
+    },
+    "postgres": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@yawlabs/postgres-mcp@latest"],
+      "env": {
+        "DATABASE_URL": "postgres://USER:PASSWORD@HOST:5432/DATABASE"
+      }
+    },
+    "playwright": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@playwright/mcp@latest"]
+    },
+    "chrome-devtools": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "chrome-devtools-mcp@latest", "--isolated=true"]
+    },
+    "github": {
+      "command": "gh",
+      "args": ["mcp"],
+      "env": {
+        "GITHUB_READ_ONLY": "1"
+      }
+    },
+    "MCP_DOCKER": {
+      "command": "docker",
+      "args": ["mcp", "gateway", "run", "--profile", "longhua_crm"],
+      "env": {
+        "LOCALAPPDATA": "C:\\Users\\ilyay\\AppData\\Local",
+        "ProgramData": "C:\\ProgramData",
+        "ProgramFiles": "C:\\Program Files"
+      }
+    }
+  }
+}
