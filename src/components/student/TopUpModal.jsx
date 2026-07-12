@@ -26,8 +26,8 @@ export default function TopUpModal({ onClose }) {
     }
 
     Promise.all([
-      api.entities.Student.filter({ user_id: user.id }),
-      api.entities.ShopSettings.list("sort_order"),
+      api.students.filter({ user_id: user.id }),
+      api.payments.shopItems.list("sort_order"),
     ]).then(([students, data]) => {
       setStudent(students[0]);
       setItems(data.filter((i) => i.is_active));

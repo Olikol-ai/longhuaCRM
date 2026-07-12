@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CreditCard, TrendingUp, DollarSign, Download, ShoppingBag, FileText, Settings, Send } from "lucide-react";
+import { CreditCard, TrendingUp, DollarSign, Download, ShoppingBag, FileText, Settings, Send, Users, Award, ClipboardCheck, CalendarRange } from "lucide-react";
 
 // Import content from existing pages (inline as tabs)
 import Payments from "./Payments";
@@ -10,11 +10,21 @@ import ShopSettingsAdmin from "./ShopSettingsAdmin";
 import WelcomePageEditor from "./WelcomePageEditor";
 import AdminSettings from "./AdminSettings";
 import TelegramSettings from "./TelegramSettings";
+import Groups from "./Groups";
+import Certificates from "./Certificates";
+import Attendance from "./Attendance";
+import TeacherPayments from "./TeacherPayments";
+import LessonSeriesAdmin from "./LessonSeriesAdmin";
 
 const TABS = [
   { id: "payments",   label: "Платежи",            icon: CreditCard },
   { id: "analytics",  label: "Аналитика",           icon: TrendingUp },
   { id: "salary",     label: "Зарплата",            icon: DollarSign },
+  { id: "teacherPayments", label: "Выплаты",        icon: DollarSign },
+  { id: "groups",     label: "Группы",              icon: Users },
+  { id: "certificates", label: "Сертификаты",       icon: Award },
+  { id: "attendance", label: "Посещаемость",        icon: ClipboardCheck },
+  { id: "lessonSeries", label: "Серии уроков",      icon: CalendarRange },
   { id: "export",     label: "Экспорт",             icon: Download },
   { id: "shop",       label: "Магазин",             icon: ShoppingBag },
   { id: "welcome",    label: "Страница встречи",    icon: FileText },
@@ -55,6 +65,11 @@ export default function AdminPanel() {
         {activeTab === "payments"      && <Payments />}
         {activeTab === "analytics"     && <Analytics />}
         {activeTab === "salary"        && <Salary />}
+        {activeTab === "teacherPayments" && <TeacherPayments />}
+        {activeTab === "groups"        && <Groups />}
+        {activeTab === "certificates"  && <Certificates />}
+        {activeTab === "attendance"    && <Attendance />}
+        {activeTab === "lessonSeries"  && <LessonSeriesAdmin />}
         {activeTab === "export"        && <ExportData />}
         {activeTab === "shop"          && <ShopSettingsAdmin />}
         {activeTab === "welcome"       && <WelcomePageEditor />}

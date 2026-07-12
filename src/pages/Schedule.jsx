@@ -33,9 +33,9 @@ export default function Schedule() {
     setError('');
     try {
       const [l, t, s] = await Promise.all([
-        api.entities.Lesson.list("-date", 500),
-        api.entities.Teacher.list(),
-        api.entities.Student.list(),
+        api.lessons.list("-date", 500),
+        api.teachers.list(),
+        api.students.list(),
       ]);
       setLessons(l);
       setTeachers(t);
@@ -58,12 +58,12 @@ export default function Schedule() {
     let cancelled = false;
     (async () => {
       try {
-        const [availabilityRecords, bookingRows] = await Promise.all([
-          api.entities.TeacherAvailability.filter({ teacher_id: selectedTeacherId }),
-          api.entities.TeacherAvailabilityBooking.filter({ teacher_id: selectedTeacherId }),
+        const [availability, bookingRows] = await Promise.all([
+          api.schedule.getTeacherAvailability(selectedTeacherId),
+          api.schedule.filterBookings({ teacher_id: selectedTeacherId }),
         ]);
         if (cancelled) return;
-        setAvailabilitySlots(availabilityRecords[0]?.slots || []);
+        setAvailabilitySlots(availability?.slots || []);
         setBookings(bookingRows.filter((row) => row.status === 'active'));
       } catch {
         if (!cancelled) {
@@ -90,7 +90,7 @@ export default function Schedule() {
   const handleSave = async (data, recurring) => {
     try {
       await createWeeklyLessonSeries(
-        (payload) => api.entities.Lesson.create(payload),
+        (payload) => api.lessons.create(payload),
         data,
         recurring,
       );
@@ -103,7 +103,7 @@ export default function Schedule() {
 
   const handleUpdate = async (id, data) => {
     try {
-      await api.entities.Lesson.update(id, data);
+      await api.lessons.update(id, data);
       setViewingLesson(null);
       await load();
     } catch (err) {
@@ -113,7 +113,7 @@ export default function Schedule() {
 
   const handleDelete = async (id) => {
     try {
-      await api.entities.Lesson.delete(id);
+      await api.lessons.delete(id);
       setViewingLesson(null);
       await load();
     } catch (err) {

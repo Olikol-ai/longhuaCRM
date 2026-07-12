@@ -5,16 +5,14 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, IsNull } from 'typeorm';
-import { AlfaBankOrderEntity } from '../../entities/alfabank-order.entity';
-import { CourseEntity } from '../../entities/course.entity';
-import { LessonEntity } from '../../entities/lesson.entity';
-import { LessonSeriesStudentEntity } from '../../entities/lesson-series-student.entity';
-import { LessonStudentEntity } from '../../entities/lesson-student.entity';
-import { PaymentEntity } from '../../entities/payment.entity';
-import { ScheduleSlotEntity } from '../../entities/schedule-slot.entity';
-import { StudentEntity } from '../../entities/student.entity';
-import { TeacherEntity } from '../../entities/teacher.entity';
-import { TeacherPaymentEntity } from '../../entities/teacher-payment.entity';
+import { AttendanceEntity } from '../lessons/entities/attendance.entity';
+import { LessonEntity } from '../lessons/entities/lesson.entity';
+import { EnrollmentEntity } from '../courses/entities/enrollment.entity';
+import { PaymentEntity } from '../payments/entities/payment.entity';
+import { SeriesStudentEntity } from '../schedule/entities/series-student.entity';
+import { AvailabilitySlotEntity } from '../schedule/entities/availability-slot.entity';
+import { StudentEntity } from '../students/entities/student.entity';
+import { TeacherEntity } from '../teachers/entities/teacher.entity';
 
 export interface OrphanStudentRecord {
   id: string;
@@ -33,7 +31,7 @@ export class ProfileRelationsService {
   async findOrphanStudents(): Promise<OrphanStudentRecord[]> {
     const rows = await this.dataSource.getRepository(StudentEntity).find({
       where: {
-        assignedTeacher: IsNull(),
+        assignedTeacherId: IsNull(),
         status: 'active',
       },
       order: { name: 'ASC' },
@@ -70,9 +68,7 @@ export class ProfileRelationsService {
         where: { teacherId, status: 'planned' },
       });
       if (plannedCount > 0) {
-        throw new BadRequestException(
-          'Cannot delete teacher with planned lessons',
-        );
+        throw new BadRequestException('Cannot delete teacher with planned lessons');
       }
 
       await this.unassignStudentsFromTeacher(manager, teacherId);
@@ -109,16 +105,14 @@ export class ProfileRelationsService {
   ): Promise<void> {
     const lessonIds = await this.collectStudentLessonIds(manager, studentId);
 
-    await manager.delete(AlfaBankOrderEntity, { studentId });
     await manager.delete(PaymentEntity, { studentId });
-    await manager.delete(CourseEntity, { studentId });
-    await manager.delete(LessonSeriesStudentEntity, { studentId });
+    await manager.delete(EnrollmentEntity, { studentId });
+    await manager.delete(SeriesStudentEntity, { studentId });
+    await manager.delete(AttendanceEntity, { studentId });
 
     if (lessonIds.length > 0) {
       await this.deleteLessonsByIds(manager, lessonIds);
     }
-
-    await manager.delete(LessonStudentEntity, { studentId });
   }
 
   private async clearTeacherRelations(
@@ -132,8 +126,7 @@ export class ProfileRelationsService {
       })
     ).map((row) => row.id);
 
-    await manager.delete(TeacherPaymentEntity, { teacherId });
-    await manager.delete(ScheduleSlotEntity, { teacherId });
+    await manager.delete(AvailabilitySlotEntity, { teacherId });
 
     if (lessonIds.length > 0) {
       await this.deleteLessonsByIds(manager, lessonIds);
@@ -146,8 +139,8 @@ export class ProfileRelationsService {
   ): Promise<void> {
     await manager.update(
       StudentEntity,
-      { assignedTeacher: teacherId },
-      { assignedTeacher: null, updatedDate: new Date() },
+      { assignedTeacherId: teacherId },
+      { assignedTeacherId: null },
     );
   }
 
@@ -155,12 +148,12 @@ export class ProfileRelationsService {
     manager: EntityManager,
     studentId: string,
   ): Promise<string[]> {
-    const [directLessons, joinRows] = await Promise.all([
+    const [directLessons, attendanceRows] = await Promise.all([
       manager.find(LessonEntity, {
-        where: { studentId },
+        where: { primaryStudentId: studentId },
         select: ['id'],
       }),
-      manager.find(LessonStudentEntity, {
+      manager.find(AttendanceEntity, {
         where: { studentId },
         select: ['lessonId'],
       }),
@@ -169,7 +162,7 @@ export class ProfileRelationsService {
     return [
       ...new Set([
         ...directLessons.map((row) => row.id),
-        ...joinRows.map((row) => row.lessonId),
+        ...attendanceRows.map((row) => row.lessonId),
       ]),
     ];
   }
@@ -182,9 +175,7 @@ export class ProfileRelationsService {
       return;
     }
 
-    await manager.delete(TeacherPaymentEntity, { lessonId: In(lessonIds) });
-    await manager.delete(PaymentEntity, { lessonId: In(lessonIds) });
-    await manager.delete(LessonStudentEntity, { lessonId: In(lessonIds) });
+    await manager.delete(AttendanceEntity, { lessonId: In(lessonIds) });
     await manager.delete(LessonEntity, { id: In(lessonIds) });
   }
 

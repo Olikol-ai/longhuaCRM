@@ -34,9 +34,9 @@ export default function TeacherDashboard() {
   const loadData = async () => {
     if (!user) return;
     const [allTeachers, allLessons, allStudents] = await Promise.all([
-      api.entities.Teacher.list(),
-      api.entities.Lesson.list("-date", 200),
-      api.entities.Student.list(),
+      api.teachers.list(),
+      api.lessons.list("-date", 200),
+      api.students.list(),
     ]);
     const t = allTeachers.find((x) => x.user_id === user.id || x.email === user.email);
     setTeacher(t);
@@ -55,13 +55,13 @@ export default function TeacherDashboard() {
   }, [user]);
 
   const handleMarkComplete = async (lesson, materialIds = []) => {
-    await api.entities.Lesson.update(lesson.id, { status: "completed", material_ids: materialIds });
+    await api.lessons.update(lesson.id, { status: "completed", material_ids: materialIds });
     setConfirmAction(null);
     loadData();
   };
 
   const handleMarkCancelled = async (lesson) => {
-    await api.entities.Lesson.update(lesson.id, { status: "cancelled" });
+    await api.lessons.update(lesson.id, { status: "cancelled" });
     setConfirmAction(null);
     loadData();
   };

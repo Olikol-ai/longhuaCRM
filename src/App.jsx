@@ -12,6 +12,10 @@ import UserManagement from './pages/UserManagement';
 import StudentLessonMaterials from './pages/StudentLessonMaterials';
 import MaterialsHub from './pages/MaterialsHub';
 import AdminPanel from './pages/AdminPanel';
+import Groups from './pages/Groups';
+import Certificates from './pages/Certificates';
+import Attendance from './pages/Attendance';
+import TeacherPayments from './pages/TeacherPayments';
 import Login from './pages/Login';
 import PendingApproval from './pages/PendingApproval';
 import { ThemeProvider } from '@/lib/ThemeContext';
@@ -106,6 +110,10 @@ const AuthenticatedApp = () => {
         <Route path="/StudentLessonMaterials" element={<StudentRoute><LayoutWrapper currentPageName="StudentLessonMaterials"><StudentLessonMaterials /></LayoutWrapper></StudentRoute>} />
         <Route path="/UserManagement" element={<AdminRoute><LayoutWrapper currentPageName="UserManagement"><UserManagement /></LayoutWrapper></AdminRoute>} />
         <Route path="/AdminPanel" element={<AdminRoute><LayoutWrapper currentPageName="AdminPanel"><AdminPanel /></LayoutWrapper></AdminRoute>} />
+        <Route path="/Groups" element={<AdminRoute><LayoutWrapper currentPageName="Groups"><Groups /></LayoutWrapper></AdminRoute>} />
+        <Route path="/Certificates" element={<AdminRoute><LayoutWrapper currentPageName="Certificates"><Certificates /></LayoutWrapper></AdminRoute>} />
+        <Route path="/Attendance" element={<AdminRoute><LayoutWrapper currentPageName="Attendance"><Attendance /></LayoutWrapper></AdminRoute>} />
+        <Route path="/TeacherPayments" element={<TeacherRoute><LayoutWrapper currentPageName="TeacherPayments"><TeacherPayments /></LayoutWrapper></TeacherRoute>} />
         <Route path="*" element={<OnboardingFallback />} />
       </Routes>
     </RoleRouteGuard>

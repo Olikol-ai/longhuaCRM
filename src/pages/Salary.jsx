@@ -27,8 +27,8 @@ export default function Salary() {
 
   useEffect(() => {
     Promise.all([
-      api.entities.Lesson.list("-date", 1000),
-      api.entities.Teacher.list(),
+      api.lessons.list("-date", 1000),
+      api.teachers.list(),
     ]).then(([l, t]) => {
       setLessons(l); setTeachers(t); setLoading(false);
     });

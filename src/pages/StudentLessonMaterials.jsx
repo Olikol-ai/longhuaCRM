@@ -33,8 +33,8 @@ export default function StudentLessonMaterials() {
     setLoading(true);
     try {
       const [matsResult, coursesResult] = await Promise.allSettled([
-        api.entities.LessonMaterial.list("-created_date", 500),
-        api.entities.Course.list(),
+        api.materials.list("-created_date", 500),
+        api.courses.list(),
       ]);
 
       if (matsResult.status === "fulfilled") {

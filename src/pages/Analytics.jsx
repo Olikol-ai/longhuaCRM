@@ -38,10 +38,10 @@ export default function Analytics() {
 
   useEffect(() => {
     Promise.all([
-      api.entities.Payment.list("-payment_date", 500),
-      api.entities.Lesson.list("-date", 1000),
-      api.entities.Student.list(),
-      api.entities.Teacher.list(),
+      api.payments.list("-payment_date", 500),
+      api.lessons.list("-date", 1000),
+      api.students.list(),
+      api.teachers.list(),
     ]).then(([p, l, s, t]) => {
       setPayments(p); setLessons(l); setStudents(s); setTeachers(t);
       setLoading(false);

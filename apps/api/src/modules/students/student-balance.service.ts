@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
-import { LessonEntity } from '../../entities/lesson.entity';
-import { LessonStudentEntity } from '../../entities/lesson-student.entity';
-import { StudentEntity } from '../../entities/student.entity';
+import { AttendanceEntity } from '../lessons/entities/attendance.entity';
+import { LessonEntity } from '../lessons/entities/lesson.entity';
+import { StudentEntity } from './entities/student.entity';
 
 const BALANCE_DEDUCT_STATUSES = new Set(['completed', 'missed_no_notice']);
 
@@ -19,41 +19,48 @@ export class StudentBalanceService {
     await this.dataSource.transaction(async (manager) => {
       const lessonRepo = manager.getRepository(LessonEntity);
       const studentRepo = manager.getRepository(StudentEntity);
+      const attendanceRepo = manager.getRepository(AttendanceEntity);
 
       const lesson = await lessonRepo.findOne({ where: { id: lessonId } });
-      if (!lesson || lesson.balanceDeducted) {
+      if (!lesson) {
         return;
       }
 
-      const studentIds = await this.resolveStudentIds(lessonId, manager);
+      const studentIds = await this.resolveStudentIds(lesson, manager);
       for (const studentId of studentIds) {
+        const attendance = await attendanceRepo.findOne({
+          where: { lessonId, studentId },
+        });
+        if (attendance?.balanceDeducted) {
+          continue;
+        }
+
         const student = await studentRepo.findOne({ where: { id: studentId } });
         if (!student) continue;
         student.lessonBalance = Math.max(0, (student.lessonBalance ?? 0) - 1);
-        student.updatedDate = new Date();
         await studentRepo.save(student);
-      }
 
-      lesson.balanceDeducted = true;
-      lesson.updatedDate = new Date();
-      await lessonRepo.save(lesson);
+        if (attendance) {
+          attendance.balanceDeducted = true;
+          await attendanceRepo.save(attendance);
+        }
+      }
     });
   }
 
   private async resolveStudentIds(
-    lessonId: string,
+    lesson: LessonEntity,
     manager: EntityManager,
   ): Promise<string[]> {
-    const lsRepo = manager.getRepository(LessonStudentEntity);
-    const rows = await lsRepo.find({ where: { lessonId } });
-    const ids = rows.map((row) => String(row.studentId)).filter(Boolean);
+    const rows = await manager.getRepository(AttendanceEntity).find({
+      where: { lessonId: lesson.id },
+    });
+    const ids = rows.map((row) => row.studentId).filter(Boolean);
     if (ids.length > 0) {
       return ids;
     }
-
-    const lesson = await manager.getRepository(LessonEntity).findOne({ where: { id: lessonId } });
-    if (lesson?.studentId) {
-      return [lesson.studentId];
+    if (lesson.primaryStudentId) {
+      return [lesson.primaryStudentId];
     }
     return [];
   }

@@ -23,12 +23,14 @@ import {
   Pencil,
   Plus,
   Loader2,
+  TrendingUp,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { format } from "date-fns";
 import StudentFormDialog from "@/components/students/StudentFormDialog";
 import PaymentFormDialog from "@/components/payments/PaymentFormDialog";
+import { Progress } from "@/components/ui/progress";
 
 export default function StudentDetail() {
   const params = new URLSearchParams(window.location.search);
@@ -38,6 +40,7 @@ export default function StudentDetail() {
   const [teacher, setTeacher] = useState(null);
   const [lessons, setLessons] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [enrollmentProgress, setEnrollmentProgress] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showEditForm, setShowEditForm] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
@@ -47,11 +50,12 @@ export default function StudentDetail() {
   }, [studentId]);
 
   const loadData = async () => {
-    const [allStudents, allLessons, allPayments, allTeachers] = await Promise.all([
-      api.entities.Student.list(),
-      api.entities.Lesson.list("-date", 200),
-      api.entities.Payment.list("-payment_date", 200),
-      api.entities.Teacher.list(),
+    const [allStudents, allLessons, allPayments, allTeachers, enrollments] = await Promise.all([
+      api.students.list(),
+      api.lessons.list("-date", 200),
+      api.payments.list("-payment_date", 200),
+      api.teachers.list(),
+      api.courses.enrollments.filter({ where: { student_id: studentId } }),
     ]);
 
     const s = allStudents.find((x) => x.id === studentId);
@@ -63,6 +67,21 @@ export default function StudentDetail() {
 
     setLessons(allLessons.filter((l) => l.student_id === studentId));
     setPayments(allPayments.filter((p) => p.student_id === studentId));
+
+    const progressRows = await Promise.all(
+      (enrollments ?? []).map(async (enrollment) => {
+        try {
+          const progress = await api.courses.enrollmentProgress(enrollment.id);
+          return {
+            enrollment,
+            progress,
+          };
+        } catch {
+          return { enrollment, progress: null };
+        }
+      }),
+    );
+    setEnrollmentProgress(progressRows);
     setLoading(false);
   };
 
@@ -159,6 +178,64 @@ export default function StudentDetail() {
             <p className="text-sm text-slate-600">{student.notes}</p>
           </CardContent>
         </Card>
+      )}
+
+      {enrollmentProgress.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-indigo-600" />
+            Прогресс по курсам
+          </h2>
+          <div className="grid gap-4">
+            {enrollmentProgress.map(({ enrollment, progress }) => {
+              const total = progress?.total_lessons ?? enrollment.total_lessons ?? 0;
+              const completed = progress?.completed_lessons ?? enrollment.completed_lessons ?? 0;
+              const missed = progress?.missed_lessons ?? enrollment.missed_lessons ?? 0;
+              const remaining = progress?.remaining_lessons ?? Math.max(0, total - completed - missed);
+              const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+              return (
+                <Card key={enrollment.id}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <CardTitle className="text-base">
+                        {enrollment.course_name || "Курс"}
+                      </CardTitle>
+                      <Badge variant="outline">{enrollment.status}</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="text-slate-600">Прогресс</span>
+                        <span className="font-medium text-slate-900">{percent}%</span>
+                      </div>
+                      <Progress value={percent} className="h-2" />
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                      <div className="rounded-lg bg-emerald-50 p-3 border border-emerald-100">
+                        <p className="text-xs text-emerald-700">Завершено</p>
+                        <p className="text-lg font-semibold text-emerald-800">{completed}</p>
+                      </div>
+                      <div className="rounded-lg bg-amber-50 p-3 border border-amber-100">
+                        <p className="text-xs text-amber-700">Пропущено</p>
+                        <p className="text-lg font-semibold text-amber-800">{missed}</p>
+                      </div>
+                      <div className="rounded-lg bg-blue-50 p-3 border border-blue-100">
+                        <p className="text-xs text-blue-700">Осталось</p>
+                        <p className="text-lg font-semibold text-blue-800">{remaining}</p>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 p-3 border border-slate-200">
+                        <p className="text-xs text-slate-500">Всего</p>
+                        <p className="text-lg font-semibold text-slate-800">{total}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {/* Lesson History */}

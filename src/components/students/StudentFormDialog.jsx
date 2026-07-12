@@ -58,7 +58,7 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
   }, [open, student]);
 
   const loadTeachers = async () => {
-    const t = await api.entities.Teacher.list();
+    const t = await api.teachers.list();
     setTeachers(t.filter((x) => x.status === "active"));
   };
 
@@ -67,9 +67,9 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
     try {
       const data = { ...formData, lesson_balance: Number(formData.lesson_balance) };
       if (student) {
-        await api.entities.Student.update(student.id, data);
+        await api.students.update(student.id, data);
       } else {
-        await api.entities.Student.create(data);
+        await api.students.create(data);
       }
       onSave?.();
       onOpenChange(false);

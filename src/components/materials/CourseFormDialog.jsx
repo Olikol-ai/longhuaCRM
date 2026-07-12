@@ -23,9 +23,9 @@ export default function CourseFormDialog({ course, onClose, onSave }) {
     setSaving(true);
     let saved;
     if (course) {
-      saved = await api.entities.Course.update(course.id, form);
+      saved = await api.courses.update(course.id, form);
     } else {
-      saved = await api.entities.Course.create(form);
+      saved = await api.courses.create(form);
     }
     setSaving(false);
     onSave(saved);

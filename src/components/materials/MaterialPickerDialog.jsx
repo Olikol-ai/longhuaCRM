@@ -19,7 +19,7 @@ export default function MaterialPickerDialog({ onConfirm, onSkip, onCancel, less
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.entities.LessonMaterial.list("-created_date", 200).then(m => {
+    api.materials.list("-created_date", 200).then(m => {
       setMaterials(m);
       setLoading(false);
     });

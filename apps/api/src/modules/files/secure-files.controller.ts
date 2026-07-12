@@ -3,7 +3,7 @@ import { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/auth.service';
-import { MaterialAccessCheckService } from '../entities/material-access-check.service';
+import { MaterialAccessCheckService } from '../materials/material-access-check.service';
 import { SecureFilesService } from './secure-files.service';
 
 @Controller('files')

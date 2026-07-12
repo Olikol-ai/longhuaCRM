@@ -21,10 +21,10 @@ export default function ExportData() {
 
   useEffect(() => {
     Promise.all([
-      api.entities.Student.list(),
-      api.entities.Payment.list("-payment_date", 1000),
-      api.entities.Lesson.list("-date", 2000),
-      api.entities.Teacher.list(),
+      api.students.list(),
+      api.payments.list("-payment_date", 1000),
+      api.lessons.list("-date", 2000),
+      api.teachers.list(),
     ]).then(([s, p, l, t]) => {
       setStudents(s); setPayments(p); setLessons(l); setTeachers(t);
       setLoading(false);

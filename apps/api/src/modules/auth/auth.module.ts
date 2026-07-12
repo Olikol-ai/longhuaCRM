@@ -8,7 +8,7 @@ import { PassportModule } from '@nestjs/passport';
 
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { PendingRegistrationEntity } from '../../entities/pending-registration.entity';
+import { PendingRegistrationEntity } from './entities/pending-registration.entity';
 
 import { UsersModule } from '../users/users.module';
 

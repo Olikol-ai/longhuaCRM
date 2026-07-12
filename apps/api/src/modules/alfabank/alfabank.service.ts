@@ -10,13 +10,13 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import * as crypto from 'crypto';
 import { DataSource, QueryFailedError, Repository } from 'typeorm';
 import { normalizeRole } from '../../common/constants/roles';
-import { PaymentEntity } from '../../entities/payment.entity';
-import { StudentEntity } from '../../entities/student.entity';
-import { UserEntity } from '../../entities/user.entity';
-import { EntityRepositoryService } from '../entities/entity-repository.service';
 import { AuditService } from '../audit/audit.service';
-import { PaymentService } from '../payments/payment.service';
+import { PaymentEntity } from '../payments/entities/payment.entity';
+import { ShopItemEntity } from '../payments/entities/shop-item.entity';
+import { PaymentsService } from '../payments/payments.service';
 import { SettingsService } from '../settings/settings.service';
+import { StudentEntity } from '../students/entities/student.entity';
+import { UserEntity } from '../users/entities/user.entity';
 import { TelegramService } from '../telegram/telegram.service';
 
 const FORM_URL_PREFIX = '__form_url__:';
@@ -51,8 +51,7 @@ export class AlfaBankService {
   private readonly logger = new Logger(AlfaBankService.name);
 
   constructor(
-    private readonly entityRepository: EntityRepositoryService,
-    private readonly paymentService: PaymentService,
+    private readonly paymentsService: PaymentsService,
     private readonly settingsService: SettingsService,
     private readonly telegramService: TelegramService,
     private readonly config: ConfigService,
@@ -71,29 +70,24 @@ export class AlfaBankService {
   }) {
     await this.assertStudentAccess(params.userId, params.userRole, params.studentId);
 
-    const ctx = this.entityRepository.getSystemContext();
-    const { token: alfaToken, merchantId: alfaMerchantId } = await this.settingsService.getAlfaCredentials();
+    const { token: alfaToken, merchantId: alfaMerchantId } =
+      await this.settingsService.getAlfaCredentials();
     if (!alfaToken || !alfaMerchantId) {
       throw new Error('Alfa Bank credentials not configured');
     }
 
-    const shopItems = await this.entityRepository.filter(
-      'ShopSettings',
-      { item_id: params.itemId },
-      ctx,
-    );
-    const shopItem = shopItems.find(
-      (item) => item.is_active !== false && String(item.type) === params.type,
-    );
+    const shopItems = await this.paymentsService.filterShopItems({
+      id: params.itemId,
+      is_active: true,
+    });
+    const shopItem = shopItems.find((item) => String(item.type) === params.type);
 
     if (!shopItem) {
       throw new BadRequestException('Shop item not found, inactive, or type mismatch');
     }
 
     const amount = Number(shopItem.price ?? 0);
-    const lessonsAdded = Number(shopItem.lessons ?? 0);
-    const packageType =
-      params.type === 'course' ? `course:${params.itemId}` : 'package';
+    const lessonsAdded = shopItem.type === 'package' ? Number(shopItem.lessonsCount ?? 0) : 0;
     const orderNumber = buildIdempotencyOrderNumber(
       params.studentId,
       params.itemId,
@@ -102,7 +96,7 @@ export class AlfaBankService {
 
     const { payment, createdNew } = await this.acquirePendingPayment({
       studentId: params.studentId,
-      packageType,
+      shopItem,
       orderNumber,
       amount,
       lessonsAdded,
@@ -156,7 +150,6 @@ export class AlfaBankService {
         `Alfa Bank - orderId: ${alfaData.orderId} - ${activeOrderNumber}`,
         String(alfaData.formUrl),
       );
-      payment.updatedDate = new Date();
       await this.dataSource.getRepository(PaymentEntity).save(payment);
 
       return {
@@ -225,12 +218,6 @@ export class AlfaBankService {
       }
     }
 
-    if (notified === 0) {
-      this.logger.warn(
-        `Offline payment request saved (student=${params.studentId}) but no admin Telegram recipients found`,
-      );
-    }
-
     await this.audit.log({
       actorUserId: params.userId,
       action: 'offline_payment_request',
@@ -250,21 +237,19 @@ export class AlfaBankService {
     };
   }
 
-  private async acquirePendingPayment(
-    input: {
-      studentId: string;
-      packageType: string;
-      orderNumber: string;
-      amount: number;
-      lessonsAdded: number;
-    },
-  ): Promise<{ payment: PaymentEntity; createdNew: boolean }> {
+  private async acquirePendingPayment(input: {
+    studentId: string;
+    shopItem: ShopItemEntity;
+    orderNumber: string;
+    amount: number;
+    lessonsAdded: number;
+  }): Promise<{ payment: PaymentEntity; createdNew: boolean }> {
     return this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(PaymentEntity);
       const existing = await this.findReusablePendingPayment(
         repo,
         input.studentId,
-        input.packageType,
+        input.shopItem.id,
         true,
       );
 
@@ -279,19 +264,16 @@ export class AlfaBankService {
       try {
         const created = await repo.save(
           repo.create({
-            id: crypto.randomUUID(),
             studentId: input.studentId,
+            shopItemId: input.shopItem.id,
             amount: input.amount,
             lessonsAdded: input.lessonsAdded,
-            packageType: input.packageType,
             paymentDate: new Date().toISOString().split('T')[0],
             notes: `Pending Alfa Bank - Order ${input.orderNumber}`,
             orderNumber: input.orderNumber,
             status: 'pending',
             provider: 'alfa_bank',
             currency: 'BYN',
-            createdDate: new Date(),
-            updatedDate: new Date(),
           }),
         );
         return { payment: created, createdNew: true };
@@ -300,7 +282,7 @@ export class AlfaBankService {
           const retry = await this.findReusablePendingPayment(
             repo,
             input.studentId,
-            input.packageType,
+            input.shopItem.id,
             true,
           );
           if (retry) {
@@ -323,31 +305,29 @@ export class AlfaBankService {
   private async findReusablePendingPayment(
     paymentRepo: Repository<PaymentEntity>,
     studentId: string,
-    packageType: string,
+    shopItemId: string,
     forUpdate = false,
   ): Promise<PaymentEntity | null> {
     const qb = paymentRepo
       .createQueryBuilder('payment')
       .where('payment.student_id = :studentId', { studentId })
-      .andWhere('payment.package_type = :packageType', { packageType })
+      .andWhere('payment.shop_item_id = :shopItemId', { shopItemId })
       .andWhere('payment.status = :status', { status: 'pending' })
       .andWhere('payment.provider = :provider', { provider: 'alfa_bank' })
-      .orderBy('payment.created_date', 'DESC');
+      .orderBy('payment.created_at', 'DESC');
 
     if (forUpdate) {
       qb.setLock('pessimistic_write');
     }
 
     const existing = await qb.getOne();
-
     if (!existing) {
       return null;
     }
 
-    const ageMs = Date.now() - existing.createdDate.getTime();
+    const ageMs = Date.now() - existing.createdAt.getTime();
     if (ageMs >= PENDING_TTL_MS) {
       existing.status = 'failed';
-      existing.updatedDate = new Date();
       await paymentRepo.save(existing);
       return null;
     }
@@ -412,7 +392,7 @@ export class AlfaBankService {
       throw new ForbiddenException('Invalid AlfaBank webhook signature');
     }
 
-    const result = await this.paymentService.markPaidFromWebhook({
+    const result = await this.paymentsService.markPaidFromWebhook({
       orderNumber,
       externalOrderId: orderId,
       comment: `Оплачено через Alfa Bank - ${orderId}`,
@@ -429,10 +409,10 @@ export class AlfaBankService {
 
     const student = result.student;
     if (student?.telegramId) {
-      if (this.paymentService.isPackagePayment(result.packageType)) {
+      if (this.paymentsService.isPackagePayment(result.shopItem)) {
         const msg = `✅ Платёж успешно обработан!\n\n💳 Сумма: ${amount.toFixed(2)} BYN\n📚 Уроков добавлено: ${result.lessonsAdded ?? 0}\n💡 Новый баланс: ${student.lessonBalance} уроков`;
         this.telegramService.sendMessage(String(student.telegramId), msg).catch(() => undefined);
-      } else if (this.paymentService.isCoursePayment(result.packageType)) {
+      } else if (this.paymentsService.isCoursePayment(result.shopItem)) {
         const msg = `✅ Курс успешно активирован!\n\n📚 Тип: Групповой курс\n💳 Сумма: ${amount.toFixed(2)} BYN\n🎓 Всего занятий: 35 часов`;
         this.telegramService.sendMessage(String(student.telegramId), msg).catch(() => undefined);
       }
@@ -459,7 +439,12 @@ export class AlfaBankService {
     const data = await res.json();
     const status = String(data.orderStatus);
     const isPaid = status === '1' || status === '5';
-    const labels: Record<string, string> = { '0': 'pending', '1': 'paid', '2': 'cancelled', '5': 'paid' };
+    const labels: Record<string, string> = {
+      '0': 'pending',
+      '1': 'paid',
+      '2': 'cancelled',
+      '5': 'paid',
+    };
 
     return {
       ok: true,

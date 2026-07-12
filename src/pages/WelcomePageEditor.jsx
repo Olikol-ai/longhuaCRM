@@ -23,7 +23,7 @@ export default function WelcomePageEditor() {
   useEffect(() => { loadSettings(); }, []);
 
   const loadSettings = async () => {
-    const data = await api.entities.WelcomePageSettings.list();
+    const data = await api.settings.welcome.list();
     if (data.length > 0) {
       setRecord(data[0]);
       setForm({ ...DEFAULTS, ...data[0] });
@@ -36,9 +36,9 @@ export default function WelcomePageEditor() {
   const handleSave = async () => {
     setSaving(true);
     if (record) {
-      await api.entities.WelcomePageSettings.update(record.id, form);
+      await api.settings.welcome.update(record.id, form);
     } else {
-      const created = await api.entities.WelcomePageSettings.create(form);
+      const created = await api.settings.welcome.create(form);
       setRecord(created);
     }
     setSaving(false);

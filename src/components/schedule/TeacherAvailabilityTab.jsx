@@ -20,16 +20,13 @@ export default function TeacherAvailabilityTab({ teacher }) {
   }, [teacher]);
 
   const loadAvailability = async () => {
-    const records = await api.entities.TeacherAvailability.filter({ teacher_id: teacher.id });
-    if (records.length > 0) {
-      setRecordId(records[0].id);
-      // Rebuild slots array indexed by day
-      const byDay = Array.from({ length: 7 }, () => []);
-      (records[0].slots || []).forEach(slot => {
-        byDay[slot.day] = [...(byDay[slot.day] || []), { from: slot.from, to: slot.to }];
-      });
-      setSlots(byDay);
-    }
+    const availability = await api.schedule.getTeacherAvailability(teacher.id);
+    const byDay = Array.from({ length: 7 }, () => []);
+    (availability?.slots || []).forEach((slot) => {
+      byDay[slot.day] = [...(byDay[slot.day] || []), { from: slot.from, to: slot.to }];
+    });
+    setSlots(byDay);
+    setRecordId(availability?.hasSchedule ? teacher.id : null);
     setLoading(false);
   };
 
@@ -65,12 +62,8 @@ export default function TeacherAvailabilityTab({ teacher }) {
         flatSlots.push({ day: dayIndex, from: slot.from, to: slot.to });
       });
     });
-    if (recordId) {
-      await api.entities.TeacherAvailability.update(recordId, { slots: flatSlots });
-    } else {
-      const created = await api.entities.TeacherAvailability.create({ teacher_id: teacher.id, slots: flatSlots });
-      setRecordId(created.id);
-    }
+    await api.schedule.replaceTeacherAvailability(teacher.id, flatSlots);
+    setRecordId(teacher.id);
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);

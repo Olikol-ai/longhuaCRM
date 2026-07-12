@@ -23,8 +23,8 @@ export default function AccessManagementPanel({ isAdmin }) {
     try {
       if (isAdmin) {
         const [stsResult, trsResult] = await Promise.allSettled([
-          api.entities.Student.list(),
-          api.entities.Teacher.list(),
+          api.students.list(),
+          api.teachers.list(),
         ]);
 
         if (stsResult.status === "fulfilled") {
@@ -45,12 +45,12 @@ export default function AccessManagementPanel({ isAdmin }) {
           setTeachers([]);
         }
       } else {
-        const stsResult = await Promise.allSettled([api.entities.Student.list()]);
+        const stsResult = await Promise.allSettled([api.students.list()]);
         if (stsResult[0].status === "fulfilled") {
           const allStudents = Array.isArray(stsResult[0].value) ? stsResult[0].value : [];
           const teacherId =
             user?.teacher_profile_id ||
-            (await api.entities.Teacher.filter({ user_id: user.id }))[0]?.id;
+            (await api.teachers.filter({ user_id: user.id }))[0]?.id;
 
           setStudents(
             teacherId

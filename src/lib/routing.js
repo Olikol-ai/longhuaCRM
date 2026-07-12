@@ -66,6 +66,9 @@ export function getRequiredRoleForPath(pathname) {
     || pathname === '/Schedule'
     || pathname === '/UserManagement'
     || pathname === '/AdminPanel'
+    || pathname === '/Groups'
+    || pathname === '/Certificates'
+    || pathname === '/Attendance'
     || pathname === '/AdminLessonMaterials'
     || pathname === '/Students'
     || pathname === '/students'
@@ -78,6 +81,7 @@ export function getRequiredRoleForPath(pathname) {
     pathname === '/teacher'
     || pathname === '/TeacherDashboard'
     || pathname === '/TeacherSchedule'
+    || pathname === '/TeacherPayments'
   ) {
     return 'teacher';
   }
@@ -100,6 +104,9 @@ export function isPathAllowedForUser(user, pathname) {
   if (!isValidDashboardRole(user?.role)) return false;
   if (user.role === requiredRole) return true;
   if (requiredRole === 'teacher' && user.role === 'admin' && pathname === '/MaterialsHub') {
+    return true;
+  }
+  if (requiredRole === 'teacher' && user.role === 'admin' && pathname === '/TeacherPayments') {
     return true;
   }
   return false;

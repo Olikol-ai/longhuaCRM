@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { ApiSerializeInterceptor } from './common/interceptors/api-serialize.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -24,7 +25,7 @@ async function bootstrap() {
     }),
   );
   app.useGlobalFilters(new AllExceptionsFilter());
-  app.useGlobalInterceptors(new LoggingInterceptor());
+  app.useGlobalInterceptors(new LoggingInterceptor(), new ApiSerializeInterceptor());
 
   await app.listen(port);
   Logger.log(`Longhua CRM API running on http://localhost:${port}`, 'Bootstrap');

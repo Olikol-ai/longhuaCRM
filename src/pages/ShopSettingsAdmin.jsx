@@ -31,11 +31,11 @@ export default function ShopSettingsAdmin() {
 
   const loadItems = async () => {
     setLoading(true);
-    const data = await api.entities.ShopSettings.list("sort_order");
+    const data = await api.payments.shopItems.list("sort_order");
     if (data.length === 0) {
       // seed defaults
-      await Promise.all([...DEFAULT_PACKAGES, ...DEFAULT_COURSES].map(d => api.entities.ShopSettings.create(d)));
-      const fresh = await api.entities.ShopSettings.list("sort_order");
+      await Promise.all([...DEFAULT_PACKAGES, ...DEFAULT_COURSES].map(d => api.payments.shopItems.create(d)));
+      const fresh = await api.payments.shopItems.list("sort_order");
       setItems(fresh);
     } else {
       setItems(data);
@@ -52,10 +52,10 @@ export default function ShopSettingsAdmin() {
     setSaving(true);
     if (editing._new) {
       const { _new, ...data } = editing;
-      await api.entities.ShopSettings.create(data);
+      await api.payments.shopItems.create(data);
     } else {
       const { _new, ...data } = editing;
-      await api.entities.ShopSettings.update(editing.id, data);
+      await api.payments.shopItems.update(editing.id, data);
     }
     setEditing(null);
     setSaving(false);
@@ -64,12 +64,12 @@ export default function ShopSettingsAdmin() {
 
   const handleDelete = async (id) => {
     if (!window.confirm("Удалить этот элемент?")) return;
-    await api.entities.ShopSettings.delete(id);
+    await api.payments.shopItems.delete(id);
     loadItems();
   };
 
   const toggleActive = async (item) => {
-    await api.entities.ShopSettings.update(item.id, { is_active: !item.is_active });
+    await api.payments.shopItems.update(item.id, { is_active: !item.is_active });
     loadItems();
   };
 

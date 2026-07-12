@@ -30,11 +30,11 @@ export default function TeacherRoleDashboard({ user }) {
   }, []);
 
   const loadData = async () => {
-    const teachers = await api.entities.Teacher.filter({ user_id: user?.id });
+    const teachers = await api.teachers.filter({ user_id: user?.id });
     const t = teachers[0];
     setTeacher(t);
     if (t) {
-      const ls = await api.entities.Lesson.filter({ teacher_id: t.id });
+      const ls = await api.lessons.filter({ teacher_id: t.id });
       setLessons(ls);
     }
     setLoading(false);
@@ -42,7 +42,7 @@ export default function TeacherRoleDashboard({ user }) {
 
   const markLesson = async (lesson, status) => {
     setUpdating(lesson.id);
-    await api.entities.Lesson.update(lesson.id, { status });
+    await api.lessons.update(lesson.id, { status });
     await loadData();
     setUpdating(null);
   };

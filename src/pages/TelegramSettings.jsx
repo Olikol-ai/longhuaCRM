@@ -27,9 +27,9 @@ export default function TelegramSettings() {
 
   const loadData = async () => {
     const [settings, s, t] = await Promise.all([
-      api.entities.AppSettings.filter({ key: "telegram_bot_token" }),
-      api.entities.Student.list(),
-      api.entities.Teacher.list(),
+      api.settings.filter({ key: "telegram_bot_token" }),
+      api.students.list(),
+      api.teachers.list(),
     ]);
     if (settings.length > 0) {
       const v = settings[0].value || "";
@@ -43,11 +43,11 @@ export default function TelegramSettings() {
   const saveToken = async () => {
     if (!token.trim()) return;
     setSaving(true);
-    const existing = await api.entities.AppSettings.filter({ key: "telegram_bot_token" });
+    const existing = await api.settings.filter({ key: "telegram_bot_token" });
     if (existing.length > 0) {
-      await api.entities.AppSettings.update(existing[0].id, { value: token.trim() });
+      await api.settings.update(existing[0].id, { value: token.trim() });
     } else {
-      await api.entities.AppSettings.create({ key: "telegram_bot_token", value: token.trim(), description: "Telegram Bot Token" });
+      await api.settings.create({ key: "telegram_bot_token", value: token.trim(), description: "Telegram Bot Token" });
     }
     const v = token.trim();
     setBotToken(v);

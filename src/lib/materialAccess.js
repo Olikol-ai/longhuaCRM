@@ -8,6 +8,21 @@ export async function hasAccessToMaterial(userId, materialId) {
   return Boolean(result.has_access);
 }
 
+async function getGrantedMaterialIds(userId) {
+  const editor = await fetchUserAccessEditor(userId);
+  const ids = new Set();
+
+  for (const course of editor.courses || []) {
+    for (const material of course.materials || []) {
+      if (material.has_access) {
+        ids.add(material.id);
+      }
+    }
+  }
+
+  return ids;
+}
+
 /**
  * Выдаёт доступ к материалу (единая запись на user_id + material_id).
  * grantedByRole — только аудит «кто последним изменил», не влияет на проверку доступа.
@@ -16,7 +31,7 @@ export async function grantAccess(userId, materialId, grantedByRole, grantedByUs
   const { api } = await import('@/api');
 
   if (grantedByRole === 'TEACHER') {
-    const student = await api.entities.Student.filter({
+    const student = await api.students.filter({
       user_id: userId,
     });
 
@@ -24,7 +39,7 @@ export async function grantAccess(userId, materialId, grantedByRole, grantedByUs
       throw new Error('Студент не найден');
     }
 
-    const teacher = await api.entities.Teacher.filter({
+    const teacher = await api.teachers.filter({
       user_id: grantedByUserId,
     });
 
@@ -37,24 +52,14 @@ export async function grantAccess(userId, materialId, grantedByRole, grantedByUs
     }
   }
 
-  const existing = await api.entities.MaterialAccess.filter({
-    user_id: userId,
-    material_id: materialId,
-  });
+  const materialIds = await getGrantedMaterialIds(userId);
+  materialIds.add(materialId);
 
-  if (existing.length > 0) {
-    await api.entities.MaterialAccess.update(existing[0].id, {
-      access: true,
-      granted_by_role: grantedByRole,
-    });
-  } else {
-    await api.entities.MaterialAccess.create({
-      user_id: userId,
-      material_id: materialId,
-      granted_by_role: grantedByRole,
-      access: true,
-    });
-  }
+  await api.materials.access.sync({
+    user_id: userId,
+    material_ids: Array.from(materialIds),
+    granted_by_role: grantedByRole,
+  });
 }
 
 /**
@@ -63,14 +68,13 @@ export async function grantAccess(userId, materialId, grantedByRole, grantedByUs
 export async function revokeAccess(userId, materialId) {
   const { api } = await import('@/api');
 
-  const existing = await api.entities.MaterialAccess.filter({
-    user_id: userId,
-    material_id: materialId,
-  });
+  const materialIds = await getGrantedMaterialIds(userId);
+  materialIds.delete(materialId);
 
-  for (const row of existing) {
-    await api.entities.MaterialAccess.delete(row.id);
-  }
+  await api.materials.access.sync({
+    user_id: userId,
+    material_ids: Array.from(materialIds),
+  });
 }
 
 /**

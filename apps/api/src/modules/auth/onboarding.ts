@@ -1,4 +1,4 @@
-import { UserEntity } from '../../entities/user.entity';
+import { UserEntity } from '../users/entities/user.entity';
 
 export const USER_STATUSES = ['pending', 'active', 'blocked'] as const;
 export type UserStatus = (typeof USER_STATUSES)[number];

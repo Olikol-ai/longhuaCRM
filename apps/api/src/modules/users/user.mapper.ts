@@ -1,4 +1,4 @@
-import { UserEntity } from '../../entities/user.entity';
+import { UserEntity } from './entities/user.entity';
 import { getOnboardingContext } from '../auth/onboarding';
 
 export function userToRecord(row: UserEntity): Record<string, unknown> {

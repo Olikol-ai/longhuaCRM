@@ -9,8 +9,8 @@ import { createReadStream, existsSync } from 'fs';
 import { basename, join, normalize } from 'path';
 import { Repository } from 'typeorm';
 import { normalizeRole } from '../../common/constants/roles';
-import { LessonMaterialEntity } from '../../entities/lesson-material.entity';
-import { MaterialAccessCheckService } from '../entities/material-access-check.service';
+import { MaterialEntity } from '../materials/entities/material.entity';
+import { MaterialAccessCheckService } from '../materials/material-access-check.service';
 import { SignedFilePayload, SignedFileUrlService } from './signed-file-url.service';
 
 const UPLOAD_DIR = join(process.cwd(), 'uploads');
@@ -20,8 +20,8 @@ export class SecureFilesService {
   constructor(
     private readonly signedFileUrl: SignedFileUrlService,
     private readonly materialAccess: MaterialAccessCheckService,
-    @InjectRepository(LessonMaterialEntity)
-    private readonly materialRepo: Repository<LessonMaterialEntity>,
+    @InjectRepository(MaterialEntity)
+    private readonly materialRepo: Repository<MaterialEntity>,
   ) {}
 
   createSignedFileUrl(userId: string, materialId: string, role: string): string | null {

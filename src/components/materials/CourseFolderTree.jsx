@@ -34,7 +34,7 @@ function FolderNode({
     if (!childName.trim()) return;
     setSaving(true);
     try {
-      await api.entities.CourseFolder.create({
+      await api.materials.folders.create({
         course_id: folder.course_id,
         parent_folder_id: folder.id,
         name: childName.trim(),
@@ -55,7 +55,7 @@ function FolderNode({
     if (!confirm(`Удалить папку «${folder.name}»? Материалы переместятся в корень курса.`)) return;
     setSaving(true);
     try {
-      await api.entities.CourseFolder.delete(folder.id);
+      await api.materials.folders.delete(folder.id);
       await onRefresh();
     } catch (err) {
       console.error("Folder delete error:", err);
@@ -184,7 +184,7 @@ export default function CourseFolderTree({
     if (!rootName.trim()) return;
     setSaving(true);
     try {
-      await api.entities.CourseFolder.create({
+      await api.materials.folders.create({
         course_id: course.id,
         parent_folder_id: null,
         name: rootName.trim(),

@@ -52,9 +52,9 @@ export default function StudentDashboard() {
   const loadData = async () => {
     if (!user) return;
     const [myStudents, allLessons, allTeachers] = await Promise.all([
-      api.entities.Student.filter({ user_id: user.id }),
-      api.entities.Lesson.list("-date", 200),
-      api.entities.Teacher.list(),
+      api.students.filter({ user_id: user.id }),
+      api.lessons.list("-date", 200),
+      api.teachers.list(),
     ]);
     const s = myStudents[0] || null;
     setStudent(s);

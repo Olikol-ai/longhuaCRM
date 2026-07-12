@@ -18,7 +18,7 @@ export default function Welcome() {
   const [settings, setSettings] = useState(DEFAULTS);
 
   useEffect(() => {
-    api.entities.WelcomePageSettings.list().then(data => {
+    api.settings.welcome.list().then(data => {
       if (data.length > 0) setSettings({ ...DEFAULTS, ...data[0] });
     }).catch(() => {});
   }, []);

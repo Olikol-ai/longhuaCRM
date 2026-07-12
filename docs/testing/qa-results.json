@@ -1,0 +1,1058 @@
+{
+  "generatedAt": "2026-07-12T20:49:06.640Z",
+  "durationMs": 9085,
+  "totals": {
+    "pass": 105,
+    "fail": 0,
+    "blocker": 0,
+    "skip": 2
+  },
+  "cases": [
+    {
+      "id": "Environment:Backend_build_(npm_run_build)",
+      "category": "Environment",
+      "name": "Backend build (npm run build)",
+      "status": "PASS",
+      "steps": [
+        "npm run build executed before runner"
+      ]
+    },
+    {
+      "id": "Environment:PostgreSQL_connection",
+      "category": "Environment",
+      "name": "PostgreSQL connection",
+      "status": "PASS",
+      "steps": [
+        "DATABASE_URL connectivity verified"
+      ]
+    },
+    {
+      "id": "Environment:Migrations_on_dev_DB_(longhua)",
+      "category": "Environment",
+      "name": "Migrations on dev DB (longhua)",
+      "status": "PASS",
+      "steps": [
+        "npm run migration:run"
+      ]
+    },
+    {
+      "id": "API:Auth_login_valid_admin",
+      "category": "API",
+      "name": "Auth login valid admin",
+      "status": "PASS",
+      "endpoint": "POST /api/auth/login",
+      "expected": "HTTP 200|201",
+      "actual": "HTTP 201",
+      "steps": [
+        "Auth login valid admin"
+      ]
+    },
+    {
+      "id": "API:Auth_login_invalid_password",
+      "category": "API",
+      "name": "Auth login invalid password",
+      "status": "PASS",
+      "endpoint": "POST /api/auth/login",
+      "expected": "HTTP 401",
+      "actual": "HTTP 401",
+      "steps": [
+        "Auth login invalid password"
+      ]
+    },
+    {
+      "id": "API:Auth_me_without_token",
+      "category": "API",
+      "name": "Auth me without token",
+      "status": "PASS",
+      "endpoint": "GET /api/auth/me",
+      "expected": "HTTP 401",
+      "actual": "HTTP 401",
+      "steps": [
+        "Auth me without token"
+      ]
+    },
+    {
+      "id": "API:Auth_register_empty_body",
+      "category": "API",
+      "name": "Auth register empty body",
+      "status": "PASS",
+      "endpoint": "POST /api/auth/register",
+      "expected": "HTTP 400",
+      "actual": "HTTP 400",
+      "steps": [
+        "Auth register empty body"
+      ]
+    },
+    {
+      "id": "API:Auth_me_with_admin_token",
+      "category": "API",
+      "name": "Auth me with admin token",
+      "status": "PASS",
+      "endpoint": "GET /api/auth/me",
+      "expected": "HTTP 200",
+      "actual": "HTTP 200",
+      "steps": [
+        "Auth me with admin token"
+      ]
+    },
+    {
+      "id": "API:Users_list_admin",
+      "category": "API",
+      "name": "Users list admin",
+      "status": "PASS",
+      "endpoint": "GET /api/users",
+      "expected": "HTTP 200",
+      "actual": "HTTP 200",
+      "steps": [
+        "Users list admin"
+      ]
+    },
+    {
+      "id": "API:Users_list_student_forbidden",
+      "category": "API",
+      "name": "Users list student forbidden",
+      "status": "PASS",
+      "endpoint": "GET /api/users",
+      "expected": "HTTP 403",
+      "actual": "HTTP 403",
+      "steps": [
+        "Users list student forbidden"
+      ]
+    },
+    {
+      "id": "API:Users_update_non-existent",
+      "category": "API",
+      "name": "Users update non-existent",
+      "status": "PASS",
+      "endpoint": "PATCH /api/users/:id",
+      "expected": "HTTP 404",
+      "actual": "HTTP 404",
+      "steps": [
+        "Users update non-existent"
+      ]
+    },
+    {
+      "id": "API:Students_create_admin",
+      "category": "API",
+      "name": "Students create admin",
+      "status": "PASS",
+      "endpoint": "POST /api/students",
+      "actual": "HTTP 201"
+    },
+    {
+      "id": "API:Students_create_invalid_empty_name",
+      "category": "API",
+      "name": "Students create invalid empty name",
+      "status": "PASS",
+      "endpoint": "POST /api/students",
+      "expected": "HTTP 400",
+      "actual": "HTTP 400",
+      "steps": [
+        "Students create invalid empty name"
+      ]
+    },
+    {
+      "id": "API:Students_get_non-existent",
+      "category": "API",
+      "name": "Students get non-existent",
+      "status": "PASS",
+      "endpoint": "GET /api/students/:id",
+      "expected": "HTTP 404",
+      "actual": "HTTP 404",
+      "steps": [
+        "Students get non-existent"
+      ]
+    },
+    {
+      "id": "API:Students_list_student_role",
+      "category": "API",
+      "name": "Students list student role",
+      "status": "PASS",
+      "endpoint": "GET /api/students",
+      "expected": "HTTP 200",
+      "actual": "HTTP 200",
+      "steps": [
+        "Students list student role"
+      ]
+    },
+    {
+      "id": "API:Teachers_list_admin",
+      "category": "API",
+      "name": "Teachers list admin",
+      "status": "PASS",
+      "endpoint": "GET /api/teachers",
+      "expected": "HTTP 200",
+      "actual": "HTTP 200",
+      "steps": [
+        "Teachers list admin"
+      ]
+    },
+    {
+      "id": "API:Teachers_create_student_forbidden",
+      "category": "API",
+      "name": "Teachers create student forbidden",
+      "status": "PASS",
+      "endpoint": "POST /api/teachers",
+      "expected": "HTTP 403",
+      "actual": "HTTP 403",
+      "steps": [
+        "Teachers create student forbidden"
+      ]
+    },
+    {
+      "id": "API:Teachers_get_non-existent",
+      "category": "API",
+      "name": "Teachers get non-existent",
+      "status": "PASS",
+      "endpoint": "GET /api/teachers/:id",
+      "expected": "HTTP 404",
+      "actual": "HTTP 404",
+      "steps": [
+        "Teachers get non-existent"
+      ]
+    },
+    {
+      "id": "API:Courses_create_admin",
+      "category": "API",
+      "name": "Courses create admin",
+      "status": "PASS",
+      "endpoint": "POST /api/courses",
+      "actual": "HTTP 201"
+    },
+    {
+      "id": "API:Courses_create_invalid_type",
+      "category": "API",
+      "name": "Courses create invalid type",
+      "status": "PASS",
+      "endpoint": "POST /api/courses",
+      "expected": "HTTP 400",
+      "actual": "HTTP 400",
+      "steps": [
+        "Courses create invalid type"
+      ]
+    },
+    {
+      "id": "API:Courses_get_non-existent",
+      "category": "API",
+      "name": "Courses get non-existent",
+      "status": "PASS",
+      "endpoint": "GET /api/courses/:id",
+      "expected": "HTTP 404",
+      "actual": "HTTP 404",
+      "steps": [
+        "Courses get non-existent"
+      ]
+    },
+    {
+      "id": "API:Enrollments_create_missing_studentId",
+      "category": "API",
+      "name": "Enrollments create missing studentId",
+      "status": "PASS",
+      "endpoint": "POST /api/courses/enrollments",
+      "expected": "HTTP 400",
+      "actual": "HTTP 400",
+      "steps": [
+        "Enrollments create missing studentId"
+      ]
+    },
+    {
+      "id": "API:Groups_list_admin",
+      "category": "API",
+      "name": "Groups list admin",
+      "status": "PASS",
+      "endpoint": "GET /api/groups",
+      "expected": "HTTP 200",
+      "actual": "HTTP 200",
+      "steps": [
+        "Groups list admin"
+      ]
+    },
+    {
+      "id": "API:Groups_create_missing_teacherId",
+      "category": "API",
+      "name": "Groups create missing teacherId",
+      "status": "PASS",
+      "endpoint": "POST /api/groups",
+      "expected": "HTTP 400",
+      "actual": "HTTP 400",
+      "steps": [
+        "Groups create missing teacherId"
+      ]
+    },
+    {
+      "id": "API:Groups_get_non-existent",
+      "category": "API",
+      "name": "Groups get non-existent",
+      "status": "PASS",
+      "endpoint": "GET /api/groups/:id",
+      "expected": "HTTP 404",
+      "actual": "HTTP 404",
+      "steps": [
+        "Groups get non-existent"
+      ]
+    },
+    {
+      "id": "API:Lessons_list_admin",
+      "category": "API",
+      "name": "Lessons list admin",
+      "status": "PASS",
+      "endpoint": "GET /api/lessons",
+      "expected": "HTTP 200",
+      "actual": "HTTP 200",
+      "steps": [
+        "Lessons list admin"
+      ]
+    },
+    {
+      "id": "API:Lessons_create_missing_fields",
+      "category": "API",
+      "name": "Lessons create missing fields",
+      "status": "PASS",
+      "endpoint": "POST /api/lessons",
+      "expected": "HTTP 400",
+      "actual": "HTTP 400",
+      "steps": [
+        "Lessons create missing fields"
+      ]
+    },
+    {
+      "id": "API:Lessons_get_non-existent",
+      "category": "API",
+      "name": "Lessons get non-existent",
+      "status": "PASS",
+      "endpoint": "GET /api/lessons/:id",
+      "expected": "HTTP 404",
+      "actual": "HTTP 404",
+      "steps": [
+        "Lessons get non-existent"
+      ]
+    },
+    {
+      "id": "API:Attendance_list_admin",
+      "category": "API",
+      "name": "Attendance list admin",
+      "status": "PASS",
+      "endpoint": "GET /api/lessons/attendance",
+      "expected": "HTTP 200",
+      "actual": "HTTP 200",
+      "steps": [
+        "Attendance list admin"
+      ]
+    },
+    {
+      "id": "API:Payments_list_admin",
+      "category": "API",
+      "name": "Payments list admin",
+      "status": "PASS",
+      "endpoint": "GET /api/payments",
+      "expected": "HTTP 200",
+      "actual": "HTTP 200",
+      "steps": [
+        "Payments list admin"
+      ]
+    },
+    {
+      "id": "API:Payments_create_student_forbidden",
+      "category": "API",
+      "name": "Payments create student forbidden",
+      "status": "PASS",
+      "endpoint": "POST /api/payments",
+      "expected": "HTTP 403",
+      "actual": "HTTP 403",
+      "steps": [
+        "Payments create student forbidden"
+      ]
+    },
+    {
+      "id": "API:Payments_get_non-existent",
+      "category": "API",
+      "name": "Payments get non-existent",
+      "status": "PASS",
+      "endpoint": "GET /api/payments/:id",
+      "expected": "HTTP 404",
+      "actual": "HTTP 404",
+      "steps": [
+        "Payments get non-existent"
+      ]
+    },
+    {
+      "id": "API:Shop_items_list",
+      "category": "API",
+      "name": "Shop items list",
+      "status": "PASS",
+      "endpoint": "GET /api/payments/shop-items",
+      "expected": "HTTP 200",
+      "actual": "HTTP 200",
+      "steps": [
+        "Shop items list"
+      ]
+    },
+    {
+      "id": "API:TeacherPayments_my_teacher",
+      "category": "API",
+      "name": "TeacherPayments my teacher",
+      "status": "PASS",
+      "endpoint": "GET /api/teacher-payments/my",
+      "expected": "HTTP 200",
+      "actual": "HTTP 200",
+      "steps": [
+        "TeacherPayments my teacher"
+      ]
+    },
+    {
+      "id": "API:TeacherPayments_list_student_forbidden",
+      "category": "API",
+      "name": "TeacherPayments list student forbidden",
+      "status": "PASS",
+      "endpoint": "GET /api/teacher-payments",
+      "expected": "HTTP 403",
+      "actual": "HTTP 403",
+      "steps": [
+        "TeacherPayments list student forbidden"
+      ]
+    },
+    {
+      "id": "API:Materials_list_admin",
+      "category": "API",
+      "name": "Materials list admin",
+      "status": "PASS",
+      "endpoint": "GET /api/materials",
+      "expected": "HTTP 200",
+      "actual": "HTTP 200",
+      "steps": [
+        "Materials list admin"
+      ]
+    },
+    {
+      "id": "API:Materials_folders_list",
+      "category": "API",
+      "name": "Materials folders list",
+      "status": "PASS",
+      "endpoint": "GET /api/materials/folders",
+      "expected": "HTTP 200",
+      "actual": "HTTP 200",
+      "steps": [
+        "Materials folders list"
+      ]
+    },
+    {
+      "id": "API:Materials_get_non-existent",
+      "category": "API",
+      "name": "Materials get non-existent",
+      "status": "PASS",
+      "endpoint": "GET /api/materials/:id",
+      "expected": "HTTP 404",
+      "actual": "HTTP 404",
+      "steps": [
+        "Materials get non-existent"
+      ]
+    },
+    {
+      "id": "API:Materials_create_student_forbidden",
+      "category": "API",
+      "name": "Materials create student forbidden",
+      "status": "PASS",
+      "endpoint": "POST /api/materials",
+      "expected": "HTTP 403",
+      "actual": "HTTP 403",
+      "steps": [
+        "Materials create student forbidden"
+      ]
+    },
+    {
+      "id": "API:Certificates_list_admin",
+      "category": "API",
+      "name": "Certificates list admin",
+      "status": "PASS",
+      "endpoint": "GET /api/certificates",
+      "expected": "HTTP 200",
+      "actual": "HTTP 200",
+      "steps": [
+        "Certificates list admin"
+      ]
+    },
+    {
+      "id": "API:Certificates_get_non-existent",
+      "category": "API",
+      "name": "Certificates get non-existent",
+      "status": "PASS",
+      "endpoint": "GET /api/certificates/:id",
+      "expected": "HTTP 404",
+      "actual": "HTTP 404",
+      "steps": [
+        "Certificates get non-existent"
+      ]
+    },
+    {
+      "id": "API:Certificates_create_missing_fields",
+      "category": "API",
+      "name": "Certificates create missing fields",
+      "status": "PASS",
+      "endpoint": "POST /api/certificates",
+      "expected": "HTTP 400",
+      "actual": "HTTP 400",
+      "steps": [
+        "Certificates create missing fields"
+      ]
+    },
+    {
+      "id": "API:Settings_list_admin",
+      "category": "API",
+      "name": "Settings list admin",
+      "status": "PASS",
+      "endpoint": "GET /api/settings",
+      "expected": "HTTP 200",
+      "actual": "HTTP 200",
+      "steps": [
+        "Settings list admin"
+      ]
+    },
+    {
+      "id": "API:Settings_list_student_forbidden",
+      "category": "API",
+      "name": "Settings list student forbidden",
+      "status": "PASS",
+      "endpoint": "GET /api/settings",
+      "expected": "HTTP 403",
+      "actual": "HTTP 403",
+      "steps": [
+        "Settings list student forbidden"
+      ]
+    },
+    {
+      "id": "API:Health_check",
+      "category": "API",
+      "name": "Health check",
+      "status": "PASS",
+      "endpoint": "GET /api/health",
+      "expected": "HTTP 200",
+      "actual": "HTTP 200",
+      "steps": [
+        "Health check"
+      ]
+    },
+    {
+      "id": "Business-Scenario-1:Student_sees_only_own_profile_in_list",
+      "category": "Business-Scenario-1",
+      "name": "Student sees only own profile in list",
+      "status": "PASS",
+      "endpoint": "GET /api/students",
+      "expected": "1 record matching own student id",
+      "actual": "count=1",
+      "steps": [
+        "Create student A/B",
+        "Login as A",
+        "GET /students"
+      ]
+    },
+    {
+      "id": "Business-Scenario-2:Group_member_link_exists",
+      "category": "Business-Scenario-2",
+      "name": "Group member link exists",
+      "status": "PASS",
+      "endpoint": "GET /api/groups/395444ef-4fb2-4935-a9ec-4d79c3bb48be/members"
+    },
+    {
+      "id": "Business-Scenario-2:Group_linked_to_teacher",
+      "category": "Business-Scenario-2",
+      "name": "Group linked to teacher",
+      "status": "PASS",
+      "endpoint": "GET /api/groups/:id"
+    },
+    {
+      "id": "Business-Scenario-2:Teacher_sees_assigned_group",
+      "category": "Business-Scenario-2",
+      "name": "Teacher sees assigned group",
+      "status": "PASS",
+      "endpoint": "GET /api/groups"
+    },
+    {
+      "id": "Business-Scenario-3:LessonSeries_generates_lessons",
+      "category": "Business-Scenario-3",
+      "name": "LessonSeries generates lessons",
+      "status": "PASS",
+      "endpoint": "POST /api/lesson-series",
+      "expected": "lessons_created > 0",
+      "actual": "HTTP 201, lessons_created=4"
+    },
+    {
+      "id": "Business-Scenario-3:LessonSeries_returns_skipped_dates_array",
+      "category": "Business-Scenario-3",
+      "name": "LessonSeries returns skipped_dates array",
+      "status": "PASS",
+      "endpoint": "POST /api/lesson-series"
+    },
+    {
+      "id": "Business-Scenario-4:Teacher_marks_attendance_present",
+      "category": "Business-Scenario-4",
+      "name": "Teacher marks attendance present",
+      "status": "PASS",
+      "endpoint": "PATCH /api/lessons/attendance/:id/present"
+    },
+    {
+      "id": "Business-Scenario-4:Teacher_payment_created_on_complete",
+      "category": "Business-Scenario-4",
+      "name": "Teacher payment created on complete",
+      "status": "PASS",
+      "endpoint": "PATCH /api/lessons/:id/complete"
+    },
+    {
+      "id": "Business-Scenario-5:Offline_payment_request",
+      "category": "Business-Scenario-5",
+      "name": "Offline payment request",
+      "status": "PASS",
+      "endpoint": "POST /api/alfabank/offline-payment-request"
+    },
+    {
+      "id": "Business-Scenario-5:AlfaBank_webhook_first_call",
+      "category": "Business-Scenario-5",
+      "name": "AlfaBank webhook first call",
+      "status": "PASS",
+      "endpoint": "POST /api/webhooks/alfabank",
+      "actual": "body=1, status=201"
+    },
+    {
+      "id": "Business-Scenario-5:AlfaBank_webhook_duplicate_idempotent",
+      "category": "Business-Scenario-5",
+      "name": "AlfaBank webhook duplicate idempotent",
+      "status": "PASS",
+      "endpoint": "POST /api/webhooks/alfabank",
+      "expected": "Returns 1 without double-crediting",
+      "actual": "body=1"
+    },
+    {
+      "id": "Business-Scenario-5:Webhook_credits_balance_once",
+      "category": "Business-Scenario-5",
+      "name": "Webhook credits balance once",
+      "status": "PASS",
+      "endpoint": "POST /api/webhooks/alfabank",
+      "expected": "lesson_balance = 3",
+      "actual": "lesson_balance = 3"
+    },
+    {
+      "id": "Business-Scenario-6:Certificate_draft_created",
+      "category": "Business-Scenario-6",
+      "name": "Certificate draft created",
+      "status": "PASS",
+      "endpoint": "POST /api/certificates"
+    },
+    {
+      "id": "Business-Scenario-6:Certificate_issued",
+      "category": "Business-Scenario-6",
+      "name": "Certificate issued",
+      "status": "PASS",
+      "endpoint": "PATCH /api/certificates/:id"
+    },
+    {
+      "id": "Business-Scenario-6:Certificate_history_recorded",
+      "category": "Business-Scenario-6",
+      "name": "Certificate history recorded",
+      "status": "PASS",
+      "endpoint": "GET /api/certificates/:id/history"
+    },
+    {
+      "id": "Business-Scenario-6:Certificate_PDF_downloadable",
+      "category": "Business-Scenario-6",
+      "name": "Certificate PDF downloadable",
+      "status": "PASS",
+      "endpoint": "GET /api/certificates/:id/pdf"
+    },
+    {
+      "id": "Business-Scenario-6:Certificate_access_denied_for_other_student",
+      "category": "Business-Scenario-6",
+      "name": "Certificate access denied for other student",
+      "status": "PASS",
+      "endpoint": "GET /api/certificates/:id",
+      "expected": "HTTP 403",
+      "actual": "HTTP 403"
+    },
+    {
+      "id": "Security-IDOR:Student_A_cannot_read_Student_B_profile",
+      "category": "Security-IDOR",
+      "name": "Student A cannot read Student B profile",
+      "status": "PASS",
+      "endpoint": "GET /api/students/96de655d-c8a2-4f37-80ee-c9bde8db9b93",
+      "expected": "HTTP 403",
+      "actual": "HTTP 403",
+      "steps": [
+        "Login as student A",
+        "GET student B by id"
+      ]
+    },
+    {
+      "id": "Security-IDOR:Teacher_cannot_read_another_teacher_group",
+      "category": "Security-IDOR",
+      "name": "Teacher cannot read another teacher group",
+      "status": "PASS",
+      "endpoint": "GET /api/groups/395444ef-4fb2-4935-a9ec-4d79c3bb48be",
+      "expected": "HTTP 403",
+      "actual": "HTTP 403"
+    },
+    {
+      "id": "Security-IDOR:Student_B_cannot_read_Student_A_certificate",
+      "category": "Security-IDOR",
+      "name": "Student B cannot read Student A certificate",
+      "status": "PASS",
+      "endpoint": "GET /api/certificates/962638fb-d8fb-41f7-899e-09dc77d8ef3f",
+      "expected": "HTTP 403",
+      "actual": "HTTP 403"
+    },
+    {
+      "id": "Security-IDOR:Student_B_cannot_read_Student_A_payment",
+      "category": "Security-IDOR",
+      "name": "Student B cannot read Student A payment",
+      "status": "PASS",
+      "endpoint": "GET /api/payments/2411779c-ca75-4d6a-84df-b122baf2e3bd",
+      "expected": "HTTP 403",
+      "actual": "HTTP 403"
+    },
+    {
+      "id": "Security-IDOR:Teacher_can_read_own_group",
+      "category": "Security-IDOR",
+      "name": "Teacher can read own group",
+      "status": "PASS",
+      "endpoint": "GET /api/groups/395444ef-4fb2-4935-a9ec-4d79c3bb48be"
+    },
+    {
+      "id": "Frontend:Playwright_configured_in_project",
+      "category": "Frontend",
+      "name": "Playwright configured in project",
+      "status": "SKIP",
+      "expected": "playwright.config in repo",
+      "actual": "Not configured — manual/static route audit used"
+    },
+    {
+      "id": "Frontend:Route_/login_serves_SPA_shell",
+      "category": "Frontend",
+      "name": "Route /login serves SPA shell",
+      "status": "PASS",
+      "expected": "HTTP 200 with React root",
+      "actual": "HTTP 200",
+      "file": "src/App.jsx"
+    },
+    {
+      "id": "Frontend:Route_/Dashboard_serves_SPA_shell",
+      "category": "Frontend",
+      "name": "Route /Dashboard serves SPA shell",
+      "status": "PASS",
+      "expected": "HTTP 200 with React root",
+      "actual": "HTTP 200",
+      "file": "src/App.jsx"
+    },
+    {
+      "id": "Frontend:Route_/UserManagement_serves_SPA_shell",
+      "category": "Frontend",
+      "name": "Route /UserManagement serves SPA shell",
+      "status": "PASS",
+      "expected": "HTTP 200 with React root",
+      "actual": "HTTP 200",
+      "file": "src/App.jsx"
+    },
+    {
+      "id": "Frontend:Route_/Groups_serves_SPA_shell",
+      "category": "Frontend",
+      "name": "Route /Groups serves SPA shell",
+      "status": "PASS",
+      "expected": "HTTP 200 with React root",
+      "actual": "HTTP 200",
+      "file": "src/App.jsx"
+    },
+    {
+      "id": "Frontend:Route_/Certificates_serves_SPA_shell",
+      "category": "Frontend",
+      "name": "Route /Certificates serves SPA shell",
+      "status": "PASS",
+      "expected": "HTTP 200 with React root",
+      "actual": "HTTP 200",
+      "file": "src/App.jsx"
+    },
+    {
+      "id": "Frontend:Route_/Attendance_serves_SPA_shell",
+      "category": "Frontend",
+      "name": "Route /Attendance serves SPA shell",
+      "status": "PASS",
+      "expected": "HTTP 200 with React root",
+      "actual": "HTTP 200",
+      "file": "src/App.jsx"
+    },
+    {
+      "id": "Frontend:Route_/TeacherPayments_serves_SPA_shell",
+      "category": "Frontend",
+      "name": "Route /TeacherPayments serves SPA shell",
+      "status": "PASS",
+      "expected": "HTTP 200 with React root",
+      "actual": "HTTP 200",
+      "file": "src/App.jsx"
+    },
+    {
+      "id": "Frontend:Route_/AdminPanel_serves_SPA_shell",
+      "category": "Frontend",
+      "name": "Route /AdminPanel serves SPA shell",
+      "status": "PASS",
+      "expected": "HTTP 200 with React root",
+      "actual": "HTTP 200",
+      "file": "src/App.jsx"
+    },
+    {
+      "id": "Frontend:Route_/StudentDashboard_serves_SPA_shell",
+      "category": "Frontend",
+      "name": "Route /StudentDashboard serves SPA shell",
+      "status": "PASS",
+      "expected": "HTTP 200 with React root",
+      "actual": "HTTP 200",
+      "file": "src/App.jsx"
+    },
+    {
+      "id": "Frontend:Route_/TeacherDashboard_serves_SPA_shell",
+      "category": "Frontend",
+      "name": "Route /TeacherDashboard serves SPA shell",
+      "status": "PASS",
+      "expected": "HTTP 200 with React root",
+      "actual": "HTTP 200",
+      "file": "src/App.jsx"
+    },
+    {
+      "id": "Frontend:Route_/Schedule_serves_SPA_shell",
+      "category": "Frontend",
+      "name": "Route /Schedule serves SPA shell",
+      "status": "PASS",
+      "expected": "HTTP 200 with React root",
+      "actual": "HTTP 200",
+      "file": "src/App.jsx"
+    },
+    {
+      "id": "Frontend:Route_/Profile_serves_SPA_shell",
+      "category": "Frontend",
+      "name": "Route /Profile serves SPA shell",
+      "status": "PASS",
+      "expected": "HTTP 200 with React root",
+      "actual": "HTTP 200",
+      "file": "src/App.jsx"
+    },
+    {
+      "id": "Frontend:Route_/Settings_serves_SPA_shell",
+      "category": "Frontend",
+      "name": "Route /Settings serves SPA shell",
+      "status": "PASS",
+      "expected": "HTTP 200 with React root",
+      "actual": "HTTP 200",
+      "file": "src/App.jsx"
+    },
+    {
+      "id": "Frontend:Route_/MaterialsHub_serves_SPA_shell",
+      "category": "Frontend",
+      "name": "Route /MaterialsHub serves SPA shell",
+      "status": "PASS",
+      "expected": "HTTP 200 with React root",
+      "actual": "HTTP 200",
+      "file": "src/App.jsx"
+    },
+    {
+      "id": "Frontend:Route_/AdminLessonMaterials_serves_SPA_shell",
+      "category": "Frontend",
+      "name": "Route /AdminLessonMaterials serves SPA shell",
+      "status": "PASS",
+      "expected": "HTTP 200 with React root",
+      "actual": "HTTP 200",
+      "file": "src/App.jsx"
+    },
+    {
+      "id": "Frontend:Route_/StudentLessonMaterials_serves_SPA_shell",
+      "category": "Frontend",
+      "name": "Route /StudentLessonMaterials serves SPA shell",
+      "status": "PASS",
+      "expected": "HTTP 200 with React root",
+      "actual": "HTTP 200",
+      "file": "src/App.jsx"
+    },
+    {
+      "id": "Frontend:Route_/StudentDetail_serves_SPA_shell",
+      "category": "Frontend",
+      "name": "Route /StudentDetail serves SPA shell",
+      "status": "PASS",
+      "expected": "HTTP 200 with React root",
+      "actual": "HTTP 200",
+      "file": "src/App.jsx"
+    },
+    {
+      "id": "Frontend:Route_/StudentLessons_serves_SPA_shell",
+      "category": "Frontend",
+      "name": "Route /StudentLessons serves SPA shell",
+      "status": "PASS",
+      "expected": "HTTP 200 with React root",
+      "actual": "HTTP 200",
+      "file": "src/App.jsx"
+    },
+    {
+      "id": "Frontend:Route_/TeacherSchedule_serves_SPA_shell",
+      "category": "Frontend",
+      "name": "Route /TeacherSchedule serves SPA shell",
+      "status": "PASS",
+      "expected": "HTTP 200 with React root",
+      "actual": "HTTP 200",
+      "file": "src/App.jsx"
+    },
+    {
+      "id": "Frontend:Vite_preview_server_startup",
+      "category": "Frontend",
+      "name": "Vite preview server startup",
+      "status": "SKIP",
+      "actual": "kill ESRCH",
+      "steps": [
+        "npm run preview on port 4173"
+      ]
+    },
+    {
+      "id": "Frontend:Route_/login_(static_audit)",
+      "category": "Frontend",
+      "name": "Route /login (static audit)",
+      "status": "PASS",
+      "file": "src/App.jsx",
+      "expected": "Route registered in App.jsx or pages.config"
+    },
+    {
+      "id": "Frontend:Route_/Dashboard_(static_audit)",
+      "category": "Frontend",
+      "name": "Route /Dashboard (static audit)",
+      "status": "PASS",
+      "file": "src/App.jsx",
+      "expected": "Route registered in App.jsx or pages.config"
+    },
+    {
+      "id": "Frontend:Route_/UserManagement_(static_audit)",
+      "category": "Frontend",
+      "name": "Route /UserManagement (static audit)",
+      "status": "PASS",
+      "file": "src/App.jsx",
+      "expected": "Route registered in App.jsx or pages.config"
+    },
+    {
+      "id": "Frontend:Route_/Groups_(static_audit)",
+      "category": "Frontend",
+      "name": "Route /Groups (static audit)",
+      "status": "PASS",
+      "file": "src/App.jsx",
+      "expected": "Route registered in App.jsx or pages.config"
+    },
+    {
+      "id": "Frontend:Route_/Certificates_(static_audit)",
+      "category": "Frontend",
+      "name": "Route /Certificates (static audit)",
+      "status": "PASS",
+      "file": "src/App.jsx",
+      "expected": "Route registered in App.jsx or pages.config"
+    },
+    {
+      "id": "Frontend:Route_/Attendance_(static_audit)",
+      "category": "Frontend",
+      "name": "Route /Attendance (static audit)",
+      "status": "PASS",
+      "file": "src/App.jsx",
+      "expected": "Route registered in App.jsx or pages.config"
+    },
+    {
+      "id": "Frontend:Route_/TeacherPayments_(static_audit)",
+      "category": "Frontend",
+      "name": "Route /TeacherPayments (static audit)",
+      "status": "PASS",
+      "file": "src/App.jsx",
+      "expected": "Route registered in App.jsx or pages.config"
+    },
+    {
+      "id": "Frontend:Route_/AdminPanel_(static_audit)",
+      "category": "Frontend",
+      "name": "Route /AdminPanel (static audit)",
+      "status": "PASS",
+      "file": "src/App.jsx",
+      "expected": "Route registered in App.jsx or pages.config"
+    },
+    {
+      "id": "Frontend:Route_/StudentDashboard_(static_audit)",
+      "category": "Frontend",
+      "name": "Route /StudentDashboard (static audit)",
+      "status": "PASS",
+      "file": "src/App.jsx",
+      "expected": "Route registered in App.jsx or pages.config"
+    },
+    {
+      "id": "Frontend:Route_/TeacherDashboard_(static_audit)",
+      "category": "Frontend",
+      "name": "Route /TeacherDashboard (static audit)",
+      "status": "PASS",
+      "file": "src/App.jsx",
+      "expected": "Route registered in App.jsx or pages.config"
+    },
+    {
+      "id": "Frontend:Route_/Schedule_(static_audit)",
+      "category": "Frontend",
+      "name": "Route /Schedule (static audit)",
+      "status": "PASS",
+      "file": "src/App.jsx",
+      "expected": "Route registered in App.jsx or pages.config"
+    },
+    {
+      "id": "Frontend:Route_/Profile_(static_audit)",
+      "category": "Frontend",
+      "name": "Route /Profile (static audit)",
+      "status": "PASS",
+      "file": "src/App.jsx",
+      "expected": "Route registered in App.jsx or pages.config"
+    },
+    {
+      "id": "Frontend:Route_/Settings_(static_audit)",
+      "category": "Frontend",
+      "name": "Route /Settings (static audit)",
+      "status": "PASS",
+      "file": "src/App.jsx",
+      "expected": "Route registered in App.jsx or pages.config"
+    },
+    {
+      "id": "Frontend:Route_/MaterialsHub_(static_audit)",
+      "category": "Frontend",
+      "name": "Route /MaterialsHub (static audit)",
+      "status": "PASS",
+      "file": "src/App.jsx",
+      "expected": "Route registered in App.jsx or pages.config"
+    },
+    {
+      "id": "Frontend:Route_/AdminLessonMaterials_(static_audit)",
+      "category": "Frontend",
+      "name": "Route /AdminLessonMaterials (static audit)",
+      "status": "PASS",
+      "file": "src/App.jsx",
+      "expected": "Route registered in App.jsx or pages.config"
+    },
+    {
+      "id": "Frontend:Route_/StudentLessonMaterials_(static_audit)",
+      "category": "Frontend",
+      "name": "Route /StudentLessonMaterials (static audit)",
+      "status": "PASS",
+      "file": "src/App.jsx",
+      "expected": "Route registered in App.jsx or pages.config"
+    },
+    {
+      "id": "Frontend:Route_/StudentDetail_(static_audit)",
+      "category": "Frontend",
+      "name": "Route /StudentDetail (static audit)",
+      "status": "PASS",
+      "file": "src/App.jsx",
+      "expected": "Route registered in App.jsx or pages.config"
+    },
+    {
+      "id": "Frontend:Route_/StudentLessons_(static_audit)",
+      "category": "Frontend",
+      "name": "Route /StudentLessons (static audit)",
+      "status": "PASS",
+      "file": "src/App.jsx",
+      "expected": "Route registered in App.jsx or pages.config"
+    },
+    {
+      "id": "Frontend:Route_/TeacherSchedule_(static_audit)",
+      "category": "Frontend",
+      "name": "Route /TeacherSchedule (static audit)",
+      "status": "PASS",
+      "file": "src/App.jsx",
+      "expected": "Route registered in App.jsx or pages.config"
+    }
+  ]
+}

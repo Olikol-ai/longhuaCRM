@@ -74,9 +74,9 @@ export default function MaterialsHub() {
 
     try {
       const [matsResult, coursesResult, foldersResult] = await Promise.allSettled([
-        api.entities.LessonMaterial.list("-created_date"),
-        api.entities.Course.list(),
-        api.entities.CourseFolder.list(),
+        api.materials.list("-created_date"),
+        api.courses.list(),
+        api.materials.folders.list(),
       ]);
 
       if (matsResult.status === "fulfilled") {
@@ -120,9 +120,9 @@ export default function MaterialsHub() {
     setLoading(true);
     try {
       if (editingCourse) {
-        await api.entities.Course.update(editingCourse.id, courseFormData);
+        await api.courses.update(editingCourse.id, courseFormData);
       } else {
-        await api.entities.Course.create(courseFormData);
+        await api.courses.create(courseFormData);
       }
       setShowCourseForm(false);
       setEditingCourse(null);
@@ -150,10 +150,10 @@ export default function MaterialsHub() {
     if (!confirm("Удалить курс? Материалы в этом курсе также будут удалены.")) return;
     setDeleting(id);
     try {
-      await api.entities.Course.delete(id);
+      await api.courses.delete(id);
       const matsToDelete = materials.filter(m => m.course_id === id);
       for (const mat of matsToDelete) {
-        await api.entities.LessonMaterial.delete(mat.id);
+        await api.materials.delete(mat.id);
       }
       await loadData();
     } catch (err) {
@@ -184,7 +184,7 @@ export default function MaterialsHub() {
     if (!confirm("Удалить материал?")) return;
     setDeleting(matId);
     try {
-      await api.entities.LessonMaterial.delete(matId);
+      await api.materials.delete(matId);
       await loadData();
     } catch (err) {
       console.error("Delete error:", err);

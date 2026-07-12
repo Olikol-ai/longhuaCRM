@@ -14,10 +14,8 @@ import { randomInt, randomUUID } from 'crypto';
 import { DataSource } from 'typeorm';
 import { validateRegistrationPassword } from '../../common/security/password-validation';
 import { RateLimitService } from '../../common/security/rate-limit.service';
-import {
-  PendingRegistrationEntity,
-} from '../../entities/pending-registration.entity';
-import { UserEntity } from '../../entities/user.entity';
+import { PendingRegistrationEntity } from './entities/pending-registration.entity';
+import { UserEntity } from '../users/entities/user.entity';
 import { MailService } from '../mail/mail.service';
 import { UsersRepository } from '../users/users.repository';
 import { RegisterDto } from './dto/register.dto';

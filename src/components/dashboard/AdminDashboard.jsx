@@ -51,9 +51,9 @@ export default function AdminDashboard({ user }) {
 
   useEffect(() => {
     Promise.all([
-      api.entities.Lesson.list("-date", 200),
-      api.entities.Student.list(),
-      api.entities.Teacher.list(),
+      api.lessons.list("-date", 200),
+      api.students.list(),
+      api.teachers.list(),
     ]).then(([l, s, t]) => {
       setLessons(l);
       setStudents(s);

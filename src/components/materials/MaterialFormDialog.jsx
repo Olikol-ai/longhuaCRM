@@ -46,7 +46,7 @@ export default function MaterialFormDialog({ onClose, onSave, defaultCourseId = 
 
   const loadCourses = async () => {
     try {
-      const c = await api.entities.Course.list();
+      const c = await api.courses.list();
       setCourses(Array.isArray(c) ? c : []);
       if (!formData.course_id && c.length > 0) {
         setFormData((prev) => ({ ...prev, course_id: c[0].id }));
@@ -61,7 +61,7 @@ export default function MaterialFormDialog({ onClose, onSave, defaultCourseId = 
 
   const loadFolders = async (courseId) => {
     try {
-      const all = await api.entities.CourseFolder.filter({ course_id: courseId });
+      const all = await api.materials.folders.filter({ course_id: courseId });
       setFolders(Array.isArray(all) ? all : []);
     } catch (err) {
       console.error("Failed to load folders for material form:", err);
@@ -139,7 +139,7 @@ export default function MaterialFormDialog({ onClose, onSave, defaultCourseId = 
 
       const externalLink = sourceMode === "link" ? formData.external_link.trim() : null;
 
-      await api.entities.LessonMaterial.create({
+      await api.materials.create({
         title: formData.title,
         description: formData.description || "",
         notes: formData.notes || "",

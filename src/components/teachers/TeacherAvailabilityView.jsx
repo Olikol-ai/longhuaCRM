@@ -10,16 +10,12 @@ export default function TeacherAvailabilityView({ teacherId }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.entities.TeacherAvailability.filter({ teacher_id: teacherId }).then(records => {
-      if (records.length > 0) {
-        const byDay = Array.from({ length: 7 }, () => []);
-        (records[0].slots || []).forEach(slot => {
-          byDay[slot.day] = [...byDay[slot.day], { from: slot.from, to: slot.to }];
-        });
-        setSlots(byDay);
-      } else {
-        setSlots(Array.from({ length: 7 }, () => []));
-      }
+    api.schedule.getTeacherAvailability(teacherId).then((availability) => {
+      const byDay = Array.from({ length: 7 }, () => []);
+      (availability?.slots || []).forEach((slot) => {
+        byDay[slot.day] = [...byDay[slot.day], { from: slot.from, to: slot.to }];
+      });
+      setSlots(byDay);
       setLoading(false);
     });
   }, [teacherId]);

@@ -2,7 +2,7 @@ import { BadRequestException, HttpException, HttpStatus, Injectable, Logger } fr
 import * as bcrypt from 'bcryptjs';
 import { randomInt } from 'crypto';
 import { RateLimitService } from '../../common/security/rate-limit.service';
-import { UserEntity } from '../../entities/user.entity';
+import { UserEntity } from '../users/entities/user.entity';
 import { MailService } from '../mail/mail.service';
 import { UsersRepository } from '../users/users.repository';
 

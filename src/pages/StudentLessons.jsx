@@ -82,8 +82,8 @@ export default function StudentLessons() {
   const loadData = async () => {
     if (!user) return;
     const [allStudents, allLessons] = await Promise.all([
-      api.entities.Student.list(),
-      api.entities.Lesson.list("-date", 300),
+      api.students.list(),
+      api.lessons.list("-date", 300),
     ]);
     const student = allStudents.find((s) => s.user_id === user.id || s.email === user.email);
     if (student) {

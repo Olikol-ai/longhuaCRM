@@ -46,8 +46,8 @@ export default function WindowsFileBrowser() {
 
   const loadData = async () => {
     const [c, m] = await Promise.all([
-      api.entities.Course.list("-created_date"),
-      api.entities.LessonMaterial.list("-created_date"),
+      api.courses.list("-created_date"),
+      api.materials.list("-created_date"),
     ]);
     setCourses(c);
     setMaterials(m);
@@ -78,7 +78,7 @@ export default function WindowsFileBrowser() {
 
       if (sourceCourseId !== destCourseId) {
         // Move to different course
-        await api.entities.LessonMaterial.update(draggableId, { course_id: destCourseId });
+        await api.materials.update(draggableId, { course_id: destCourseId });
       }
       // Note: Order preservation can be added with a 'sort_order' field if needed
       loadData();
@@ -88,11 +88,11 @@ export default function WindowsFileBrowser() {
   const handleDeleteConfirm = async () => {
     setDeleting(true);
     if (deleteTarget.type === "material") {
-      await api.entities.LessonMaterial.delete(deleteTarget.item.id);
+      await api.materials.delete(deleteTarget.item.id);
     } else {
       const courseMats = materials.filter(m => m.course_id === deleteTarget.item.id);
-      await Promise.all(courseMats.map(m => api.entities.LessonMaterial.delete(m.id)));
-      await api.entities.Course.delete(deleteTarget.item.id);
+      await Promise.all(courseMats.map(m => api.materials.delete(m.id)));
+      await api.courses.delete(deleteTarget.item.id);
       if (selectedCourse?.id === deleteTarget.item.id) setSelectedCourse(null);
     }
     setDeleteTarget(null);
@@ -116,11 +116,11 @@ export default function WindowsFileBrowser() {
         const material = materials.find(m => m.id === item.id);
         if (material) {
           if (clipboard.type === "cut") {
-            await api.entities.LessonMaterial.update(item.id, { course_id: selectedCourse.id });
+            await api.materials.update(item.id, { course_id: selectedCourse.id });
           } else {
             // Copy: create new material with same data
             const { id, created_date, updated_date, created_by, ...rest } = material;
-            await api.entities.LessonMaterial.create({ ...rest, course_id: selectedCourse.id, title: `${material.title} (копия)` });
+            await api.materials.create({ ...rest, course_id: selectedCourse.id, title: `${material.title} (копия)` });
           }
         }
       }

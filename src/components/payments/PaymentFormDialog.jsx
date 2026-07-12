@@ -47,7 +47,7 @@ export default function PaymentFormDialog({ open, onOpenChange, studentId, onSav
   }, [open, studentId]);
 
   const loadStudents = async () => {
-    const s = await api.entities.Student.list();
+    const s = await api.students.list();
     setStudents(s);
     if (studentId) {
       const found = s.find((st) => st.id === studentId);
@@ -77,7 +77,7 @@ export default function PaymentFormDialog({ open, onOpenChange, studentId, onSav
         payment_date: formData.payment_date,
         comment: formData.comment,
       };
-      await api.entities.Payment.create(payment);
+      await api.payments.create(payment);
       onSave?.();
       onOpenChange(false);
     } finally {

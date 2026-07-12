@@ -21,8 +21,8 @@ export default function Payments() {
     setError("");
     try {
       const [p, s] = await Promise.all([
-        api.entities.Payment.list("-payment_date", 200),
-        api.entities.Student.list(),
+        api.payments.list("-payment_date", 200),
+        api.students.list(),
       ]);
       setPayments(p);
       setStudents(s);
@@ -37,10 +37,10 @@ export default function Payments() {
 
   const handleSave = async (data) => {
     if (editingPayment) {
-      await api.entities.Payment.update(editingPayment.id, data);
+      await api.payments.update(editingPayment.id, data);
       setEditingPayment(null);
     } else {
-      await api.entities.Payment.create(data);
+      await api.payments.create(data);
     }
     setShowModal(false);
     load();
@@ -48,7 +48,7 @@ export default function Payments() {
 
   const handleDelete = async (payment) => {
     if (!window.confirm(`Удалить платёж ${payment.student_name} на ${payment.amount} BYN? Баланс ученика будет уменьшен на ${payment.lessons_added} уроков.`)) return;
-    await api.entities.Payment.delete(payment.id);
+    await api.payments.delete(payment.id);
     load();
   };
 

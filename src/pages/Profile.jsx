@@ -21,15 +21,15 @@ export default function Profile() {
 
       if (user.role === "student" || user.has_student_profile) {
         const students = user.student_profile_id
-          ? await api.entities.Student.filter({ id: user.student_profile_id })
-          : await api.entities.Student.filter({ user_id: user.id });
+          ? await api.students.filter({ id: user.student_profile_id })
+          : await api.students.filter({ user_id: user.id });
         birthday = students[0]?.birthday || "";
         if (!telegramId && students[0]?.telegram_id) telegramId = students[0].telegram_id;
       } else if (user.role === "teacher" || user.has_teacher_profile) {
         let teachers = user.teacher_profile_id
-          ? await api.entities.Teacher.filter({ id: user.teacher_profile_id })
-          : await api.entities.Teacher.filter({ user_id: user.id });
-        if (!teachers.length) teachers = await api.entities.Teacher.filter({ email: user.email });
+          ? await api.teachers.filter({ id: user.teacher_profile_id })
+          : await api.teachers.filter({ user_id: user.id });
+        if (!teachers.length) teachers = await api.teachers.filter({ email: user.email });
         if (!telegramId && teachers[0]?.telegram_id) telegramId = teachers[0].telegram_id;
       }
 
@@ -53,21 +53,21 @@ export default function Profile() {
 
     if (user.role === "student" || user.has_student_profile) {
       const students = user.student_profile_id
-        ? await api.entities.Student.filter({ id: user.student_profile_id })
-        : await api.entities.Student.filter({ user_id: user.id });
+        ? await api.students.filter({ id: user.student_profile_id })
+        : await api.students.filter({ user_id: user.id });
       if (students.length > 0) {
-        await api.entities.Student.update(students[0].id, {
+        await api.students.update(students[0].id, {
           telegram_id: form.telegram_id,
           birthday: form.birthday,
         });
       }
     } else if (user.role === "teacher" || user.has_teacher_profile) {
       let teachers = user.teacher_profile_id
-        ? await api.entities.Teacher.filter({ id: user.teacher_profile_id })
-        : await api.entities.Teacher.filter({ user_id: user.id });
-      if (!teachers.length) teachers = await api.entities.Teacher.filter({ email: user.email });
+        ? await api.teachers.filter({ id: user.teacher_profile_id })
+        : await api.teachers.filter({ user_id: user.id });
+      if (!teachers.length) teachers = await api.teachers.filter({ email: user.email });
       if (teachers.length > 0) {
-        await api.entities.Teacher.update(teachers[0].id, {
+        await api.teachers.update(teachers[0].id, {
           telegram_id: form.telegram_id,
           user_id: user.id,
         });

@@ -16,7 +16,7 @@ export default function AdminSettings() {
   useEffect(() => { loadSettings(); }, []);
 
   const loadSettings = async () => {
-    const settings = await api.entities.AppSettings.filter({ key: "alfa_bank_token" });
+    const settings = await api.settings.filter({ key: "alfa_bank_token" });
     if (settings.length > 0) {
       const v = settings[0].value || "";
       setAlfaMasked(v.length > 5 ? "•".repeat(v.length - 5) + v.slice(-5) : v ? "•".repeat(v.length) : "");
@@ -26,11 +26,11 @@ export default function AdminSettings() {
   const saveAlfaToken = async () => {
     if (!alfaToken.trim()) return;
     setSavingAlfa(true);
-    const existing = await api.entities.AppSettings.filter({ key: "alfa_bank_token" });
+    const existing = await api.settings.filter({ key: "alfa_bank_token" });
     if (existing.length > 0) {
-      await api.entities.AppSettings.update(existing[0].id, { value: alfaToken.trim() });
+      await api.settings.update(existing[0].id, { value: alfaToken.trim() });
     } else {
-      await api.entities.AppSettings.create({ key: "alfa_bank_token", value: alfaToken.trim(), description: "Alfa Bank Acquiring Token (Belarus)" });
+      await api.settings.create({ key: "alfa_bank_token", value: alfaToken.trim(), description: "Alfa Bank Acquiring Token (Belarus)" });
     }
     const v = alfaToken.trim();
     setAlfaMasked(v.length > 5 ? "•".repeat(v.length - 5) + v.slice(-5) : "•".repeat(v.length));

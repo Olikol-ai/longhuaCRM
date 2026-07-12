@@ -194,7 +194,7 @@ function AccountsTab({ users, loading, onReload, onRoleChange }) {
     setUpdating(u.id);
     setDeleteConfirm(null);
     try {
-      const result = await api.entities.User.delete(u.id);
+      const result = await api.users.delete(u.id);
       showOrphanStudentsNotice(result);
       await onReload();
     } catch (err) {
@@ -360,7 +360,7 @@ function StudentsTab({ students, teachers, loading, onReload }) {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const result = await api.entities.Student.delete(deleteTarget.id);
+      const result = await api.students.delete(deleteTarget.id);
       showOrphanStudentsNotice(result);
       setDeleteTarget(null);
       await onReload();
@@ -487,7 +487,7 @@ function TeachersTab({ teachers, students, loading, onReload }) {
   const [viewTeacher, setViewTeacher] = useState(null);
 
   useEffect(() => {
-    api.entities.Lesson.list().then(setLessons).catch(() => setLessons([]));
+    api.lessons.list().then(setLessons).catch(() => setLessons([]));
   }, [teachers]);
 
   const hasActiveLessons = (id) => lessons.some(l => l.teacher_id === id && l.status === "planned");
@@ -501,7 +501,7 @@ function TeachersTab({ teachers, students, loading, onReload }) {
     }
     setDeleting(true);
     try {
-      const result = await api.entities.Teacher.delete(deleteTarget.id);
+      const result = await api.teachers.delete(deleteTarget.id);
       showOrphanStudentsNotice(result);
       setDeleteTarget(null);
       await onReload();
@@ -636,9 +636,9 @@ export default function UserManagement() {
     setLoading(true);
     try {
       const [u, s, t] = await Promise.all([
-        api.entities.User.list(),
-        api.entities.Student.list("-created_date"),
-        api.entities.Teacher.list("-created_date"),
+        api.users.list(),
+        api.students.list("-created_date"),
+        api.teachers.list("-created_date"),
       ]);
       setUsers(u);
       setStudents(s);
@@ -655,7 +655,7 @@ export default function UserManagement() {
   }, []);
 
   const handleRoleChange = async (userId, newRole) => {
-    await api.entities.User.update(userId, { role: newRole, status: "active" });
+    await api.users.update(userId, { role: newRole, status: "active" });
     await loadAll();
   };
 

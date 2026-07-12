@@ -23,9 +23,9 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
 
   const loadData = async () => {
     const [mats, sts, trs] = await Promise.all([
-      api.entities.LessonMaterial.list(),
-      api.entities.Student.list(),
-      api.entities.Teacher.list(),
+      api.materials.list(),
+      api.students.list(),
+      api.teachers.list(),
     ]);
 
     setMaterials(mats);

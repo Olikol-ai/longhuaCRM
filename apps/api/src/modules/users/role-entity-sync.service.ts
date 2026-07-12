@@ -2,10 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
-import { entityToRecord, recordToEntityPayload } from '../../common/utils/record.util';
-import { StudentEntity } from '../../entities/student.entity';
-import { TeacherEntity } from '../../entities/teacher.entity';
-import { UserEntity } from '../../entities/user.entity';
+import { filterToEntityWhere } from '../../common/utils/api-record.util';
+import { StudentEntity } from '../students/entities/student.entity';
+import { TeacherEntity } from '../teachers/entities/teacher.entity';
+import { UserEntity } from './entities/user.entity';
 
 export type RoleEntityUserContext = Pick<
   UserEntity,
@@ -42,10 +42,8 @@ export class RoleEntitySyncService {
     }
   }
 
-  async upsertStudentFromCreate(
-    input: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> {
-    const payload = recordToEntityPayload(input);
+  async upsertStudentFromCreate(input: Record<string, unknown>): Promise<StudentEntity> {
+    const payload = filterToEntityWhere(input) as Partial<StudentEntity>;
     const userId = this.normalizeId(payload.userId);
     const email = this.normalizeEmail(payload.email);
 
@@ -66,10 +64,8 @@ export class RoleEntitySyncService {
     return this.insertStudent(payload, input.id);
   }
 
-  async upsertTeacherFromCreate(
-    input: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> {
-    const payload = recordToEntityPayload(input);
+  async upsertTeacherFromCreate(input: Record<string, unknown>): Promise<TeacherEntity> {
+    const payload = filterToEntityWhere(input) as Partial<TeacherEntity>;
     const userId = this.normalizeId(payload.userId);
     const email = this.normalizeEmail(payload.email);
 
@@ -90,44 +86,23 @@ export class RoleEntitySyncService {
     return this.insertTeacher(payload, input.id);
   }
 
-  /** Detach login link — preserve profile data; hide from role-specific lists until restored. */
   private async detachTeachersForUser(userId: string): Promise<void> {
-    await this.teacherRepo.update(
-      { userId },
-      {
-        userId: null,
-        status: 'inactive',
-        updatedDate: new Date(),
-      } as unknown as Partial<TeacherEntity>,
-    );
+    await this.teacherRepo.update({ userId }, { userId: null, status: 'inactive' });
   }
 
-  /** Detach login link — preserve profile data; hide from role-specific lists until restored. */
   private async detachStudentsForUser(userId: string): Promise<void> {
-    await this.studentRepo.update(
-      { userId },
-      {
-        userId: null,
-        status: 'inactive',
-        updatedDate: new Date(),
-      } as unknown as Partial<StudentEntity>,
-    );
+    await this.studentRepo.update({ userId }, { userId: null, status: 'inactive' });
   }
 
   private async ensureStudentProfile(user: RoleEntityUserContext): Promise<void> {
     let row =
       (await this.studentRepo.findOne({ where: { userId: user.id } })) ??
-      (user.email
-        ? await this.studentRepo.findOne({ where: { email: user.email } })
-        : null);
+      (user.email ? await this.studentRepo.findOne({ where: { email: user.email } }) : null);
 
-    if (row) {
-      if (row.userId && row.userId !== user.id) {
-        row = null;
-      }
+    if (row?.userId && row.userId !== user.id) {
+      row = null;
     }
 
-    const now = new Date();
     if (row) {
       row.userId = user.id;
       row.status = 'active';
@@ -135,7 +110,6 @@ export class RoleEntitySyncService {
       row.name = this.displayName(user);
       row.firstName = user.firstName || row.firstName;
       row.lastName = user.lastName || row.lastName;
-      row.updatedDate = now;
       await this.studentRepo.save(row);
       return;
     }
@@ -150,8 +124,6 @@ export class RoleEntitySyncService {
         userId: user.id,
         status: 'active',
         lessonBalance: 0,
-        createdDate: now,
-        updatedDate: now,
       }),
     );
   }
@@ -159,17 +131,12 @@ export class RoleEntitySyncService {
   private async ensureTeacherProfile(user: RoleEntityUserContext): Promise<void> {
     let row =
       (await this.teacherRepo.findOne({ where: { userId: user.id } })) ??
-      (user.email
-        ? await this.teacherRepo.findOne({ where: { email: user.email } })
-        : null);
+      (user.email ? await this.teacherRepo.findOne({ where: { email: user.email } }) : null);
 
-    if (row) {
-      if (row.userId && row.userId !== user.id) {
-        row = null;
-      }
+    if (row?.userId && row.userId !== user.id) {
+      row = null;
     }
 
-    const now = new Date();
     if (row) {
       row.userId = user.id;
       row.status = 'active';
@@ -177,7 +144,6 @@ export class RoleEntitySyncService {
       row.name = this.displayName(user);
       row.firstName = user.firstName || row.firstName;
       row.lastName = user.lastName || row.lastName;
-      row.updatedDate = now;
       await this.teacherRepo.save(row);
       return;
     }
@@ -191,60 +157,46 @@ export class RoleEntitySyncService {
         lastName: user.lastName || '',
         userId: user.id,
         status: 'active',
-        createdDate: now,
-        updatedDate: now,
       }),
     );
   }
 
   private async saveStudent(
     row: StudentEntity,
-    payload: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> {
+    payload: Partial<StudentEntity>,
+  ): Promise<StudentEntity> {
     Object.assign(row, payload);
-    row.updatedDate = new Date();
-    const saved = await this.studentRepo.save(row);
-    return entityToRecord(saved as unknown as Record<string, unknown>);
+    return this.studentRepo.save(row);
   }
 
   private async saveTeacher(
     row: TeacherEntity,
-    payload: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> {
+    payload: Partial<TeacherEntity>,
+  ): Promise<TeacherEntity> {
     Object.assign(row, payload);
-    row.updatedDate = new Date();
-    const saved = await this.teacherRepo.save(row);
-    return entityToRecord(saved as unknown as Record<string, unknown>);
+    return this.teacherRepo.save(row);
   }
 
   private async insertStudent(
-    payload: Record<string, unknown>,
+    payload: Partial<StudentEntity>,
     idInput: unknown,
-  ): Promise<Record<string, unknown>> {
-    const now = new Date();
+  ): Promise<StudentEntity> {
     const row = this.studentRepo.create({
       id: idInput ? String(idInput) : randomUUID(),
       ...payload,
-      createdDate: now,
-      updatedDate: now,
     });
-    const saved = await this.studentRepo.save(row);
-    return entityToRecord(saved as unknown as Record<string, unknown>);
+    return this.studentRepo.save(row);
   }
 
   private async insertTeacher(
-    payload: Record<string, unknown>,
+    payload: Partial<TeacherEntity>,
     idInput: unknown,
-  ): Promise<Record<string, unknown>> {
-    const now = new Date();
+  ): Promise<TeacherEntity> {
     const row = this.teacherRepo.create({
       id: idInput ? String(idInput) : randomUUID(),
       ...payload,
-      createdDate: now,
-      updatedDate: now,
     });
-    const saved = await this.teacherRepo.save(row);
-    return entityToRecord(saved as unknown as Record<string, unknown>);
+    return this.teacherRepo.save(row);
   }
 
   private displayName(user: RoleEntityUserContext): string {

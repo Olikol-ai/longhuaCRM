@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
-import { UserEntity } from '../../entities/user.entity';
+import { UserEntity } from './entities/user.entity';
 
 @Injectable()
 export class UsersRepository implements OnModuleInit {

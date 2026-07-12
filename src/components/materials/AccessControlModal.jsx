@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
-import { grantAccess, revokeAccess } from "@/lib/materialAccess";
+import { grantAccess, revokeAccess, hasAccessToMaterial } from "@/lib/materialAccess";
 import { X, Users, Lock, Save, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -17,18 +17,13 @@ export default function AccessControlModal({ material, course, onClose, onSave }
     if (!user) return;
 
     const load = async () => {
-      const [sts, accesses] = await Promise.all([
-        api.entities.Student.list(),
-        api.entities.MaterialAccess.filter({
-          material_id: material.id,
-        }),
-      ]);
+      const sts = await api.students.list();
 
       let visibleStudents = sts;
       if (user.role === "teacher") {
         const teacherId =
           user.teacher_profile_id ||
-          (await api.entities.Teacher.filter({ user_id: user.id }))[0]?.id;
+          (await api.teachers.filter({ user_id: user.id }))[0]?.id;
         if (teacherId) {
           visibleStudents = sts.filter((s) => s.assigned_teacher === teacherId);
         } else {
@@ -38,8 +33,17 @@ export default function AccessControlModal({ material, course, onClose, onSave }
 
       setStudents(visibleStudents);
 
+      const accessChecks = await Promise.all(
+        visibleStudents
+          .filter((student) => student.user_id)
+          .map(async (student) => ({
+            userId: student.user_id,
+            hasAccess: await hasAccessToMaterial(student.user_id, material.id),
+          })),
+      );
+
       const grantedUserIds = new Set(
-        accesses.filter((a) => a.access === true).map((a) => a.user_id),
+        accessChecks.filter((row) => row.hasAccess).map((row) => row.userId),
       );
       setInitialGrantedUserIds(grantedUserIds);
 

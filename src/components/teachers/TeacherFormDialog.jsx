@@ -52,9 +52,9 @@ export default function TeacherFormDialog({ open, onOpenChange, teacher, onSave 
     try {
       const data = { ...formData, hourly_rate: Number(formData.hourly_rate) };
       if (teacher) {
-        await api.entities.Teacher.update(teacher.id, data);
+        await api.teachers.update(teacher.id, data);
       } else {
-        await api.entities.Teacher.create(data);
+        await api.teachers.create(data);
       }
       onSave?.();
       onOpenChange(false);

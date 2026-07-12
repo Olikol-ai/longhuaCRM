@@ -15,6 +15,9 @@ import {
   Sun,
   Moon,
   Layers,
+  Award,
+  ClipboardCheck,
+  DollarSign,
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import { useAuth } from "@/lib/AuthContext";
@@ -32,12 +35,16 @@ const adminNav = [
   { name: "Панель управления", icon: Layers, page: "AdminPanel" },
   { name: "Материалы", icon: BookOpen, page: "MaterialsHub" },
   { name: "Пользователи", icon: Users, page: "UserManagement" },
+  { name: "Группы", icon: Users, page: "Groups" },
+  { name: "Сертификаты", icon: Award, page: "Certificates" },
+  { name: "Посещаемость", icon: ClipboardCheck, page: "Attendance" },
   { name: "Настройки", icon: Settings, page: "Settings" },
 ];
 
 const teacherNav = [
   { name: "Главная", icon: LayoutDashboard, page: "TeacherDashboard" },
   { name: "Моё расписание", icon: Calendar, page: "TeacherSchedule" },
+  { name: "Мои выплаты", icon: DollarSign, page: "TeacherPayments" },
   { name: "Материалы", icon: BookOpen, page: "MaterialsHub" },
   { name: "Профиль", icon: UserCircle, page: "Profile" },
   { name: "Настройки", icon: Settings, page: "Settings" },

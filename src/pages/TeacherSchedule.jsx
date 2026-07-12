@@ -67,9 +67,9 @@ export default function TeacherSchedule() {
 
   const loadData = async () => {
     const [teachers, allLessons, allStudents] = await Promise.all([
-      api.entities.Teacher.list(),
-      api.entities.Lesson.list("-date", 500),
-      api.entities.Student.list(),
+      api.teachers.list(),
+      api.lessons.list("-date", 500),
+      api.students.list(),
     ]);
     const t = teachers.find((row) => row.user_id === user.id || row.email === user.email);
     setAllTeachers(teachers);
@@ -104,7 +104,7 @@ export default function TeacherSchedule() {
 
   const markLesson = async (lesson, status) => {
     setUpdating(lesson.id);
-    await api.entities.Lesson.update(lesson.id, { status });
+    await api.lessons.update(lesson.id, { status });
     setExpandedLesson(null);
     setUpdating(null);
     loadData();
@@ -114,7 +114,7 @@ export default function TeacherSchedule() {
     if (!teacher) return;
     const lessonData = { ...data, teacher_id: teacher.id, teacher_name: teacher.name };
     await createWeeklyLessonSeries(
-      (payload) => api.entities.Lesson.create(payload),
+      (payload) => api.lessons.create(payload),
       lessonData,
       recurring,
     );
