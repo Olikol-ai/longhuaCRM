@@ -17,6 +17,8 @@ const FIELD_ALIASES = {
   course_name: 'name',
   course_type: 'courseType',
   total_lessons: 'totalLessons',
+  label: 'name',
+  lessons: 'lessonsCount',
   file_url: 'fileUrl',
   file_type: 'fileType',
   external_link: 'externalLink',

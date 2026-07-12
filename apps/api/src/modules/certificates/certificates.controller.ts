@@ -18,6 +18,7 @@ import { JwtPayload } from '../auth/auth.service';
 import { CertificatePdfService } from './certificate-pdf.service';
 import { CreateCertificateDto } from './dto/create-certificate.dto';
 import { FilterQueryDto } from './dto/filter-query.dto';
+import { ReissueCertificateDto } from './dto/reissue-certificate.dto';
 import { UpdateCertificateDto } from './dto/update-certificate.dto';
 import { CertificatesService } from './certificates.service';
 
@@ -50,7 +51,8 @@ export class CertificatesController {
     @Param('id') id: string,
     @Res() res: Response,
   ) {
-    await this.certificatesService.findById(user, id);
+    const certificate = await this.certificatesService.findById(user, id);
+    this.certificatesService.assertPdfAllowed(certificate);
     const { buffer, filename } = await this.certificatePdfService.generatePdf(id);
     res.set({
       'Content-Type': 'application/pdf',
@@ -80,9 +82,19 @@ export class CertificatesController {
     return this.certificatesService.update(user, id, dto);
   }
 
+  @Post(':id/reissue')
+  @Roles('admin')
+  reissue(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: ReissueCertificateDto,
+  ) {
+    return this.certificatesService.reissue(user, id, dto);
+  }
+
   @Delete(':id')
   @Roles('admin')
-  delete(@Param('id') id: string) {
-    return this.certificatesService.delete(id);
+  delete(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.certificatesService.delete(user, id);
   }
 }

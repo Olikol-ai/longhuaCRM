@@ -27,7 +27,7 @@ export class UpdateCertificateDto {
   issueDate?: string;
 
   @IsOptional()
-  @IsEnum(['draft', 'issued', 'revoked'])
+  @IsEnum(['draft', 'issued', 'sent', 'duplicate', 'revoked'])
   status?: CertificateStatus;
 
   @IsOptional()

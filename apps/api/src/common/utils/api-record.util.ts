@@ -6,6 +6,7 @@ export function camelToSnake(key: string): string {
 /** Legacy frontend field names (stable API contract). */
 const API_FIELD_ALIASES: Record<string, string> = {
   assignedTeacherId: 'assigned_teacher',
+  courseTemplateId: 'course_id',
 };
 
 const FILTER_FIELD_ALIASES: Record<string, string> = {

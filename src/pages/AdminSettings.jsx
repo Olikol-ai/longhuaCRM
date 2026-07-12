@@ -28,7 +28,10 @@ export default function AdminSettings() {
     setSavingAlfa(true);
     const existing = await api.settings.filter({ key: "alfa_bank_token" });
     if (existing.length > 0) {
-      await api.settings.update(existing[0].id, { value: alfaToken.trim() });
+      await api.settings.update(existing[0].id, {
+        key: 'alfa_bank_token',
+        value: alfaToken.trim(),
+      });
     } else {
       await api.settings.create({ key: "alfa_bank_token", value: alfaToken.trim(), description: "Alfa Bank Acquiring Token (Belarus)" });
     }

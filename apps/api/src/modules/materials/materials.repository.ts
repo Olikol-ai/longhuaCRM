@@ -44,6 +44,13 @@ export class MaterialsRepository {
     return this.materialRepo.find({ where });
   }
 
+  findFoldersByIds(ids: string[]): Promise<MaterialFolderEntity[]> {
+    if (ids.length === 0) {
+      return Promise.resolve([]);
+    }
+    return this.folderRepo.find({ where: { id: In(ids) } });
+  }
+
   findAllFolders(): Promise<MaterialFolderEntity[]> {
     return this.folderRepo.find({ order: { sortOrder: 'ASC' } });
   }

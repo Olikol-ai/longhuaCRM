@@ -15,6 +15,7 @@ import { CertificateAccessService } from './certificate-access.service';
 import { CourseAccessService } from './course-access.service';
 import { LessonAccessService } from './lesson-access.service';
 import { MaterialsDomainAccessService } from './materials-domain-access.service';
+import { ScheduleAccessService } from './schedule-access.service';
 import { StudentAccessService } from './student-access.service';
 import { TeacherAccessService } from './teacher-access.service';
 
@@ -39,6 +40,7 @@ import { TeacherAccessService } from './teacher-access.service';
     StudentAccessService,
     TeacherAccessService,
     LessonAccessService,
+    ScheduleAccessService,
     CourseAccessService,
     MaterialsDomainAccessService,
     CertificateAccessService,
@@ -47,6 +49,7 @@ import { TeacherAccessService } from './teacher-access.service';
     StudentAccessService,
     TeacherAccessService,
     LessonAccessService,
+    ScheduleAccessService,
     CourseAccessService,
     MaterialsDomainAccessService,
     CertificateAccessService,

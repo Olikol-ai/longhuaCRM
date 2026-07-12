@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
 import { Repository } from 'typeorm';
+import { DOWNLOADABLE_CERTIFICATE_STATUSES } from './certificate-lifecycle';
 import { CourseTemplateEntity } from '../courses/entities/course-template.entity';
 import { StudentEntity } from '../students/entities/student.entity';
 import { CertificateEntity } from './entities/certificate.entity';
@@ -30,6 +31,9 @@ export class CertificatePdfService {
     const certificate = await this.certificateRepo.findOne({ where: { id: certificateId } });
     if (!certificate) {
       throw new NotFoundException('Certificate not found');
+    }
+    if (!DOWNLOADABLE_CERTIFICATE_STATUSES.has(certificate.status)) {
+      throw new BadRequestException('PDF is not available for this certificate status');
     }
 
     const [student, course] = await Promise.all([

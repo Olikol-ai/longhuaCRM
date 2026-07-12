@@ -69,6 +69,28 @@ export default function MaterialFormDialog({ onClose, onSave, defaultCourseId = 
     }
   };
 
+  const resolveFolderId = async (courseId, preferredFolderId) => {
+    if (preferredFolderId) {
+      return preferredFolderId;
+    }
+
+    const courseFolders = await api.materials.folders.filter({ course_id: courseId });
+    const rows = Array.isArray(courseFolders) ? courseFolders : [];
+    const rootFolder =
+      rows.find((folder) => !folder.parent_folder_id && !folder.parent_id) ?? rows[0];
+
+    if (rootFolder?.id) {
+      return rootFolder.id;
+    }
+
+    const created = await api.materials.folders.create({
+      course_id: courseId,
+      name: "Корень",
+      sort_order: 0,
+    });
+    return created.id;
+  };
+
   const dismissSaveError = () => {
     setSaveError(null);
   };
@@ -131,25 +153,26 @@ export default function MaterialFormDialog({ onClose, onSave, defaultCourseId = 
     setSaveError(null);
     setSaving(true);
     try {
+      const folderId = await resolveFolderId(formData.course_id, formData.folder_id || null);
+
       let fileUrl = null;
       if (sourceMode === "file" && file) {
         const uploadedFile = await api.uploads.uploadFile({ file });
         fileUrl = uploadedFile.file_url;
+        if (!fileUrl) {
+          throw new Error("Сервер не вернул URL загруженного файла");
+        }
       }
 
       const externalLink = sourceMode === "link" ? formData.external_link.trim() : null;
+      const descriptionParts = [formData.description?.trim(), formData.notes?.trim()].filter(Boolean);
 
       await api.materials.create({
         title: formData.title,
-        description: formData.description || "",
-        notes: formData.notes || "",
-        course_id: formData.course_id,
-        folder_id: formData.folder_id || null,
-        block_name: formData.block_name || "",
-        file_type: formData.file_type,
-        file_url: fileUrl,
-        external_link: externalLink,
-        tags: [],
+        description: descriptionParts.join("\n\n") || "",
+        folder_id: folderId,
+        file_type: externalLink ? detectLinkType(externalLink) : formData.file_type,
+        file_url: externalLink || fileUrl,
       });
 
       onSave();

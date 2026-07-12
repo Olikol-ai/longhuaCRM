@@ -55,7 +55,7 @@ export default function StudentDetail() {
       api.lessons.list("-date", 200),
       api.payments.list("-payment_date", 200),
       api.teachers.list(),
-      api.courses.enrollments.filter({ where: { student_id: studentId } }),
+      api.courses.enrollments.filter({ student_id: studentId }),
     ]);
 
     const s = allStudents.find((x) => x.id === studentId);

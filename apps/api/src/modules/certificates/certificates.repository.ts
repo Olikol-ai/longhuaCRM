@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import { FindOptionsWhere, In, Not, Repository } from 'typeorm';
 import { CertificateEntity } from './entities/certificate.entity';
 import { CertificateHistoryEntity } from './entities/certificate-history.entity';
 
@@ -40,6 +40,45 @@ export class CertificatesRepository {
 
   findByStudentAndCourse(studentId: string, courseId: string): Promise<CertificateEntity | null> {
     return this.certificateRepo.findOne({ where: { studentId, courseId } });
+  }
+
+  findByRegistrationNumber(
+    registrationNumber: string,
+    excludeId?: string,
+  ): Promise<CertificateEntity | null> {
+    const where: FindOptionsWhere<CertificateEntity> = { registrationNumber };
+    if (excludeId) {
+      where.id = Not(excludeId);
+    }
+    return this.certificateRepo.findOne({ where });
+  }
+
+  findByBlankSeriesAndNumber(
+    blankSeries: string,
+    blankNumber: string,
+    excludeId?: string,
+  ): Promise<CertificateEntity | null> {
+    const where: FindOptionsWhere<CertificateEntity> = { blankSeries, blankNumber };
+    if (excludeId) {
+      where.id = Not(excludeId);
+    }
+    return this.certificateRepo.findOne({ where });
+  }
+
+  findActiveByStudentAndCourse(
+    studentId: string,
+    courseId: string,
+    excludeId?: string,
+  ): Promise<CertificateEntity | null> {
+    const where: FindOptionsWhere<CertificateEntity> = {
+      studentId,
+      courseId,
+      status: In(['issued', 'sent']),
+    };
+    if (excludeId) {
+      where.id = Not(excludeId);
+    }
+    return this.certificateRepo.findOne({ where });
   }
 
   saveHistory(entity: Partial<CertificateHistoryEntity>): Promise<CertificateHistoryEntity> {

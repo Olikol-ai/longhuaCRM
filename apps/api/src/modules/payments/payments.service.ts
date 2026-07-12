@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -99,6 +100,26 @@ export class PaymentsService {
 
       const previousLessons = row.lessonsAdded ?? 0;
       const wasBalanceApplied = await this.shouldApplyBalance(manager, row);
+
+      if (
+        dto.studentId &&
+        dto.studentId !== row.studentId &&
+        wasBalanceApplied
+      ) {
+        throw new BadRequestException(
+          'Cannot reassign student on a payment that already credited lesson balance',
+        );
+      }
+
+      if (
+        dto.shopItemId &&
+        dto.shopItemId !== row.shopItemId &&
+        wasBalanceApplied
+      ) {
+        throw new BadRequestException(
+          'Cannot change shop item on a payment that already credited lesson balance',
+        );
+      }
 
       Object.assign(row, dto);
       if (dto.status === 'paid' && !row.paidAt) {
@@ -363,7 +384,14 @@ export class PaymentsService {
       throw new NotFoundException('Student not found');
     }
 
-    student.lessonBalance = Math.max(0, (student.lessonBalance ?? 0) + delta);
+    const nextBalance = (student.lessonBalance ?? 0) + delta;
+    if (nextBalance < 0) {
+      throw new BadRequestException(
+        'Insufficient lesson balance for this payment adjustment',
+      );
+    }
+
+    student.lessonBalance = nextBalance;
     return studentRepo.save(student);
   }
 }

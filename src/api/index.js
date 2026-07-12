@@ -10,6 +10,7 @@ import { notifications } from './notifications.api';
 import { payments } from './payments.api';
 import { schedule } from './schedule';
 import { settings } from './settings.api';
+import { users } from './users.api';
 import { students } from './students.api';
 import { teachers } from './teachers.api';
 import { teacherPayments } from './teacher-payments.api';
@@ -57,7 +58,13 @@ export const api = {
   uploads: {
     async uploadFile({ file }) {
       const result = await apiUpload(file);
-      return { file_url: result.url };
+      return { file_url: result.url ?? result.file_url };
+    },
+  },
+  files: {
+    async upload({ file }) {
+      const result = await apiUpload(file);
+      return { url: result.url ?? result.file_url };
     },
   },
 };

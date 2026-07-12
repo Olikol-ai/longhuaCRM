@@ -1,0 +1,106 @@
+import { INestApplication } from '@nestjs/common';
+import {
+  adminLogin,
+  api,
+  authHeader,
+  createTeacherUser,
+  createTestApp,
+  ensureDatabaseReady,
+} from './e2e-helpers';
+
+const hasDatabase = Boolean(process.env.DATABASE_URL || process.env.DB_PASSWORD);
+const describeE2E = hasDatabase ? describe : describe.skip;
+
+describeE2E('Secure files upload (e2e)', () => {
+  let app: INestApplication;
+  let adminToken: string;
+
+  beforeAll(async () => {
+    await ensureDatabaseReady();
+    app = await createTestApp();
+    const admin = await adminLogin(app);
+    adminToken = admin.token;
+  }, 120000);
+
+  afterAll(async () => {
+    if (app) {
+      await app.close();
+    }
+  });
+
+  it('allows admin to upload a material file', async () => {
+    const buffer = Buffer.from('%PDF-1.4 test upload');
+    const res = await api(app)
+      .post('/api/files/upload')
+      .set(authHeader(adminToken))
+      .attach('file', buffer, 'lesson-notes.pdf');
+
+    expect(res.status).toBe(201);
+    expect(res.body.url).toMatch(/^\/uploads\/.+\.pdf$/);
+  });
+
+  it('rejects upload without a file', async () => {
+    const res = await api(app).post('/api/files/upload').set(authHeader(adminToken));
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects upload from non-admin users', async () => {
+    const teacher = await createTeacherUser(app, adminToken, {
+      email: `files-upload-teacher-${Date.now()}@test.local`,
+      password: 'TestTeacher123!',
+      name: 'Files Upload Teacher',
+    });
+
+    const buffer = Buffer.from('%PDF-1.4 teacher upload');
+    const res = await api(app)
+      .post('/api/files/upload')
+      .set(authHeader(teacher.token))
+      .attach('file', buffer, 'teacher.pdf');
+
+    expect(res.status).toBe(403);
+  });
+
+  it('rejects disallowed file extensions', async () => {
+    const buffer = Buffer.from('malicious');
+    const res = await api(app)
+      .post('/api/files/upload')
+      .set(authHeader(adminToken))
+      .attach('file', buffer, 'payload.exe');
+
+    expect(res.status).toBe(400);
+  });
+
+  it('supports end-to-end material create with uploaded file', async () => {
+    const courseRes = await api(app)
+      .post('/api/courses')
+      .set(authHeader(adminToken))
+      .send({ name: `Files Upload Course ${Date.now()}`, courseType: 'basic_beginner' })
+      .expect(201);
+
+    const folderRes = await api(app)
+      .post('/api/materials/folders')
+      .set(authHeader(adminToken))
+      .send({ name: 'Upload Folder', courseTemplateId: courseRes.body.id })
+      .expect(201);
+
+    const uploadRes = await api(app)
+      .post('/api/files/upload')
+      .set(authHeader(adminToken))
+      .attach('file', Buffer.from('%PDF-1.4 material'), 'worksheet.pdf')
+      .expect(201);
+
+    const materialRes = await api(app)
+      .post('/api/materials')
+      .set(authHeader(adminToken))
+      .send({
+        folderId: folderRes.body.id,
+        title: 'Uploaded Worksheet',
+        fileUrl: uploadRes.body.url,
+        fileType: 'pdf',
+      })
+      .expect(201);
+
+    expect(materialRes.body.file_url).toBe(uploadRes.body.url);
+    expect(materialRes.body.title).toBe('Uploaded Worksheet');
+  });
+});

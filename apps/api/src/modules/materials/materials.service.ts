@@ -21,7 +21,8 @@ export class MaterialsService {
 
   async findAllMaterials(actor: JwtPayload): Promise<MaterialEntity[]> {
     const where = await this.materialsAccess.scopeMaterialFilter(actor, {});
-    return this.repository.filterMaterials(where as FindOptionsWhere<MaterialEntity>);
+    const rows = await this.repository.filterMaterials(where as FindOptionsWhere<MaterialEntity>);
+    return this.attachCourseIds(rows);
   }
 
   async findMaterialById(actor: JwtPayload, id: string): Promise<MaterialEntity> {
@@ -30,7 +31,8 @@ export class MaterialsService {
     if (!row) {
       throw new NotFoundException('Material not found');
     }
-    return row;
+    const [enriched] = await this.attachCourseIds([row]);
+    return enriched;
   }
 
   createMaterial(dto: CreateMaterialDto): Promise<MaterialEntity> {
@@ -58,7 +60,24 @@ export class MaterialsService {
     where: Record<string, unknown>,
   ): Promise<MaterialEntity[]> {
     const scoped = await this.materialsAccess.scopeMaterialFilter(actor, where);
-    return this.repository.filterMaterials(scoped as FindOptionsWhere<MaterialEntity>);
+    const rows = await this.repository.filterMaterials(scoped as FindOptionsWhere<MaterialEntity>);
+    return this.attachCourseIds(rows);
+  }
+
+  private async attachCourseIds(materials: MaterialEntity[]): Promise<MaterialEntity[]> {
+    if (materials.length === 0) {
+      return materials;
+    }
+
+    const folderIds = [...new Set(materials.map((row) => row.folderId))];
+    const folders = await this.repository.findFoldersByIds(folderIds);
+    const courseByFolder = new Map(folders.map((folder) => [folder.id, folder.courseTemplateId]));
+
+    return materials.map((material) =>
+      Object.assign(Object.create(Object.getPrototypeOf(material)), material, {
+        courseId: courseByFolder.get(material.folderId) ?? null,
+      }),
+    );
   }
 
   async findAllFolders(actor: JwtPayload): Promise<MaterialFolderEntity[]> {
@@ -105,7 +124,18 @@ export class MaterialsService {
     where: Record<string, unknown>,
   ): Promise<MaterialFolderEntity[]> {
     const scoped = await this.materialsAccess.scopeFolderFilter(actor, where);
-    return this.repository.filterFolders(scoped as FindOptionsWhere<MaterialFolderEntity>);
+    return this.repository.filterFolders(
+      this.normalizeFolderWhere(scoped) as FindOptionsWhere<MaterialFolderEntity>,
+    );
+  }
+
+  private normalizeFolderWhere(where: Record<string, unknown>): Record<string, unknown> {
+    const out = { ...where };
+    if (out.courseId !== undefined && out.courseTemplateId === undefined) {
+      out.courseTemplateId = out.courseId;
+      delete out.courseId;
+    }
+    return out;
   }
 
   async syncAccess(

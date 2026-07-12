@@ -16,6 +16,7 @@ export class UpdatePaymentDto {
 
   @IsOptional()
   @IsNumber()
+  @Min(0.01)
   amount?: number;
 
   @IsOptional()

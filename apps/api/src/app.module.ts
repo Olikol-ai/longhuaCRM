@@ -28,7 +28,6 @@ import { SpaModule } from './modules/spa/spa.module';
 import { StudentsModule } from './modules/students/students.module';
 import { TeachersModule } from './modules/teachers/teachers.module';
 import { UsersModule } from './modules/users/users.module';
-import { UploadsModule } from './modules/uploads/uploads.module';
 import { AlfaBankModule } from './modules/alfabank/alfabank.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
@@ -59,9 +58,7 @@ const serveFrontend = process.env.SERVE_FRONTEND !== 'false';
           config.get<string>('nodeEnv') === 'test' &&
           process.env.E2E_DROP_SCHEMA === 'true',
         migrations: [join(__dirname, 'database/migrations/*{.ts,.js}')],
-        migrationsRun:
-          config.get<string>('nodeEnv') === 'production' &&
-          process.env.E2E_SYNC_SCHEMA !== 'true',
+        migrationsRun: process.env.E2E_SYNC_SCHEMA !== 'true',
         logging: config.get<string>('nodeEnv') === 'development',
       }),
     }),
@@ -85,7 +82,6 @@ const serveFrontend = process.env.SERVE_FRONTEND !== 'false';
     CertificatesModule,
     NotificationsModule,
     SettingsModule,
-    UploadsModule,
     AlfaBankModule,
     TelegramModule,
     WebhooksModule,

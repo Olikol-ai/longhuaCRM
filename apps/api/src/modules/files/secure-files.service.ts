@@ -1,19 +1,35 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
   StreamableFile,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { createReadStream, existsSync } from 'fs';
-import { basename, join, normalize } from 'path';
+import { randomUUID } from 'crypto';
+import { createReadStream, existsSync, mkdirSync, writeFileSync } from 'fs';
+import { basename, extname, join, normalize } from 'path';
 import { Repository } from 'typeorm';
 import { normalizeRole } from '../../common/constants/roles';
 import { MaterialEntity } from '../materials/entities/material.entity';
 import { MaterialAccessCheckService } from '../materials/material-access-check.service';
 import { SignedFilePayload, SignedFileUrlService } from './signed-file-url.service';
+import { UploadedFilePayload } from './uploaded-file.types';
 
 const UPLOAD_DIR = join(process.cwd(), 'uploads');
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+const ALLOWED_EXTENSIONS = new Set([
+  '.pdf',
+  '.pptx',
+  '.ppt',
+  '.mp4',
+  '.webm',
+  '.mov',
+  '.3gp',
+  '.jpg',
+  '.jpeg',
+  '.png',
+]);
 
 @Injectable()
 export class SecureFilesService {
@@ -26,6 +42,30 @@ export class SecureFilesService {
 
   createSignedFileUrl(userId: string, materialId: string, role: string): string | null {
     return this.signedFileUrl.generateSignedUrl(userId, materialId, role);
+  }
+
+  saveUploadedFile(file: UploadedFilePayload): string {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('File is required');
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      throw new BadRequestException('File exceeds maximum size of 50 MB');
+    }
+
+    const extension = extname(file.originalname || '').toLowerCase();
+    if (!ALLOWED_EXTENSIONS.has(extension)) {
+      throw new BadRequestException('File type is not allowed');
+    }
+
+    const safeBaseName = basename(file.originalname || 'upload', extension)
+      .replace(/[^a-zA-Z0-9._-]+/g, '_')
+      .slice(0, 80);
+    const storedName = `${randomUUID()}-${safeBaseName || 'upload'}${extension}`;
+    mkdirSync(UPLOAD_DIR, { recursive: true });
+    const absolutePath = join(UPLOAD_DIR, storedName);
+    writeFileSync(absolutePath, file.buffer);
+
+    return `/uploads/${storedName}`;
   }
 
   async streamSignedFile(token: string): Promise<StreamableFile> {

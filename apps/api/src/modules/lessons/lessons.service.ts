@@ -118,21 +118,75 @@ export class LessonsService {
   }
 
   async update(actor: JwtPayload, id: string, dto: UpdateLessonDto): Promise<LessonEntity> {
+    const before = await this.repository.findById(id);
+    if (!before) {
+      throw new NotFoundException('Lesson not found');
+    }
+
     const payload = await this.lessonAccess.assertCanWriteLesson(
       actor,
       id,
       dto as Record<string, unknown>,
     );
+
+    const teacherId = (payload.teacherId as string | undefined) ?? before.teacherId;
+    const date = (payload.date as string | undefined) ?? before.date;
+    const startTime = (payload.startTime as string | undefined) ?? before.startTime;
+    const duration = (payload.duration as number | undefined) ?? before.duration ?? 60;
+    const nextStatus = (payload.status as string | undefined) ?? before.status;
+
+    const scheduleChanged =
+      teacherId !== before.teacherId ||
+      date !== before.date ||
+      startTime !== before.startTime ||
+      duration !== (before.duration ?? 60);
+
+    if (scheduleChanged && before.status !== 'cancelled' && nextStatus !== 'cancelled') {
+      await this.scheduleService.assertAvailableForLesson(teacherId, date, startTime, duration);
+      await this.scheduleService.assertNoScheduleConflicts(
+        teacherId,
+        date,
+        startTime,
+        duration,
+        id,
+      );
+    }
+
     const row = await this.repository.update(id, payload as UpdateLessonDto);
     if (!row) {
       throw new NotFoundException('Lesson not found');
     }
-    if (payload.status && typeof payload.status === 'string') {
+
+    if (scheduleChanged) {
+      const timeFrom = this.scheduleService.normalizeTime(startTime);
+      const timeTo = this.scheduleService.addMinutesToTime(timeFrom, duration);
+      await this.dataSource.getRepository(AvailabilityBookingEntity).update(
+        { lessonId: id },
+        {
+          teacherId,
+          date,
+          timeFrom,
+          timeTo,
+          status: nextStatus === 'cancelled' ? 'cancelled' : 'active',
+        },
+      );
+    }
+
+    if (
+      payload.status &&
+      typeof payload.status === 'string' &&
+      payload.status === 'completed' &&
+      before.status !== 'completed'
+    ) {
       await this.studentBalanceService.handleLessonStatusUpdate(id, payload.status);
-      if (payload.status === 'completed') {
-        await this.teacherPaymentsService.createForCompletedLesson(row);
-        await this.enrollmentProgress.handleLessonCompleted(id);
-      }
+      await this.teacherPaymentsService.createForCompletedLesson(row);
+      await this.enrollmentProgress.handleLessonCompleted(id);
+    } else if (
+      payload.status &&
+      typeof payload.status === 'string' &&
+      payload.status !== before.status
+    ) {
+      await this.studentBalanceService.handleLessonStatusUpdate(id, payload.status);
     }
     return row;
   }
@@ -152,6 +206,13 @@ export class LessonsService {
 
   async complete(actor: JwtPayload, id: string): Promise<LessonEntity> {
     await this.lessonAccess.assertCanWriteLesson(actor, id);
+    const existing = await this.repository.findById(id);
+    if (!existing) {
+      throw new NotFoundException('Lesson not found');
+    }
+    if (existing.status === 'completed') {
+      return existing;
+    }
     const row = await this.repository.update(id, { status: 'completed' });
     if (!row) {
       throw new NotFoundException('Lesson not found');
@@ -223,7 +284,11 @@ export class LessonsService {
       throw new NotFoundException('Attendance record not found');
     }
 
-    if (dto.attendanceStatus === 'missed' || dto.attendanceStatus === 'missed_no_notice') {
+    if (
+      (dto.attendanceStatus === 'missed' || dto.attendanceStatus === 'missed_no_notice') &&
+      existing.attendanceStatus !== 'missed' &&
+      existing.attendanceStatus !== 'missed_no_notice'
+    ) {
       await this.enrollmentProgress.handleLessonMissed(existing.lessonId, existing.studentId);
     }
 

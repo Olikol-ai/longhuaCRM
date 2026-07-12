@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:client": "vite",
-    "dev:server": "npm run start:dev --prefix apps/api",
+    "dev:server": "npm run migration:run --prefix apps/api && npm run start:dev --prefix apps/api",
     "build": "npm run build:api && vite build",
     "build:client": "vite build",
     "build:api": "npm run build --prefix apps/api",
@@ -18,7 +18,9 @@
     "start": "npm run start:prod --prefix apps/api",
     "start:production": "npm run build && npm run start:prod --prefix apps/api",
     "migration:run": "npm run migration:run --prefix apps/api",
-    "test:e2e": "npm run test:e2e --prefix apps/api"
+    "test:e2e": "npm run test:e2e --prefix apps/api",
+    "test:browser": "playwright test",
+    "test:browser:report": "node e2e/browser/merge-audit-report.mjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^17.0.0",
@@ -86,14 +88,15 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2",
     "@eslint/js": "^9.19.0",
+    "@playwright/test": "^1.61.1",
     "@types/node": "^22.13.5",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "baseline-browser-mapping": "^2.8.32",
+    "concurrently": "^9.1.2",
     "eslint": "^9.19.0",
     "eslint-plugin-react": "^7.37.4",
     "eslint-plugin-react-hooks": "^5.0.0",

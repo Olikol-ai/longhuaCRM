@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { EnrollmentEntity } from '../courses/entities/enrollment.entity';
 import { CourseTemplateEntity } from '../courses/entities/course-template.entity';
 import { StudentEntity } from '../students/entities/student.entity';
 import { CertificateDraftService } from './certificate-draft.service';
@@ -17,6 +18,7 @@ import { CertificatesService } from './certificates.service';
       CertificateHistoryEntity,
       StudentEntity,
       CourseTemplateEntity,
+      EnrollmentEntity,
     ]),
   ],
   controllers: [CertificatesController],

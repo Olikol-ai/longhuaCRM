@@ -65,12 +65,23 @@ export async function apiUpload(file) {
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}/uploads`, { method: 'POST', headers, body: formData });
-  const data = await res.json().catch(() => ({}));
+  const res = await fetch(`${API_BASE}/files/upload`, { method: 'POST', headers, body: formData });
+  const text = await res.text();
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
 
   if (!res.ok) {
-    const err = new Error(data.message || data.error || 'Upload failed');
+    const payload = typeof data.message === 'object' && data.message !== null ? data.message : data;
+    const message = Array.isArray(payload.message)
+      ? payload.message.join(', ')
+      : payload.message || data.error || 'Upload failed';
+    const err = new Error(message);
     err.status = res.status;
+    err.data = payload;
     throw err;
   }
 

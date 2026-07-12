@@ -48,14 +48,19 @@ export default function ShopSettingsAdmin() {
   const startAdd = () => setEditing({ ...(tab === "package" ? EMPTY_PKG : EMPTY_COURSE), _new: true });
 
   const handleSave = async () => {
-    if (!editing.label || !editing.item_id) return;
+    if (!editing.label && !editing.name) return;
+    if (!editing.item_id && editing._new) return;
     setSaving(true);
+    const { _new, ...data } = editing;
+    const payload = {
+      ...data,
+      label: data.label || data.name,
+      name: data.label || data.name,
+    };
     if (editing._new) {
-      const { _new, ...data } = editing;
-      await api.payments.shopItems.create(data);
+      await api.payments.shopItems.create(payload);
     } else {
-      const { _new, ...data } = editing;
-      await api.payments.shopItems.update(editing.id, data);
+      await api.payments.shopItems.update(editing.id, payload);
     }
     setEditing(null);
     setSaving(false);
@@ -104,7 +109,7 @@ export default function ShopSettingsAdmin() {
             <Card key={item.id} className={`p-4 flex items-center gap-4 ${!item.is_active ? "opacity-50" : ""}`}>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-semibold text-foreground">{item.label}</span>
+                  <span className="text-sm font-semibold text-foreground">{item.name || item.label}</span>
                   {item.note && <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">{item.note}</span>}
                   {!item.is_active && <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">скрыт</span>}
                 </div>

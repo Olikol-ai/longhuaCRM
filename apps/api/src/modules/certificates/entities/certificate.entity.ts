@@ -11,7 +11,7 @@ import {
 import { CourseTemplateEntity } from '../../courses/entities/course-template.entity';
 import { StudentEntity } from '../../students/entities/student.entity';
 
-export type CertificateStatus = 'draft' | 'issued' | 'revoked';
+export type CertificateStatus = 'draft' | 'issued' | 'sent' | 'duplicate' | 'revoked';
 
 @Entity('certificates')
 export class CertificateEntity {
@@ -49,7 +49,7 @@ export class CertificateEntity {
 
   @Column({
     type: 'enum',
-    enum: ['draft', 'issued', 'revoked'],
+    enum: ['draft', 'issued', 'sent', 'duplicate', 'revoked'],
     default: 'draft',
   })
   status: CertificateStatus;

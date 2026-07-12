@@ -6,6 +6,9 @@ import { InitialSchemaV21731000000000 } from './migrations/1731000000000-Initial
 import { Phase2BusinessFlow1732000000000 } from './migrations/1732000000000-Phase2BusinessFlow';
 import { Phase3ProductionReadiness1733000000000 } from './migrations/1733000000000-Phase3ProductionReadiness';
 import { LegacyV2Bridge1734000000000 } from './migrations/1734000000000-LegacyV2Bridge';
+import { TeacherPaymentsSchemaAlign1735000000000 } from './migrations/1735000000000-TeacherPaymentsSchemaAlign';
+import { SchemaEntityAlign1736000000000 } from './migrations/1736000000000-SchemaEntityAlign';
+import { CertificateUniquenessAlign1737000000000 } from './migrations/1737000000000-CertificateUniquenessAlign';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -15,6 +18,9 @@ export default new DataSource({
     Phase2BusinessFlow1732000000000,
     Phase3ProductionReadiness1733000000000,
     LegacyV2Bridge1734000000000,
+    TeacherPaymentsSchemaAlign1735000000000,
+    SchemaEntityAlign1736000000000,
+    CertificateUniquenessAlign1737000000000,
   ],
   synchronize: false,
 });

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { FindOptionsWhere } from 'typeorm';
-import { filterToEntityWhere } from '../../common/utils/api-record.util';
+import { ScheduleAccessService } from '../../common/access/schedule-access.service';
+import { JwtPayload } from '../auth/auth.service';
 import { AvailabilityBookingEntity } from './entities/availability-booking.entity';
 import { AvailabilitySlotEntity } from './entities/availability-slot.entity';
 import { CreateAvailabilitySlotDto } from './dto/create-availability-slot.dto';
@@ -33,17 +34,22 @@ const CONFLICT_MESSAGE =
 
 @Injectable()
 export class ScheduleService {
-  constructor(private readonly repository: ScheduleRepository) {}
+  constructor(
+    private readonly repository: ScheduleRepository,
+    private readonly scheduleAccess: ScheduleAccessService,
+  ) {}
 
-  findAllSlots(): Promise<AvailabilitySlotEntity[]> {
-    return this.repository.findAllSlots();
+  async findAllSlots(actor: JwtPayload): Promise<AvailabilitySlotEntity[]> {
+    const where = await this.scheduleAccess.scopeSlotFilter(actor, {});
+    return this.repository.filterSlots(where as FindOptionsWhere<AvailabilitySlotEntity>);
   }
 
-  async findSlotById(id: string): Promise<AvailabilitySlotEntity> {
+  async findSlotById(actor: JwtPayload, id: string): Promise<AvailabilitySlotEntity> {
     const row = await this.repository.findSlotById(id);
     if (!row) {
       throw new NotFoundException('Availability slot not found');
     }
+    await this.scheduleAccess.assertCanReadSlot(actor, row.teacherId);
     return row;
   }
 
@@ -60,22 +66,28 @@ export class ScheduleService {
   }
 
   async deleteSlot(id: string): Promise<void> {
-    await this.findSlotById(id);
+    await this.repository.findSlotById(id);
     await this.repository.deleteSlot(id);
   }
 
-  filterSlots(where: Record<string, unknown>): Promise<AvailabilitySlotEntity[]> {
-    return this.repository.filterSlots(
-      filterToEntityWhere(where) as FindOptionsWhere<AvailabilitySlotEntity>,
-    );
+  async filterSlots(
+    actor: JwtPayload,
+    where: Record<string, unknown>,
+  ): Promise<AvailabilitySlotEntity[]> {
+    const scoped = await this.scheduleAccess.scopeSlotFilter(actor, where);
+    return this.repository.filterSlots(scoped as FindOptionsWhere<AvailabilitySlotEntity>);
   }
 
-  filterBookings(where: Record<string, unknown>): Promise<AvailabilityBookingEntity[]> {
-    return this.repository.filterBookings(
-      filterToEntityWhere(where) as FindOptionsWhere<AvailabilityBookingEntity>,
-    );
+  async filterBookings(
+    actor: JwtPayload,
+    where: Record<string, unknown>,
+  ): Promise<AvailabilityBookingEntity[]> {
+    const scoped = await this.scheduleAccess.scopeBookingFilter(actor, where);
+    return this.repository.filterBookings(scoped as FindOptionsWhere<AvailabilityBookingEntity>);
   }
-  async getTeacherSchedule(teacherId: string): Promise<TeacherScheduleInfo> {
+
+  async getTeacherSchedule(actor: JwtPayload, teacherId: string): Promise<TeacherScheduleInfo> {
+    await this.scheduleAccess.assertCanAccessTeacherSchedule(actor, teacherId);
     await this.assertTeacherExists(teacherId);
     const slots = await this.loadSlots(teacherId);
     return {
@@ -85,12 +97,23 @@ export class ScheduleService {
   }
 
   async checkAvailability(
+    actor: JwtPayload,
     teacherId: string,
     date: string,
     startTime: string,
     duration: number,
   ): Promise<AvailabilityCheckResult> {
+    await this.scheduleAccess.assertCanAccessTeacherSchedule(actor, teacherId);
     await this.assertTeacherExists(teacherId);
+    return this.evaluateAvailability(teacherId, date, startTime, duration);
+  }
+
+  private async evaluateAvailability(
+    teacherId: string,
+    date: string,
+    startTime: string,
+    duration: number,
+  ): Promise<AvailabilityCheckResult> {
     const slots = await this.loadSlots(teacherId);
 
     if (slots.length === 0) {
@@ -146,7 +169,7 @@ export class ScheduleService {
     startTime: string,
     duration: number,
   ): Promise<void> {
-    const result = await this.checkAvailability(teacherId, date, startTime, duration);
+    const result = await this.evaluateAvailability(teacherId, date, startTime, duration);
     if (!result.available) {
       throw new BadRequestException(result.message ?? UNAVAILABLE_MESSAGE);
     }
