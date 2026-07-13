@@ -288,7 +288,7 @@ export class AuthService {
 
 
 
-    const { emailDelivery } = await this.pendingRegistration.startRegistration(
+    await this.pendingRegistration.startRegistration(
 
       dto,
 
@@ -302,17 +302,17 @@ export class AuthService {
 
     return {
 
-      success: emailDelivery.success,
+      success: true,
 
       pending: true,
 
       email: normalizedEmail,
 
-      email_sent: emailDelivery.email_sent,
+      email_sent: true,
 
-      email_status: emailDelivery.email_status,
+      email_status: 'sent',
 
-      message: emailDelivery.message,
+      message: 'Код подтверждения отправлен на email',
 
     };
 
@@ -386,21 +386,21 @@ export class AuthService {
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    const emailDelivery = await this.pendingRegistration.resendCode(normalizedEmail);
+    await this.pendingRegistration.resendCode(normalizedEmail);
 
 
 
     return {
 
-      success: emailDelivery.success,
+      success: true,
 
-      ok: emailDelivery.success,
+      ok: true,
 
-      email_sent: emailDelivery.email_sent,
+      email_sent: true,
 
-      email_status: emailDelivery.email_status,
+      email_status: 'sent',
 
-      message: emailDelivery.message,
+      message: 'Код подтверждения отправлен на email',
 
     };
 

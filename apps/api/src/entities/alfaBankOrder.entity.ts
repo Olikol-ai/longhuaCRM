@@ -16,8 +16,8 @@ import {
     id: string;
   
     @Index('IDX_ALFA_ORDER_STUDENT_ID')
-    @Column({ name: 'student_id', type: 'uuid' })
-    studentId: string;
+    @Column({ name: 'student_id', type: 'uuid', nullable: true })
+    studentId: string | null;
   
     @Index('IDX_ALFA_ORDER_ORDER_NUMBER', { unique: true })
     @Column({ name: 'order_number' })

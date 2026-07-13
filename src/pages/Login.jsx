@@ -34,16 +34,18 @@ export default function Login() {
         navigate(resolveRedirect(sessionUser), { replace: true });
       } else {
         const result = await api.auth.register(email.trim(), password, firstName.trim(), lastName.trim());
+        if (!result?.email_sent) {
+          setError('Не удалось отправить код подтверждения');
+          return;
+        }
         sessionStorage.setItem('longhua_pending_registration_email', result.email || email.trim());
-        sessionStorage.setItem(
-          'longhua_verification_email_sent',
-          result.email_sent ? '1' : '0',
-        );
+        sessionStorage.setItem('longhua_verification_email_sent', '1');
         sessionStorage.removeItem('longhua_verification_code');
         navigate('/auth/pending-approval', { replace: true });
       }
     } catch (err) {
-      setError(err.message || 'Ошибка входа');
+      const message = err.message || (mode === 'register' ? 'Не удалось отправить код подтверждения' : 'Ошибка входа');
+      setError(message);
     } finally {
       setLoading(false);
     }

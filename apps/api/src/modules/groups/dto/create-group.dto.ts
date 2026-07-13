@@ -3,8 +3,9 @@ import { IsRequiredText } from '../../../common/validators/is-required-text.deco
 import { GroupStatus } from '../entities/group.entity';
 
 export class CreateGroupDto {
+  @IsOptional()
   @IsUUID()
-  teacherId!: string;
+  teacherId?: string;
 
   @IsRequiredText()
   name!: string;

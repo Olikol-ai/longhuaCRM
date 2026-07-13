@@ -20,6 +20,10 @@ import { StudentEntity } from '../src/modules/students/entities/student.entity';
 const hasDatabase = Boolean(process.env.DATABASE_URL || process.env.DB_PASSWORD);
 const describeE2E = hasDatabase ? describe : describe.skip;
 
+function uniqueBlankNumber(): string {
+  return randomUUID().replace(/-/g, '').slice(0, 8);
+}
+
 describeE2E('LongHuaCRM business flows (e2e)', () => {
   let app: INestApplication;
   let adminToken: string;
@@ -378,7 +382,7 @@ describeE2E('LongHuaCRM business flows (e2e)', () => {
           courseId: courseRes.body.id,
           registrationNumber: `REG-${randomUUID().slice(0, 8)}`,
           blankSeries: 'LH',
-          blankNumber: '00042',
+          blankNumber: uniqueBlankNumber(),
           status: 'draft',
         })
         .expect(201);

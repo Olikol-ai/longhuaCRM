@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { api } from '@/api';
 import { Download, Users, CreditCard, BookOpen, TrendingUp, FileText } from "lucide-react";
 import { format, parseISO } from "date-fns";
+import { resolvePaymentStudentLabel, resolveLessonStudentLabel } from "@/lib/studentLabels";
+import { resolveLessonTeacherLabel } from "@/lib/teacherLabels";
+import { parseMoneyAmount } from "@/lib/money";
 
 function exportCSV(filename, rows) {
   const blob = new Blob([rows.map(r => r.map(c => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n")], { type: "text/csv;charset=utf-8;\uFEFF" });
@@ -48,7 +51,7 @@ export default function ExportData() {
       case "payments":
         exportCSV(`payments_${now}.csv`, [
           ["ID", "Ученик", "Сумма (BYN)", "Уроков куплено", "Тип пакета", "Дата", "Комментарий"],
-          ...payments.map(p => [p.id, p.student_name, p.amount, p.lessons_added, p.package_type || "", p.payment_date || "", p.comment || ""])
+          ...payments.map(p => [p.id, resolvePaymentStudentLabel(p, students), p.amount, p.lessons_added, p.package_type || "", p.payment_date || "", p.comment || ""])
         ]);
         break;
       case "lessons":
@@ -56,7 +59,7 @@ export default function ExportData() {
           ["ID", "Дата", "Время", "Длительность (мин)", "Формат", "Статус", "Преподаватель", "Ученики", "Ссылка"],
           ...lessons.map(l => [l.id, l.date, l.start_time, l.duration || 60,
             l.lesson_format === "offline" ? "Очное" : "Дистанционное",
-            l.status, l.teacher_name, (l.student_names || [l.student_name]).filter(Boolean).join("; "),
+            l.status, l.teacher_name || resolveLessonTeacherLabel(l, teachers), resolveLessonStudentLabel(l, students),
             l.meeting_link || ""])
         ]);
         break;
@@ -68,7 +71,7 @@ export default function ExportData() {
               try {
                 const month = format(parseISO(p.payment_date), "yyyy-MM");
                 if (!acc[month]) acc[month] = { revenue: 0, count: 0, lessons: 0 };
-                acc[month].revenue += (p.amount || 0);
+                acc[month].revenue += parseMoneyAmount(p.amount);
                 acc[month].count++;
                 acc[month].lessons += (p.lessons_added || 0);
               } catch {}

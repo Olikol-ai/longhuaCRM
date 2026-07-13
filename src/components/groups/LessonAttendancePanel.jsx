@@ -1,0 +1,115 @@
+import { useEffect, useState } from "react";
+import { api, apiFetch } from "@/api";
+import { Check, X, AlertTriangle } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
+import { resolveStudentLabel } from "@/lib/studentLabels";
+
+const STATUS_LABELS = {
+  enrolled: "Ожидает",
+  attended: "Присутствовал",
+  missed: "Отсутствовал",
+  missed_no_notice: "Без предупреждения",
+  cancelled: "Отменён",
+};
+
+export default function LessonAttendancePanel({ lessonId, students = [], compact = false }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    if (!lessonId) return;
+    setLoading(true);
+    try {
+      const data = await api.lessons.attendance.filter({ lesson_id: lessonId });
+      setRows(Array.isArray(data) ? data : []);
+    } catch (err) {
+      toast({ title: "Не удалось загрузить посещаемость", description: err.message, variant: "destructive" });
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, [lessonId]);
+
+  const mark = async (id, action) => {
+    try {
+      if (action === "present") {
+        await apiFetch(`/lessons/attendance/${id}/present`, { method: "PATCH" });
+      } else if (action === "absent") {
+        await apiFetch(`/lessons/attendance/${id}/absent`, { method: "PATCH" });
+      } else if (action === "excused") {
+        await api.lessons.attendance.update(id, { attendance_status: "missed" });
+      } else if (action === "no_notice") {
+        await api.lessons.attendance.update(id, { attendance_status: "missed_no_notice" });
+      }
+      await load();
+      toast({ title: "Посещаемость обновлена" });
+    } catch (err) {
+      toast({ title: "Ошибка", description: err.message, variant: "destructive" });
+    }
+  };
+
+  if (loading) {
+    return <p className="text-xs text-muted-foreground">Загрузка посещаемости…</p>;
+  }
+
+  if (rows.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Записи посещаемости появятся после создания урока для группы.
+      </p>
+    );
+  }
+
+  return (
+    <div className={`space-y-2 ${compact ? "" : "mt-2"}`}>
+      {!compact && (
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Посещаемость</p>
+      )}
+      {rows.map((row) => (
+        <div
+          key={row.id}
+          className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"
+        >
+          <div>
+            <p className="text-sm font-medium text-slate-800">
+              {resolveStudentLabel(row.student_id, students)}
+            </p>
+            <p className="text-xs text-slate-500">
+              {STATUS_LABELS[row.attendance_status] || row.attendance_status}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            <button
+              type="button"
+              onClick={() => mark(row.id, "present")}
+              className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-white px-2 py-1 text-[11px] text-emerald-700 hover:bg-emerald-50"
+              title="Присутствовал"
+            >
+              <Check className="h-3 w-3" />
+            </button>
+            <button
+              type="button"
+              onClick={() => mark(row.id, "absent")}
+              className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-2 py-1 text-[11px] text-red-600 hover:bg-red-50"
+              title="Отсутствовал"
+            >
+              <X className="h-3 w-3" />
+            </button>
+            <button
+              type="button"
+              onClick={() => mark(row.id, "excused")}
+              className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-white px-2 py-1 text-[11px] text-amber-700 hover:bg-amber-50"
+              title="Уважительная причина"
+            >
+              <AlertTriangle className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

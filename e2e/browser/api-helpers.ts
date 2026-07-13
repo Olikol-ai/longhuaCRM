@@ -57,14 +57,19 @@ export async function loginViaApi(
   await page.goto('/login', { waitUntil: 'domcontentloaded' });
   await page.evaluate(
     ({ key, tokenValue }) => {
+      localStorage.clear();
       localStorage.setItem(key, tokenValue);
       window.dispatchEvent(new CustomEvent('longhua:token-change'));
     },
     { key: TOKEN_KEY, tokenValue: token },
   );
+  // Full reload so AuthProvider establishes only with the new token
+  // (avoids racing an in-flight /auth/me from the previous session).
+  await page.reload({ waitUntil: 'domcontentloaded' });
   await page.goto(redirectPath);
+  const expectedPath = redirectPath.split('?')[0];
   await page.waitForURL(
-    /Dashboard|AdminPanel|Schedule|UserManagement|Payments|teacher|student|pending-approval|auth\/pending/,
+    (url) => url.pathname === expectedPath || url.pathname.endsWith(expectedPath),
     { timeout: 30_000 },
   );
 }

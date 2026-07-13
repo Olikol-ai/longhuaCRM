@@ -79,7 +79,9 @@ export class StudentBalanceService {
     const rows = await manager.getRepository(AttendanceEntity).find({
       where: { lessonId: lesson.id },
     });
-    const ids = rows.map((row) => row.studentId).filter(Boolean);
+    const ids = rows
+      .map((row) => row.studentId)
+      .filter((id): id is string => Boolean(id));
     if (ids.length > 0) {
       return ids;
     }

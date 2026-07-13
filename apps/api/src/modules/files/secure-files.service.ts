@@ -119,7 +119,7 @@ export class SecureFilesService {
       payload.role,
     );
     const material = await this.materialRepo.findOne({ where: { id: payload.materialId } });
-    if (!material) {
+    if (!material || material.status === 'deleted') {
       throw new NotFoundException('Material not found');
     }
     if (!allowed) {

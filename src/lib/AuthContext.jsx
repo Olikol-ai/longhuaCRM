@@ -71,7 +71,7 @@ export const AuthProvider = ({ children }) => {
   const establishSession = useCallback(async (options = {}) => {
     const force = options.force === true;
     const inFlight = getInFlightEstablish();
-    if (inFlight) {
+    if (inFlight && !force) {
       return inFlight;
     }
 

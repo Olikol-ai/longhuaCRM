@@ -136,7 +136,7 @@ export class PaymentsService {
         const previousEffect = wasBalanceApplied ? previousLessons : 0;
         const nextEffect = nowApplies ? (saved.lessonsAdded ?? 0) : 0;
         const delta = nextEffect - previousEffect;
-        if (delta !== 0) {
+        if (delta !== 0 && saved.studentId) {
           await this.applyBalanceDelta(manager, saved.studentId, delta);
         }
       }
@@ -157,7 +157,7 @@ export class PaymentsService {
         throw new NotFoundException('Payment not found');
       }
 
-      if (await this.shouldApplyBalance(manager, row)) {
+      if (row.studentId && (await this.shouldApplyBalance(manager, row))) {
         await this.applyBalanceDelta(manager, row.studentId, -(row.lessonsAdded ?? 0));
       }
 
@@ -249,7 +249,9 @@ export class PaymentsService {
         : null;
 
       if (row.status === 'paid') {
-        const student = await studentRepo.findOne({ where: { id: row.studentId } });
+        const student = row.studentId
+          ? await studentRepo.findOne({ where: { id: row.studentId } })
+          : null;
         return {
           applied: true,
           alreadyPaid: true,
@@ -274,7 +276,9 @@ export class PaymentsService {
         summary: `order ${params.orderNumber} paid via webhook`,
       });
 
-      const student = await studentRepo.findOne({ where: { id: row.studentId } });
+      const student = row.studentId
+        ? await studentRepo.findOne({ where: { id: row.studentId } })
+        : null;
       if (!student) {
         return { applied: true, paymentId: row.id, shopItem };
       }
@@ -282,11 +286,11 @@ export class PaymentsService {
       if (this.isPackagePayment(shopItem)) {
         const lessonsAdded = row.lessonsAdded ?? 0;
         const before = student.lessonBalance ?? 0;
-        const refreshed = await this.applyBalanceDelta(manager, row.studentId, lessonsAdded);
+        const refreshed = await this.applyBalanceDelta(manager, student.id, lessonsAdded);
         await this.audit.log({
           action: 'lesson_balance_change',
           entityType: 'Student',
-          entityId: row.studentId,
+          entityId: student.id,
           summary: `webhook ${row.id}: balance ${before} → ${refreshed.lessonBalance ?? 0}`,
         });
         return {
@@ -299,7 +303,7 @@ export class PaymentsService {
         };
       }
 
-      if (this.isCoursePayment(shopItem)) {
+      if (this.isCoursePayment(shopItem) && row.studentId) {
         const marker = `payment:${row.id}`;
         const existing = await enrollmentRepo.findOne({
           where: { studentId: row.studentId, notes: marker },
@@ -339,11 +343,11 @@ export class PaymentsService {
       const fallbackLessons = row.lessonsAdded ?? 0;
       if (fallbackLessons > 0) {
         const before = student.lessonBalance ?? 0;
-        const refreshed = await this.applyBalanceDelta(manager, row.studentId, fallbackLessons);
+        const refreshed = await this.applyBalanceDelta(manager, student.id, fallbackLessons);
         await this.audit.log({
           action: 'lesson_balance_change',
           entityType: 'Student',
-          entityId: row.studentId,
+          entityId: student.id,
           summary: `webhook ${row.id}: balance ${before} → ${refreshed.lessonBalance ?? 0}`,
         });
         return {

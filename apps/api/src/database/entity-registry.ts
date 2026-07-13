@@ -10,6 +10,8 @@ import { GroupMemberEntity } from '../modules/groups/entities/group-member.entit
 import { AttendanceEntity } from '../modules/lessons/entities/attendance.entity';
 import { LessonEntity } from '../modules/lessons/entities/lesson.entity';
 import { MaterialAccessEntity } from '../modules/materials/entities/material-access.entity';
+import { MaterialCourseGrantEntity } from '../modules/materials/entities/material-course-grant.entity';
+import { MaterialGroupGrantEntity } from '../modules/materials/entities/material-group-grant.entity';
 import { MaterialFolderEntity } from '../modules/materials/entities/material-folder.entity';
 import { MaterialLinkEntity } from '../modules/materials/entities/material-link.entity';
 import { MaterialEntity } from '../modules/materials/entities/material.entity';
@@ -19,6 +21,7 @@ import { ShopItemEntity } from '../modules/payments/entities/shop-item.entity';
 import { AvailabilityBookingEntity } from '../modules/schedule/entities/availability-booking.entity';
 import { AvailabilitySlotEntity } from '../modules/schedule/entities/availability-slot.entity';
 import { LessonSeriesEntity } from '../modules/lesson-series/entities/lesson-series.entity';
+import { LessonSeriesSlotEntity } from '../modules/lesson-series/entities/lesson-series-slot.entity';
 import { SeriesExclusionEntity } from '../modules/schedule/entities/series-exclusion.entity';
 import { SeriesStudentEntity } from '../modules/schedule/entities/series-student.entity';
 import { StudentEntity } from '../modules/students/entities/student.entity';
@@ -42,6 +45,7 @@ export const ALL_V2_ENTITIES = [
   AttendanceEntity,
   AvailabilitySlotEntity,
   LessonSeriesEntity,
+  LessonSeriesSlotEntity,
   SeriesStudentEntity,
   SeriesExclusionEntity,
   AvailabilityBookingEntity,
@@ -50,6 +54,8 @@ export const ALL_V2_ENTITIES = [
   MaterialFolderEntity,
   MaterialEntity,
   MaterialAccessEntity,
+  MaterialCourseGrantEntity,
+  MaterialGroupGrantEntity,
   MaterialLinkEntity,
   CertificateEntity,
   CertificateHistoryEntity,

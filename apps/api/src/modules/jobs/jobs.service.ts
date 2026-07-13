@@ -205,7 +205,7 @@ export class JobsService {
       where: { lessonId: lesson.id },
     });
     return attendance
-      .map((row) => studentMap.get(row.studentId))
+      .map((row) => (row.studentId ? studentMap.get(row.studentId) : undefined))
       .filter((row): row is StudentEntity => Boolean(row));
   }
 

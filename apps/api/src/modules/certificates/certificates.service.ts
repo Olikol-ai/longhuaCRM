@@ -157,6 +157,9 @@ export class CertificatesService {
     }
 
     if (becomingIssued) {
+      if (!existing.studentId) {
+        throw new BadRequestException('Cannot issue certificate without a linked student');
+      }
       await this.assertEnrollmentCompleted(existing.studentId, existing.courseId);
       await this.assertIssueRequirements({ ...existing, ...payload, status: nextStatus });
       await this.assertNoActiveCertificate(existing.studentId, existing.courseId, id);
@@ -194,6 +197,9 @@ export class CertificatesService {
 
       const becomingIssued = previousStatus === 'draft' && nextStatus === 'issued';
       if (becomingIssued) {
+        if (!locked.studentId) {
+          throw new BadRequestException('Cannot issue certificate without a linked student');
+        }
         await this.assertNoActiveCertificateInTx(
           manager,
           locked.studentId,
@@ -252,6 +258,9 @@ export class CertificatesService {
     this.assertValidIssueDate(issueDate);
     await this.assertUniqueRegistrationNumber(registrationNumber);
     await this.assertUniqueBlank(blankSeries, blankNumber);
+    if (!original.studentId) {
+      throw new BadRequestException('Cannot reissue certificate without a linked student');
+    }
     await this.assertEnrollmentCompleted(original.studentId, original.courseId);
 
     return this.dataSource.transaction(async (manager) => {

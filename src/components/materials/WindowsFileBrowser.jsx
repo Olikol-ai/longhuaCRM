@@ -87,17 +87,26 @@ export default function WindowsFileBrowser() {
 
   const handleDeleteConfirm = async () => {
     setDeleting(true);
-    if (deleteTarget.type === "material") {
-      await api.materials.delete(deleteTarget.item.id);
-    } else {
-      const courseMats = materials.filter(m => m.course_id === deleteTarget.item.id);
-      await Promise.all(courseMats.map(m => api.materials.delete(m.id)));
-      await api.courses.delete(deleteTarget.item.id);
-      if (selectedCourse?.id === deleteTarget.item.id) setSelectedCourse(null);
+    try {
+      if (deleteTarget.type === "material") {
+        const result = await api.materials.delete(deleteTarget.item.id);
+        alert(result?.message || "Материал удалён");
+      } else {
+        const courseMats = materials.filter(m => m.course_id === deleteTarget.item.id);
+        for (const m of courseMats) {
+          await api.materials.delete(m.id);
+        }
+        await api.courses.delete(deleteTarget.item.id);
+        if (selectedCourse?.id === deleteTarget.item.id) setSelectedCourse(null);
+      }
+      setDeleteTarget(null);
+      await loadData();
+    } catch (err) {
+      console.error("Delete error:", err);
+      alert(err.message || "Не удалось удалить");
+    } finally {
+      setDeleting(false);
     }
-    setDeleteTarget(null);
-    setDeleting(false);
-    loadData();
   };
 
   const handleCopy = (items) => {

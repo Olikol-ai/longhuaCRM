@@ -11,6 +11,7 @@ import {
 import { MaterialFolderEntity } from './material-folder.entity';
 
 export type MaterialFileType = 'pdf' | 'pptx' | 'video' | 'link' | 'other';
+export type MaterialStatus = 'active' | 'deleted';
 
 @Entity('materials')
 export class MaterialEntity {
@@ -41,6 +42,11 @@ export class MaterialEntity {
 
   @Column({ type: 'text', nullable: true })
   description: string | null;
+
+  /** Soft-delete status — deleted materials stay for lesson/course history. */
+  @Index('IDX_MATERIALS_STATUS')
+  @Column({ type: 'varchar', length: 32, default: 'active' })
+  status: MaterialStatus;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

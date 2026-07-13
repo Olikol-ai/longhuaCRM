@@ -9,9 +9,11 @@ import {
   Eye, Trash2, Lock, Upload, Plus, FolderPlus, Edit2, ChevronDown, ChevronRight
 } from "lucide-react";
 import GrantAccessModal from "@/components/materials/GrantAccessModal";
+import AccessControlModal from "@/components/materials/AccessControlModal";
 import AccessManagementPanel from "@/components/materials/AccessManagementPanel";
 import MaterialFormDialog from "@/components/materials/MaterialFormDialog";
 import CourseFolderTree from "@/components/materials/CourseFolderTree";
+import AccessSourceBadges from "@/components/materials/AccessSourceBadges";
 import { useAuth } from "@/lib/AuthContext";
 import { getMaterialUrl } from "@/lib/materialUrl";
 
@@ -44,7 +46,7 @@ export default function MaterialsHub() {
     course_type: "basic_beginner",
     total_lessons: 35,
   });
-  const [selectedMaterialForAccess, setSelectedMaterialForAccess] = useState(null);
+  const [selectedMaterialForAccess, setSelectedMaterialForAccess] = useState(null); // material object for AccessControlModal
   const [materialFormContext, setMaterialFormContext] = useState({ courseId: "", folderId: null });
 
   const openMaterialForm = (context = {}) => {
@@ -181,14 +183,20 @@ export default function MaterialsHub() {
   };
 
   const handleDeleteMaterial = async (matId) => {
-    if (!confirm("Удалить материал?")) return;
+    if (!confirm("Удалить материал? Привязки к урокам останутся в истории.")) return;
     setDeleting(matId);
     try {
-      await api.materials.delete(matId);
+      const result = await api.materials.delete(matId);
       await loadData();
+      const message =
+        result?.message
+        || (result?.mode === 'soft'
+          ? 'Материал скрыт. История привязок сохранена.'
+          : 'Материал удалён.');
+      alert(message);
     } catch (err) {
       console.error("Delete error:", err);
-      alert("Ошибка при удалении");
+      alert(err.message || "Не удалось удалить материал");
     } finally {
       setDeleting(null);
     }
@@ -484,10 +492,17 @@ export default function MaterialsHub() {
         <>
       {/* Materials Grid */}
       {filteredMaterials.length === 0 ? (
-        <Card className="p-12 text-center border-dashed">
+        <Card className="p-12 text-center border-dashed" data-testid="admin-materials-empty">
           <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
           <p className="text-muted-foreground font-medium">
             {search ? "Материалы не найдены" : "Нет доступных материалов"}
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            {search
+              ? "Измените поисковый запрос"
+              : isAdmin
+                ? "Создайте курс, папку и материал — затем выдайте доступ ученикам, группе или курсу."
+                : "Администратор выдаст доступ к материалам ваших групп."}
           </p>
         </Card>
       ) : (
@@ -543,6 +558,7 @@ export default function MaterialsHub() {
                             {mat.block_name && (
                               <p className="text-xs text-muted-foreground mt-0.5">{mat.block_name}</p>
                             )}
+                            <AccessSourceBadges sources={mat.access_sources} className="mt-2" />
                           </div>
                         </div>
 
@@ -562,6 +578,17 @@ export default function MaterialsHub() {
                             <Eye className="h-3 w-3" />
                             Открыть
                           </a>
+                          {(isAdmin || user?.role === "teacher") && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedMaterialForAccess(mat)}
+                              className="px-2 py-1.5 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded-lg transition-colors"
+                              title="Управление доступом"
+                              data-testid={`material-access-btn-${mat.id}`}
+                            >
+                              <Lock className="h-4 w-4" />
+                            </button>
+                          )}
                           {isAdmin && (
                             <button
                               onClick={() => handleDeleteMaterial(mat.id)}
@@ -603,12 +630,11 @@ export default function MaterialsHub() {
       )}
 
       {selectedMaterialForAccess && (
-        <GrantAccessModal
-          user={user}
-          materialIds={[selectedMaterialForAccess]}
+        <AccessControlModal
+          material={selectedMaterialForAccess}
+          course={courses.find((c) => c.id === selectedMaterialForAccess.course_id)}
           onClose={() => setSelectedMaterialForAccess(null)}
-          onSuccess={() => {
-            setSelectedMaterialForAccess(null);
+          onSave={() => {
             loadData();
           }}
         />

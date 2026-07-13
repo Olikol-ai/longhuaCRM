@@ -81,8 +81,14 @@ export class CertificateAccessService {
 
   async assertCanReadStudentCertificate(
     actor: DomainAccessActor,
-    studentId: string,
+    studentId: string | null,
   ): Promise<void> {
+    if (!studentId) {
+      if (this.isAdmin(actor)) {
+        return;
+      }
+      throw new ForbiddenException('Forbidden');
+    }
     await this.studentAccess.assertCanReadStudent(actor, studentId);
   }
 }

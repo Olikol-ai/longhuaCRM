@@ -100,7 +100,7 @@ export class UsersService {
       }
     }
 
-    return this.dataSource.transaction(async (manager) => {
+    const { saved, roleChanged } = await this.dataSource.transaction(async (manager) => {
       const userRepo = manager.getRepository(UserEntity);
       const row = await userRepo.findOne({
         where: { id },
@@ -144,31 +144,38 @@ export class UsersService {
       }
 
       row.updatedDate = new Date();
-      const saved = await userRepo.save(row);
+      const persisted = await userRepo.save(row);
 
-      if (dto.role !== undefined && saved.role !== prevRole) {
+      const changedRole = dto.role !== undefined && persisted.role !== prevRole;
+
+      if (changedRole) {
         await this.audit.log({
           actorUserId: actor.sub,
           action: 'role_change',
           entityType: 'User',
           entityId: id,
-          summary: `role: "${prevRole}" → "${saved.role}"`,
+          summary: `role: "${prevRole}" → "${persisted.role}"`,
         });
-        await this.roleEntitySync.syncAfterRoleChange(saved, saved.role);
       }
 
-      if (dto.status !== undefined && saved.status !== prevStatus) {
+      if (dto.status !== undefined && persisted.status !== prevStatus) {
         await this.audit.log({
           actorUserId: actor.sub,
           action: 'status_change',
           entityType: 'User',
           entityId: id,
-          summary: `status: "${prevStatus}" → "${saved.status}"`,
+          summary: `status: "${prevStatus}" → "${persisted.status}"`,
         });
       }
 
-      return userToRecord(saved);
+      return { saved: persisted, roleChanged: changedRole };
     });
+
+    if (roleChanged) {
+      await this.roleEntitySync.syncAfterRoleChange(saved, saved.role);
+    }
+
+    return userToRecord(saved);
   }
 
   async delete(id: string): Promise<{ ok: true; orphanStudents: unknown[] }> {

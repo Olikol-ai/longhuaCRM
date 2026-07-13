@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/api";
 import { Plus, Award, CheckCircle2 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+import { resolveStudentLabel } from "@/lib/studentLabels";
 
 export default function Certificates() {
   const [rows, setRows] = useState([]);
@@ -46,7 +47,7 @@ export default function Certificates() {
     toast({ title: "Сертификат выдан" });
   };
 
-  const studentName = (id) => students.find((s) => s.id === id)?.name || id;
+  const studentName = (id) => resolveStudentLabel(id, students);
   const courseName = (id) => courses.find((c) => c.id === id)?.name || id;
 
   return (

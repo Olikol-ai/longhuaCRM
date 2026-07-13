@@ -21,10 +21,9 @@ const StudentLessonMaterials = lazy(() => import('./pages/StudentLessonMaterials
 const MaterialsHub = lazy(() => import('./pages/MaterialsHub'));
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 const Groups = lazy(() => import('./pages/Groups'));
+const GroupDetail = lazy(() => import('./pages/GroupDetail'));
 const Certificates = lazy(() => import('./pages/Certificates'));
-const Attendance = lazy(() => import('./pages/Attendance'));
 const Payments = lazy(() => import('./pages/Payments'));
-const LessonSeriesAdmin = lazy(() => import('./pages/LessonSeriesAdmin'));
 const TeacherPayments = lazy(() => import('./pages/TeacherPayments'));
 
 /**
@@ -114,11 +113,12 @@ const AuthenticatedApp = () => {
         <Route path="/StudentLessonMaterials" element={<StudentRoute><LayoutWrapper currentPageName="StudentLessonMaterials"><StudentLessonMaterials /></LayoutWrapper></StudentRoute>} />
         <Route path="/UserManagement" element={<AdminRoute><LayoutWrapper currentPageName="UserManagement"><UserManagement /></LayoutWrapper></AdminRoute>} />
         <Route path="/AdminPanel" element={<AdminRoute><LayoutWrapper currentPageName="AdminPanel"><AdminPanel /></LayoutWrapper></AdminRoute>} />
+        <Route path="/Groups/:groupId" element={<AdminRoute><LayoutWrapper currentPageName="Groups"><GroupDetail /></LayoutWrapper></AdminRoute>} />
         <Route path="/Groups" element={<AdminRoute><LayoutWrapper currentPageName="Groups"><Groups /></LayoutWrapper></AdminRoute>} />
         <Route path="/Certificates" element={<AdminRoute><LayoutWrapper currentPageName="Certificates"><Certificates /></LayoutWrapper></AdminRoute>} />
-        <Route path="/Attendance" element={<AdminRoute><LayoutWrapper currentPageName="Attendance"><Attendance /></LayoutWrapper></AdminRoute>} />
+        <Route path="/Attendance" element={<Navigate to="/Groups" replace />} />
         <Route path="/Payments" element={<AdminRoute><LayoutWrapper currentPageName="Payments"><Payments /></LayoutWrapper></AdminRoute>} />
-        <Route path="/LessonSeriesAdmin" element={<AdminRoute><LayoutWrapper currentPageName="LessonSeriesAdmin"><LessonSeriesAdmin /></LayoutWrapper></AdminRoute>} />
+        <Route path="/LessonSeriesAdmin" element={<Navigate to="/Groups" replace />} />
         <Route path="/TeacherPayments" element={<TeacherRoute><LayoutWrapper currentPageName="TeacherPayments"><TeacherPayments /></LayoutWrapper></TeacherRoute>} />
         <Route path="*" element={<OnboardingFallback />} />
       </Routes>

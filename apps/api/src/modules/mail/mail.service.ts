@@ -2,6 +2,13 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
+import {
+  formatMailConfigError,
+  formatSmtpDiagnosticLog,
+  isMailConfigured,
+  type MailEnvConfig,
+} from '../../config/mail-config';
+import { getEmailDomain, TEST_EMAIL_DOMAIN } from '../../common/security/email-validation';
 import { smtpTestEmail, verificationCodeEmail } from './mail.templates';
 
 export type MailSendResult = {
@@ -24,10 +31,11 @@ export class MailService implements OnModuleInit {
   constructor(private readonly config: ConfigService) {}
 
   async onModuleInit(): Promise<void> {
+    const mail = this.getMailConfig();
+    this.logger.log(formatSmtpDiagnosticLog(mail));
+
     if (!this.isConfigured()) {
-      this.logger.warn(
-        'Mail SMTP is not configured — set MAIL_HOST, MAIL_USER and MAIL_PASS in .env',
-      );
+      this.logger.warn(formatMailConfigError(mail));
       return;
     }
 
@@ -38,19 +46,40 @@ export class MailService implements OnModuleInit {
     }
   }
 
+  private getMailConfig(): MailEnvConfig {
+    return {
+      host: this.config.get<string>('mail.host'),
+      port: this.config.get<number>('mail.port') ?? 465,
+      secure: this.config.get<boolean>('mail.secure') ?? true,
+      user: this.config.get<string>('mail.user'),
+      pass: this.config.get<string>('mail.pass') ?? '',
+      from: this.config.get<string>('mail.from'),
+    };
+  }
+
   isConfigured(): boolean {
-    const host = this.config.get<string>('mail.host');
-    const user = this.config.get<string>('mail.user');
-    const pass = this.config.get<string>('mail.pass');
-    return Boolean(host && user && pass);
+    return isMailConfigured(this.getMailConfig());
+  }
+
+  getConfigurationError(): string {
+    return formatMailConfigError(this.getMailConfig());
   }
 
   async sendVerificationCode(to: string, code: string): Promise<MailSendResult> {
+    const domain = getEmailDomain(to);
+    if (
+      process.env.E2E_STUB_MAIL === 'true'
+      && domain
+      && domain !== TEST_EMAIL_DOMAIN
+    ) {
+      this.logger.log(`[E2E_STUB_MAIL] verification code for ${to}: ${code}`);
+      return { sent: true, status: 'sent' };
+    }
+
     if (!this.isConfigured()) {
-      this.logger.warn(
-        `[verification] SMTP not configured — email to ${to} was not sent`,
-      );
-      return { sent: false, status: 'email_not_sent', error: 'SMTP not configured' };
+      const error = this.getConfigurationError();
+      this.logger.warn(`[verification] ${error} — email to ${to} was not sent`);
+      return { sent: false, status: 'email_not_sent', error };
     }
 
     const template = verificationCodeEmail(code);
@@ -59,7 +88,7 @@ export class MailService implements OnModuleInit {
 
   async sendTestEmail(to: string): Promise<MailTestResult> {
     if (!this.isConfigured()) {
-      const error = 'SMTP not configured (MAIL_HOST, MAIL_USER, MAIL_PASS required)';
+      const error = this.getConfigurationError();
       this.logger.error(`[test] ${error}`);
       return { success: false, error };
     }
@@ -133,21 +162,17 @@ export class MailService implements OnModuleInit {
 
   private getTransporter(): Transporter {
     if (!this.transporter) {
-      const host = this.config.get<string>('mail.host');
-      const port = this.config.get<number>('mail.port');
-      const secure = this.config.get<boolean>('mail.secure');
-      const user = this.config.get<string>('mail.user');
-      const pass = this.config.get<string>('mail.pass');
+      const mail = this.getMailConfig();
 
       this.logger.log(
-        `Creating SMTP transporter: host=${host} port=${port} secure=${secure} user=${user}`,
+        `Creating SMTP transporter: host=${mail.host} port=${mail.port} secure=${mail.secure} user=${mail.user}`,
       );
 
       this.transporter = nodemailer.createTransport({
-        host,
-        port,
-        secure,
-        auth: { user, pass },
+        host: mail.host,
+        port: mail.port,
+        secure: mail.secure,
+        auth: { user: mail.user, pass: mail.pass },
       });
     }
 

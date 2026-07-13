@@ -31,7 +31,8 @@ export class MaterialLinkEntity {
   @Column({ name: 'material_id', type: 'uuid' })
   materialId: string;
 
-  @ManyToOne(() => MaterialEntity, { nullable: false, onDelete: 'CASCADE' })
+  /** RESTRICT — material hard-delete must not erase lesson history links. */
+  @ManyToOne(() => MaterialEntity, { nullable: false, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'material_id' })
   material?: MaterialEntity;
 

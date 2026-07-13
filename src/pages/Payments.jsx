@@ -4,6 +4,8 @@ import { Plus, CreditCard, TrendingUp, Search, Pencil, Trash2 } from "lucide-rea
 import PaymentModal from "../components/payments/PaymentModal";
 import { format, parseISO } from "date-fns";
 import { Card } from "@/components/ui/card";
+import { resolvePaymentStudentLabel } from "@/lib/studentLabels";
+import { formatMoneyByn, sumPaymentAmounts } from "@/lib/money";
 
 const inputCls = "w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400";
 
@@ -46,24 +48,28 @@ export default function Payments() {
     load();
   };
 
+  const studentLabel = (payment) => resolvePaymentStudentLabel(payment, students);
+
   const handleDelete = async (payment) => {
-    if (!window.confirm(`Удалить платёж ${payment.student_name} на ${payment.amount} BYN? Баланс ученика будет уменьшен на ${payment.lessons_added} уроков.`)) return;
+    if (!window.confirm(`Удалить платёж ${studentLabel(payment)} на ${payment.amount} BYN? Баланс ученика будет уменьшен на ${payment.lessons_added} уроков.`)) return;
     await api.payments.delete(payment.id);
     load();
   };
 
-  const totalRevenue = payments.reduce((s, p) => s + (p.amount || 0), 0);
-  const thisMonth = payments.filter(p => {
+  const thisMonth = payments.filter((p) => {
     try {
       const d = parseISO(p.payment_date);
       const now = new Date();
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   });
-  const monthRevenue = thisMonth.reduce((s, p) => s + (p.amount || 0), 0);
+  const totalRevenue = sumPaymentAmounts(payments);
+  const monthRevenue = sumPaymentAmounts(thisMonth);
 
   const filtered = payments.filter(p =>
-    p.student_name?.toLowerCase().includes(search.toLowerCase())
+    studentLabel(p).toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -89,14 +95,14 @@ export default function Payments() {
           <div className="w-8 h-8 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg flex items-center justify-center mb-3">
             <CreditCard className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <p className="text-2xl font-bold text-foreground">{totalRevenue.toLocaleString()} BYN</p>
+          <p className="text-2xl font-bold text-foreground">{formatMoneyByn(totalRevenue)}</p>
           <p className="text-xs text-muted-foreground mt-0.5">Общая выручка</p>
         </Card>
         <Card className="p-5">
           <div className="w-8 h-8 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg flex items-center justify-center mb-3">
             <TrendingUp className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
           </div>
-          <p className="text-2xl font-bold text-foreground">{monthRevenue.toLocaleString()} BYN</p>
+          <p className="text-2xl font-bold text-foreground">{formatMoneyByn(monthRevenue)}</p>
           <p className="text-xs text-muted-foreground mt-0.5">В этом месяце</p>
         </Card>
         <Card className="p-5">
@@ -139,16 +145,18 @@ export default function Payments() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filtered.map(payment => (
+                {filtered.map(payment => {
+                  const label = studentLabel(payment);
+                  return (
                   <tr key={payment.id} className="hover:bg-muted/50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-950/50 flex items-center justify-center">
                           <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
-                            {(payment.student_name || "?")[0]}
+                            {(label || "?")[0]}
                           </span>
                         </div>
-                        <span className="text-sm font-medium text-foreground">{payment.student_name}</span>
+                        <span className="text-sm font-medium text-foreground">{label}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -184,7 +192,8 @@ export default function Payments() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

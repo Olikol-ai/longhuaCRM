@@ -36,6 +36,10 @@ export class CertificatePdfService {
       throw new BadRequestException('PDF is not available for this certificate status');
     }
 
+    if (!certificate.studentId) {
+      throw new BadRequestException('Certificate has no linked student');
+    }
+
     const [student, course] = await Promise.all([
       this.studentRepo.findOne({ where: { id: certificate.studentId } }),
       this.courseRepo.findOne({ where: { id: certificate.courseId } }),

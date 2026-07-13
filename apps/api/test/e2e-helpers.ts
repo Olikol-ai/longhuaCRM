@@ -1,5 +1,5 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
+import { Test, TestingModuleBuilder } from '@nestjs/testing';
 import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import { DataSource } from 'typeorm';
@@ -11,7 +11,12 @@ import { LoggingInterceptor } from '../src/common/interceptors/logging.intercept
 import { ALL_V2_ENTITIES } from '../src/database/entity-registry';
 import { getDatabaseDataSourceOptions, resolvePostgresConnectionConfig } from '../src/database/database.config';
 import { PendingRegistrationEntity } from '../src/modules/auth/entities/pending-registration.entity';
+import { MailService } from '../src/modules/mail/mail.service';
 import { UserEntity } from '../src/modules/users/entities/user.entity';
+
+export type CreateTestAppOptions = {
+  mockMailSuccess?: boolean;
+};
 
 export type AuthSession = {
   token: string;
@@ -35,22 +40,33 @@ export async function ensureDatabaseReady(): Promise<void> {
   if (existing.length === 0) {
     await adminDs.query(`CREATE DATABASE "${connection.database}"`);
   }
-  await adminDs.destroy();
 
-  const ds = new DataSource({
-    ...getDatabaseDataSourceOptions(),
-    entities: ALL_V2_ENTITIES,
-    synchronize: process.env.E2E_SYNC_SCHEMA === 'true',
-    dropSchema: process.env.E2E_DROP_SCHEMA === 'true',
-  });
-  await ds.initialize();
-  await ds.destroy();
+  await adminDs.query(
+    `SELECT pg_terminate_backend(pid)
+     FROM pg_stat_activity
+     WHERE datname = $1 AND pid <> pg_backend_pid()`,
+    [connection.database],
+  );
+
+  await adminDs.destroy();
 }
 
-export async function createTestApp(): Promise<INestApplication> {
-  const moduleRef = await Test.createTestingModule({
+export async function createTestApp(options: CreateTestAppOptions = {}): Promise<INestApplication> {
+  const mockMailSuccess = options.mockMailSuccess ?? true;
+  let moduleBuilder: TestingModuleBuilder = Test.createTestingModule({
     imports: [AppModule],
-  }).compile();
+  });
+
+  if (mockMailSuccess) {
+    moduleBuilder = moduleBuilder.overrideProvider(MailService).useValue({
+      isConfigured: () => true,
+      onModuleInit: async () => undefined,
+      sendVerificationCode: async () => ({ sent: true, status: 'sent' as const }),
+      sendTestEmail: async () => ({ success: true }),
+    });
+  }
+
+  const moduleRef = await moduleBuilder.compile();
 
   const app = moduleRef.createNestApplication();
   app.setGlobalPrefix('api');

@@ -41,12 +41,12 @@ test.describe('Teacher flow', () => {
       recordUiIssue('teacher', 'schedule-content', 'Teacher schedule page lacks expected schedule content', 'high');
     }
 
-    await page.goto('/Attendance');
+    await page.goto('/Groups');
     await page.waitForLoadState('networkidle');
     if (page.url().includes('/login')) {
-      recordUiIssue('teacher', 'attendance-access', 'Attendance page redirects to login for admin user on teacher route', 'medium');
-    } else if (!(await page.getByText(/посещ|attendance|урок/i).count())) {
-      recordUiIssue('teacher', 'attendance-content', 'Attendance page missing attendance-related content', 'high');
+      recordUiIssue('teacher', 'groups-access', 'Groups page redirects to login', 'medium');
+    } else if (!(await page.getByText(/групп|ученик/i).count())) {
+      recordUiIssue('teacher', 'groups-content', 'Groups page missing expected content', 'high');
     }
 
     await expect(page.locator('body')).toBeVisible();

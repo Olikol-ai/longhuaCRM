@@ -9,6 +9,7 @@ import {
   CheckCircle2, XCircle, Clock, Calendar, List, Sun, Moon,
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
+import { resolveLessonStudentLabel } from "@/lib/studentLabels";
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   eachDayOfInterval, addMonths, subMonths, addWeeks, subWeeks,
@@ -246,7 +247,7 @@ export default function TeacherSchedule() {
                     <div className="space-y-0.5">
                       {dayLessons.slice(0, 2).map((lesson) => (
                         <div key={lesson.id} className={`text-[10px] font-medium text-white px-1.5 py-0.5 rounded-md truncate ${STATUS_BG[lesson.status] || "bg-slate-400"}`}>
-                          {lesson.start_time} {lesson.student_names?.[0]?.split(" ")[0] || lesson.student_name?.split(" ")[0] || ""}
+                          {lesson.start_time} {(resolveLessonStudentLabel(lesson, students).split(" ")[0] || "")}
                         </div>
                       ))}
                       {dayLessons.length > 2 && <p className="text-[9px] text-slate-400 pl-1">+{dayLessons.length - 2} ещё</p>}
@@ -332,7 +333,7 @@ export default function TeacherSchedule() {
                         >
                           <p className="text-xs font-bold text-slate-900">{lesson.start_time}</p>
                           <p className="text-[11px] text-slate-600 mt-0.5 truncate">
-                            {lesson.student_names?.join(", ") || lesson.student_name || "—"}
+                            {resolveLessonStudentLabel(lesson, students)}
                           </p>
                           <p className="text-[10px] text-slate-400">{lesson.duration || 60} мин</p>
                           {lesson.meeting_link && (
@@ -422,7 +423,7 @@ function TeacherLessonCard({ lesson, expandedLesson, setExpandedLesson, markLess
           </div>
           <div>
             <p className="font-semibold text-slate-900">{lesson.start_time}</p>
-            <p className="text-sm text-slate-600">{lesson.student_names?.join(", ") || lesson.student_name || "—"}</p>
+            <p className="text-sm text-slate-600">{resolveLessonStudentLabel(lesson, students)}</p>
             <p className="text-xs text-slate-400">{lesson.duration || 60} мин</p>
             {lesson.meeting_link && (
               <a href={lesson.meeting_link} target="_blank" rel="noopener noreferrer"

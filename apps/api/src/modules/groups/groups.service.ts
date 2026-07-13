@@ -2,6 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { FindOptionsWhere } from 'typeorm';
 import { TeacherAccessService } from '../../common/access/teacher-access.service';
 import { JwtPayload } from '../auth/auth.service';
+import { LessonSeriesService } from '../lesson-series/lesson-series.service';
+import { LessonsService } from '../lessons/lessons.service';
 import { GroupEntity } from './entities/group.entity';
 import { GroupMemberEntity } from './entities/group-member.entity';
 import { AddGroupMemberDto } from './dto/add-group-member.dto';
@@ -14,6 +16,8 @@ export class GroupsService {
   constructor(
     private readonly repository: GroupsRepository,
     private readonly teacherAccess: TeacherAccessService,
+    private readonly lessonSeriesService: LessonSeriesService,
+    private readonly lessonsService: LessonsService,
   ) {}
 
   async findAll(actor: JwtPayload): Promise<GroupEntity[]> {
@@ -31,7 +35,11 @@ export class GroupsService {
   }
 
   create(dto: CreateGroupDto): Promise<GroupEntity> {
-    return this.repository.save(dto);
+    return this.repository.save({
+      name: dto.name.trim(),
+      status: dto.status ?? 'active',
+      teacherId: dto.teacherId?.trim() ? dto.teacherId : null,
+    });
   }
 
   async update(id: string, dto: UpdateGroupDto): Promise<GroupEntity> {
@@ -78,5 +86,31 @@ export class GroupsService {
       throw new NotFoundException('Group member not found');
     }
     await this.repository.deleteMember(memberId);
+  }
+
+  async getWorkspace(actor: JwtPayload, groupId: string) {
+    const group = await this.findById(actor, groupId);
+    const [members, series, lessons] = await Promise.all([
+      this.findMembers(actor, groupId),
+      this.lessonSeriesService.findByGroupId(groupId),
+      this.lessonsService.filter(actor, { groupId }),
+    ]);
+
+    const activeSeries =
+      series.find((row) => row.status === 'active') ?? series[0] ?? null;
+
+    return {
+      group,
+      members,
+      series,
+      activeSeries,
+      lessons: lessons.sort((a, b) => {
+        const dateCompare = String(a.date ?? '').localeCompare(String(b.date ?? ''));
+        if (dateCompare !== 0) {
+          return dateCompare;
+        }
+        return String(a.startTime ?? '').localeCompare(String(b.startTime ?? ''));
+      }),
+    };
   }
 }

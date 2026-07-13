@@ -26,18 +26,31 @@ function entityFieldToApiKey(key: string): string {
   return API_FIELD_ALIASES[key] ?? camelToSnake(key);
 }
 
-export function entityToApiRecord(value: unknown): unknown {
+export function entityToApiRecord(
+  value: unknown,
+  seen: WeakSet<object> = new WeakSet(),
+): unknown {
   if (value === null || value === undefined) return value;
   if (value instanceof Date) return value.toISOString();
-  if (Array.isArray(value)) return value.map(entityToApiRecord);
+  if (Array.isArray(value)) return value.map((item) => entityToApiRecord(item, seen));
   if (typeof value !== 'object') return value;
+
+  if (seen.has(value as object)) {
+    return undefined;
+  }
+  seen.add(value as object);
 
   const record = value as Record<string, unknown>;
   const out: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(record)) {
     if (key === 'passwordHash' || key === 'verificationCodeHash') continue;
     if (key === 'assignedTeacher') continue;
-    out[entityFieldToApiKey(key)] = entityToApiRecord(val);
+    if (key === 'folder' || key === 'material' || key === 'lesson') continue;
+    if (key.startsWith('__')) continue;
+    const mapped = entityToApiRecord(val, seen);
+    if (mapped !== undefined) {
+      out[entityFieldToApiKey(key)] = mapped;
+    }
   }
   return out;
 }

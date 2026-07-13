@@ -5,6 +5,7 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { existsSync } from 'fs';
 import { join } from 'path';
 import configuration from './config/configuration';
 import { validateEnv } from './config/env.validation';
@@ -39,11 +40,23 @@ import { JobsModule } from './modules/jobs/jobs.module';
 
 const serveFrontend = process.env.SERVE_FRONTEND !== 'false';
 
+function resolveEnvFilePaths(): string[] {
+  const candidates = [
+    join(process.cwd(), '.env'),
+    join(process.cwd(), '..', '..', '.env'),
+    join(__dirname, '../../../.env'),
+    '.env',
+  ];
+  const unique = [...new Set(candidates)];
+  const existing = unique.filter((path) => existsSync(path));
+  return existing.length > 0 ? existing : unique.slice(0, 1);
+}
+
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: [join(__dirname, '../../../.env'), '.env'],
+      envFilePath: resolveEnvFilePaths(),
       load: [configuration],
       validate: validateEnv,
     }),

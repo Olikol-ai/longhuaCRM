@@ -12,6 +12,7 @@ import LessonDetailModal from "../components/schedule/LessonDetailModal";
 import { createWeeklyLessonSeries } from "@/lib/recurring-lessons";
 import { DAY_HOURS } from "@/lib/time-slots";
 import { resolveLessonTeacherLabel } from "@/lib/teacherLabels";
+import { resolveLessonStudentLabel } from "@/lib/studentLabels";
 
 export default function Schedule() {
   const [view, setView] = useState("week");
@@ -193,18 +194,18 @@ export default function Schedule() {
             <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : view === "month" ? (
-          <MonthView current={current} teachers={teachers} getLessonsForDay={getLessonsForDay} onDayClick={(d) => {
+          <MonthView current={current} teachers={teachers} students={students} getLessonsForDay={getLessonsForDay} onDayClick={(d) => {
             setCurrent(d); setView("day");
           }} onLessonClick={setViewingLesson} />
         ) : view === "week" ? (
-          <WeekView current={current} teachers={teachers} hours={HOURS} getLessonsForDay={getLessonsForDay}
+          <WeekView current={current} teachers={teachers} students={students} hours={HOURS} getLessonsForDay={getLessonsForDay}
             onSlotClick={(date) => { if (isAdmin) { setSelectedDate(date); setShowModal(true); } }}
             onLessonClick={setViewingLesson}
             selectedTeacherId={selectedTeacherId}
             availabilitySlots={availabilitySlots}
             bookings={bookings} />
         ) : (
-          <DayView current={current} teachers={teachers} hours={HOURS} getLessonsForDay={getLessonsForDay}
+          <DayView current={current} teachers={teachers} students={students} hours={HOURS} getLessonsForDay={getLessonsForDay}
             onLessonClick={setViewingLesson} />
         )}
       </div>
@@ -230,6 +231,7 @@ export default function Schedule() {
           onUpdate={handleUpdate}
           onDelete={handleDelete}
           onClose={() => setViewingLesson(null)}
+          showAttendance={isAdmin}
         />
       )}
     </div>
@@ -250,11 +252,12 @@ const STATUS_LABELS = {
   rescheduled: "Перенесено",
 };
 
-function LessonChip({ lesson, teachers, onClick }) {
+function LessonChip({ lesson, teachers, students, onClick }) {
   const teacherLabel = resolveLessonTeacherLabel(lesson, teachers);
+  const studentLabel = resolveLessonStudentLabel(lesson, students);
   const displayName = lesson.student_names?.length > 1
     ? `${lesson.student_names[0]} +${lesson.student_names.length - 1}`
-    : (lesson.student_name || teacherLabel);
+    : studentLabel;
   const formatIcon = lesson.lesson_format === "offline" ? "🏫" : "💻";
   return (
     <div
@@ -267,7 +270,7 @@ function LessonChip({ lesson, teachers, onClick }) {
   );
 }
 
-function MonthView({ current, teachers, getLessonsForDay, onDayClick, onLessonClick }) {
+function MonthView({ current, teachers, students, getLessonsForDay, onDayClick, onLessonClick }) {
   const start = startOfMonth(current);
   const end = endOfMonth(current);
   const startCal = startOfWeek(start, { weekStartsOn: 1 });
@@ -300,7 +303,7 @@ function MonthView({ current, teachers, getLessonsForDay, onDayClick, onLessonCl
               </span>
               <div className="space-y-0.5">
                 {dayLessons.slice(0, 3).map(l => (
-                  <LessonChip key={l.id} lesson={l} teachers={teachers} onClick={onLessonClick} />
+                  <LessonChip key={l.id} lesson={l} teachers={teachers} students={students} onClick={onLessonClick} />
                 ))}
                 {dayLessons.length > 3 && (
                   <span className="text-[9px] text-slate-400">+{dayLessons.length - 3} more</span>
@@ -348,7 +351,7 @@ function getCellAvailabilityState(day, hour, dateStr, availabilitySlots, booking
   return 'blocked';
 }
 
-function WeekView({ current, teachers, hours, getLessonsForDay, onSlotClick, onLessonClick, selectedTeacherId, availabilitySlots, bookings }) {
+function WeekView({ current, teachers, students, hours, getLessonsForDay, onSlotClick, onLessonClick, selectedTeacherId, availabilitySlots, bookings }) {
   const start = startOfWeek(current, { weekStartsOn: 1 });
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
 
@@ -412,7 +415,7 @@ function WeekView({ current, teachers, hours, getLessonsForDay, onSlotClick, onL
                   >
                     <div className="absolute inset-x-0.5 top-0.5 space-y-0.5">
                       {slotLessons.map(l => (
-                        <LessonChip key={l.id} lesson={l} teachers={teachers} onClick={onLessonClick} />
+                        <LessonChip key={l.id} lesson={l} teachers={teachers} students={students} onClick={onLessonClick} />
                       ))}
                     </div>
                   </div>
@@ -426,7 +429,7 @@ function WeekView({ current, teachers, hours, getLessonsForDay, onSlotClick, onL
   );
 }
 
-function DayView({ current, teachers, hours, getLessonsForDay, onLessonClick }) {
+function DayView({ current, teachers, students, hours, getLessonsForDay, onLessonClick }) {
   const dayLessons = getLessonsForDay(current);
   return (
     <div className="max-w-2xl mx-auto p-6 dark:bg-slate-950">
@@ -444,7 +447,7 @@ function DayView({ current, teachers, hours, getLessonsForDay, onLessonClick }) 
                     className={`px-3 py-2 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity ${statusColors[l.status] || statusColors.planned}`}
                   >
                     <p className="text-xs font-semibold">{l.start_time} · {l.duration || 60}мин · {l.lesson_format === "offline" ? "Очное" : "Дистанц."}</p>
-                    <p className="text-xs">{l.student_names?.join(", ") || l.student_name} → {resolveLessonTeacherLabel(l, teachers)}</p>
+                    <p className="text-xs">{resolveLessonStudentLabel(l, students)} → {resolveLessonTeacherLabel(l, teachers)}</p>
                   </div>
                 ))}
               </div>

@@ -8,6 +8,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { decimalColumnTransformer, coerceDecimalValue } from '../../../database/numeric-column.transformer';
 import { EnrollmentEntity } from '../../courses/entities/enrollment.entity';
 import { StudentEntity } from '../../students/entities/student.entity';
 import { ShopItemEntity } from './shop-item.entity';
@@ -21,14 +22,22 @@ export class PaymentEntity {
   id: string;
 
   @Index('IDX_PAYMENT_STUDENT_ID')
-  @Column({ name: 'student_id', type: 'uuid' })
-  studentId: string;
+  @Column({ name: 'student_id', type: 'uuid', nullable: true })
+  studentId: string | null;
 
-  @ManyToOne(() => StudentEntity, { nullable: false, onDelete: 'RESTRICT' })
+  @ManyToOne(() => StudentEntity, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'student_id' })
-  student?: StudentEntity;
+  student?: StudentEntity | null;
 
-  @Column({ type: 'numeric', precision: 10, scale: 2 })
+  @Column({
+    type: 'numeric',
+    precision: 10,
+    scale: 2,
+    transformer: {
+      to: decimalColumnTransformer.to,
+      from: (value: string | number | null | undefined) => coerceDecimalValue(value, 0),
+    },
+  })
   amount: number;
 
   @Column({ type: 'text', nullable: true })

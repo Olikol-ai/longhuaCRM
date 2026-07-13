@@ -1,0 +1,494 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { api } from "@/api";
+import {
+  ArrowLeft,
+  CalendarRange,
+  Loader2,
+  Plus,
+  Trash2,
+  UserPlus,
+  Users,
+  BookOpen,
+  Clock,
+} from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
+import { resolveAssignedTeacherLabel } from "@/lib/teacherLabels";
+import { resolveStudentLabel } from "@/lib/studentLabels";
+import LessonDetailModal from "@/components/schedule/LessonDetailModal";
+import LessonAttendancePanel from "@/components/groups/LessonAttendancePanel";
+
+const TABS = [
+  { id: "overview", label: "Обзор" },
+  { id: "students", label: "Ученики" },
+  { id: "schedule", label: "Расписание" },
+  { id: "lessons", label: "Уроки" },
+];
+
+const WEEKDAYS = [
+  { value: 0, label: "Понедельник" },
+  { value: 1, label: "Вторник" },
+  { value: 2, label: "Среда" },
+  { value: 3, label: "Четверг" },
+  { value: 4, label: "Пятница" },
+  { value: 5, label: "Суббота" },
+  { value: 6, label: "Воскресенье" },
+];
+
+function formatSlot(slot) {
+  const day = WEEKDAYS.find((d) => d.value === (slot.day_of_week ?? slot.dayOfWeek));
+  const time = (slot.start_time ?? slot.startTime ?? "").slice(0, 5);
+  return `${day?.label ?? "День"} ${time}`;
+}
+
+export default function GroupDetail() {
+  const { groupId } = useParams();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState("overview");
+  const [loading, setLoading] = useState(true);
+  const [workspace, setWorkspace] = useState(null);
+  const [teachers, setTeachers] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [memberStudentId, setMemberStudentId] = useState("");
+  const [viewingLesson, setViewingLesson] = useState(null);
+  const [expandedLessonId, setExpandedLessonId] = useState(null);
+
+  const [seriesForm, setSeriesForm] = useState({
+    course_id: "",
+    start_date: "",
+    total_lessons: 35,
+    duration: 60,
+    slots: [
+      { day_of_week: 1, start_time: "18:30" },
+      { day_of_week: 3, start_time: "18:30" },
+    ],
+  });
+  const [creatingSeries, setCreatingSeries] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!groupId) return;
+    setLoading(true);
+    try {
+      const [ws, t, s, c] = await Promise.all([
+        api.groups.workspace(groupId),
+        api.teachers.list(),
+        api.students.list(),
+        api.courses.list(),
+      ]);
+      setWorkspace(ws);
+      setTeachers(t);
+      setStudents(s);
+      setCourses(c);
+      const active = ws?.active_series ?? ws?.activeSeries;
+      if (active?.course_id || active?.courseId) {
+        setSeriesForm((prev) => ({
+          ...prev,
+          course_id: active.course_id ?? active.courseId ?? prev.course_id,
+          start_date: active.start_date ?? active.startDate ?? prev.start_date,
+          total_lessons: active.total_lessons ?? active.totalLessons ?? prev.total_lessons,
+          duration: active.duration ?? prev.duration,
+          slots: (active.slots ?? []).length
+            ? active.slots.map((slot) => ({
+                day_of_week: slot.day_of_week ?? slot.dayOfWeek,
+                start_time: (slot.start_time ?? slot.startTime ?? "10:00").slice(0, 5),
+              }))
+            : prev.slots,
+        }));
+      }
+    } catch (err) {
+      toast({ title: "Не удалось загрузить группу", description: err.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, [groupId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const group = workspace?.group;
+  const members = workspace?.members ?? [];
+  const lessons = workspace?.lessons ?? [];
+  const seriesList = workspace?.series ?? [];
+  const activeSeries = workspace?.active_series ?? workspace?.activeSeries;
+
+  const memberStudents = useMemo(
+    () => members.map((m) => students.find((s) => s.id === (m.student_id ?? m.studentId))).filter(Boolean),
+    [members, students],
+  );
+
+  const handleAddMember = async () => {
+    if (!memberStudentId) return;
+    try {
+      await api.groups.addMember(groupId, memberStudentId);
+      setMemberStudentId("");
+      await load();
+      toast({ title: "Ученик добавлен в группу" });
+    } catch (err) {
+      toast({ title: "Ошибка", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleRemoveMember = async (memberId) => {
+    if (!window.confirm("Удалить ученика из группы?")) return;
+    try {
+      await api.groups.removeMember(groupId, memberId);
+      await load();
+    } catch (err) {
+      toast({ title: "Ошибка", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const updateSlot = (index, field, value) => {
+    setSeriesForm((prev) => ({
+      ...prev,
+      slots: prev.slots.map((slot, i) => (i === index ? { ...slot, [field]: value } : slot)),
+    }));
+  };
+
+  const addSlot = () => {
+    setSeriesForm((prev) => ({
+      ...prev,
+      slots: [...prev.slots, { day_of_week: 1, start_time: "10:00" }],
+    }));
+  };
+
+  const removeSlot = (index) => {
+    setSeriesForm((prev) => ({
+      ...prev,
+      slots: prev.slots.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleCreateSeries = async () => {
+    if (!seriesForm.course_id || !seriesForm.start_date || !group?.teacher_id) {
+      toast({ title: "Заполните курс, дату начала и назначьте преподавателя группе", variant: "destructive" });
+      return;
+    }
+    if (seriesForm.slots.length === 0) {
+      toast({ title: "Добавьте хотя бы один слот расписания", variant: "destructive" });
+      return;
+    }
+    setCreatingSeries(true);
+    try {
+      const result = await api.lessonSeries.create({
+        course_id: seriesForm.course_id,
+        group_id: groupId,
+        teacher_id: group.teacher_id,
+        start_date: seriesForm.start_date,
+        total_lessons: seriesForm.total_lessons,
+        duration: seriesForm.duration,
+        slots: seriesForm.slots,
+      });
+      toast({
+        title: "Расписание создано",
+        description: `Сгенерировано уроков: ${result.lessons_created ?? result.lessonsCreated ?? 0}`,
+      });
+      await load();
+      setActiveTab("lessons");
+    } catch (err) {
+      toast({ title: "Не удалось создать расписание", description: err.message, variant: "destructive" });
+    } finally {
+      setCreatingSeries(false);
+    }
+  };
+
+  const handleLessonUpdate = async (id, data) => {
+    await api.lessons.update(id, data);
+    setViewingLesson(null);
+    await load();
+  };
+
+  const handleLessonDelete = async (id) => {
+    await api.lessons.delete(id);
+    setViewingLesson(null);
+    await load();
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center gap-2 text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Загрузка группы…
+      </div>
+    );
+  }
+
+  if (!group) {
+    return (
+      <div className="p-6 space-y-4">
+        <p className="text-sm text-red-600">Группа не найдена</p>
+        <Link to="/Groups" className="text-sm text-indigo-600 hover:underline">← К списку групп</Link>
+      </div>
+    );
+  }
+
+  const courseName = courses.find((c) => c.id === (activeSeries?.course_id ?? activeSeries?.courseId))?.name;
+
+  return (
+    <div className="p-6 max-w-6xl mx-auto space-y-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <button
+            type="button"
+            onClick={() => navigate("/Groups")}
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-2"
+          >
+            <ArrowLeft className="h-4 w-4" /> К списку групп
+          </button>
+          <h2 className="text-xl font-bold">{group.name}</h2>
+          <p className="text-sm text-muted-foreground">
+            {resolveAssignedTeacherLabel(group.teacher_id, teachers)} · {group.status}
+            {courseName ? ` · ${courseName}` : ""}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 border-b border-slate-100 pb-2">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === tab.id
+                ? "bg-indigo-600 text-white"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "overview" && (
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="border rounded-xl p-4 bg-card space-y-2">
+            <h3 className="font-semibold flex items-center gap-2"><BookOpen className="h-4 w-4" /> Основная информация</h3>
+            <p className="text-sm"><span className="text-muted-foreground">Преподаватель:</span> {resolveAssignedTeacherLabel(group.teacher_id, teachers)}</p>
+            <p className="text-sm"><span className="text-muted-foreground">Курс:</span> {courseName || "—"}</p>
+            <p className="text-sm"><span className="text-muted-foreground">Статус:</span> {group.status}</p>
+            <p className="text-sm"><span className="text-muted-foreground">Учеников:</span> {members.length}</p>
+            <p className="text-sm"><span className="text-muted-foreground">Уроков:</span> {lessons.length}</p>
+          </div>
+          <div className="border rounded-xl p-4 bg-card space-y-2">
+            <h3 className="font-semibold flex items-center gap-2"><CalendarRange className="h-4 w-4" /> Расписание курса</h3>
+            {activeSeries ? (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Старт: {activeSeries.start_date ?? activeSeries.startDate} · {activeSeries.total_lessons ?? activeSeries.totalLessons} занятий
+                </p>
+                <ul className="text-sm space-y-1">
+                  {(activeSeries.slots ?? []).map((slot) => (
+                    <li key={slot.id ?? `${slot.day_of_week}-${slot.start_time}`} className="flex items-center gap-2">
+                      <Clock className="h-3.5 w-3.5 text-indigo-500" /> {formatSlot(slot)}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">Расписание ещё не задано — перейдите на вкладку «Расписание».</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "students" && (
+        <div className="border rounded-xl p-4 bg-card space-y-4">
+          <h3 className="font-semibold flex items-center gap-2"><Users className="h-4 w-4" /> Ученики группы</h3>
+          <div className="flex gap-2">
+            <select
+              className="border rounded-lg px-3 py-2 text-sm flex-1"
+              value={memberStudentId}
+              onChange={(e) => setMemberStudentId(e.target.value)}
+            >
+              <option value="">Выберите ученика</option>
+              {students.filter((s) => s.status !== "inactive").map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleAddMember}
+              className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm flex items-center gap-1"
+            >
+              <UserPlus className="h-4 w-4" /> Добавить
+            </button>
+          </div>
+          <ul className="divide-y divide-slate-100">
+            {members.map((member) => (
+              <li key={member.id} className="flex items-center justify-between py-2">
+                <span className="text-sm font-medium">
+                  {resolveStudentLabel(member.student_id ?? member.studentId, students)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveMember(member.id)}
+                  className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {activeTab === "schedule" && (
+        <div className="space-y-4">
+          {seriesList.length > 0 && (
+            <div className="border rounded-xl p-4 bg-card space-y-2">
+              <h3 className="font-semibold">Текущие серии</h3>
+              {seriesList.map((series) => (
+                <div key={series.id} className="text-sm border border-slate-100 rounded-lg p-3">
+                  <p className="font-medium">
+                    {series.start_date ?? series.startDate} · {series.total_lessons ?? series.totalLessons} уроков · {series.status}
+                  </p>
+                  <ul className="mt-1 text-muted-foreground space-y-0.5">
+                    {(series.slots ?? []).map((slot) => (
+                      <li key={slot.id ?? formatSlot(slot)}>{formatSlot(slot)}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="border rounded-xl p-4 bg-card space-y-4">
+            <h3 className="font-semibold">Создать расписание курса</h3>
+            <div className="grid md:grid-cols-2 gap-3">
+              <select
+                className="border rounded-lg px-3 py-2 text-sm"
+                value={seriesForm.course_id}
+                onChange={(e) => setSeriesForm({ ...seriesForm, course_id: e.target.value })}
+              >
+                <option value="">Курс</option>
+                {courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <input
+                type="date"
+                className="border rounded-lg px-3 py-2 text-sm"
+                value={seriesForm.start_date}
+                onChange={(e) => setSeriesForm({ ...seriesForm, start_date: e.target.value })}
+              />
+              <input
+                type="number"
+                min={1}
+                className="border rounded-lg px-3 py-2 text-sm"
+                placeholder="Всего занятий"
+                value={seriesForm.total_lessons}
+                onChange={(e) => setSeriesForm({ ...seriesForm, total_lessons: Number(e.target.value) })}
+              />
+              <input
+                type="number"
+                min={15}
+                step={15}
+                className="border rounded-lg px-3 py-2 text-sm"
+                placeholder="Длительность (мин)"
+                value={seriesForm.duration}
+                onChange={(e) => setSeriesForm({ ...seriesForm, duration: Number(e.target.value) })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Слоты ({seriesForm.slots.length} в неделю)</p>
+              {seriesForm.slots.map((slot, index) => (
+                <div key={index} className="flex flex-wrap gap-2 items-center">
+                  <select
+                    className="border rounded-lg px-3 py-2 text-sm"
+                    value={slot.day_of_week}
+                    onChange={(e) => updateSlot(index, "day_of_week", Number(e.target.value))}
+                  >
+                    {WEEKDAYS.map((day) => (
+                      <option key={day.value} value={day.value}>{day.label}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="time"
+                    className="border rounded-lg px-3 py-2 text-sm"
+                    value={slot.start_time}
+                    onChange={(e) => updateSlot(index, "start_time", e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeSlot(index)}
+                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                    disabled={seriesForm.slots.length <= 1}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addSlot}
+                className="text-sm text-indigo-600 hover:underline inline-flex items-center gap-1"
+              >
+                <Plus className="h-4 w-4" /> Добавить день
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCreateSeries}
+              disabled={creatingSeries}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm disabled:opacity-60"
+            >
+              {creatingSeries ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarRange className="h-4 w-4" />}
+              Создать уроки по расписанию
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "lessons" && (
+        <div className="border rounded-xl p-4 bg-card space-y-3">
+          <h3 className="font-semibold">Уроки группы</h3>
+          {lessons.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Уроков пока нет. Создайте расписание на вкладке «Расписание».</p>
+          ) : (
+            lessons.map((lesson) => (
+              <div key={lesson.id} className="border border-slate-100 rounded-lg overflow-hidden">
+                <div className="flex items-center justify-between gap-3 px-3 py-2 bg-slate-50">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedLessonId(expandedLessonId === lesson.id ? null : lesson.id)}
+                    className="text-sm font-medium text-left hover:text-indigo-700"
+                  >
+                    {lesson.date} · {(lesson.start_time ?? "").slice(0, 5)} · {lesson.status}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewingLesson(lesson)}
+                    className="text-xs px-2 py-1 border rounded-md hover:bg-white"
+                  >
+                    Открыть
+                  </button>
+                </div>
+                {expandedLessonId === lesson.id && (
+                  <div className="px-3 py-3 border-t border-slate-100">
+                    <LessonAttendancePanel lessonId={lesson.id} students={students} />
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {viewingLesson && (
+        <LessonDetailModal
+          lesson={viewingLesson}
+          teachers={teachers}
+          students={students}
+          isAdmin
+          isTeacher={false}
+          onUpdate={handleLessonUpdate}
+          onDelete={handleLessonDelete}
+          onClose={() => setViewingLesson(null)}
+          showAttendance
+        />
+      )}
+    </div>
+  );
+}

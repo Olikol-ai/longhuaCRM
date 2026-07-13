@@ -13,7 +13,7 @@ export class CertificateDraftService {
     enrollment: EnrollmentEntity,
     manager?: EntityManager,
   ): Promise<void> {
-    if (!enrollment.courseTemplateId) {
+    if (!enrollment.courseTemplateId || !enrollment.studentId) {
       return;
     }
 

@@ -36,6 +36,12 @@ export class GroupsController {
     return this.groupsService.filter(user, dto.where ?? {});
   }
 
+  @Get(':id/workspace')
+  @Roles('admin', 'teacher')
+  getWorkspace(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.groupsService.getWorkspace(user, id);
+  }
+
   @Get(':id/members')
   @Roles('admin', 'teacher')
   findMembers(@CurrentUser() user: JwtPayload, @Param('id') id: string) {

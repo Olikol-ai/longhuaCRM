@@ -1,5 +1,23 @@
 import { plainToInstance } from 'class-transformer';
 import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Min, validateSync } from 'class-validator';
+import { getEmailDomain, TEST_EMAIL_DOMAIN } from '../common/security/email-validation';
+
+function assertProductionEmail(value: string | undefined, field: string): void {
+  if (!value?.trim()) {
+    return;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized.includes('localhost')) {
+    throw new Error(`${field} must not use localhost in production`);
+  }
+  const domain = getEmailDomain(normalized);
+  if (!domain) {
+    return;
+  }
+  if (domain === TEST_EMAIL_DOMAIN || domain.endsWith('.local')) {
+    throw new Error(`${field} must use a production email domain`);
+  }
+}
 
 class EnvironmentVariables {
   @IsIn(['development', 'production', 'test'])
@@ -152,6 +170,11 @@ class EnvironmentVariables {
   @IsOptional()
   SMTP_PASS?: string;
 
+  /** Alias for SMTP_PASS / MAIL_PASS */
+  @IsString()
+  @IsOptional()
+  SMTP_PASSWORD?: string;
+
   /** @deprecated Use MAIL_* variables */
   @IsString()
   @IsOptional()
@@ -169,6 +192,20 @@ export function validateEnv(config: Record<string, unknown>) {
 
   if (parsed.NODE_ENV === 'production' && !parsed.JWT_SECRET) {
     throw new Error('JWT_SECRET must be set in production');
+  }
+
+  if (parsed.NODE_ENV === 'production') {
+    if (!parsed.APP_PUBLIC_URL?.trim()) {
+      throw new Error('APP_PUBLIC_URL must be set in production');
+    }
+    if (parsed.APP_PUBLIC_URL.includes('localhost')) {
+      throw new Error('APP_PUBLIC_URL must not use localhost in production');
+    }
+    assertProductionEmail(parsed.ADMIN_EMAIL, 'ADMIN_EMAIL');
+    assertProductionEmail(parsed.MAIL_FROM, 'MAIL_FROM');
+    if ((parsed.CORS_ORIGINS ?? '').includes('localhost')) {
+      throw new Error('CORS_ORIGINS must not include localhost in production');
+    }
   }
 
   return parsed;

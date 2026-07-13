@@ -19,12 +19,12 @@ export class EnrollmentEntity {
   id: string;
 
   @Index('IDX_ENROLLMENT_STUDENT_ID')
-  @Column({ name: 'student_id', type: 'uuid' })
-  studentId: string;
+  @Column({ name: 'student_id', type: 'uuid', nullable: true })
+  studentId: string | null;
 
-  @ManyToOne(() => StudentEntity, { nullable: false, onDelete: 'CASCADE' })
+  @ManyToOne(() => StudentEntity, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'student_id' })
-  student?: StudentEntity;
+  student?: StudentEntity | null;
 
   @Index('IDX_ENROLLMENT_COURSE_TEMPLATE_ID')
   @Column({ name: 'course_template_id', type: 'uuid', nullable: true })

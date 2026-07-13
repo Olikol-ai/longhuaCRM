@@ -38,7 +38,7 @@ services:
       PORT: 3001
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-longhua}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@longhua.local}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?ADMIN_EMAIL is required}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       APP_PUBLIC_URL: ${APP_PUBLIC_URL:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-}

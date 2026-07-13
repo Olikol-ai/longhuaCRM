@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { parseISO, format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { TrendingUp, Users, BookOpen, Download, GraduationCap, CreditCard } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { formatMoneyByn, sumPaymentAmounts } from "@/lib/money";
 
 function StatBox({ label, value, color = "indigo" }) {
   const colors = {
@@ -54,18 +55,27 @@ export default function Analytics() {
     const month = subMonths(now, 5 - i);
     const start = startOfMonth(month);
     const end = endOfMonth(month);
-    const revenue = payments
-      .filter(p => { try { const d = parseISO(p.payment_date); return d >= start && d <= end; } catch { return false; } })
-      .reduce((sum, p) => sum + (p.amount || 0), 0);
-    return { month: format(month, "MMM yy"), revenue };
+    const monthPayments = payments.filter((p) => {
+      try {
+        const d = parseISO(p.payment_date);
+        return d >= start && d <= end;
+      } catch {
+        return false;
+      }
+    });
+    return { month: format(month, "MMM yy"), revenue: sumPaymentAmounts(monthPayments) };
   });
 
-  const totalRevenue = payments.reduce((s, p) => s + (p.amount || 0), 0);
-  const monthPayments = payments.filter(p => {
-    try { const d = parseISO(p.payment_date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); }
-    catch { return false; }
+  const totalRevenue = sumPaymentAmounts(payments);
+  const monthPayments = payments.filter((p) => {
+    try {
+      const d = parseISO(p.payment_date);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    } catch {
+      return false;
+    }
   });
-  const monthRevenue = monthPayments.reduce((s, p) => s + (p.amount || 0), 0);
+  const monthRevenue = sumPaymentAmounts(monthPayments);
   const activeStudents = students.filter(s => s.status === "active").length;
   const completedLessons = lessons.filter(l => l.status === "completed").length;
   const lowBalanceStudents = students.filter(s => (s.lesson_balance || 0) <= 1 && s.status === "active").length;
@@ -118,8 +128,8 @@ export default function Analytics() {
 
       {/* KPI */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatBox label="Общая выручка" value={`${totalRevenue.toLocaleString()} BYN`} color="emerald" />
-        <StatBox label="Выручка за месяц" value={`${monthRevenue.toLocaleString()} BYN`} color="indigo" />
+        <StatBox label="Общая выручка" value={formatMoneyByn(totalRevenue)} color="emerald" />
+        <StatBox label="Выручка за месяц" value={formatMoneyByn(monthRevenue)} color="indigo" />
         <StatBox label="Активных учеников" value={activeStudents} color="sky" />
         <StatBox label="Уроков проведено" value={completedLessons} color="violet" />
         <StatBox label="Мало уроков (≤1)" value={lowBalanceStudents} color="amber" />
@@ -133,7 +143,7 @@ export default function Analytics() {
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" stroke="hsl(var(--border))" />
             <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
             <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-            <Tooltip formatter={(v) => [`${v.toLocaleString()} BYN`, "Выручка"]} />
+            <Tooltip formatter={(v) => [formatMoneyByn(v), "Выручка"]} />
             <Bar dataKey="revenue" fill="#6366f1" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>

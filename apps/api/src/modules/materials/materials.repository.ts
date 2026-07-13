@@ -20,7 +20,7 @@ export class MaterialsRepository {
   ) {}
 
   findAllMaterials(): Promise<MaterialEntity[]> {
-    return this.materialRepo.find();
+    return this.materialRepo.find({ where: { status: 'active' } });
   }
 
   findMaterialById(id: string): Promise<MaterialEntity | null> {
@@ -28,7 +28,9 @@ export class MaterialsRepository {
   }
 
   saveMaterial(entity: Partial<MaterialEntity>): Promise<MaterialEntity> {
-    return this.materialRepo.save(this.materialRepo.create(entity));
+    return this.materialRepo.save(
+      this.materialRepo.create({ status: 'active', ...entity }),
+    );
   }
 
   async updateMaterial(id: string, data: Partial<MaterialEntity>): Promise<MaterialEntity | null> {
@@ -41,7 +43,28 @@ export class MaterialsRepository {
   }
 
   filterMaterials(where: FindOptionsWhere<MaterialEntity>): Promise<MaterialEntity[]> {
-    return this.materialRepo.find({ where });
+    const scoped: FindOptionsWhere<MaterialEntity> = {
+      ...where,
+      status: (where as { status?: MaterialEntity['status'] }).status ?? 'active',
+    };
+    return this.materialRepo.find({ where: scoped });
+  }
+
+  countLinksByMaterialId(materialId: string): Promise<number> {
+    return this.linkRepo.count({ where: { materialId } });
+  }
+
+  countAccessByMaterialId(materialId: string): Promise<number> {
+    return this.accessRepo.count({ where: { materialId } });
+  }
+
+  async revokeAllAccessForMaterial(materialId: string): Promise<number> {
+    const result = await this.accessRepo.update({ materialId, access: true }, { access: false });
+    return result.affected ?? 0;
+  }
+
+  async deleteAccessByMaterialId(materialId: string): Promise<void> {
+    await this.accessRepo.delete({ materialId });
   }
 
   findFoldersByIds(ids: string[]): Promise<MaterialFolderEntity[]> {
@@ -107,6 +130,10 @@ export class MaterialsRepository {
 
   findAllLinks(): Promise<MaterialLinkEntity[]> {
     return this.linkRepo.find();
+  }
+
+  findLinksByMaterialId(materialId: string): Promise<MaterialLinkEntity[]> {
+    return this.linkRepo.find({ where: { materialId } });
   }
 
   saveLink(entity: Partial<MaterialLinkEntity>): Promise<MaterialLinkEntity> {

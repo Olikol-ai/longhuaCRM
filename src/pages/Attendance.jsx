@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, apiFetch } from "@/api";
 import { Check, X } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+import { resolveStudentLabel } from "@/lib/studentLabels";
 
 export default function Attendance() {
   const [rows, setRows] = useState([]);
@@ -33,7 +34,7 @@ export default function Attendance() {
     return lesson ? `${lesson.date} ${lesson.start_time}` : lessonId;
   };
 
-  const studentName = (id) => students.find((s) => s.id === id)?.name || id;
+  const studentName = (id) => resolveStudentLabel(id, students);
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-4">

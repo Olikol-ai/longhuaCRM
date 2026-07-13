@@ -32,7 +32,7 @@ const REMOVED_ADMIN_PANEL_TABS = [
 
 const ADMIN_SIDEBAR_PAGES = [
 
-  { path: '/Dashboard', heading: /Доброе (утро|день|вечер)/i },
+  { path: '/Dashboard', heading: /Добр(ое|ый) (утро|день|вечер)/i },
 
   { path: '/Schedule', text: /расписан|Сегодня|урок/i },
 
@@ -44,13 +44,9 @@ const ADMIN_SIDEBAR_PAGES = [
 
   { path: '/Certificates', heading: 'Сертификаты' },
 
-  { path: '/Attendance', heading: 'Посещаемость' },
-
   { path: '/Payments', heading: 'Платежи' },
 
   { path: '/TeacherPayments', heading: 'Выплаты преподавателям' },
-
-  { path: '/LessonSeriesAdmin', heading: 'Серии уроков' },
 
   { path: '/MaterialsHub', heading: 'Материалы уроков' },
 

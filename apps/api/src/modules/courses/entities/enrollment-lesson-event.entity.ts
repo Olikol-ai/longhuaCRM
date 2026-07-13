@@ -22,8 +22,8 @@ export class EnrollmentLessonEventEntity {
   @Column({ name: 'lesson_id', type: 'uuid' })
   lessonId: string;
 
-  @Column({ name: 'student_id', type: 'uuid' })
-  studentId: string;
+  @Column({ name: 'student_id', type: 'uuid', nullable: true })
+  studentId: string | null;
 
   @Column({ name: 'event_type', type: 'varchar', length: 32 })
   eventType: EnrollmentLessonEventType;

@@ -1,96 +1,54 @@
 import { apiFetch } from '@/api/http';
 
 /**
- * Backend-authoritative material access check.
+ * Backend-authoritative material access check for the current user.
  */
-export async function hasAccessToMaterial(userId, materialId) {
+export async function hasAccessToMaterial(_userId, materialId) {
   const result = await apiFetch(`/material-access/check/${materialId}`);
   return Boolean(result.has_access);
 }
 
-async function getGrantedMaterialIds(userId) {
-  const editor = await fetchUserAccessEditor(userId);
-  const ids = new Set();
-
-  for (const course of editor.courses || []) {
-    for (const material of course.materials || []) {
-      if (material.has_access) {
-        ids.add(material.id);
-      }
-    }
-  }
-
-  return ids;
-}
-
 /**
- * Выдаёт доступ к материалу (единая запись на user_id + material_id).
- * grantedByRole — только аудит «кто последним изменил», не влияет на проверку доступа.
+ * Additive grant — does not revoke other materials.
+ * targetType: user | student | group | course
  */
-export async function grantAccess(userId, materialId, grantedByRole, grantedByUserId) {
+export async function grantMaterialAccess({
+  materialIds,
+  targetType,
+  targetId,
+  grantedByRole = 'ADMIN',
+}) {
   const { api } = await import('@/api');
-
-  if (grantedByRole === 'TEACHER') {
-    const student = await api.students.filter({
-      user_id: userId,
-    });
-
-    if (!student.length) {
-      throw new Error('Студент не найден');
-    }
-
-    const teacher = await api.teachers.filter({
-      user_id: grantedByUserId,
-    });
-
-    if (!teacher.length) {
-      throw new Error('Учитель не найден');
-    }
-
-    if (student[0].assigned_teacher !== teacher[0].id) {
-      throw new Error('Это не ваш ученик');
-    }
-  }
-
-  const materialIds = await getGrantedMaterialIds(userId);
-  materialIds.add(materialId);
-
-  await api.materials.access.sync({
-    user_id: userId,
-    material_ids: Array.from(materialIds),
+  return api.materials.access.grant({
+    material_ids: materialIds,
+    target_type: targetType,
+    target_id: targetId,
     granted_by_role: grantedByRole,
   });
 }
 
 /**
- * Отзывает доступ (удаляет единую запись user_id + material_id).
+ * Additive grant for a single user account (legacy helper).
  */
-export async function revokeAccess(userId, materialId) {
-  const { api } = await import('@/api');
-
-  const materialIds = await getGrantedMaterialIds(userId);
-  materialIds.delete(materialId);
-
-  await api.materials.access.sync({
-    user_id: userId,
-    material_ids: Array.from(materialIds),
+export async function grantAccess(userId, materialId, grantedByRole = 'ADMIN') {
+  return grantMaterialAccess({
+    materialIds: [materialId],
+    targetType: 'user',
+    targetId: userId,
+    grantedByRole,
   });
 }
 
 /**
- * Фильтрует материалы по доступу пользователя
+ * Revoke personal access for a user+material.
  */
-export async function filterMaterialsByAccess(materials, userId) {
-  const accessibleMaterials = [];
-
-  for (const material of materials) {
-    const hasAccess = await hasAccessToMaterial(userId, material.id);
-    if (hasAccess) {
-      accessibleMaterials.push(material);
-    }
-  }
-
-  return accessibleMaterials;
+export async function revokeAccess(userId, materialId) {
+  const { api } = await import('@/api');
+  return api.materials.access.revoke({
+    material_ids: [materialId],
+    target_type: 'user',
+    target_id: userId,
+  });
 }
 
 export async function fetchUserAccessEditor(userId) {

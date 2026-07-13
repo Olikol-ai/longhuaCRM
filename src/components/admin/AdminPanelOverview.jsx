@@ -9,9 +9,7 @@ import {
   Download,
   Layers,
   Award,
-  ClipboardCheck,
   DollarSign,
-  CalendarRange,
   ArrowRight,
   AlertCircle,
 } from "lucide-react";
@@ -26,9 +24,7 @@ const QUICK_ACTIONS = [
   { label: "Платежи", page: "Payments", icon: CreditCard, color: "emerald" },
   { label: "Группы", page: "Groups", icon: Users, color: "violet" },
   { label: "Сертификаты", page: "Certificates", icon: Award, color: "amber" },
-  { label: "Посещаемость", page: "Attendance", icon: ClipboardCheck, color: "rose" },
   { label: "Выплаты", page: "TeacherPayments", icon: DollarSign, color: "emerald" },
-  { label: "Серии уроков", page: "LessonSeriesAdmin", icon: CalendarRange, color: "indigo" },
 ];
 
 export default function AdminPanelOverview({ onOpenExport }) {

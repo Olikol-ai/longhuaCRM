@@ -1,90 +1,114 @@
 import React, { useState, useEffect } from "react";
 import { api } from '@/api';
-import { grantAccess } from "@/lib/materialAccess";
-import { X, Loader2, Users } from "lucide-react";
+import { grantMaterialAccess } from "@/lib/materialAccess";
+import { X, Loader2, Users, BookOpen, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
 export default function GrantAccessModal({ user, materialIds, onClose, onSuccess }) {
-  const [step, setStep] = useState(1); // 1: select materials, 2: select users
+  const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const [materials, setMaterials] = useState([]);
   const [students, setStudents] = useState([]);
-  const [teachers, setTeachers] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [courses, setCourses] = useState([]);
   const [teacherEntityId, setTeacherEntityId] = useState(null);
   const [selectedMaterials, setSelectedMaterials] = useState(new Set(materialIds));
-  const [selectedUsers, setSelectedUsers] = useState(new Set());
+  const [targetType, setTargetType] = useState("student");
+  const [selectedTargets, setSelectedTargets] = useState(new Set());
 
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
-    const [mats, sts, trs] = await Promise.all([
-      api.materials.list(),
-      api.students.list(),
-      api.teachers.list(),
-    ]);
+    setError("");
+    try {
+      const [mats, sts, grps, crs, trs] = await Promise.all([
+        api.materials.list(),
+        api.students.list(),
+        api.groups.list(),
+        api.courses.list(),
+        api.teachers.list(),
+      ]);
 
-    setMaterials(mats);
-    setStudents(sts);
-    setTeachers(trs);
-    if (user?.teacher_profile_id) {
-      setTeacherEntityId(user.teacher_profile_id);
-    } else if (user?.has_teacher_profile) {
-      const ownTeacher = trs.find((t) => t.user_id === user.id);
-      setTeacherEntityId(ownTeacher?.id ?? null);
+      setMaterials(Array.isArray(mats) ? mats : []);
+      setStudents(Array.isArray(sts) ? sts : []);
+      setGroups(Array.isArray(grps) ? grps : []);
+      setCourses(Array.isArray(crs) ? crs : []);
+
+      if (user?.teacher_profile_id) {
+        setTeacherEntityId(user.teacher_profile_id);
+      } else if (user?.has_teacher_profile) {
+        const ownTeacher = (Array.isArray(trs) ? trs : []).find((t) => t.user_id === user.id);
+        setTeacherEntityId(ownTeacher?.id ?? null);
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Не удалось загрузить данные");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const toggleMaterial = (id) => {
-    const newSet = new Set(selectedMaterials);
-    if (newSet.has(id)) newSet.delete(id);
-    else newSet.add(id);
-    setSelectedMaterials(newSet);
+    const next = new Set(selectedMaterials);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedMaterials(next);
   };
 
-  const toggleUser = (id) => {
-    const newSet = new Set(selectedUsers);
-    if (newSet.has(id)) newSet.delete(id);
-    else newSet.add(id);
-    setSelectedUsers(newSet);
+  const toggleTarget = (id) => {
+    const next = new Set(selectedTargets);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedTargets(next);
   };
 
   const handleSave = async () => {
     setSaving(true);
+    setError("");
     try {
-      const studentRecords = Array.from(selectedUsers)
-        .map(id => students.find(s => s.id === id))
-        .filter(Boolean);
-      const teacherRecords = Array.from(selectedUsers)
-        .map(id => teachers.find(t => t.id === id))
-        .filter(Boolean);
-
-      // Определяем роль, от которой выдаем доступ
       const grantRole = user?.role === "admin" ? "ADMIN" : "TEACHER";
+      const matIds = Array.from(selectedMaterials);
 
-      for (const matId of selectedMaterials) {
-        for (const student of studentRecords) {
-          if (student.user_id) {
-            await grantAccess(student.user_id, matId, grantRole, user?.id);
+      for (const targetId of selectedTargets) {
+        if (targetType === "student") {
+          const student = students.find((s) => s.id === targetId);
+          if (!student?.user_id) {
+            throw new Error(
+              `У ученика «${student?.name || targetId}» нет аккаунта — доступ выдать нельзя`,
+            );
           }
-        }
-        for (const teacher of teacherRecords) {
-          // Только админ может выдавать доступ учителям
-          if (user?.role === "admin" && teacher.user_id) {
-            await grantAccess(teacher.user_id, matId, grantRole, user?.id);
-          }
+          await grantMaterialAccess({
+            materialIds: matIds,
+            targetType: "student",
+            targetId,
+            grantedByRole: grantRole,
+          });
+        } else if (targetType === "group") {
+          await grantMaterialAccess({
+            materialIds: matIds,
+            targetType: "group",
+            targetId,
+            grantedByRole: grantRole,
+          });
+        } else if (targetType === "course") {
+          await grantMaterialAccess({
+            materialIds: matIds,
+            targetType: "course",
+            targetId,
+            grantedByRole: grantRole,
+          });
         }
       }
 
       onSuccess();
     } catch (err) {
       console.error("Save error:", err);
-      alert("Ошибка при предоставлении доступа");
+      setError(err.message || "Ошибка при предоставлении доступа");
     } finally {
       setSaving(false);
     }
@@ -94,6 +118,31 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
   const visibleStudents = isTeacherScope && teacherEntityId
     ? students.filter((s) => s.assigned_teacher === teacherEntityId)
     : students;
+  const visibleGroups = isTeacherScope && teacherEntityId
+    ? groups.filter((g) => g.teacher_id === teacherEntityId)
+    : groups;
+
+  const targetList =
+    targetType === "student"
+      ? visibleStudents.map((s) => ({
+          id: s.id,
+          title: s.name,
+          subtitle: s.user_id ? (s.email || "Есть аккаунт") : "Нет аккаунта",
+          disabled: !s.user_id,
+        }))
+      : targetType === "group"
+        ? visibleGroups.map((g) => ({
+            id: g.id,
+            title: g.name,
+            subtitle: g.status || "группа",
+            disabled: false,
+          }))
+        : courses.map((c) => ({
+            id: c.id,
+            title: c.name || c.course_name,
+            subtitle: c.course_type || "курс",
+            disabled: false,
+          }));
 
   if (loading) {
     return (
@@ -108,18 +157,19 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
       <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-border sticky top-0 bg-card">
+        <div className="flex items-center justify-between p-6 border-b border-border sticky top-0 bg-card z-10">
           <div>
             <h2 className="text-lg font-bold text-foreground">
-              {step === 1 ? "Выберите материалы" : "Выберите пользователей"}
+              {step === 1 ? "Выберите материалы" : "Кому выдать доступ"}
             </h2>
             <p className="text-xs text-muted-foreground mt-1">
               {step === 1
                 ? `Выбрано ${selectedMaterials.size} материалов`
-                : `Выбрано ${selectedUsers.size} пользователей`}
+                : `Тип: ${targetType === "student" ? "ученик" : targetType === "group" ? "группа" : "курс"} · выбрано ${selectedTargets.size}`}
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="p-2 hover:bg-muted rounded-lg transition-colors"
           >
@@ -128,17 +178,25 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
         </div>
 
         <div className="p-6 space-y-4">
+          {error && (
+            <div className="rounded-lg bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 text-sm px-4 py-3">
+              {error}
+            </div>
+          )}
+
           {step === 1 ? (
-            // Step 1: Select materials
             <div className="space-y-2">
-              {materials.map(mat => {
+              {materials.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-6">Нет материалов</p>
+              )}
+              {materials.map((mat) => {
                 const isSelected = selectedMaterials.has(mat.id);
                 return (
                   <label
                     key={mat.id}
                     className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
                       isSelected
-                        ? "bg-indigo-50 border border-indigo-200"
+                        ? "bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800"
                         : "hover:bg-muted/30"
                     }`}
                   >
@@ -149,87 +207,71 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
                       className="w-4 h-4 rounded accent-indigo-600"
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground">
-                        {mat.title}
-                      </p>
-                      {mat.block_name && (
-                        <p className="text-xs text-muted-foreground">
-                          {mat.block_name}
-                        </p>
-                      )}
+                      <p className="text-sm font-medium text-foreground">{mat.title}</p>
                     </div>
                   </label>
                 );
               })}
             </div>
           ) : (
-            // Step 2: Select users
             <>
-              {visibleStudents.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                    <Users className="h-4 w-4" /> Ученики
-                  </h3>
-                  <div className="space-y-2 bg-muted/30 rounded-lg p-3">
-                    {visibleStudents.map(s => (
-                      <label
-                        key={s.id}
-                        className="flex items-center gap-3 p-2 hover:bg-muted/50 rounded cursor-pointer transition-colors"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedUsers.has(s.id)}
-                          onChange={() => toggleUser(s.id)}
-                          className="w-4 h-4 rounded accent-indigo-600"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground">
-                            {s.name}
-                          </p>
-                          {s.email && (
-                            <p className="text-xs text-muted-foreground">
-                              {s.email}
-                            </p>
-                          )}
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { id: "student", label: "Ученик", icon: Users },
+                  { id: "group", label: "Группа", icon: FolderKanban },
+                  { id: "course", label: "Курс", icon: BookOpen },
+                ].map((tab) => {
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => {
+                        setTargetType(tab.id);
+                        setSelectedTargets(new Set());
+                      }}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
+                        targetType === tab.id
+                          ? "bg-indigo-600 text-white"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
 
-              {user?.role === "admin" && teachers.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                    <Users className="h-4 w-4" /> Преподаватели
-                  </h3>
-                  <div className="space-y-2 bg-muted/30 rounded-lg p-3">
-                    {teachers.map(t => (
-                      <label
-                        key={t.id}
-                        className="flex items-center gap-3 p-2 hover:bg-muted/50 rounded cursor-pointer transition-colors"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedUsers.has(t.id)}
-                          onChange={() => toggleUser(t.id)}
-                          className="w-4 h-4 rounded accent-indigo-600"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground">
-                            {t.name}
-                          </p>
-                          {t.email && (
-                            <p className="text-xs text-muted-foreground">
-                              {t.email}
-                            </p>
-                          )}
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <div className="space-y-2 bg-muted/30 rounded-lg p-3 max-h-80 overflow-y-auto">
+                {targetList.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-6">
+                    Нет доступных получателей
+                  </p>
+                )}
+                {targetList.map((item) => (
+                  <label
+                    key={item.id}
+                    className={`flex items-center gap-3 p-2 rounded transition-colors ${
+                      item.disabled
+                        ? "opacity-50 cursor-not-allowed"
+                        : "hover:bg-muted/50 cursor-pointer"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedTargets.has(item.id)}
+                      disabled={item.disabled}
+                      onChange={() => toggleTarget(item.id)}
+                      className="w-4 h-4 rounded accent-indigo-600"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground">{item.title}</p>
+                      <p className="text-xs text-muted-foreground">{item.subtitle}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
             </>
           )}
         </div>
@@ -256,7 +298,7 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
           ) : (
             <Button
               onClick={handleSave}
-              disabled={selectedUsers.size === 0 || saving}
+              disabled={selectedTargets.size === 0 || saving}
               className="flex-1 bg-indigo-600 hover:bg-indigo-700"
             >
               {saving ? (

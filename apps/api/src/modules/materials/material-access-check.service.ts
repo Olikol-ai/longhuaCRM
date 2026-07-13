@@ -1,50 +1,83 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
-import { MaterialAccessEntity } from './entities/material-access.entity';
+import { MaterialsDomainAccessService } from '../../common/access/materials-domain-access.service';
+import { normalizeRole } from '../../common/constants/roles';
 
 @Injectable()
 export class MaterialAccessCheckService {
-  constructor(
-    @InjectRepository(MaterialAccessEntity)
-    private readonly accessRepo: Repository<MaterialAccessEntity>,
-  ) {}
+  constructor(private readonly materialsAccess: MaterialsDomainAccessService) {}
 
-  async hasAccess(userId: string, materialId: string, role?: string): Promise<boolean> {
-    if (role === 'admin') {
-      return true;
-    }
-
-    const row = await this.accessRepo.findOne({
-      where: { userId, materialId, access: true },
-    });
-    return Boolean(row);
+  private actor(userId: string, role: string | undefined) {
+    return { sub: userId, email: '', role: role ?? '' };
   }
 
-  async canAccessMaterial(userId: string, materialId: string, role?: string): Promise<boolean> {
-    return this.hasAccess(userId, materialId, role);
+  async assertCanAccess(
+    userId: string,
+    role: string | undefined,
+    materialId: string,
+  ): Promise<void> {
+    await this.materialsAccess.assertCanReadMaterial(
+      this.actor(userId, role),
+      materialId,
+    );
+  }
+
+  async checkAccess(
+    userId: string,
+    role: string | undefined,
+    materialId: string,
+  ): Promise<{ hasAccess: boolean }> {
+    const hasAccess = await this.hasAccess(userId, materialId, role);
+    return { hasAccess };
+  }
+
+  async hasAccess(
+    userId: string,
+    materialId: string,
+    role?: string,
+  ): Promise<boolean> {
+    return this.canAccessMaterial(userId, materialId, role);
+  }
+
+  async canAccessMaterial(
+    userId: string,
+    materialId: string,
+    role?: string,
+  ): Promise<boolean> {
+    if (normalizeRole(role) === 'admin') {
+      return true;
+    }
+    try {
+      await this.assertCanAccess(userId, role, materialId);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async getAccessibleMaterialIds(
+    userId: string,
+    role: string | undefined,
+  ): Promise<string[]> {
+    if (normalizeRole(role) === 'admin') {
+      return [];
+    }
+    return this.materialsAccess.resolveAccessibleMaterialIds(
+      this.actor(userId, role),
+    );
   }
 
   async filterAccessibleMaterialIds(
     userId: string,
+    role: string | undefined,
     materialIds: string[],
-    role?: string,
-  ): Promise<Set<string>> {
-    if (role === 'admin' || materialIds.length === 0) {
-      return new Set(materialIds);
+  ): Promise<string[]> {
+    if (normalizeRole(role) === 'admin') {
+      return materialIds;
     }
-
-    const rows = await this.accessRepo.find({
-      where: { userId, materialId: In(materialIds), access: true },
-    });
-
-    return new Set(rows.map((row) => row.materialId));
-  }
-
-  async getGrantedMaterialIds(userId: string): Promise<Set<string>> {
-    const rows = await this.accessRepo.find({
-      where: { userId, access: true },
-    });
-    return new Set(rows.map((row) => row.materialId));
+    const ids = await this.materialsAccess.resolveAccessibleMaterialIds(
+      this.actor(userId, role),
+    );
+    const allowed = new Set(ids);
+    return materialIds.filter((id) => allowed.has(id));
   }
 }

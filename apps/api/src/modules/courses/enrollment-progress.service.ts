@@ -62,7 +62,9 @@ export class EnrollmentProgressService {
       const attendance = await em.getRepository(AttendanceEntity).find({
         where: { lessonId: lesson.id },
       });
-      const studentIds = attendance.map((row) => row.studentId);
+      const studentIds = attendance
+        .map((row) => row.studentId)
+        .filter((id): id is string => Boolean(id));
       if (studentIds.length === 0 && lesson.primaryStudentId) {
         studentIds.push(lesson.primaryStudentId);
       }

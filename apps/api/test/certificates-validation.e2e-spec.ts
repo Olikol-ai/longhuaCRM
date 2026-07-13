@@ -15,6 +15,10 @@ import {
 const hasDatabase = Boolean(process.env.DATABASE_URL || process.env.DB_PASSWORD);
 const describeE2E = hasDatabase ? describe : describe.skip;
 
+function uniqueBlankNumber(): string {
+  return randomUUID().replace(/-/g, '').slice(0, 8);
+}
+
 async function createStudentUser(
   app: INestApplication,
   adminToken: string,
@@ -109,6 +113,7 @@ describeE2E('Certificates validation (e2e)', () => {
     const student = await createStudentUser(app, adminToken, 'create');
     const { courseId } = await seedCompletedEnrollment(app, adminToken, student.studentId);
     const registrationNumber = `REG-${randomUUID().slice(0, 8)}`;
+    const blankNumber = uniqueBlankNumber();
 
     const created = await api(app)
       .post('/api/certificates')
@@ -118,7 +123,7 @@ describeE2E('Certificates validation (e2e)', () => {
         courseId,
         registrationNumber,
         blankSeries: 'LH',
-        blankNumber: '10001',
+        blankNumber,
         status: 'draft',
       })
       .expect(201);
@@ -146,7 +151,7 @@ describeE2E('Certificates validation (e2e)', () => {
         courseId,
         registrationNumber,
         blankSeries: 'LH',
-        blankNumber: '20001',
+        blankNumber: uniqueBlankNumber(),
         status: 'draft',
       })
       .expect(201);
@@ -162,7 +167,7 @@ describeE2E('Certificates validation (e2e)', () => {
         courseId: enrollment2.courseId,
         registrationNumber,
         blankSeries: 'LH',
-        blankNumber: '20002',
+        blankNumber: uniqueBlankNumber(),
         status: 'draft',
       });
 
@@ -173,6 +178,8 @@ describeE2E('Certificates validation (e2e)', () => {
     const student = await createStudentUser(app, adminToken, 'dup-blank');
     const { courseId } = await seedCompletedEnrollment(app, adminToken, student.studentId);
 
+    const sharedBlankNumber = uniqueBlankNumber();
+
     await api(app)
       .post('/api/certificates')
       .set(authHeader(adminToken))
@@ -181,7 +188,7 @@ describeE2E('Certificates validation (e2e)', () => {
         courseId,
         registrationNumber: `REG-A-${randomUUID().slice(0, 8)}`,
         blankSeries: 'SER',
-        blankNumber: '90001',
+        blankNumber: sharedBlankNumber,
         status: 'draft',
       })
       .expect(201);
@@ -197,7 +204,7 @@ describeE2E('Certificates validation (e2e)', () => {
         courseId: enrollment2.courseId,
         registrationNumber: `REG-B-${randomUUID().slice(0, 8)}`,
         blankSeries: 'SER',
-        blankNumber: '90001',
+        blankNumber: sharedBlankNumber,
         status: 'draft',
       });
 
@@ -216,7 +223,7 @@ describeE2E('Certificates validation (e2e)', () => {
         courseId,
         registrationNumber: `ISS-${randomUUID().slice(0, 8)}`,
         blankSeries: 'LH',
-        blankNumber: '30001',
+        blankNumber: uniqueBlankNumber(),
         status: 'draft',
       })
       .expect(201);
@@ -252,7 +259,7 @@ describeE2E('Certificates validation (e2e)', () => {
         courseId,
         registrationNumber: `REI-${randomUUID().slice(0, 8)}`,
         blankSeries: 'LH',
-        blankNumber: '40001',
+        blankNumber: uniqueBlankNumber(),
         status: 'draft',
       })
       .expect(201);
@@ -272,7 +279,7 @@ describeE2E('Certificates validation (e2e)', () => {
       .send({
         registrationNumber: `REI2-${randomUUID().slice(0, 8)}`,
         blankSeries: 'LH',
-        blankNumber: '40002',
+        blankNumber: uniqueBlankNumber(),
       })
       .expect(201);
 
@@ -310,7 +317,7 @@ describeE2E('Certificates validation (e2e)', () => {
         courseId,
         registrationNumber: `PDF-${randomUUID().slice(0, 8)}`,
         blankSeries: 'LH',
-        blankNumber: '50001',
+        blankNumber: uniqueBlankNumber(),
         status: 'draft',
       })
       .expect(201);
@@ -343,7 +350,7 @@ describeE2E('Certificates validation (e2e)', () => {
         courseId,
         registrationNumber: `TR-${randomUUID().slice(0, 8)}`,
         blankSeries: 'LH',
-        blankNumber: '60001',
+        blankNumber: uniqueBlankNumber(),
         status: 'draft',
       })
       .expect(201);

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { X, Edit2, Trash2, CheckCircle2, XCircle, Video, Clock, Calendar, RefreshCw, Users } from "lucide-react";
 import { resolveLessonTeacherLabel } from "@/lib/teacherLabels";
+import { DELETED_STUDENT_LABEL, resolveLessonStudentNames } from "@/lib/studentLabels";
+import LessonAttendancePanel from "@/components/groups/LessonAttendancePanel";
 
 export const STATUS_LABELS = {
   planned: "Запланировано",
@@ -22,7 +24,7 @@ const statusColors = {
   missed_no_notice: "bg-red-100 text-red-700",
 };
 
-export default function LessonDetailModal({ lesson, teachers, students, isAdmin, isTeacher, onUpdate, onDelete, onClose }) {
+export default function LessonDetailModal({ lesson, teachers, students, isAdmin, isTeacher, onUpdate, onDelete, onClose, showAttendance = false }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ ...lesson });
 
@@ -42,18 +44,13 @@ export default function LessonDetailModal({ lesson, teachers, students, isAdmin,
       ...form,
       teacher_name: teacher?.name || resolveLessonTeacherLabel(lesson, teachers),
       student_id: ids[0] || form.student_id,
-      student_name: selectedStudents[0]?.name || form.student_name,
+      student_name: selectedStudents[0]?.name || form.student_name || DELETED_STUDENT_LABEL,
       student_ids: ids,
       student_names: selectedStudents.map(s => s.name),
     });
   };
 
-  // Determine students to display
-  const displayStudentNames = lesson.student_names?.length
-    ? lesson.student_names
-    : lesson.student_name
-    ? [lesson.student_name]
-    : [];
+  const displayStudentNames = resolveLessonStudentNames(lesson, students);
 
   const currentStudentIds = form.student_ids?.length
     ? form.student_ids
@@ -144,7 +141,7 @@ export default function LessonDetailModal({ lesson, teachers, students, isAdmin,
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <span className={`text-xs font-bold uppercase px-2 py-1 rounded-lg ${statusColors[lesson.status] || statusColors.planned}`}>
@@ -210,6 +207,9 @@ export default function LessonDetailModal({ lesson, teachers, students, isAdmin,
             <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
               <RefreshCw className="w-3 h-3" /> Повторяющийся урок
             </div>
+          )}
+          {showAttendance && (
+            <LessonAttendancePanel lessonId={lesson.id} students={students} />
           )}
         </div>
 

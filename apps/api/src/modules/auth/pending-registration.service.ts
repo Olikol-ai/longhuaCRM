@@ -1,10 +1,10 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   HttpException,
   HttpStatus,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
@@ -20,6 +20,9 @@ import { MailService } from '../mail/mail.service';
 import { UsersRepository } from '../users/users.repository';
 import { RegisterDto } from './dto/register.dto';
 import { PendingRegistrationRepository } from './pending-registration.repository';
+
+export const REGISTRATION_EMAIL_FAILED_MESSAGE =
+  'Не удалось отправить код подтверждения. Проверьте email или попробуйте позже.';
 
 export const VERIFICATION_CODE_TTL_MS = 15 * 60 * 1000;
 export const RESEND_COOLDOWN_MS = 60 * 1000;
@@ -256,8 +259,28 @@ export class PendingRegistrationService {
     this.assertCanSend(pending.email, pending.lastSentAt, options.isResend);
 
     const plainCode = this.generateCode();
-    const now = new Date();
+    const emailDelivery = await this.mail.sendVerificationCode(pending.email, plainCode);
 
+    if (!emailDelivery.sent) {
+      const safeError = this.sanitizeMailError(emailDelivery.error ?? 'unknown error');
+      this.logger.error(
+        `registration email failed\nrecipient: ${pending.email}\nerror: ${safeError}`,
+      );
+
+      if (!options.isResend) {
+        const existing = await this.pendingRepository.findByEmail(pending.email);
+        if (existing) {
+          await this.pendingRepository.delete(existing.id);
+        }
+      }
+
+      throw new InternalServerErrorException({
+        success: false,
+        message: REGISTRATION_EMAIL_FAILED_MESSAGE,
+      });
+    }
+
+    const now = new Date();
     pending.verificationCodeHash = this.hashCode(plainCode);
     pending.codeExpiresAt = new Date(now.getTime() + VERIFICATION_CODE_TTL_MS);
     pending.lastSentAt = now;
@@ -268,14 +291,18 @@ export class PendingRegistrationService {
 
     await this.pendingRepository.save(pending);
 
-    const emailDelivery = await this.mail.sendVerificationCode(pending.email, plainCode);
-
     return {
-      success: emailDelivery.sent,
-      email_sent: emailDelivery.sent,
-      email_status: emailDelivery.status,
-      message: emailDelivery.sent ? undefined : 'Не удалось отправить письмо с кодом',
+      success: true,
+      email_sent: true,
+      email_status: 'sent',
     };
+  }
+
+  private sanitizeMailError(error: string): string {
+    return error
+      .replace(/password[=:\s][^\s,;]+/gi, 'password=***')
+      .replace(/MAIL_PASS[=:\s][^\s,;]+/gi, 'MAIL_PASS=***')
+      .replace(/auth:\s*\{[^}]*pass:\s*'[^']*'/gi, "auth: { pass: '***'");
   }
 
   private assertCanSend(email: string, sentAt: Date | null, isResend: boolean): void {

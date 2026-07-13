@@ -7,6 +7,7 @@ import { UsersRepository } from '../users/users.repository';
 import { StudentEntity } from './entities/student.entity';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
+import { StudentDeleteResult, StudentDeletionService } from './student-deletion.service';
 import { StudentsRepository } from './students.repository';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class StudentsService {
     private readonly studentAccess: StudentAccessService,
     private readonly roleEntitySync: RoleEntitySyncService,
     private readonly usersRepository: UsersRepository,
+    private readonly studentDeletion: StudentDeletionService,
   ) {}
 
   async findAll(actor: JwtPayload): Promise<StudentEntity[]> {
@@ -58,12 +60,8 @@ export class StudentsService {
     return row;
   }
 
-  async delete(id: string): Promise<void> {
-    const row = await this.repository.findById(id);
-    if (!row) {
-      throw new NotFoundException('Student not found');
-    }
-    await this.repository.delete(id);
+  delete(id: string): Promise<StudentDeleteResult> {
+    return this.studentDeletion.deleteStudent(id);
   }
 
   async filter(actor: JwtPayload, where: Record<string, unknown>): Promise<StudentEntity[]> {

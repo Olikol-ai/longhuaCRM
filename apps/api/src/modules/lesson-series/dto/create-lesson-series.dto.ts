@@ -1,16 +1,20 @@
 import {
+  IsArray,
   IsEnum,
   IsInt,
   IsOptional,
   IsString,
   IsUUID,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import {
   LessonSeriesFormat,
   LessonSeriesFrequency,
   LessonSeriesStatus,
 } from '../entities/lesson-series.entity';
+import { LessonSeriesSlotDto } from './lesson-series-slot.dto';
 
 export class CreateLessonSeriesDto {
   @IsUUID()
@@ -25,8 +29,15 @@ export class CreateLessonSeriesDto {
   @IsString()
   startDate!: string;
 
+  @IsOptional()
   @IsString()
-  startTime!: string;
+  startTime?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LessonSeriesSlotDto)
+  slots?: LessonSeriesSlotDto[];
 
   @IsOptional()
   @IsEnum(['weekly', 'biweekly'])

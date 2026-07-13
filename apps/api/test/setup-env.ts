@@ -27,3 +27,7 @@ process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'TestAdmin123!';
 process.env.JWT_SECRET = process.env.JWT_SECRET ?? 'test-jwt-secret';
 process.env.ALFA_BANK_TOKEN = 'e2e-test-alfa-token';
 process.env.ALFA_BANK_MERCHANT_ID = 'e2e-merchant';
+// Prevent MailService from blocking app bootstrap on real SMTP verify during E2E.
+process.env.MAIL_PASS = '';
+process.env.SMTP_PASSWORD = '';
+process.env.MAIL_USER = '';

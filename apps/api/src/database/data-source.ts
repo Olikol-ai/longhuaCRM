@@ -11,6 +11,7 @@ import { SchemaEntityAlign1736000000000 } from './migrations/1736000000000-Schem
 import { CertificateUniquenessAlign1737000000000 } from './migrations/1737000000000-CertificateUniquenessAlign';
 import { IntegrityHardening1738000000000 } from './migrations/1738000000000-IntegrityHardening';
 import { TeacherDeletionSetNull1739000000000 } from './migrations/1739000000000-TeacherDeletionSetNull';
+import { StudentDeletionSetNull1739100000000 } from './migrations/1739100000000-StudentDeletionSetNull';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -25,6 +26,7 @@ export default new DataSource({
     CertificateUniquenessAlign1737000000000,
     IntegrityHardening1738000000000,
     TeacherDeletionSetNull1739000000000,
+    StudentDeletionSetNull1739100000000,
   ],
   synchronize: false,
 });

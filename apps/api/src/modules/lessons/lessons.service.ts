@@ -319,6 +319,7 @@ export class LessonsService {
       const row = await attendanceRepo.save(existing);
 
       if (
+        existing.studentId &&
         (dto.attendanceStatus === 'missed' || dto.attendanceStatus === 'missed_no_notice') &&
         previousStatus !== 'missed' &&
         previousStatus !== 'missed_no_notice'

@@ -46,7 +46,7 @@ export class PendingRegistrationEntity {
   @Column({ name: 'verification_attempts', type: 'int', default: 0 })
   verificationAttempts: number;
 
-  @Column({ default: 'pending' })
+  @Column({ type: 'varchar', length: 32, default: 'pending' })
   status: PendingRegistrationStatus;
 
   @Column({ name: 'expires_at', type: 'timestamptz' })

@@ -5,12 +5,14 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { CourseTemplateEntity } from '../../courses/entities/course-template.entity';
 import { GroupEntity } from '../../groups/entities/group.entity';
 import { TeacherEntity } from '../../teachers/entities/teacher.entity';
+import { LessonSeriesSlotEntity } from './lesson-series-slot.entity';
 
 export type LessonSeriesStatus = 'active' | 'paused' | 'stopped';
 export type LessonSeriesFormat = 'online' | 'offline';
@@ -90,4 +92,7 @@ export class LessonSeriesEntity {
 
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
+
+  @OneToMany(() => LessonSeriesSlotEntity, (slot) => slot.series)
+  slots?: LessonSeriesSlotEntity[];
 }

@@ -1,5 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 
+/** Isolated admin for browser E2E — never inherit dev .env credentials. */
+const PLAYWRIGHT_ADMIN_EMAIL = 'admin@test.local';
+const PLAYWRIGHT_ADMIN_PASSWORD = 'TestAdmin123!';
+process.env.ADMIN_EMAIL = PLAYWRIGHT_ADMIN_EMAIL;
+process.env.ADMIN_PASSWORD = PLAYWRIGHT_ADMIN_PASSWORD;
+
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:5173';
 const apiURL = process.env.PLAYWRIGHT_API_URL ?? 'http://localhost:3001';
 const apiPort = process.env.PLAYWRIGHT_API_PORT ?? (new URL(apiURL).port || '3001');
@@ -35,8 +41,12 @@ export default defineConfig({
         SERVE_FRONTEND: 'false',
         ENABLE_CRON: 'false',
         TELEGRAM_ENABLED: 'false',
-        ADMIN_EMAIL: process.env.ADMIN_EMAIL ?? 'admin@test.local',
-        ADMIN_PASSWORD: process.env.ADMIN_PASSWORD ?? 'TestAdmin123!',
+        ADMIN_EMAIL: PLAYWRIGHT_ADMIN_EMAIL,
+        ADMIN_PASSWORD: PLAYWRIGHT_ADMIN_PASSWORD,
+        MAIL_PASS: '',
+        SMTP_PASSWORD: '',
+        MAIL_USER: '',
+        E2E_STUB_MAIL: 'true',
       },
     },
     {

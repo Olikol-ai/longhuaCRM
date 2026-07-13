@@ -47,7 +47,7 @@ cp .env.example .env
 | Variable | Описание |
 |----------|----------|
 | `MAIL_HOST`, `MAIL_PORT`, `MAIL_SECURE` | SMTP |
-| `MAIL_USER`, `MAIL_PASS` | Credentials |
+| `MAIL_USER`, `MAIL_PASS` | Credentials (`SMTP_PASSWORD` — alias for `MAIL_PASS`) |
 | `MAIL_FROM` | From header |
 
 Устаревшие `SMTP_*` — алиасы для `MAIL_*`.

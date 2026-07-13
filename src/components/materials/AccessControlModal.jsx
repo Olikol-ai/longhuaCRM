@@ -1,58 +1,61 @@
 import React, { useState, useEffect } from "react";
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
-import { grantAccess, revokeAccess, hasAccessToMaterial } from "@/lib/materialAccess";
-import { X, Users, Lock, Save, Loader2 } from "lucide-react";
+import { grantAccess, revokeAccess } from "@/lib/materialAccess";
+import { X, Users, Lock, Save, Loader2, BookOpen, FolderKanban, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import AccessSourceBadges from "./AccessSourceBadges";
 
 export default function AccessControlModal({ material, course, onClose, onSave }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [revokingKey, setRevokingKey] = useState("");
+  const [error, setError] = useState("");
   const [students, setStudents] = useState([]);
   const [selectedStudentIds, setSelectedStudentIds] = useState([]);
-  const [initialGrantedUserIds, setInitialGrantedUserIds] = useState(new Set());
+  const [grants, setGrants] = useState(null);
 
-  useEffect(() => {
-    if (!user) return;
+  const load = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const [sts, grantPayload] = await Promise.all([
+        api.students.list(),
+        api.materials.access.listForMaterial(material.id),
+      ]);
 
-    const load = async () => {
-      const sts = await api.students.list();
-
-      let visibleStudents = sts;
-      if (user.role === "teacher") {
+      let visibleStudents = Array.isArray(sts) ? sts : [];
+      if (user?.role === "teacher") {
         const teacherId =
           user.teacher_profile_id ||
           (await api.teachers.filter({ user_id: user.id }))[0]?.id;
-        if (teacherId) {
-          visibleStudents = sts.filter((s) => s.assigned_teacher === teacherId);
-        } else {
-          visibleStudents = [];
-        }
+        visibleStudents = teacherId
+          ? visibleStudents.filter((s) => s.assigned_teacher === teacherId)
+          : [];
       }
 
       setStudents(visibleStudents);
-
-      const accessChecks = await Promise.all(
-        visibleStudents
-          .filter((student) => student.user_id)
-          .map(async (student) => ({
-            userId: student.user_id,
-            hasAccess: await hasAccessToMaterial(student.user_id, material.id),
-          })),
-      );
+      setGrants(grantPayload);
 
       const grantedUserIds = new Set(
-        accessChecks.filter((row) => row.hasAccess).map((row) => row.userId),
+        Array.isArray(grantPayload?.user_ids) ? grantPayload.user_ids : [],
       );
-      setInitialGrantedUserIds(grantedUserIds);
-
-      const selected = sts
-        .filter((s) => s.user_id && grantedUserIds.has(s.user_id))
-        .map((s) => s.id);
-      setSelectedStudentIds(selected);
+      setSelectedStudentIds(
+        visibleStudents
+          .filter((s) => s.user_id && grantedUserIds.has(s.user_id))
+          .map((s) => s.id),
+      );
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Не удалось загрузить доступы");
+    } finally {
       setLoading(false);
-    };
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
     load();
   }, [material.id, user?.id]);
 
@@ -62,10 +65,62 @@ export default function AccessControlModal({ material, course, onClose, onSave }
     );
   };
 
-  const handleSave = async () => {
+  const handleRevokePersonal = async (userId) => {
+    setRevokingKey(`user:${userId}`);
+    setError("");
+    try {
+      await revokeAccess(userId, material.id);
+      await load();
+      onSave?.();
+    } catch (err) {
+      setError(err.message || "Не удалось отозвать доступ");
+    } finally {
+      setRevokingKey("");
+    }
+  };
+
+  const handleRevokeGroup = async (groupId) => {
+    setRevokingKey(`group:${groupId}`);
+    setError("");
+    try {
+      await api.materials.access.revoke({
+        material_ids: [material.id],
+        target_type: "group",
+        target_id: groupId,
+      });
+      await load();
+      onSave?.();
+    } catch (err) {
+      setError(err.message || "Не удалось отозвать доступ группы");
+    } finally {
+      setRevokingKey("");
+    }
+  };
+
+  const handleRevokeCourse = async (courseId) => {
+    setRevokingKey(`course:${courseId}`);
+    setError("");
+    try {
+      await api.materials.access.revoke({
+        material_ids: [material.id],
+        target_type: "course",
+        target_id: courseId,
+      });
+      await load();
+      onSave?.();
+    } catch (err) {
+      setError(err.message || "Не удалось отозвать доступ курса");
+    } finally {
+      setRevokingKey("");
+    }
+  };
+
+  const handleSavePersonal = async () => {
     setSaving(true);
+    setError("");
     try {
       const grantRole = user?.role === "admin" ? "ADMIN" : "TEACHER";
+      const currentGranted = new Set(grants?.user_ids || []);
       const selectedUserIds = new Set(
         selectedStudentIds
           .map((id) => students.find((s) => s.id === id)?.user_id)
@@ -74,19 +129,20 @@ export default function AccessControlModal({ material, course, onClose, onSave }
 
       for (const student of students) {
         if (!student.user_id) continue;
-        const wasGranted = initialGrantedUserIds.has(student.user_id);
+        const wasGranted = currentGranted.has(student.user_id);
         const shouldGrant = selectedUserIds.has(student.user_id);
-
         if (shouldGrant && !wasGranted) {
-          await grantAccess(student.user_id, material.id, grantRole, user.id);
+          await grantAccess(student.user_id, material.id, grantRole);
         } else if (!shouldGrant && wasGranted) {
           await revokeAccess(student.user_id, material.id);
         }
       }
 
-      onSave();
+      await load();
+      onSave?.();
     } catch (err) {
       console.error("Save error:", err);
+      setError(err.message || "Ошибка сохранения доступа");
     } finally {
       setSaving(false);
     }
@@ -102,31 +158,178 @@ export default function AccessControlModal({ material, course, onClose, onSave }
     );
   }
 
+  const personal = grants?.personal || [];
+  const groupGrants = grants?.groups || [];
+  const courseGrants = grants?.courses || [];
+  const folderCourse = grants?.folder_course;
+  const hasAnyCurrent =
+    personal.length > 0 || groupGrants.length > 0 || courseGrants.length > 0 || Boolean(folderCourse);
+
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-card rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto border border-border">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card">
+      <div
+        className="bg-card rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto border border-border"
+        data-testid="access-control-modal"
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card z-10">
           <div>
             <h2 className="text-lg font-bold text-foreground">Управление доступом</h2>
             <p className="text-xs text-muted-foreground mt-0.5">{material.title}</p>
-            {course?.course_name && (
-              <p className="text-xs text-muted-foreground">{course.course_name}</p>
+            {(course?.course_name || course?.name) && (
+              <p className="text-xs text-muted-foreground">{course.course_name || course.name}</p>
             )}
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-muted rounded-xl transition-colors">
+          <button type="button" onClick={onClose} className="p-2 hover:bg-muted rounded-xl transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
 
         <div className="p-6 space-y-6">
+          {error && (
+            <div className="rounded-lg bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 text-sm px-4 py-3">
+              {error}
+            </div>
+          )}
+
           <div className="p-4 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-300 flex items-start gap-2">
             <Lock className="h-4 w-4 mt-0.5 shrink-0" />
-            <p>Доступ выдаётся по учётной записи ученика (user_id). Изменения сохраняются на сервере.</p>
+            <p>
+              Здесь видны текущие права и источник доступа. Персональный доступ можно
+              менять галочками; гранты группе и курсу отзываются отдельно.
+            </p>
           </div>
 
-          <div className="space-y-3">
+          <section className="space-y-3" data-testid="access-current-grants">
+            <p className="text-sm font-semibold text-foreground">Текущие права</p>
+            {!hasAnyCurrent ? (
+              <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                Явных грантов пока нет. Ученики курса могут видеть материал, если он лежит
+                в папке их курса.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {folderCourse && (
+                  <div className="flex items-start justify-between gap-3 p-3 rounded-xl border border-border bg-muted/20">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground">{folderCourse.name}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{folderCourse.note}</p>
+                      <AccessSourceBadges
+                        sources={[{ type: "course", label: folderCourse.label }]}
+                        className="mt-2"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {personal.map((row) => (
+                  <div
+                    key={row.user_id}
+                    className="flex items-center justify-between gap-3 p-3 rounded-xl border border-border"
+                    data-testid={`access-personal-${row.user_id}`}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground">{row.name}</p>
+                      <p className="text-xs text-muted-foreground">{row.email || row.user_id}</p>
+                      <AccessSourceBadges
+                        sources={[{ type: "personal", label: row.label }]}
+                        className="mt-2"
+                      />
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 text-red-600 border-red-200 hover:bg-red-50"
+                      disabled={revokingKey === `user:${row.user_id}`}
+                      onClick={() => handleRevokePersonal(row.user_id)}
+                    >
+                      {revokingKey === `user:${row.user_id}` ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <>
+                          <Trash2 className="h-3.5 w-3.5 mr-1" />
+                          Отозвать
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ))}
+
+                {groupGrants.map((row) => (
+                  <div
+                    key={row.group_id}
+                    className="flex items-center justify-between gap-3 p-3 rounded-xl border border-border"
+                    data-testid={`access-group-${row.group_id}`}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                        <FolderKanban className="h-4 w-4 text-sky-600" />
+                        {row.name}
+                      </p>
+                      <AccessSourceBadges
+                        sources={[{ type: "group", label: row.label }]}
+                        className="mt-2"
+                      />
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 text-red-600 border-red-200 hover:bg-red-50"
+                      disabled={revokingKey === `group:${row.group_id}`}
+                      onClick={() => handleRevokeGroup(row.group_id)}
+                    >
+                      {revokingKey === `group:${row.group_id}` ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <>
+                          <Trash2 className="h-3.5 w-3.5 mr-1" />
+                          Отозвать
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ))}
+
+                {courseGrants.map((row) => (
+                  <div
+                    key={row.course_template_id}
+                    className="flex items-center justify-between gap-3 p-3 rounded-xl border border-border"
+                    data-testid={`access-course-${row.course_template_id}`}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                        <BookOpen className="h-4 w-4 text-amber-600" />
+                        {row.name}
+                      </p>
+                      <AccessSourceBadges
+                        sources={[{ type: "course", label: row.label }]}
+                        className="mt-2"
+                      />
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 text-red-600 border-red-200 hover:bg-red-50"
+                      disabled={revokingKey === `course:${row.course_template_id}`}
+                      onClick={() => handleRevokeCourse(row.course_template_id)}
+                    >
+                      {revokingKey === `course:${row.course_template_id}` ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <>
+                          <Trash2 className="h-3.5 w-3.5 mr-1" />
+                          Отозвать
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="space-y-3">
             <p className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Users className="h-4 w-4" /> Выберите учеников
+              <Users className="h-4 w-4" /> Персональный доступ ученикам
             </p>
             <div className="border border-border rounded-xl divide-y divide-border max-h-64 overflow-y-auto">
               {students.length === 0 ? (
@@ -154,14 +357,19 @@ export default function AccessControlModal({ material, course, onClose, onSave }
             <p className="text-xs text-muted-foreground">
               Выбрано: {selectedStudentIds.length} из {students.length}
             </p>
-          </div>
+          </section>
         </div>
 
         <div className="flex justify-end gap-3 px-6 py-4 border-t border-border sticky bottom-0 bg-card">
-          <Button variant="outline" onClick={onClose}>Отмена</Button>
-          <Button onClick={handleSave} disabled={saving} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
+          <Button variant="outline" onClick={onClose}>Закрыть</Button>
+          <Button
+            onClick={handleSavePersonal}
+            disabled={saving}
+            className="bg-indigo-600 hover:bg-indigo-700 gap-2"
+            data-testid="access-save-personal"
+          >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Сохранить доступ
+            Сохранить персональный доступ
           </Button>
         </div>
       </div>

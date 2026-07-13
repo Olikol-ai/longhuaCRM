@@ -3,6 +3,7 @@ import MaterialPickerDialog from "@/components/materials/MaterialPickerDialog";
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
 import { getGreetingName } from '@/lib/display-name';
+import { resolveLessonStudentLabel } from '@/lib/studentLabels';
 import { format } from "date-fns";
 import { Calendar, CheckCircle2, XCircle, Clock, Loader2, Sun, Moon } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
@@ -128,7 +129,7 @@ export default function TeacherDashboard() {
                              <p className="text-[11px] text-slate-400 dark:text-slate-500">{lesson.duration || 60} min</p>
                            </div>
                            <div>
-                             <p className="font-medium text-slate-900 dark:text-white">{lesson.student_name}</p>
+                             <p className="font-medium text-slate-900 dark:text-white">{resolveLessonStudentLabel(lesson, students)}</p>
                     {lesson.meeting_link && (
                       <a
                         href={lesson.meeting_link}
@@ -169,7 +170,7 @@ export default function TeacherDashboard() {
 
       {showMaterialPicker && confirmAction?.type === "complete" && (
         <MaterialPickerDialog
-          lessonInfo={`${confirmAction.lesson.student_name} · ${confirmAction.lesson.date} ${confirmAction.lesson.start_time}`}
+          lessonInfo={`${resolveLessonStudentLabel(confirmAction.lesson, students)} · ${confirmAction.lesson.date} ${confirmAction.lesson.start_time}`}
           onConfirm={(materialIds) => {
             handleMarkComplete(confirmAction.lesson, materialIds);
             setShowMaterialPicker(false);

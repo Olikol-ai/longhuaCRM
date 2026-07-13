@@ -54,7 +54,14 @@ export class StudentAccessService {
     throw new ForbiddenException('Forbidden');
   }
 
-  async assertCanReadStudent(actor: DomainAccessActor, studentId: string): Promise<void> {
+  async assertCanReadStudent(actor: DomainAccessActor, studentId: string | null): Promise<void> {
+    if (!studentId) {
+      if (this.isAdmin(actor)) {
+        return;
+      }
+      throw new ForbiddenException('Forbidden');
+    }
+
     if (this.isAdmin(actor)) {
       return;
     }
@@ -120,7 +127,14 @@ export class StudentAccessService {
     throw new ForbiddenException('Forbidden');
   }
 
-  async assertCanReadPayment(actor: DomainAccessActor, studentId: string): Promise<void> {
+  async assertCanReadPayment(actor: DomainAccessActor, studentId: string | null): Promise<void> {
+    if (!studentId) {
+      if (this.isAdmin(actor)) {
+        return;
+      }
+      throw new ForbiddenException('Forbidden');
+    }
+
     if (this.isAdmin(actor)) {
       return;
     }

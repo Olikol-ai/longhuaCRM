@@ -16,8 +16,6 @@ import {
   Moon,
   Layers,
   Award,
-  ClipboardCheck,
-  CalendarRange,
   CreditCard,
   DollarSign,
 } from "lucide-react";
@@ -38,10 +36,8 @@ const adminNav = [
   { name: "Пользователи", icon: Users, page: "UserManagement" },
   { name: "Группы", icon: Users, page: "Groups" },
   { name: "Сертификаты", icon: Award, page: "Certificates" },
-  { name: "Посещаемость", icon: ClipboardCheck, page: "Attendance" },
   { name: "Платежи", icon: CreditCard, page: "Payments" },
   { name: "Выплаты", icon: DollarSign, page: "TeacherPayments" },
-  { name: "Серии уроков", icon: CalendarRange, page: "LessonSeriesAdmin" },
   { name: "Материалы", icon: BookOpen, page: "MaterialsHub" },
   { name: "Настройки", icon: Settings, page: "Settings" },
 ];

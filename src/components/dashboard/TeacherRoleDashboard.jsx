@@ -5,6 +5,7 @@ import { CalendarDays, Clock, CheckCircle2, XCircle, Video } from "lucide-react"
 import StatCard from "./StatCard";
 import { getGreetingName } from "@/lib/display-name";
 import { Card } from "@/components/ui/card";
+import { resolveLessonStudentLabel } from "@/lib/studentLabels";
 
 const STATUS_LABELS = {
   planned: "Запланировано",
@@ -92,7 +93,7 @@ export default function TeacherRoleDashboard({ user }) {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-foreground">
-                      {lesson.student_names?.join(", ") || lesson.student_name}
+                      {resolveLessonStudentLabel(lesson, [])}
                     </span>
                     <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${statusBadge[lesson.status] || statusBadge.planned}`}>
                       {STATUS_LABELS[lesson.status] || lesson.status}
@@ -161,7 +162,7 @@ export default function TeacherRoleDashboard({ user }) {
                 <div className="w-px h-8 bg-border" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">
-                    {lesson.student_names?.join(", ") || lesson.student_name}
+                    {resolveLessonStudentLabel(lesson, [])}
                   </p>
                   <p className="text-xs text-muted-foreground">{lesson.start_time} · {lesson.duration || 60}мин</p>
                 </div>

@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { LessonSeriesModule } from '../lesson-series/lesson-series.module';
+import { LessonsModule } from '../lessons/lessons.module';
 import { GroupEntity } from './entities/group.entity';
 import { GroupMemberEntity } from './entities/group-member.entity';
 import { GroupsController } from './groups.controller';
@@ -7,7 +9,11 @@ import { GroupsRepository } from './groups.repository';
 import { GroupsService } from './groups.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([GroupEntity, GroupMemberEntity])],
+  imports: [
+    TypeOrmModule.forFeature([GroupEntity, GroupMemberEntity]),
+    LessonSeriesModule,
+    LessonsModule,
+  ],
   controllers: [GroupsController],
   providers: [GroupsRepository, GroupsService],
   exports: [GroupsRepository, GroupsService, TypeOrmModule],

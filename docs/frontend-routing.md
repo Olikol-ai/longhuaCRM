@@ -53,6 +53,8 @@ These pages exist under `src/pages/` but are **not** in `pages.config.js`:
 |------|----------|
 | `/Welcome` | Redirect → `/auth/pending-approval` |
 | `/Students`, `/students` | Redirect → `/UserManagement` |
+| `/Attendance`, `/LessonSeriesAdmin` | Redirect → `/Groups` |
+| `/Groups/:groupId` | Карточка группы (расписание, ученики, посещаемость) |
 | `/`, `/admin`, `/teacher`, `/student` | Role home redirects via `RoleHomeRedirect` |
 | `*` (authenticated) | `OnboardingFallback` |
 

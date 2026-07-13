@@ -139,8 +139,11 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
 
   const changeRole = async (userId, newRole) => {
     setUpdating(userId);
-    await onRoleChange(userId, newRole);
-    setUpdating(null);
+    try {
+      await onRoleChange(userId, newRole);
+    } finally {
+      setUpdating(null);
+    }
   };
 
   const deleteUser = async (u) => {
@@ -588,24 +591,38 @@ export default function UserManagement() {
   const [students, setStudents] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const loadGenerationRef = useRef(0);
 
   const accountUsers = directoryEntries.filter((entry) => entry.has_account !== false);
 
   const loadAll = async () => {
+    const generation = loadGenerationRef.current + 1;
+    loadGenerationRef.current = generation;
     setLoading(true);
+    setLoadError("");
     try {
       const [directory, s, t] = await Promise.all([
         api.users.directory(),
         api.students.list("-created_date"),
         api.teachers.list("-created_date"),
       ]);
-      setDirectoryEntries(directory);
-      setStudents(s);
-      setTeachers(t);
+      if (loadGenerationRef.current !== generation) {
+        return;
+      }
+      setDirectoryEntries(Array.isArray(directory) ? directory : []);
+      setStudents(Array.isArray(s) ? s : []);
+      setTeachers(Array.isArray(t) ? t : []);
     } catch (err) {
+      if (loadGenerationRef.current !== generation) {
+        return;
+      }
       console.error("Failed to load user management data:", err);
+      setLoadError(err?.message || "Не удалось загрузить данные");
     } finally {
-      setLoading(false);
+      if (loadGenerationRef.current === generation) {
+        setLoading(false);
+      }
     }
   };
 
@@ -614,8 +631,22 @@ export default function UserManagement() {
   }, []);
 
   const handleRoleChange = async (userId, newRole) => {
-    await api.users.update(userId, { role: newRole, status: "active" });
-    await loadAll();
+    try {
+      await api.users.update(userId, { role: newRole, status: "active" });
+      await loadAll();
+      toast({
+        title: "Роль обновлена",
+        description: `Пользователю назначена роль «${ROLE_CONFIG[newRole]?.label || newRole}»`,
+      });
+    } catch (err) {
+      console.error("Failed to change user role:", err);
+      toast({
+        title: "Не удалось сменить роль",
+        description: err?.message || "Повторите попытку",
+        variant: "destructive",
+      });
+      throw err;
+    }
   };
 
   const displayStudents = visibleStudents(students, accountUsers);
@@ -626,6 +657,9 @@ export default function UserManagement() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Пользователи</h1>
         <p className="text-sm text-slate-500 mt-1">Управление аккаунтами, учениками и преподавателями</p>
+        {loadError && (
+          <p className="mt-2 text-sm text-red-600">{loadError}</p>
+        )}
       </div>
 
       <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit mb-6">

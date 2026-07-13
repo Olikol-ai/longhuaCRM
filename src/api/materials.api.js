@@ -17,5 +17,20 @@ export const materials = {
         body: JSON.stringify(recordToEntityPayload(data)),
       });
     },
+    grant(data) {
+      return apiFetch('/materials/access/grant', {
+        method: 'POST',
+        body: JSON.stringify(recordToEntityPayload(data)),
+      });
+    },
+    revoke(data) {
+      return apiFetch('/materials/access/revoke', {
+        method: 'POST',
+        body: JSON.stringify(recordToEntityPayload(data)),
+      });
+    },
+    listForMaterial(materialId) {
+      return apiFetch(`/materials/access/material/${materialId}`);
+    },
   },
 };

@@ -4,9 +4,12 @@ import { CertificateEntity } from '../../modules/certificates/entities/certifica
 import { CourseTemplateEntity } from '../../modules/courses/entities/course-template.entity';
 import { EnrollmentEntity } from '../../modules/courses/entities/enrollment.entity';
 import { GroupEntity } from '../../modules/groups/entities/group.entity';
+import { GroupMemberEntity } from '../../modules/groups/entities/group-member.entity';
 import { AttendanceEntity } from '../../modules/lessons/entities/attendance.entity';
 import { LessonEntity } from '../../modules/lessons/entities/lesson.entity';
 import { MaterialAccessEntity } from '../../modules/materials/entities/material-access.entity';
+import { MaterialCourseGrantEntity } from '../../modules/materials/entities/material-course-grant.entity';
+import { MaterialGroupGrantEntity } from '../../modules/materials/entities/material-group-grant.entity';
 import { MaterialFolderEntity } from '../../modules/materials/entities/material-folder.entity';
 import { MaterialEntity } from '../../modules/materials/entities/material.entity';
 import { StudentEntity } from '../../modules/students/entities/student.entity';
@@ -28,11 +31,14 @@ import { TeacherAccessService } from './teacher-access.service';
       LessonEntity,
       AttendanceEntity,
       GroupEntity,
+      GroupMemberEntity,
       EnrollmentEntity,
       CourseTemplateEntity,
       MaterialEntity,
       MaterialFolderEntity,
       MaterialAccessEntity,
+      MaterialCourseGrantEntity,
+      MaterialGroupGrantEntity,
       CertificateEntity,
     ]),
   ],
