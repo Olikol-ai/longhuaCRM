@@ -108,6 +108,24 @@ class EnvironmentVariables {
   @IsOptional()
   PENDING_REGISTRATION_TTL_HOURS?: number;
 
+  @IsBoolean()
+  @IsOptional()
+  TRUST_PROXY?: boolean;
+
+  @IsString()
+  @IsOptional()
+  CORS_ORIGINS?: string;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  RATE_LIMIT_TTL?: number;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  RATE_LIMIT_MAX?: number;
+
   /** @deprecated Use MAIL_* variables */
   @IsString()
   @IsOptional()

@@ -9,11 +9,13 @@ import {
   Req,
   UnauthorizedException,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { AlfaBankService } from '../alfabank/alfabank.service';
 import { TelegramService } from '../telegram/telegram.service';
 
+@SkipThrottle()
 @Controller('webhooks')
 export class WebhooksController {
   private readonly logger = new Logger(WebhooksController.name);

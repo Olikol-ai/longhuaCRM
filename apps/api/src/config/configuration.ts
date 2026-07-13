@@ -43,4 +43,15 @@ export default () => ({
   pendingRegistration: {
     ttlHours: parseInt(process.env.PENDING_REGISTRATION_TTL_HOURS ?? '24', 10),
   },
+  trustProxy: (process.env.TRUST_PROXY ?? 'false') === 'true',
+  cors: {
+    origins: (process.env.CORS_ORIGINS ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean),
+  },
+  rateLimit: {
+    ttl: parseInt(process.env.RATE_LIMIT_TTL ?? '60', 10),
+    limit: parseInt(process.env.RATE_LIMIT_MAX ?? '120', 10),
+  },
 });

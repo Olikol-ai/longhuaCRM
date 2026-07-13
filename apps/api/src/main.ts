@@ -2,6 +2,11 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import {
+  configureCors,
+  configureHttpMiddleware,
+  registerGracefulShutdown,
+} from './bootstrap/http-bootstrap';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { ApiSerializeInterceptor } from './common/interceptors/api-serialize.interceptor';
@@ -14,9 +19,14 @@ async function bootstrap() {
 
   const config = app.get(ConfigService);
   const port = config.get<number>('port') ?? 3001;
+  const nodeEnv = config.get<string>('nodeEnv') ?? 'development';
+  const logLevel = config.get<string>('logLevel') ?? 'log';
 
   app.setGlobalPrefix('api');
-  app.enableCors({ origin: true, credentials: true });
+  configureHttpMiddleware(app, config);
+  configureCors(app, config);
+  registerGracefulShutdown(app);
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -28,7 +38,10 @@ async function bootstrap() {
   app.useGlobalInterceptors(new LoggingInterceptor(), new ApiSerializeInterceptor());
 
   await app.listen(port);
-  Logger.log(`Longhua CRM API running on http://localhost:${port}`, 'Bootstrap');
+  Logger.log(
+    `Longhua CRM API (${nodeEnv}) on http://localhost:${port} [log=${logLevel}]`,
+    'Bootstrap',
+  );
 }
 
 bootstrap();

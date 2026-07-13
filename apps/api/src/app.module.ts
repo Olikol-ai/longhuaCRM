@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { join } from 'path';
 import configuration from './config/configuration';
@@ -44,6 +46,17 @@ const serveFrontend = process.env.SERVE_FRONTEND !== 'false';
       envFilePath: [join(__dirname, '../../../.env'), '.env'],
       load: [configuration],
       validate: validateEnv,
+    }),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        throttlers: [
+          {
+            ttl: (config.get<number>('rateLimit.ttl') ?? 60) * 1000,
+            limit: config.get<number>('rateLimit.limit') ?? 120,
+          },
+        ],
+      }),
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
@@ -98,6 +111,12 @@ const serveFrontend = process.env.SERVE_FRONTEND !== 'false';
           SpaModule,
         ]
       : []),
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}
