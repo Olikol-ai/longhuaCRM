@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource, FindOptionsWhere } from 'typeorm';
+import { DataSource, EntityManager, FindOptionsWhere, In, Not } from 'typeorm';
 import { CertificateAccessService } from '../../common/access/certificate-access.service';
 import { JwtPayload } from '../auth/auth.service';
 import { EnrollmentEntity } from '../courses/entities/enrollment.entity';
@@ -168,8 +168,42 @@ export class CertificatesService {
 
     return this.dataSource.transaction(async (manager) => {
       const certRepo = manager.getRepository(CertificateEntity);
+      const locked = await certRepo.findOne({
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!locked) {
+        throw new NotFoundException('Certificate not found');
+      }
+      if (TERMINAL_CERTIFICATE_STATUSES.has(locked.status)) {
+        throw new BadRequestException(
+          `Certificate in status "${locked.status}" cannot be modified`,
+        );
+      }
+
+      const previousStatus = locked.status;
+      const nextStatus = (payload.status ?? locked.status) as CertificateStatus;
+      if (
+        nextStatus !== previousStatus &&
+        !canTransitionCertificateStatus(previousStatus, nextStatus)
+      ) {
+        throw new BadRequestException(
+          `Invalid certificate status transition: ${previousStatus} -> ${nextStatus}`,
+        );
+      }
+
+      const becomingIssued = previousStatus === 'draft' && nextStatus === 'issued';
+      if (becomingIssued) {
+        await this.assertNoActiveCertificateInTx(
+          manager,
+          locked.studentId,
+          locked.courseId,
+          id,
+        );
+      }
+
       const saved = await certRepo.save({
-        ...existing,
+        ...locked,
         ...payload,
         status: nextStatus,
       });
@@ -223,12 +257,21 @@ export class CertificatesService {
     return this.dataSource.transaction(async (manager) => {
       const certRepo = manager.getRepository(CertificateEntity);
       const historyRepo = manager.getRepository(CertificateHistoryEntity);
-      const previousStatus = original.status;
 
-      await certRepo.update({ id: original.id }, { status: 'duplicate' });
+      const locked = await certRepo.findOne({
+        where: { id: original.id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!locked || !ACTIVE_CERTIFICATE_STATUSES.has(locked.status)) {
+        throw new BadRequestException('Only issued or sent certificates can be reissued');
+      }
+
+      const previousStatus = locked.status;
+
+      await certRepo.update({ id: locked.id }, { status: 'duplicate' });
 
       await historyRepo.save({
-        certificateId: original.id,
+        certificateId: locked.id,
         action: 'reissued',
         previousStatus,
         newStatus: 'duplicate',
@@ -238,8 +281,8 @@ export class CertificatesService {
 
       const reissued = await certRepo.save(
         certRepo.create({
-          studentId: original.studentId,
-          courseId: original.courseId,
+          studentId: locked.studentId,
+          courseId: locked.courseId,
           registrationNumber,
           blankSeries,
           blankNumber,
@@ -253,7 +296,7 @@ export class CertificatesService {
         action: 'reissue_created',
         newStatus: 'issued',
         actorUserId: actor.sub,
-        notes: `Reissued from certificate ${original.id} (${original.registrationNumber})`,
+        notes: `Reissued from certificate ${locked.id} (${locked.registrationNumber})`,
       });
 
       return reissued;
@@ -443,6 +486,27 @@ export class CertificatesService {
       courseId,
       excludeId,
     );
+    if (existing) {
+      throw new ConflictException('An active certificate already exists for this student and course');
+    }
+  }
+
+  private async assertNoActiveCertificateInTx(
+    manager: EntityManager,
+    studentId: string,
+    courseId: string,
+    excludeId?: string,
+  ): Promise<void> {
+    const certRepo = manager.getRepository(CertificateEntity);
+    const where: FindOptionsWhere<CertificateEntity> = {
+      studentId,
+      courseId,
+      status: In(['issued', 'sent']),
+    };
+    if (excludeId) {
+      where.id = Not(excludeId);
+    }
+    const existing = await certRepo.findOne({ where });
     if (existing) {
       throw new ConflictException('An active certificate already exists for this student and course');
     }

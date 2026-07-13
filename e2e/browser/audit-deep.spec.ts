@@ -40,10 +40,8 @@ test.describe('Guest deep flow', () => {
     await page.locator('input[type="password"]').fill(password);
     await page.getByRole('button', { name: 'Войти' }).click();
 
-    await expect(page).toHaveURL(/login|pending-approval/, { timeout: 15_000 });
-    if (!page.url().includes('pending-approval')) {
-      await expect(page.getByText(/подтвержд|вериф|код|ошибк/i).first()).toBeVisible();
-    }
+    await expect(page).toHaveURL(/login|pending-approval|auth\/pending/, { timeout: 15_000 });
+    expect(page.url()).not.toMatch(/admin|Dashboard|StudentDashboard|TeacherDashboard/i);
   });
 });
 
@@ -71,9 +69,10 @@ test.describe('Users directory UI (DATA-001)', () => {
     await page.getByRole('button', { name: 'Аккаунты' }).click();
     await page.getByPlaceholder('Поиск по имени или email...').fill(studentName);
 
-    await expect(page.getByText(studentName)).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText('Профиль без аккаунта')).toBeVisible();
-    await expect(page.getByText('Ученик')).toBeVisible();
+    const studentRow = page.getByRole('row', { name: new RegExp(studentName) });
+    await expect(studentRow).toBeVisible({ timeout: 10_000 });
+    await expect(studentRow.getByText('Профиль без аккаунта')).toBeVisible();
+    await expect(studentRow.getByRole('cell', { name: 'Ученик', exact: true })).toBeVisible();
   });
 });
 

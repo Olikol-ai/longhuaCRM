@@ -3,8 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Not, Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Not, Repository } from 'typeorm';
 import { JwtPayload } from '../auth/auth.service';
 import { toDbRole } from '../auth/onboarding';
 import { StudentEntity } from '../students/entities/student.entity';
@@ -44,6 +44,7 @@ export class UsersService {
     private readonly studentRepo: Repository<StudentEntity>,
     @InjectRepository(TeacherEntity)
     private readonly teacherRepo: Repository<TeacherEntity>,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   async list(): Promise<Record<string, unknown>[]> {
@@ -99,69 +100,75 @@ export class UsersService {
       }
     }
 
-    const row = await this.usersRepository.findById(id);
-    if (!row) {
-      throw new NotFoundException('User not found');
-    }
-
-    const prevRole = row.role;
-    const prevStatus = row.status;
-
-    if (dto.role !== undefined) {
-      row.role = toDbRole(String(dto.role));
-    }
-    if (dto.status !== undefined) {
-      row.status = String(dto.status);
-    }
-    if (dto.firstName !== undefined) {
-      row.firstName = String(dto.firstName);
-    }
-    if (dto.lastName !== undefined) {
-      row.lastName = String(dto.lastName);
-    }
-    if (dto.phone !== undefined) {
-      row.phone = String(dto.phone);
-    }
-    if (dto.telegramId !== undefined) {
-      row.telegramId = String(dto.telegramId);
-    }
-
-    if (
-      dto.role !== undefined &&
-      ['admin', 'teacher', 'student'].includes(String(dto.role))
-    ) {
-      row.status = 'active';
-      row.verificationCode = null;
-      row.verificationCodeExpiresAt = null;
-      row.verificationCodeSentAt = null;
-      row.verificationAttempts = 0;
-    }
-
-    row.updatedDate = new Date();
-    const saved = await this.usersRepository.save(row);
-
-    if (dto.role !== undefined && saved.role !== prevRole) {
-      await this.audit.log({
-        actorUserId: actor.sub,
-        action: 'role_change',
-        entityType: 'User',
-        entityId: id,
-        summary: `role: "${prevRole}" → "${saved.role}"`,
+    return this.dataSource.transaction(async (manager) => {
+      const userRepo = manager.getRepository(UserEntity);
+      const row = await userRepo.findOne({
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
       });
-      await this.roleEntitySync.syncAfterRoleChange(saved, saved.role);
-    }
+      if (!row) {
+        throw new NotFoundException('User not found');
+      }
 
-    if (dto.status !== undefined && saved.status !== prevStatus) {
-      await this.audit.log({
-        actorUserId: actor.sub,
-        action: 'status_change',
-        entityType: 'User',
-        entityId: id,
-        summary: `status: "${prevStatus}" → "${saved.status}"`,
-      });
-    }
+      const prevRole = row.role;
+      const prevStatus = row.status;
 
-    return userToRecord(saved);
+      if (dto.role !== undefined) {
+        row.role = toDbRole(String(dto.role));
+      }
+      if (dto.status !== undefined) {
+        row.status = String(dto.status);
+      }
+      if (dto.firstName !== undefined) {
+        row.firstName = String(dto.firstName);
+      }
+      if (dto.lastName !== undefined) {
+        row.lastName = String(dto.lastName);
+      }
+      if (dto.phone !== undefined) {
+        row.phone = String(dto.phone);
+      }
+      if (dto.telegramId !== undefined) {
+        row.telegramId = String(dto.telegramId);
+      }
+
+      if (
+        dto.role !== undefined &&
+        ['admin', 'teacher', 'student'].includes(String(dto.role))
+      ) {
+        row.status = 'active';
+        row.verificationCode = null;
+        row.verificationCodeExpiresAt = null;
+        row.verificationCodeSentAt = null;
+        row.verificationAttempts = 0;
+      }
+
+      row.updatedDate = new Date();
+      const saved = await userRepo.save(row);
+
+      if (dto.role !== undefined && saved.role !== prevRole) {
+        await this.audit.log({
+          actorUserId: actor.sub,
+          action: 'role_change',
+          entityType: 'User',
+          entityId: id,
+          summary: `role: "${prevRole}" → "${saved.role}"`,
+        });
+        await this.roleEntitySync.syncAfterRoleChange(saved, saved.role);
+      }
+
+      if (dto.status !== undefined && saved.status !== prevStatus) {
+        await this.audit.log({
+          actorUserId: actor.sub,
+          action: 'status_change',
+          entityType: 'User',
+          entityId: id,
+          summary: `status: "${prevStatus}" → "${saved.status}"`,
+        });
+      }
+
+      return userToRecord(saved);
+    });
   }
 
   async delete(id: string): Promise<{ ok: true; orphanStudents: unknown[] }> {

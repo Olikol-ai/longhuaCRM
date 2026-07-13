@@ -47,19 +47,19 @@ async function main() {
 
   await countOrphans(
     ds,
-    `SELECT COUNT(*)::int AS count FROM attendance a
+    `SELECT COUNT(*)::int AS count FROM attendance_records a
      LEFT JOIN lessons l ON l.id = a.lesson_id
      WHERE l.id IS NULL`,
-    'attendance without lesson',
+    'attendance_records without lesson',
     'critical',
   );
 
   await countOrphans(
     ds,
-    `SELECT COUNT(*)::int AS count FROM attendance a
+    `SELECT COUNT(*)::int AS count FROM attendance_records a
      LEFT JOIN students s ON s.id = a.student_id
      WHERE s.id IS NULL`,
-    'attendance without student',
+    'attendance_records without student',
     'critical',
   );
 

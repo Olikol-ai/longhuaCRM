@@ -295,33 +295,45 @@ export class LessonsService {
     id: string,
     dto: UpdateAttendanceDto,
   ): Promise<AttendanceEntity> {
-    const existing = await this.repository.findAttendanceById(id);
-    if (!existing) {
-      throw new NotFoundException('Attendance record not found');
-    }
-    await this.lessonAccess.assertCanWriteLesson(actor, existing.lessonId);
-
-    const row = await this.repository.updateAttendance(id, dto);
-    if (!row) {
-      throw new NotFoundException('Attendance record not found');
-    }
-
-    if (
-      (dto.attendanceStatus === 'missed' || dto.attendanceStatus === 'missed_no_notice') &&
-      existing.attendanceStatus !== 'missed' &&
-      existing.attendanceStatus !== 'missed_no_notice'
-    ) {
-      await this.enrollmentProgress.handleLessonMissed(existing.lessonId, existing.studentId);
-    }
-
-    if (dto.attendanceStatus === 'missed_no_notice') {
-      const lesson = await this.repository.findById(existing.lessonId);
-      if (lesson?.status === 'completed' && !row.balanceDeducted) {
-        await this.studentBalanceService.handleLessonStatusUpdate(existing.lessonId, 'completed');
+    return this.dataSource.transaction(async (manager) => {
+      const attendanceRepo = manager.getRepository(AttendanceEntity);
+      const existing = await attendanceRepo.findOne({
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!existing) {
+        throw new NotFoundException('Attendance record not found');
       }
-    }
+      await this.lessonAccess.assertCanWriteLesson(actor, existing.lessonId);
 
-    return row;
+      const previousStatus = existing.attendanceStatus;
+      if (dto.attendanceStatus !== undefined) {
+        existing.attendanceStatus = dto.attendanceStatus;
+      }
+      if (dto.balanceDeducted !== undefined) {
+        existing.balanceDeducted = dto.balanceDeducted;
+      }
+      const row = await attendanceRepo.save(existing);
+
+      if (
+        (dto.attendanceStatus === 'missed' || dto.attendanceStatus === 'missed_no_notice') &&
+        previousStatus !== 'missed' &&
+        previousStatus !== 'missed_no_notice'
+      ) {
+        await this.enrollmentProgress.handleLessonMissed(existing.lessonId, existing.studentId);
+      }
+
+      if (dto.attendanceStatus === 'missed_no_notice') {
+        const lesson = await manager.getRepository(LessonEntity).findOne({
+          where: { id: existing.lessonId },
+        });
+        if (lesson?.status === 'completed' && !row.balanceDeducted) {
+          await this.studentBalanceService.handleLessonStatusUpdate(existing.lessonId, 'completed');
+        }
+      }
+
+      return row;
+    });
   }
 
   async markPresent(actor: JwtPayload, id: string): Promise<AttendanceEntity> {

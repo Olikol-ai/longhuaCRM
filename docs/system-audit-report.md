@@ -329,7 +329,7 @@ See CRIT-006, HIGH-001–005, MED-009, MED-010. Frontend builds successfully but
 npm run migration:run   # apply pending migrations
 npm run build           # api + frontend
 npm run test:e2e        # backend e2e (36 tests)
-npm run test:browser    # Playwright browser e2e (7 specs)
+npm run test:browser    # Playwright browser e2e (8 specs)
 npm run test:browser:report  # merge ui-issues.json → this report
 npx ts-node --project apps/api/tsconfig.json apps/api/scripts/integrity-audit.ts
 cd apps/api && npx ts-node --project tsconfig.json test/qa-full-runner.ts
@@ -343,14 +343,16 @@ cd apps/api && npx ts-node --project tsconfig.json test/qa-full-runner.ts
 |------|------|----------|-------|--------|
 | all | boot | critical | `users is not defined` in `src/api/index.js` — blank white SPA | **Fixed** (CRIT-007) |
 | guest | registration | — | Registration → `/auth/pending-approval` → verification code input | **Pass** |
-| student | login | medium | Dedicated student account provisioning not in API; test uses admin session for navigation | Open (test limitation) |
-| teacher | login | medium | Teacher entity created without linked user — no teacher UI login without manual user assignment | Open (product gap) |
-| admin | certificates | — | Student dropdown lists API-created students after reload | **Pass** |
 | guest | wrong-code | — | Invalid verification code shows error message | **Pass** (audit-deep) |
+| guest | login-before-verify | — | Login before verification stays on pending/login, not dashboard | **Pass** (audit-deep) |
 | admin | users-directory | — | Unlinked student visible in Accounts with «Профиль без аккаунта» | **Pass** (audit-deep) |
 | admin | analytics-ui | — | Analytics subtab height compact (< 44px) | **Pass** (audit-deep) |
+| admin | certificates | — | Student dropdown lists API-created students after reload | **Pass** |
+| student | credentials | medium | Used admin login as student flow fallback — dedicated student account not provisioned | Open (test limitation) |
+| teacher | login | medium | Teacher entity created without linked user — no teacher UI login without manual user assignment | Open (product gap) |
 
-*Generated from Playwright browser tests (`npm run test:browser`). Target: **7/7 PASS** (requires PostgreSQL running).*
+*Generated from Playwright browser tests (`npm run test:browser`). Verified baseline: **8/8 PASS** (PostgreSQL required).*
+
 
 *Report updated after DATA-001, UI-001, entity integrity hardening (INT-001), and expanded Playwright deep audit.*
 
@@ -400,11 +402,11 @@ cd apps/api && npx ts-node --project tsconfig.json test/qa-full-runner.ts
 |----------|--------|------|----------|--------|
 | `PATCH /lessons/:id/complete` | `lessons` | Double completion side effects | Critical | **Fixed** |
 | `PATCH /lessons/:id` (status) | `lessons` | Same | Critical | **Fixed** |
-| `PATCH /lessons/attendance/:id` | `attendance` | Double missed/progress | High | Partial (idempotent progress; attendance lock **Open**) |
+| `PATCH /lessons/attendance/:id` | `attendance` | Double missed/progress | High | **Fixed** — transaction + `SELECT FOR UPDATE` |
 | `PATCH /payments/:id` | `payments` | Double balance credit | High | **Fixed** lock |
-| `PATCH /certificates/:id` | `certificates` | Lost update on issue | High | **Open** — needs row lock / `@VersionColumn` |
-| `POST /certificates/:id/reissue` | `certificates` | Double reissue | High | **Open** |
-| `PATCH /users/:id` (role) | `users` + profiles | Profile sync race | High | **Open** |
+| `PATCH /certificates/:id` | `certificates` | Lost update on issue | High | **Fixed** — row lock + in-tx active-cert check |
+| `POST /certificates/:id/reissue` | `certificates` | Double reissue | High | **Fixed** — row lock before duplicate |
+| `PATCH /users/:id` (role) | `users` + profiles | Profile sync race | High | **Fixed** — transaction + user row lock |
 | `POST /lessons` + schedule | `availability_bookings` | Overlapping bookings | High | **Open** — needs exclusion constraint or in-tx conflict check |
 | `PATCH /students/:id` | `students` | `lessonBalance` overwrite | Medium | **Open** — restrict balance via dedicated endpoint |
 | `PATCH /courses/enrollments/:id` | `enrollments` | Manual vs auto progress clash | Medium | **Open** |
@@ -418,9 +420,9 @@ cd apps/api && npx ts-node --project tsconfig.json test/qa-full-runner.ts
 | `StudentBalanceService` | Transaction, no locks | **Transaction + locks** |
 | `EnrollmentProgressService` | Transaction, read-modify-write | **Transaction + event idempotency + lock** |
 | `PaymentsService.update/delete` | Transaction, no payment lock | **Transaction + payment lock** |
-| `UsersService.update()` | No transaction for role sync | **Open** |
-| `LessonsService.updateAttendance()` | No transaction | **Open** |
-| `CertificatesService.update/reissue()` | Partial transactions | **Open** |
+| `UsersService.update()` | No transaction for role sync | **Transaction + user lock** |
+| `LessonsService.updateAttendance()` | No transaction | **Transaction + attendance lock** |
+| `CertificatesService.update/reissue()` | Partial transactions | **Transaction + certificate lock** |
 
 ### 12.6 Frontend ↔ Backend ↔ Database Mismatches (Open)
 
@@ -439,7 +441,7 @@ PostgreSQL must be running for e2e/browser tests:
 ```bash
 docker compose up -d postgres   # or start local PostgreSQL
 npm run migration:run
-npm run test:e2e                # 36 tests
-npm run test:browser            # 7 specs
-npx ts-node --project apps/api/tsconfig.json apps/api/scripts/integrity-audit.ts
+npm run test:e2e                # 36 tests — verified PASS
+npm run test:browser            # 8 specs — verified PASS
+npx ts-node --project apps/api/tsconfig.json apps/api/scripts/integrity-audit.ts  # 0 findings (50 FKs)
 ```
