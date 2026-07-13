@@ -16,18 +16,14 @@
     "grep": {},
     "grepInvert": null,
     "maxFailures": 0,
-    "metadata": {
-      "actualWorkers": 1
-    },
+    "metadata": {},
     "preserveOutput": "always",
     "projects": [
       {
         "outputDir": "D:/Program/LongHuaCRM/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {
-          "actualWorkers": 1
-        },
+        "metadata": {},
         "id": "chromium",
         "name": "chromium",
         "testDir": "D:/Program/LongHuaCRM/e2e/browser",
@@ -63,217 +59,17 @@
     "workers": 1,
     "webServer": null
   },
-  "suites": [
+  "suites": [],
+  "errors": [
     {
-      "title": "admin.spec.ts",
-      "file": "admin.spec.ts",
-      "column": 0,
-      "line": 0,
-      "specs": [],
-      "suites": [
-        {
-          "title": "Admin flow",
-          "file": "admin.spec.ts",
-          "line": 6,
-          "column": 6,
-          "specs": [
-            {
-              "title": "login → course → group → student → lesson → certificate",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 120000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 2811,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-07-12T22:15:49.097Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "d4043a9dd1ab94463227-a51088684c1b87d1f8db",
-              "file": "admin.spec.ts",
-              "line": 7,
-              "column": 3
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "title": "guest.spec.ts",
-      "file": "guest.spec.ts",
-      "column": 0,
-      "line": 0,
-      "specs": [],
-      "suites": [
-        {
-          "title": "Guest flow",
-          "file": "guest.spec.ts",
-          "line": 5,
-          "column": 6,
-          "specs": [
-            {
-              "title": "registration → verification page → login form",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 120000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 1117,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-07-12T22:15:51.996Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "a7ce7f8ccaa30f427d5e-d1ecc07b43353db232e0",
-              "file": "guest.spec.ts",
-              "line": 6,
-              "column": 3
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "title": "student.spec.ts",
-      "file": "student.spec.ts",
-      "column": 0,
-      "line": 0,
-      "specs": [],
-      "suites": [
-        {
-          "title": "Student flow",
-          "file": "student.spec.ts",
-          "line": 6,
-          "column": 6,
-          "specs": [
-            {
-              "title": "login → dashboard → courses visibility",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 120000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 3016,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-07-12T22:15:53.128Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "28673771c95032e93b6d-4dab1f03869d6c328ca1",
-              "file": "student.spec.ts",
-              "line": 44,
-              "column": 3
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "title": "teacher.spec.ts",
-      "file": "teacher.spec.ts",
-      "column": 0,
-      "line": 0,
-      "specs": [],
-      "suites": [
-        {
-          "title": "Teacher flow",
-          "file": "teacher.spec.ts",
-          "line": 6,
-          "column": 6,
-          "specs": [
-            {
-              "title": "login → schedule → attendance",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 120000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 2209,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-07-12T22:15:56.232Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "1c42086bd650f90bc7b5-395501d5583a61e63e37",
-              "file": "teacher.spec.ts",
-              "line": 31,
-              "column": 3
-            }
-          ]
-        }
-      ]
+      "message": "Error: Process from config.webServer was not able to start. Exit code: 1",
+      "stack": "Error: Process from config.webServer was not able to start. Exit code: 1"
     }
   ],
-  "errors": [],
   "stats": {
-    "startTime": "2026-07-12T22:15:44.172Z",
-    "duration": 14644.244,
-    "expected": 4,
+    "startTime": "2026-07-13T05:11:07.764Z",
+    "duration": 1829.9450000000002,
+    "expected": 0,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

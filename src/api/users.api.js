@@ -6,6 +6,10 @@ export const users = {
     return apiFetch('/users');
   },
 
+  directory() {
+    return apiFetch('/users/directory');
+  },
+
   filter() {
     return this.list();
   },

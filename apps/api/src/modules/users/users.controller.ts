@@ -26,6 +26,11 @@ export class UsersController {
     return this.usersService.list();
   }
 
+  @Get('directory')
+  listDirectory() {
+    return this.usersService.listDirectory();
+  }
+
   @Patch(':id')
   update(
     @Param('id') id: string,

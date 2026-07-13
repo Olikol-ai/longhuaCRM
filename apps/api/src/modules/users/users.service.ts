@@ -3,12 +3,21 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Not, Repository } from 'typeorm';
 import { JwtPayload } from '../auth/auth.service';
 import { toDbRole } from '../auth/onboarding';
+import { StudentEntity } from '../students/entities/student.entity';
+import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { AuditService } from '../audit/audit.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ProfileRelationsService } from './profile-relations.service';
 import { RoleEntitySyncService } from './role-entity-sync.service';
+import {
+  studentProfileToDirectoryEntry,
+  teacherProfileToDirectoryEntry,
+  userToDirectoryEntry,
+} from './user-directory.mapper';
 import { userToRecord } from './user.mapper';
 import { UsersRepository } from './users.repository';
 import { UserEntity } from './entities/user.entity';
@@ -31,11 +40,52 @@ export class UsersService {
     private readonly audit: AuditService,
     private readonly roleEntitySync: RoleEntitySyncService,
     private readonly profileRelations: ProfileRelationsService,
+    @InjectRepository(StudentEntity)
+    private readonly studentRepo: Repository<StudentEntity>,
+    @InjectRepository(TeacherEntity)
+    private readonly teacherRepo: Repository<TeacherEntity>,
   ) {}
 
   async list(): Promise<Record<string, unknown>[]> {
     const users = await this.usersRepository.findAll();
     return users.map(userToRecord);
+  }
+
+  async listDirectory(): Promise<Record<string, unknown>[]> {
+    const [users, students, teachers] = await Promise.all([
+      this.usersRepository.findAll(),
+      this.studentRepo.find({ where: { status: Not('inactive') } }),
+      this.teacherRepo.find({ where: { status: Not('inactive') } }),
+    ]);
+
+    const studentByUserId = new Map(
+      students.filter((row) => row.userId).map((row) => [row.userId as string, row]),
+    );
+    const teacherByUserId = new Map(
+      teachers.filter((row) => row.userId).map((row) => [row.userId as string, row]),
+    );
+
+    const entries: Record<string, unknown>[] = users.map((user) =>
+      userToDirectoryEntry(
+        user,
+        studentByUserId.get(user.id) ?? null,
+        teacherByUserId.get(user.id) ?? null,
+      ),
+    );
+
+    for (const student of students.filter((row) => !row.userId)) {
+      entries.push(studentProfileToDirectoryEntry(student));
+    }
+
+    for (const teacher of teachers.filter((row) => !row.userId)) {
+      entries.push(teacherProfileToDirectoryEntry(teacher));
+    }
+
+    return entries.sort((a, b) => {
+      const nameA = String(a.full_name ?? a.email ?? '').toLowerCase();
+      const nameB = String(b.full_name ?? b.email ?? '').toLowerCase();
+      return nameA.localeCompare(nameB, 'ru');
+    });
   }
 
   async update(

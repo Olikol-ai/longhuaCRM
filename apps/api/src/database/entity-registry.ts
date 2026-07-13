@@ -4,6 +4,7 @@ import { CertificateEntity } from '../modules/certificates/entities/certificate.
 import { CertificateHistoryEntity } from '../modules/certificates/entities/certificate-history.entity';
 import { CourseTemplateEntity } from '../modules/courses/entities/course-template.entity';
 import { EnrollmentEntity } from '../modules/courses/entities/enrollment.entity';
+import { EnrollmentLessonEventEntity } from '../modules/courses/entities/enrollment-lesson-event.entity';
 import { GroupEntity } from '../modules/groups/entities/group.entity';
 import { GroupMemberEntity } from '../modules/groups/entities/group-member.entity';
 import { AttendanceEntity } from '../modules/lessons/entities/attendance.entity';
@@ -34,6 +35,7 @@ export const ALL_V2_ENTITIES = [
   TeacherEntity,
   CourseTemplateEntity,
   EnrollmentEntity,
+  EnrollmentLessonEventEntity,
   GroupEntity,
   GroupMemberEntity,
   LessonEntity,

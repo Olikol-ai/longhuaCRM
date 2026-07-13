@@ -43,14 +43,18 @@ export class CertificateDraftService {
     };
 
     if (manager) {
-      const certRepo = manager.getRepository(CertificateEntity);
-      const saved = await certRepo.save(certRepo.create(payload));
-      await manager.getRepository(CertificateHistoryEntity).save({
-        certificateId: saved.id,
-        action: 'auto_draft_created',
-        newStatus: 'draft',
-        notes: `Auto-created when enrollment ${enrollment.id} completed`,
-      });
+      try {
+        const certRepo = manager.getRepository(CertificateEntity);
+        const saved = await certRepo.save(certRepo.create(payload));
+        await manager.getRepository(CertificateHistoryEntity).save({
+          certificateId: saved.id,
+          action: 'auto_draft_created',
+          newStatus: 'draft',
+          notes: `Auto-created when enrollment ${enrollment.id} completed`,
+        });
+      } catch {
+        return;
+      }
       return;
     }
 

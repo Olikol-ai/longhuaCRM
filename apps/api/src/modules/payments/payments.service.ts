@@ -93,7 +93,11 @@ export class PaymentsService {
   async updatePayment(id: string, dto: UpdatePaymentDto): Promise<PaymentEntity> {
     return this.dataSource.transaction(async (manager) => {
       const paymentRepo = manager.getRepository(PaymentEntity);
-      const row = await paymentRepo.findOne({ where: { id } });
+      const row = await paymentRepo
+        .createQueryBuilder('payment')
+        .setLock('pessimistic_write')
+        .where('payment.id = :id', { id })
+        .getOne();
       if (!row) {
         throw new NotFoundException('Payment not found');
       }
@@ -144,7 +148,11 @@ export class PaymentsService {
   async deletePayment(id: string): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
       const paymentRepo = manager.getRepository(PaymentEntity);
-      const row = await paymentRepo.findOne({ where: { id } });
+      const row = await paymentRepo
+        .createQueryBuilder('payment')
+        .setLock('pessimistic_write')
+        .where('payment.id = :id', { id })
+        .getOne();
       if (!row) {
         throw new NotFoundException('Payment not found');
       }

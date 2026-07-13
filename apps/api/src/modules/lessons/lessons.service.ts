@@ -129,6 +129,20 @@ export class LessonsService {
       dto as Record<string, unknown>,
     );
 
+    const completing =
+      payload.status &&
+      typeof payload.status === 'string' &&
+      payload.status === 'completed' &&
+      before.status !== 'completed';
+
+    if (completing) {
+      const completed = await this.finalizeLessonCompletion(id);
+      if (completed) {
+        return completed;
+      }
+      throw new NotFoundException('Lesson not found');
+    }
+
     const teacherId = (payload.teacherId as string | undefined) ?? before.teacherId;
     const date = (payload.date as string | undefined) ?? before.date;
     const startTime = (payload.startTime as string | undefined) ?? before.startTime;
@@ -175,15 +189,6 @@ export class LessonsService {
     if (
       payload.status &&
       typeof payload.status === 'string' &&
-      payload.status === 'completed' &&
-      before.status !== 'completed'
-    ) {
-      await this.studentBalanceService.handleLessonStatusUpdate(id, payload.status);
-      await this.teacherPaymentsService.createForCompletedLesson(row);
-      await this.enrollmentProgress.handleLessonCompleted(id);
-    } else if (
-      payload.status &&
-      typeof payload.status === 'string' &&
       payload.status !== before.status
     ) {
       await this.studentBalanceService.handleLessonStatusUpdate(id, payload.status);
@@ -206,21 +211,38 @@ export class LessonsService {
 
   async complete(actor: JwtPayload, id: string): Promise<LessonEntity> {
     await this.lessonAccess.assertCanWriteLesson(actor, id);
-    const existing = await this.repository.findById(id);
-    if (!existing) {
+    const completed = await this.finalizeLessonCompletion(id);
+    if (!completed) {
       throw new NotFoundException('Lesson not found');
     }
-    if (existing.status === 'completed') {
-      return existing;
-    }
-    const row = await this.repository.update(id, { status: 'completed' });
-    if (!row) {
-      throw new NotFoundException('Lesson not found');
-    }
-    await this.studentBalanceService.handleLessonStatusUpdate(id, 'completed');
-    await this.teacherPaymentsService.createForCompletedLesson(row);
-    await this.enrollmentProgress.handleLessonCompleted(id);
-    return row;
+    return completed;
+  }
+
+  private async finalizeLessonCompletion(lessonId: string): Promise<LessonEntity | null> {
+    return this.dataSource.transaction(async (manager) => {
+      const lessonRepo = manager.getRepository(LessonEntity);
+      const lesson = await lessonRepo.findOne({
+        where: { id: lessonId },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!lesson) {
+        return null;
+      }
+
+      if (lesson.status === 'completed') {
+        return lesson;
+      }
+
+      lesson.status = 'completed';
+      await lessonRepo.save(lesson);
+
+      await this.studentBalanceService.handleLessonStatusUpdate(lessonId, 'completed', manager);
+      await this.teacherPaymentsService.createForCompletedLesson(lesson, manager);
+      await this.enrollmentProgress.handleLessonCompleted(lessonId, manager);
+
+      return lesson;
+    });
   }
 
   async cancel(actor: JwtPayload, id: string): Promise<LessonEntity> {

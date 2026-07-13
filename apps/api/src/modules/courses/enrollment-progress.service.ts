@@ -6,6 +6,10 @@ import { LessonEntity } from '../lessons/entities/lesson.entity';
 import { LessonSeriesEntity } from '../lesson-series/entities/lesson-series.entity';
 import { CertificateDraftService } from '../certificates/certificate-draft.service';
 import { EnrollmentEntity } from './entities/enrollment.entity';
+import {
+  EnrollmentLessonEventEntity,
+  EnrollmentLessonEventType,
+} from './entities/enrollment-lesson-event.entity';
 
 export type EnrollmentProgress = {
   enrollmentId: string;
@@ -64,7 +68,7 @@ export class EnrollmentProgressService {
       }
 
       for (const studentId of studentIds) {
-        await this.incrementCompleted(studentId, courseId, em);
+        await this.recordProgressEvent(studentId, courseId, lessonId, 'completed', em);
       }
     };
 
@@ -92,7 +96,7 @@ export class EnrollmentProgressService {
         return;
       }
 
-      await this.incrementMissed(studentId, courseId, em);
+      await this.recordProgressEvent(studentId, courseId, lessonId, 'missed', em);
     };
 
     if (manager) {
@@ -103,6 +107,70 @@ export class EnrollmentProgressService {
     await this.dataSource.transaction(run);
   }
 
+  private async recordProgressEvent(
+    studentId: string,
+    courseTemplateId: string,
+    lessonId: string,
+    eventType: EnrollmentLessonEventType,
+    em: EntityManager,
+  ): Promise<void> {
+    const enrollmentRepo = em.getRepository(EnrollmentEntity);
+    const eventRepo = em.getRepository(EnrollmentLessonEventEntity);
+
+    const enrollment = await enrollmentRepo.findOne({
+      where:
+        eventType === 'completed'
+          ? { studentId, courseTemplateId, status: In(['active', 'completed']) }
+          : { studentId, courseTemplateId, status: 'active' },
+      order: { createdAt: 'DESC' },
+      lock: { mode: 'pessimistic_write' },
+    });
+
+    if (!enrollment) {
+      return;
+    }
+
+    if (eventType === 'completed' && enrollment.status === 'completed') {
+      return;
+    }
+
+    const existingEvent = await eventRepo.findOne({
+      where: { lessonId, studentId, eventType },
+    });
+    if (existingEvent) {
+      return;
+    }
+
+    try {
+      await eventRepo.save(
+        eventRepo.create({
+          enrollmentId: enrollment.id,
+          lessonId,
+          studentId,
+          eventType,
+        }),
+      );
+    } catch {
+      return;
+    }
+
+    if (eventType === 'completed') {
+      enrollment.completedLessons = (enrollment.completedLessons ?? 0) + 1;
+      if (enrollment.completedLessons >= enrollment.totalLessons) {
+        enrollment.status = 'completed';
+      }
+      await enrollmentRepo.save(enrollment);
+
+      if (enrollment.status === 'completed') {
+        await this.certificateDraftService.createDraftForEnrollment(enrollment, em);
+      }
+      return;
+    }
+
+    enrollment.missedLessons = (enrollment.missedLessons ?? 0) + 1;
+    await enrollmentRepo.save(enrollment);
+  }
+
   private async resolveCourseId(lesson: LessonEntity, em: EntityManager): Promise<string | null> {
     if (lesson.seriesId) {
       const series = await em.getRepository(LessonSeriesEntity).findOne({
@@ -111,48 +179,5 @@ export class EnrollmentProgressService {
       return series?.courseId ?? null;
     }
     return null;
-  }
-
-  private async incrementCompleted(
-    studentId: string,
-    courseTemplateId: string,
-    em: EntityManager,
-  ): Promise<void> {
-    const repo = em.getRepository(EnrollmentEntity);
-    const enrollment = await repo.findOne({
-      where: { studentId, courseTemplateId, status: In(['active', 'completed']) },
-      order: { createdAt: 'DESC' },
-    });
-    if (!enrollment || enrollment.status === 'completed') {
-      return;
-    }
-
-    enrollment.completedLessons = (enrollment.completedLessons ?? 0) + 1;
-    if (enrollment.completedLessons >= enrollment.totalLessons) {
-      enrollment.status = 'completed';
-    }
-    await repo.save(enrollment);
-
-    if (enrollment.status === 'completed') {
-      await this.certificateDraftService.createDraftForEnrollment(enrollment, em);
-    }
-  }
-
-  private async incrementMissed(
-    studentId: string,
-    courseTemplateId: string,
-    em: EntityManager,
-  ): Promise<void> {
-    const repo = em.getRepository(EnrollmentEntity);
-    const enrollment = await repo.findOne({
-      where: { studentId, courseTemplateId, status: 'active' },
-      order: { createdAt: 'DESC' },
-    });
-    if (!enrollment) {
-      return;
-    }
-
-    enrollment.missedLessons = (enrollment.missedLessons ?? 0) + 1;
-    await repo.save(enrollment);
   }
 }

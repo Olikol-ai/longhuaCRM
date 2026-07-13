@@ -179,3 +179,39 @@ export async function alignLegacyTablesForV2(queryRunner: QueryRunner): Promise<
     END $$;
   `);
 }
+
+export async function alignLegacyForeignKeysForV2(queryRunner: QueryRunner): Promise<void> {
+  const fkDefs: Array<{ name: string; table: string; column: string; refTable: string; onDelete: string }> = [
+    { name: 'FK_lessons_series_id', table: 'lessons', column: 'series_id', refTable: 'lesson_series', onDelete: 'SET NULL' },
+    { name: 'FK_lessons_group_id', table: 'lessons', column: 'group_id', refTable: 'groups', onDelete: 'SET NULL' },
+    { name: 'FK_lessons_primary_student_id', table: 'lessons', column: 'primary_student_id', refTable: 'students', onDelete: 'SET NULL' },
+    { name: 'FK_payments_shop_item_id', table: 'payments', column: 'shop_item_id', refTable: 'shop_items', onDelete: 'SET NULL' },
+    { name: 'FK_payments_enrollment_id', table: 'payments', column: 'enrollment_id', refTable: 'enrollments', onDelete: 'SET NULL' },
+  ];
+
+  for (const fk of fkDefs) {
+    await queryRunner.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = '${fk.table}' AND column_name = '${fk.column}'
+        ) AND EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name = '${fk.refTable}'
+        ) AND NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE constraint_name = '${fk.name}'
+        ) THEN
+          BEGIN
+            ALTER TABLE "${fk.table}"
+            ADD CONSTRAINT "${fk.name}"
+            FOREIGN KEY ("${fk.column}") REFERENCES "${fk.refTable}"("id") ON DELETE ${fk.onDelete};
+          EXCEPTION WHEN duplicate_object THEN
+            NULL;
+          END;
+        END IF;
+      END $$;
+    `);
+  }
+}

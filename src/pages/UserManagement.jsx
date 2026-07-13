@@ -178,7 +178,7 @@ function ConfirmDeleteModal({ user, onConfirm, onCancel }) {
 }
 
 // ─── Tab: Accounts ─────────────────────────────────────────────────────────────
-function AccountsTab({ users, loading, onReload, onRoleChange }) {
+function AccountsTab({ entries, loading, onReload, onRoleChange }) {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [updating, setUpdating] = useState(null);
@@ -211,18 +211,18 @@ function AccountsTab({ users, loading, onReload, onRoleChange }) {
   ];
 
   const counts = ALL_ROLE_OPTIONS.reduce((acc, r) => {
-    acc[r] = users.filter(u => displayRole(u.role) === r).length;
+    acc[r] = entries.filter((u) => displayRole(u.role) === r).length;
     return acc;
   }, {});
 
-  const getFullName = (user) => {
-    if (user.first_name && user.last_name) {
-      return `${user.last_name} ${user.first_name}`;
+  const getFullName = (entry) => {
+    if (entry.first_name && entry.last_name) {
+      return `${entry.last_name} ${entry.first_name}`;
     }
-    return user.full_name || user.email || "Unknown";
+    return entry.full_name || entry.email || "Unknown";
   };
 
-  const filtered = users.filter(u => {
+  const filtered = entries.filter((u) => {
     const role = displayRole(u.role);
     const matchRole = roleFilter === "all" || role === roleFilter;
     const fullName = getFullName(u);
@@ -237,7 +237,7 @@ function AccountsTab({ users, loading, onReload, onRoleChange }) {
       {/* Filter pills */}
       <div className="flex flex-wrap gap-2">
         {FILTER_TABS.map(tab => {
-          const count = tab.value === "all" ? users.length : (counts[tab.value] || 0);
+          const count = tab.value === "all" ? entries.length : (counts[tab.value] || 0);
           const active = roleFilter === tab.value;
           const cfg = ROLE_CONFIG[tab.value];
           return (
@@ -292,14 +292,16 @@ function AccountsTab({ users, loading, onReload, onRoleChange }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((u, i) => {
+              {filtered.map((u) => {
                 const role = displayRole(u.role);
                 const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.user;
                 const displayName = getFullName(u);
                 const initials = displayName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
                 const isUpd = updating === u.id;
+                const hasAccount = u.has_account !== false;
+                const rowKey = hasAccount ? u.id : `${u.entry_type}:${u.id}`;
                 return (
-                  <tr key={u.id} className={`border-b border-slate-50 last:border-0 ${isUpd ? "opacity-60" : "hover:bg-slate-50/50"} transition-colors`}>
+                  <tr key={rowKey} className={`border-b border-slate-50 last:border-0 ${isUpd ? "opacity-60" : "hover:bg-slate-50/50"} transition-colors`}>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${cfg.bg} ${cfg.text}`}>
@@ -307,24 +309,31 @@ function AccountsTab({ users, loading, onReload, onRoleChange }) {
                         </div>
                         <div className="min-w-0">
                           <p className="font-medium text-slate-800 truncate">{displayName}</p>
-                          <p className="text-xs text-slate-400 md:hidden truncate">{u.email}</p>
+                          <p className="text-xs text-slate-400 md:hidden truncate">{u.email || "—"}</p>
+                          {!hasAccount && (
+                            <p className="text-[11px] text-amber-600 font-medium mt-0.5">Профиль без аккаунта</p>
+                          )}
                         </div>
                         {isUpd && <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500 flex-shrink-0" />}
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 text-slate-500 hidden md:table-cell text-xs">{u.email}</td>
+                    <td className="px-5 py-3.5 text-slate-500 hidden md:table-cell text-xs">{u.email || "—"}</td>
                     <td className="px-5 py-3.5"><RoleBadge role={role} /></td>
                     <td className="px-5 py-3.5 text-slate-400 text-xs hidden lg:table-cell">
                       {u.created_date ? new Date(u.created_date).toLocaleDateString("ru-RU") : "—"}
                     </td>
                     <td className="px-5 py-3.5">
-                      <div className="flex items-center justify-end gap-2">
-                        <RoleDropdown userId={u.id} currentRole={role} onChangeRole={changeRole} disabled={isUpd} />
-                        <button onClick={() => setDeleteConfirm(u)} disabled={isUpd}
-                          className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                      {hasAccount ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <RoleDropdown userId={u.id} currentRole={role} onChangeRole={changeRole} disabled={isUpd} />
+                          <button onClick={() => setDeleteConfirm(u)} disabled={isUpd}
+                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400">Назначьте роль через регистрацию</span>
+                      )}
                     </td>
                   </tr>
                 );
@@ -627,20 +636,22 @@ const TABS = [
 
 export default function UserManagement() {
   const [activeTab, setActiveTab] = useState("accounts");
-  const [users, setUsers] = useState([]);
+  const [directoryEntries, setDirectoryEntries] = useState([]);
   const [students, setStudents] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const accountUsers = directoryEntries.filter((entry) => entry.has_account !== false);
+
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [u, s, t] = await Promise.all([
-        api.users.list(),
+      const [directory, s, t] = await Promise.all([
+        api.users.directory(),
         api.students.list("-created_date"),
         api.teachers.list("-created_date"),
       ]);
-      setUsers(u);
+      setDirectoryEntries(directory);
       setStudents(s);
       setTeachers(t);
     } catch (err) {
@@ -659,8 +670,8 @@ export default function UserManagement() {
     await loadAll();
   };
 
-  const displayStudents = visibleStudents(students, users);
-  const displayTeachers = visibleTeachers(teachers, users);
+  const displayStudents = visibleStudents(students, accountUsers);
+  const displayTeachers = visibleTeachers(teachers, accountUsers);
 
   return (
     <div className="p-6 lg:p-8 max-w-6xl mx-auto">
@@ -685,7 +696,7 @@ export default function UserManagement() {
 
       {activeTab === "accounts" && (
         <AccountsTab
-          users={users}
+          entries={directoryEntries}
           loading={loading}
           onReload={loadAll}
           onRoleChange={handleRoleChange}

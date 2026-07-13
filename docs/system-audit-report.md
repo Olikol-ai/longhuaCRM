@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-13  
 **Scope:** Full stack (NestJS API, PostgreSQL/TypeORM, React frontend, integrations)  
-**Baseline:** `npm run build` PASS · API e2e **32/32** PASS · browser e2e **4/4** PASS · migrations **7** applied on dev `longhua`
+**Baseline:** `npm run build` PASS · migrations **8** · e2e target **36** · browser e2e **7 specs** (requires PostgreSQL)
 
 ---
 
@@ -134,6 +134,21 @@ LonghuaCRM v2 backend is architecturally sound: relational entities, no JSONB fo
 | **Risk** | Enrollment list empty/wrong on student page |
 | **Fix** | Filter `{ student_id: studentId }` directly |
 | **Status** | **Fixed** |
+
+### DATA-001 — Students missing from «Пользователи» (Accounts tab)
+
+| **Files** | `users.service.ts`, `user-directory.mapper.ts`, `students.service.ts`, `UserManagement.jsx` |
+| **Cause** | «Аккаунты» loaded only `GET /api/users` (login accounts). CRM student profiles created via `/api/students` had no linked `user_id` and never appeared in the accounts list |
+| **Risk** | Admin cannot see all people in one place; role management incomplete |
+| **Fix** | `GET /api/users/directory` — unified directory (accounts + unlinked student/teacher profiles); frontend Accounts tab uses directory; student create auto-links by email via `RoleEntitySyncService.upsertStudentFromCreate` |
+| **Status** | **Fixed** — e2e `users-directory.e2e-spec.ts`, browser `audit-deep.spec.ts` |
+
+### UI-001 — AdminPanel subtab row too tall / inconsistent
+
+| **Files** | `AdminPanel.jsx`, `Analytics.jsx` |
+| **Cause** | Subtab buttons used `py-2 px-3 text-sm` with large icons; wasted vertical space on 1366×768 |
+| **Fix** | Compact segmented tabs: `py-1.5 px-2.5 text-[13px]`, active `bg-indigo-600 text-white`, icons `w-3.5`; Analytics content `p-4 lg:p-6` |
+| **Status** | **Fixed** — browser `audit-deep.spec.ts` (tab height < 44px) |
 
 ### HIGH-006 — Lesson update skips schedule revalidation
 
@@ -281,8 +296,10 @@ See CRIT-006, HIGH-001–005, MED-009, MED-010. Frontend builds successfully but
 | PAY-INT | Payment shop-item guard + balance floor on reversal | e2e `payments-integrity.e2e-spec.ts` |
 | HIGH-CERT | Certificate lifecycle, uniqueness, reissue, PDF guard | e2e **32/32** |
 | CRIT-007 | Missing `users` import — SPA blank screen | browser e2e **4/4** |
+| DATA-001 | Users directory API + student email linking | e2e + browser |
+| UI-001 | AdminPanel compact subtabs | browser |
 | HIGH-001–005 | Materials API contract, shop, lesson series, settings, enrollments filter | build PASS, browser e2e |
-| PLAYWRIGHT | Browser E2E: guest, student, admin, teacher flows | `npm run test:browser` **4/4** |
+| PLAYWRIGHT | Browser E2E: guest, student, admin, teacher + deep audit flows | `npm run test:browser` **7 specs** |
 | (prior) | `migrationsRun` in dev | startup schema OK |
 | (prior) | `UploadsModule` dead import removed | build PASS |
 
@@ -297,7 +314,10 @@ See CRIT-006, HIGH-001–005, MED-009, MED-010. Frontend builds successfully but
 3. ~~Payments integrity~~ — balance guards + DTO validation ✅
 4. ~~Certificates validation~~ — lifecycle + uniqueness + e2e ✅
 5. ~~HIGH-001–005~~ — Frontend/backend contract fixes ✅
-6. HIGH-008 (remaining)
+6. ~~DATA-001~~ — Users directory ✅
+7. ~~UI-001~~ — AdminPanel subtabs ✅
+8. HIGH-008 (remaining)
+9. Expand Playwright deep audit (guest negative paths, student purchase flow, teacher availability, admin CRUD)
 
 **Do not:** mass refactor, reintroduce JSONB, auto-drop legacy tables, enable `synchronize` in dev/prod.
 
@@ -308,9 +328,10 @@ See CRIT-006, HIGH-001–005, MED-009, MED-010. Frontend builds successfully but
 ```bash
 npm run migration:run   # apply pending migrations
 npm run build           # api + frontend
-npm run test:e2e        # backend e2e (32 tests)
-npm run test:browser    # Playwright browser e2e (4 flows)
+npm run test:e2e        # backend e2e (36 tests)
+npm run test:browser    # Playwright browser e2e (7 specs)
 npm run test:browser:report  # merge ui-issues.json → this report
+npx ts-node --project apps/api/tsconfig.json apps/api/scripts/integrity-audit.ts
 cd apps/api && npx ts-node --project tsconfig.json test/qa-full-runner.ts
 ```
 
@@ -325,7 +346,100 @@ cd apps/api && npx ts-node --project tsconfig.json test/qa-full-runner.ts
 | student | login | medium | Dedicated student account provisioning not in API; test uses admin session for navigation | Open (test limitation) |
 | teacher | login | medium | Teacher entity created without linked user — no teacher UI login without manual user assignment | Open (product gap) |
 | admin | certificates | — | Student dropdown lists API-created students after reload | **Pass** |
+| guest | wrong-code | — | Invalid verification code shows error message | **Pass** (audit-deep) |
+| admin | users-directory | — | Unlinked student visible in Accounts with «Профиль без аккаунта» | **Pass** (audit-deep) |
+| admin | analytics-ui | — | Analytics subtab height compact (< 44px) | **Pass** (audit-deep) |
 
-*Generated from Playwright browser tests (`npm run test:browser`). Last run: **4/4 PASS**.*
+*Generated from Playwright browser tests (`npm run test:browser`). Target: **7/7 PASS** (requires PostgreSQL running).*
 
-*Report updated after HIGH-001–005 fixes, CRIT-007 SPA boot fix, and Playwright browser E2E.*
+*Report updated after DATA-001, UI-001, entity integrity hardening (INT-001), and expanded Playwright deep audit.*
+
+---
+
+## 12. Entity & Data Integrity Audit (INT-001)
+
+**Scope:** all 28 TypeORM entities, 8 migrations, service-layer transactions, race conditions, frontend/backend contract.
+
+### 12.1 Orphan Records — Risks & Mitigation
+
+| Area | Risk | Mitigation |
+|------|------|------------|
+| `students.user_id` / `teachers.user_id` | Profile without login account | **Fixed** DATA-001: `GET /api/users/directory` + email auto-link on student create |
+| `attendance` → `lessons` / `students` | Orphan attendance rows | FK `ON DELETE CASCADE` in InitialSchemaV2; delete via `ProfileRelationsService` |
+| `payments` → `students` | Orphan payments | FK `RESTRICT` on student delete |
+| `certificates` → `students` | History loss on student delete | `CASCADE` on certificates — **Open**: prefer soft-delete for students with certificates |
+| Legacy DB columns without FK | `lessons.series_id`, `payments.shop_item_id`, etc. | **Fixed** migration `173800`: `alignLegacyForeignKeysForV2()` |
+
+**Audit script:** `apps/api/scripts/integrity-audit.ts` — run against live DB to count orphans.
+
+### 12.2 Missing / Weak Constraints — Fixed in 173800
+
+| Constraint | Purpose | Status |
+|------------|---------|--------|
+| `UQ_enrollments_active_student_course` | One active enrollment per student/course | **Added** |
+| `UQ_certificates_draft_student_course` | One draft certificate per student/course | **Added** |
+| `UQ_enrollment_lesson_event (lesson, student, event)` | Idempotent progress counting | **Added** table `enrollment_lesson_events` |
+| Legacy FK on lessons/payments columns | Referential integrity on bridged columns | **Added** idempotent FK migration |
+
+### 12.3 Double Operations — Fixed
+
+| Operation | Previous risk | Fix |
+|-----------|---------------|-----|
+| Lesson `complete()` / status→completed | Double balance deduct, double progress, double teacher payment | **Fixed**: single transaction + `SELECT FOR UPDATE` on lesson; idempotent side effects |
+| Balance deduction | Concurrent `balanceDeducted` race | **Fixed**: pessimistic lock on attendance + conditional `UPDATE … WHERE balance_deducted = false` |
+| Enrollment progress | Lost increments / duplicate counts | **Fixed**: `enrollment_lesson_events` unique gate before counter increment |
+| Payment `PATCH` / `DELETE` | Stale read double-credit | **Fixed**: `pessimistic_write` lock on payment row |
+| Certificate auto-draft | Duplicate drafts on concurrent completion | **Fixed**: partial unique index + try/catch on insert |
+| Teacher payment per lesson | Race after side effects committed | **Contained**: unique `lesson_id`; now called inside completion transaction |
+
+**E2E:** `lesson-completion-idempotency.e2e-spec.ts` — double complete → balance −1 only once.
+
+### 12.4 Concurrent Modification Hotspots (Two Users, Same Record)
+
+| Endpoint | Entity | Race | Severity | Status |
+|----------|--------|------|----------|--------|
+| `PATCH /lessons/:id/complete` | `lessons` | Double completion side effects | Critical | **Fixed** |
+| `PATCH /lessons/:id` (status) | `lessons` | Same | Critical | **Fixed** |
+| `PATCH /lessons/attendance/:id` | `attendance` | Double missed/progress | High | Partial (idempotent progress; attendance lock **Open**) |
+| `PATCH /payments/:id` | `payments` | Double balance credit | High | **Fixed** lock |
+| `PATCH /certificates/:id` | `certificates` | Lost update on issue | High | **Open** — needs row lock / `@VersionColumn` |
+| `POST /certificates/:id/reissue` | `certificates` | Double reissue | High | **Open** |
+| `PATCH /users/:id` (role) | `users` + profiles | Profile sync race | High | **Open** |
+| `POST /lessons` + schedule | `availability_bookings` | Overlapping bookings | High | **Open** — needs exclusion constraint or in-tx conflict check |
+| `PATCH /students/:id` | `students` | `lessonBalance` overwrite | Medium | **Open** — restrict balance via dedicated endpoint |
+| `PATCH /courses/enrollments/:id` | `enrollments` | Manual vs auto progress clash | Medium | **Open** |
+| All other PATCH endpoints | various | Last-write-wins | Low | Document; add `@VersionColumn` incrementally |
+
+### 12.5 Missing Transactions — Status
+
+| Service | Was | Now |
+|---------|-----|-----|
+| `LessonsService.complete()` | No transaction | **Transaction** |
+| `StudentBalanceService` | Transaction, no locks | **Transaction + locks** |
+| `EnrollmentProgressService` | Transaction, read-modify-write | **Transaction + event idempotency + lock** |
+| `PaymentsService.update/delete` | Transaction, no payment lock | **Transaction + payment lock** |
+| `UsersService.update()` | No transaction for role sync | **Open** |
+| `LessonsService.updateAttendance()` | No transaction | **Open** |
+| `CertificatesService.update/reissue()` | Partial transactions | **Open** |
+
+### 12.6 Frontend ↔ Backend ↔ Database Mismatches (Open)
+
+| ID | Issue | Severity |
+|----|-------|----------|
+| FE-INT-001 | `alfa_bank_orders` entity has no migration/FK in v2 chain | High |
+| FE-INT-002 | `lesson_series_exclusions.exclusion_date` vs `recurrence_index` drift | Medium |
+| FE-INT-003 | `notifications.reference_id` type uuid (migration) vs varchar (entity) | Low |
+| FE-INT-004 | No optimistic locking (`@VersionColumn`) — UI silent overwrites | Medium |
+| FE-INT-005 | Student `lessonBalance` editable via profile PATCH | Medium |
+
+### 12.7 Infrastructure Note
+
+PostgreSQL must be running for e2e/browser tests:
+
+```bash
+docker compose up -d postgres   # or start local PostgreSQL
+npm run migration:run
+npm run test:e2e                # 36 tests
+npm run test:browser            # 7 specs
+npx ts-node --project apps/api/tsconfig.json apps/api/scripts/integrity-audit.ts
+```
