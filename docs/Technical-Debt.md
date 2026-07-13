@@ -21,7 +21,7 @@
 | Medium | Structured logging (pino) + correlation IDs | Отладка production |
 | Medium | Object storage (S3) для uploads | Масштабирование файлов |
 | Medium | Pagination на всех list endpoints | Performance при росте данных |
-| Medium | `alfa_bank_orders` entity + migration | Полнота payment audit trail |
+| Medium | `alfa_bank_orders` entity без migration/registry | Legacy `apps/api/src/entities/alfaBankOrder.entity.ts` |
 | Low | Убрать deprecated `SMTP_*` env aliases | Чистота конфигурации |
 | Low | Signed material URLs everywhere | Security hardening |
 

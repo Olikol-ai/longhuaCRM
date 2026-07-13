@@ -14,7 +14,7 @@
 
 | Область | Статус |
 |---------|--------|
-| PostgreSQL + TypeORM migrations | ✅ 8 миграций, synchronize off |
+| PostgreSQL + TypeORM migrations | ✅ 8 миграций; `migrationsRun` при старте API; `synchronize` только в test e2e |
 | Entity integrity | ✅ FK, partial uniques, idempotent lesson/payment flows |
 | Auth | ✅ JWT, role guards, production JWT_SECRET validation |
 | Health probes | ✅ `/api/health/live`, `/api/health/ready` (+ DB) |

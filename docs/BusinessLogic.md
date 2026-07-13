@@ -1,86 +1,99 @@
 # Business Logic
 
-Описание ключевых бизнес-процессов языковой школы Longhua. Логика реализована в NestJS services; этот документ — ориентир для разработчиков и операторов.
+Ключевые бизнес-процессы Longhua Chinese. Реализация — в NestJS services (`apps/api/src/modules/`).
 
 ## Роли
 
-| Роль | Возможности |
-|------|-------------|
-| **admin** | Полный доступ: пользователи, финансы, сертификаты, настройки |
-| **teacher** | Расписание, посещаемость, материалы, свои выплаты |
-| **student** | Курсы, уроки, материалы, профиль |
-| **pending** | Регистрация до подтверждения email/назначения роли |
+| Роль DB | UI / onboarding | Возможности |
+|---------|-----------------|-------------|
+| `admin` | `active` | Пользователи, финансы, сертификаты, настройки, все CRUD |
+| `teacher` | `active` | Расписание, посещаемость, материалы, `/teacher-payments/my` |
+| `student` | `active` | Курсы, уроки, материалы, свой профиль |
+| `pending` / `user` | `awaiting_role` | Ожидание назначения роли админом |
+| — | `needs_verification` | Регистрация, код на email (`/auth/pending-approval`) |
 
 ## Регистрация и onboarding
 
-1. Пользователь регистрируется → `pending_registrations` + код на email.
-2. Подтверждение кода → создание `users` со статусом pending role.
-3. Admin назначает роль → `RoleEntitySyncService` создаёт/связывает student или teacher profile.
-4. При создании student с email — автолинковка к существующему user.
+1. `POST /auth/register` → запись в `pending_registrations` + код на email (SMTP).
+2. `POST /auth/verify-registration` → `verifyAndCreateUser()` → `users` + JWT. Пользователь в onboarding (`awaiting_role`).
+3. Admin в «Пользователи» назначает роль (`PATCH /users/:id`) → `RoleEntitySyncService` создаёт/связывает student или teacher profile.
+4. `POST /students` с email → автолинковка к `users` по email (если аккаунт существует).
+5. `GET /users/directory` — аккаунты + профили без `user_id` («Профиль без аккаунта»).
 
 ## Учебный цикл
 
 ```
-Course template → Enrollment (student + course)
+course_templates → enrollments (student + course)
        ↓
-Lesson series / manual lessons
+lesson_series / POST /lessons
        ↓
-Attendance (enrolled → attended / missed)
+attendance_records (enrolled → attended / missed / missed_no_notice)
        ↓
-Lesson complete → lesson balance −1, progress +1
+PATCH /lessons/:id/complete → lesson_balance −1, enrollment progress
        ↓
-Enrollment completed → auto draft certificate
+completedLessons >= totalLessons → enrollment completed → draft certificate
        ↓
-Admin issues certificate (issued status)
+Admin PATCH /certificates/:id (status: issued)
 ```
 
 ## Баланс уроков
 
 - `students.lesson_balance` — оплаченные уроки
-- Списание при завершении урока (`balance_deducted` на attendance)
-- Пополнение через `payments` (admin) или Alfa Bank (опционально)
-- Операции идемпотентны (locks + flags)
+- Списание при complete урока (`attendance_records.balance_deducted`)
+- Пополнение: `POST /payments` (admin) или Alfa Bank (`functions/alfaBankInit`)
+- Идемпотентность: locks + flags в `StudentBalanceService`, `LessonsService`
 
 ## Посещаемость
 
 Статусы: `enrolled`, `attended`, `missed`, `missed_no_notice`, `cancelled`.
 
-`missed` / `missed_no_notice` → инкремент `enrollment.missed_lessons`.
+`missed` / `missed_no_notice` → `enrollments.missed_lessons++` через `EnrollmentProgressService`.
+
+Shortcuts: `PATCH .../present`, `PATCH .../absent`.
 
 ## Сертификаты
 
-Жизненный цикл: `draft` → `issued` → `sent` / `revoked` / `duplicate` (при reissue).
+Статусы: `draft` → `issued` → `sent` | `revoked` | `duplicate` (reissue).
 
-Выдача только при завершённом enrollment. Unique: registration number, blank series+number.
+Выдача (`draft` → `issued`) требует завершённого enrollment.  
+Unique: `registration_number`, `(blank_series, blank_number)`.  
+PDF: `GET /certificates/:id/pdf` (не для draft/revoked).
 
 ## Платежи
 
-- Связь с student (обязательно)
-- Опционально: shop_item, enrollment
+- FK на `students`; опционально `shop_items`, `enrollments`
 - Update/delete с pessimistic lock — защита от двойного зачисления баланса
 
-## Расписание преподавателя
+## Расписание
 
-- Availability slots + bookings
-- При создании урока: проверка доступности и конфликтов
-- Lesson series пропускает выходные
+- `teacher_availability_slots` + `teacher_availability_bookings`
+- При `POST /lessons`: `assertAvailableForLesson`, `assertNoScheduleConflicts`
+- Lesson series пропускает субботу/воскресенье
 
-## Уведомления
+## Уведомления и напоминания
 
-- In-app notifications
-- Email (SMTP) — коды верификации
-- Telegram — напоминания (cron), bot commands
+- In-app: `notifications`
+- Email: коды регистрации (`MailService`)
+- Telegram: cron reminders (`JobsService`), bot webhook
+
+## Cron (при `ENABLE_CRON=true`)
+
+| Задача | Когда |
+|--------|-------|
+| Напоминания 24ч | Ежедневно 12:00 (`REMINDER_TIMEZONE`) |
+| Напоминания 2ч + auto-complete | Каждую минуту |
+| Cleanup pending registrations | Каждые 15 мин |
 
 ## Аудит
 
-`audit_logs` — смена ролей, статусов, критичные admin-действия.
+`audit_logs` — смена ролей, верификация регистрации, критичные admin-действия.
 
-## Инварианты (не нарушать)
+## Инварианты
 
-1. Один active enrollment на пару student/course.
+1. Один active enrollment на пару student/course (partial unique).
 2. Один draft certificate на пару student/course.
 3. Один active issued/sent certificate на пару student/course.
 4. Бизнес-данные только в реляционных таблицах.
-5. Критические PATCH — в транзакциях с блокировками.
+5. Критические PATCH — transaction + row locks.
 
-Подробности доменных сущностей: `docs/domain/*.md`.
+Доменные заметки: `docs/domain/*.md`.

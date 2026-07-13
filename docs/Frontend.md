@@ -1,96 +1,107 @@
 # Frontend
 
-React 18 + Vite 6 + Tailwind + shadcn/ui (Radix). SPA с role-based routing.
+React 18 + Vite 6 + Tailwind 3 + shadcn/ui (Radix). SPA с role-based routing.
 
 ## Структура
 
 ```
 src/
-├── api/              # HTTP-клиент (единая точка входа: index.js)
-├── pages/            # Страницы приложения
-├── components/       # Переиспользуемые компоненты
-│   ├── auth/         # Guards, modals
-│   └── ui/           # shadcn primitives
-├── lib/              # AuthContext, routing, query-client, theme
-├── App.jsx           # Router root
-├── Layout.jsx        # Sidebar navigation
-└── pages.config.js   # Auto-registered pages
+├── api/                    # HTTP-клиент
+│   ├── index.js            # export api { auth, students, … }
+│   ├── http.js             # apiFetch, apiUpload, token
+│   ├── domain-client.js    # CRUD factory + field aliases
+│   ├── auth.js
+│   ├── *.api.js            # доменные клиенты
+│   ├── functions.js        # legacy RPC
+│   ├── schedule.js
+│   └── alfabank.js
+├── pages/                  # Страницы
+├── components/             # UI, auth guards, forms
+├── lib/                    # AuthContext, routing, query-client, theme
+├── App.jsx                 # Router root
+├── Layout.jsx              # Sidebar
+└── pages.config.js         # Реестр страниц для auto-routes
 ```
 
 ## Маршрутизация
 
-Источник правды: `docs/frontend-routing.md`, `src/lib/routing.js`, `App.jsx`.
+Три координированных файла — см. [frontend-routing.md](./frontend-routing.md):
 
-- Публичные: `/login`, `/auth/pending-approval`
-- Admin: `/Dashboard`, `/AdminPanel`, `/UserManagement`, `/Groups`, …
-- Teacher: `/TeacherDashboard`, `/TeacherSchedule`, `/MaterialsHub`
-- Student: `/StudentDashboard`, `/StudentLessons`
+| Файл | Роль |
+|------|------|
+| `App.jsx` | `<Route>`, guards, lazy imports |
+| `pages.config.js` | `PAGES` → `/{PageName}` |
+| `lib/routing.js` | `ONBOARDING_PATH`, role home paths |
+
+### Публичные
+- `/login`
+- `/auth/pending-approval` (`ONBOARDING_PATH`)
+
+### Role entry → dashboard
+- `/admin` → `/Dashboard`
+- `/teacher` → `/TeacherDashboard`
+- `/student` → `/StudentDashboard`
+
+### Страницы из `pages.config.js`
+`Dashboard`, `Profile`, `Schedule`, `Settings`, `StudentDashboard`, `StudentDetail`, `StudentLessons`, `TeacherDashboard`, `TeacherSchedule`, `Welcome`
+
+### Отдельные маршруты в `App.jsx` (lazy-loaded)
+`AdminLessonMaterials`, `MaterialsHub`, `StudentLessonMaterials`, `UserManagement`, `AdminPanel`, `Groups`, `Certificates`, `Attendance`, `TeacherPayments`
 
 Guards: `AdminRoute`, `TeacherRoute`, `StudentRoute`, `RoleRouteGuard`.
 
 ## API-клиент
 
-Все запросы через `src/api/`:
-
 ```javascript
 import { api } from '@/api';
 
-const students = await api.students.list();
-await api.auth.login({ email, password });
+await api.auth.login(email, password);
+const list = await api.students.list();
+await api.uploads.uploadFile({ file });
 ```
 
-- `http.js` — `apiFetch`, JWT token, error shape
-- `domain-client.js` — фабрика CRUD для доменов
-- Каждый домен: `students.api.js`, `lessons.api.js`, …
+**Правило:** не вызывать `fetch('/api/...')` вне `src/api/` (исключение — Playwright/e2e helpers).
 
-**Правило:** не использовать raw `fetch('/api/...')` вне `src/api/`.
+### Экспорт `api` (`index.js`)
+`auth`, `students`, `teachers`, `courses`, `groups`, `lessons`, `payments`, `certificates`, `materials`, `settings`, `users`, `notifications`, `teacherPayments`, `lessonSeries`, `functions`, `schedule`, `alfabank`, `uploads`, `files`
 
-## State management
+Token: `localStorage` key `longhua_access_token` (`TOKEN_KEY` в `http.js`).
 
-- **Auth** — только `AuthContext` (`src/lib/AuthContext.jsx`)
-- **Server state** — TanStack Query (`src/lib/query-client.js`)
-- **Theme** — `ThemeContext`
+## State
+
+| Concern | Решение |
+|---------|---------|
+| Auth | `AuthContext` (`lib/AuthContext.jsx`) |
+| Server data | TanStack Query (`lib/query-client.js`) |
+| Theme | `ThemeContext` |
 
 ## Сборка и code splitting
 
-Vite config: `vite.config.js` — manual chunks для vendor/react/ui.
+`vite.config.js` — `manualChunks`:
+- `vendor-react` — react-dom, react-router
+- `vendor-ui` — radix, lucide
+- `vendor-charts` — recharts, moment, date-fns
+- `vendor-query` — @tanstack/react-query
 
-Lazy routes для тяжёлых admin-страниц (AdminPanel, UserManagement, MaterialsHub) через `React.lazy`.
+`App.jsx` — `React.lazy` + `Suspense` для тяжёлых admin/teacher страниц (см. список выше).
 
 ```bash
 npm run build:client   # → dist/
-npm run preview        # локальный preview
+npm run preview
 ```
-
-## Стили
-
-Tailwind + `class-variance-authority`. Компоненты UI в `src/components/ui/`.
 
 ## Добавление страницы
 
-1. Создать `src/pages/MyPage.jsx`
-2. Добавить в `pages.config.js` (или auto-register если настроено)
-3. При необходимости — route + guard в `App.jsx`
-4. Пункт меню в `Layout.jsx`
-5. API methods в `src/api/`
-
-## Формат компонента (конвенция)
-
-```jsx
-export default function MyPage() {
-  const { data, isLoading } = useQuery({ queryKey: ['my'], queryFn: () => api.domain.list() });
-  // ...
-}
-```
-
-- Именованные export default для страниц
-- Loading/error states через Query или локальный state
-- Формы: react-hook-form + zod где сложная валидация
+1. `src/pages/MyPage.jsx`
+2. Маршрут в `App.jsx` (с guard) **или** запись в `pages.config.js`
+3. Пункт меню в `Layout.jsx`
+4. Методы в `src/api/`
 
 ## E2E
 
 ```bash
-npm run test:browser
+npm run test:browser        # 8 specs
+npm run test:browser:report # merge ui-issues → audit report
 ```
 
-Playwright: `e2e/browser/`, webServer в `playwright.config.ts`.
+Конфиг: `playwright.config.ts`, тесты: `e2e/browser/`.

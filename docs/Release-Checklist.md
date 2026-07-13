@@ -14,9 +14,9 @@
 ## База данных
 
 - [ ] Миграции протестированы на staging
-- [ ] `npm run migration:run` выполнен на production (или в CI pre-deploy)
-- [ ] Backup БД сделан перед миграцией: `npm run db:backup:docker`
-- [ ] План отката миграции документирован (`migration:revert` или restore)
+- [ ] Backup БД перед деплоем: `npm run db:backup:docker`
+- [ ] После деплоя: логи API подтверждают применение миграций (auto `migrationsRun`)
+- [ ] План отката: `migration:revert` или restore из `.dump`
 
 ## Окружение (production env)
 

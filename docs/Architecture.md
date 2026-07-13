@@ -1,106 +1,104 @@
 # Architecture
 
-LonghuaCRM — монорепозиторий CRM для языковой школы. Один процесс API в production может обслуживать и REST API, и собранный SPA.
+LonghuaCRM — монорепозиторий CRM для языковой школы. В production один процесс NestJS может обслуживать REST API и собранный SPA (`SERVE_FRONTEND=true`).
 
 ## Высокоуровневая схема
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  Browser (React SPA)                                        │
-│  src/ — Vite, React Router, TanStack Query, Tailwind        │
+│  src/ — Vite 6, React Router 6, TanStack Query, Tailwind    │
 └──────────────────────────┬──────────────────────────────────┘
                            │ HTTP /api/*
 ┌──────────────────────────▼──────────────────────────────────┐
-│  NestJS API (apps/api)                                        │
-│  Modules: auth, users, students, lessons, payments, …         │
-│  Guards: JWT + Roles │ Access services per domain             │
+│  NestJS 11 API (apps/api)                                     │
+│  JWT + Roles │ Domain access services │ Throttler             │
 └──────────────────────────┬──────────────────────────────────┘
-                           │ TypeORM
+                           │ TypeORM 0.3
 ┌──────────────────────────▼──────────────────────────────────┐
 │  PostgreSQL 17                                               │
-│  Relational entities only (no json_record for business data) │
 └─────────────────────────────────────────────────────────────┘
 
-Внешние интеграции: SMTP, Telegram Bot, Alfa Bank (опционально)
+Интеграции: SMTP (Nodemailer), Telegram Bot (webhook), Alfa Bank (опционально)
 ```
 
 ## Структура репозитория
 
 ```
 LongHuaCRM/
-├── apps/api/           # NestJS backend
-│   └── src/
-│       ├── modules/    # Доменные модули
-│       ├── database/   # Миграции, entity registry
-│       ├── config/     # Env validation
-│       ├── common/     # Guards, filters, interceptors, access
-│       └── bootstrap/  # HTTP middleware (CORS, helmet, shutdown)
-├── src/                # React frontend
-│   ├── api/            # Единый HTTP-клиент
-│   ├── pages/          # Страницы
-│   ├── components/     # UI-компоненты
-│   └── lib/            # Auth, routing, query client
-├── e2e/browser/        # Playwright E2E
-├── apps/api/test/      # Jest API E2E
-├── scripts/            # backup/restore БД
-├── docs/               # Документация
-├── docker-compose.yml  # Dev: PostgreSQL + pgAdmin
-└── docker-compose.prod.yml + Dockerfile
+├── apps/api/
+│   ├── src/
+│   │   ├── modules/       # Доменные NestJS-модули
+│   │   ├── database/      # migrations, entity-registry, data-source
+│   │   ├── config/        # configuration.ts, env.validation.ts
+│   │   ├── common/        # guards, filters, interceptors, access/
+│   │   └── bootstrap/     # http-bootstrap.ts (CORS, helmet, shutdown)
+│   ├── test/              # Jest e2e (9 suites, 36 tests)
+│   └── scripts/           # integrity-audit.ts
+├── src/                   # React frontend
+├── e2e/browser/           # Playwright (8 specs)
+├── scripts/               # backup-db, restore-db
+├── docs/                  # Документация
+├── docker-compose.yml     # Dev: postgres + pgadmin
+├── docker-compose.prod.yml
+├── Dockerfile
+└── .env.example
 ```
 
-## Backend-модули
+## Backend-модули (app.module.ts)
 
 | Модуль | Назначение |
 |--------|------------|
-| `auth` | JWT, регистрация, верификация email, onboarding |
-| `users` | Аккаунты, directory (профили без user_id) |
+| `auth` | JWT, регистрация, `pending_registrations`, onboarding |
+| `users` | Аккаунты, `GET /users/directory` |
 | `students` / `teachers` | CRM-профили, баланс уроков |
-| `courses` | Шаблоны курсов, enrollments, прогресс |
-| `groups` | Учебные группы |
-| `lessons` | Уроки, посещаемость, завершение |
-| `lesson-series` | Серии уроков с автогенерацией |
-| `schedule` | Слоты доступности, бронирования |
-| `payments` | Платежи учеников, магазин |
+| `courses` | `course_templates`, `enrollments`, прогресс |
+| `groups` | Группы и участники |
+| `lessons` | Уроки, `attendance_records`, complete/cancel |
+| `lesson-series` | Серии с автогенерацией уроков |
+| `schedule` | `teacher_availability_slots`, bookings |
+| `payments` | Платежи, `shop_items` |
 | `teacher-payments` | Выплаты преподавателям |
-| `certificates` | Сертификаты, история, PDF |
-| `materials` | Материалы, папки, доступы |
+| `certificates` | Сертификаты, history, PDF |
+| `materials` | Папки, материалы, access, links |
 | `notifications` | In-app уведомления |
-| `settings` | Настройки приложения |
-| `files` | Защищённая загрузка файлов |
-| `telegram` / `webhooks` | Telegram и Alfa Bank webhooks |
-| `jobs` | Cron: напоминания, backup export |
+| `settings` | `app_settings`, welcome page |
+| `files` (`SecureFilesModule`) | Upload + signed URLs |
 | `mail` | SMTP |
-| `audit` | Audit log |
-| `health` | Liveness / readiness |
+| `telegram` | Bot service + `telegram/admin` REST |
+| `webhooks` | Telegram + Alfa Bank callbacks |
+| `alfabank` | Offline payment request |
+| `jobs` | Cron + `POST /jobs/*` |
+| `functions` | Legacy RPC `POST /functions/:name` |
+| `audit` | `audit_logs` |
+| `health` | `/health/live`, `/health/ready` |
+| `spa` | SPA fallback routing (если `SERVE_FRONTEND`) |
 
-## Потоки данных (ключевые)
+## Потоки данных
 
 ### Аутентификация
-`Login` → `POST /api/auth/login` → JWT в localStorage → `Authorization: Bearer` на всех запросах.
+`POST /auth/login` → JWT в `localStorage` (`longhua_access_token`) → `Authorization: Bearer`.
+
+Регистрация: `register` → email-код → `verify-registration` → `users` (onboarding) → admin назначает роль → `RoleEntitySyncService`.
 
 ### Урок и прогресс
-`Lesson complete` → `LessonsService.finalizeLessonCompletion()` (transaction) → списание баланса → `EnrollmentProgressService` → при завершении курса — draft сертификата.
+`PATCH /lessons/:id/complete` → `finalizeLessonCompletion()` (transaction, row lock) → balance → `EnrollmentProgressService` → при завершении курса — draft certificate.
 
 ### Платёж
-`Payment create/update` → `PaymentsService` (lock) → обновление `students.lesson_balance`.
+`PaymentsService` с pessimistic lock → `students.lesson_balance`.
 
-### Пользователи
-`GET /api/users/directory` объединяет `users`, `students`, `teachers` для вкладки «Аккаунты».
+### Cron (`ENABLE_CRON=true`)
+- `JobsService`: 24h reminders (12:00), 2h reminders + auto-complete (каждую минуту)
+- `PendingRegistrationCleanupService`: каждые 15 мин
 
-## Принципы архитектуры
+## Принципы
 
-1. **Реляционная модель** — бизнес-сущности только в PostgreSQL через TypeORM relations.
-2. **Модульные границы** — один NestJS module на домен; access services в `common/access/`.
-3. **Единый API-клиент** — фронтенд не вызывает fetch напрямую, только `src/api/`.
-4. **Миграции обязательны** — `synchronize: false` в production.
-5. **Идемпотентность** — критические операции (complete lesson, payment, progress) в транзакциях с блокировками.
+1. Реляционная модель — без `json_record` для бизнес-сущностей
+2. Один module на домен; access в `common/access/`
+3. Единый API-клиент фронтенда: `src/api/`
+4. Миграции, не `synchronize` (кроме test e2e)
+5. Критические операции — transaction + pessimistic locks
 
-## Масштабирование (кратко)
+## Масштабирование
 
-| Масштаб | Подход |
-|---------|--------|
-| до 1 000 студентов | Один инстанс API + PostgreSQL, индексы, пагинация |
-| до 10 000 | Read replicas, CDN для static, отдельный worker для cron |
-| до 100 000 | Шардирование не требуется на старте; горизонтальное масштабирование stateless API, managed PostgreSQL, object storage для файлов |
-
-Подробнее: [Production-Readiness.md](./Production-Readiness.md).
+См. [Production-Readiness.md](./Production-Readiness.md).

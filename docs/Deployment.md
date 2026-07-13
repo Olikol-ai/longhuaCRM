@@ -41,13 +41,21 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 ### 4. Миграции
 
-При первом деплое миграции применяются если `migrationsRun` включён, иначе:
+Миграции применяются **автоматически при старте API** (`migrationsRun: true` в `app.module.ts`), если не задан `E2E_SYNC_SCHEMA=true`.
+
+Дополнительно перед первым деплоем (рекомендуется):
+
+```bash
+npm run migration:run
+```
+
+Или внутри контейнера:
 
 ```bash
 docker exec longhua-app npm run migration:run --prefix apps/api
 ```
 
-Или выполнить миграции до старта app в CI pipeline.
+При обновлении версии: backup БД → deploy → проверить логи на успешный migration run.
 
 ### 5. Health checks
 

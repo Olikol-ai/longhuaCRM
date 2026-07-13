@@ -84,6 +84,8 @@ cp .env.example .env
 
 `docker-compose.prod.yml` читает `.env` из корня. Обязателен `JWT_SECRET`.
 
+`TELEGRAM_WEBHOOK_URL` в `.env` — справочно; фактический URL webhook формируется из request host при `POST /telegram/admin/register-webhook` или legacy `functions/registerTelegramWebhook`.
+
 ## Проверка конфигурации
 
 При старте API валидируется через `apps/api/src/config/env.validation.ts`. Ошибки валидации — процесс не запустится.

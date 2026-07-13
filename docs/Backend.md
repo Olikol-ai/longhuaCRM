@@ -1,27 +1,32 @@
 # Backend
 
-NestJS 11 + TypeORM + PostgreSQL. Точка входа: `apps/api/src/main.ts`.
+NestJS 11 + TypeORM 0.3 + PostgreSQL. Точка входа: `apps/api/src/main.ts`.
 
 ## Запуск
 
 ```bash
 cd apps/api && npm install
-npm run start:dev          # watch mode
-npm run start:prod         # production (после build)
+npm run start:dev          # nest --watch
+npm run start:prod         # node dist/main.js (после nest build)
 ```
 
-Из корня: `npm run dev` (миграции + API + Vite).
+Из корня:
 
-## Слои модуля
+| Команда | Действие |
+|---------|----------|
+| `npm run dev` | `migration:run` + API watch + Vite |
+| `npm run dev:server` | `migration:run` + API watch |
+| `npm run start` | production API |
+| `npm run start:production` | `build` + production API |
 
-Типичная структура доменного модуля:
+## Структура модуля
 
 ```
 modules/<domain>/
   <domain>.module.ts
-  <domain>.controller.ts   # REST, guards, DTO
-  <domain>.service.ts      # бизнес-логика
-  <domain>.repository.ts   # TypeORM queries (опционально)
+  <domain>.controller.ts
+  <domain>.service.ts
+  <domain>.repository.ts   # опционально
   entities/
   dto/
 ```
@@ -31,68 +36,89 @@ modules/<domain>/
 ### Контроллер
 - `@UseGuards(JwtAuthGuard, RolesGuard)` + `@Roles('admin'|'teacher'|'student')`
 - DTO с `class-validator`
-- `@CurrentUser()` для actor в audit
+- `@CurrentUser()` → `JwtPayload` для audit и access scope
 
 ### Сервис
-- Транзакции для мульти-табличных изменений: `this.dataSource.transaction()`
-- Блокировки для race-sensitive операций: `lock: { mode: 'pessimistic_write' }`
-- Access checks через `*AccessService` из `common/access/`
+- `this.dataSource.transaction()` для мульти-табличных изменений
+- `lock: { mode: 'pessimistic_write' }` на hot paths (lessons complete, payments, certificates, users, attendance)
+- Domain access: `*AccessService` в `common/access/`
 
-### Ответ API
-- `ApiSerializeInterceptor` — camelCase ↔ snake_case для фронтенда
-- Ошибки: `AllExceptionsFilter` — единый JSON `{ statusCode, message, ... }`
+### Ответы и ошибки
+- `ApiSerializeInterceptor` — snake_case ↔ camelCase
+- `AllExceptionsFilter` — `{ statusCode, message, error }`
+- `LoggingInterceptor` — method, path, status, duration
 
-### Аутентификация
-- JWT Passport strategy
-- Роли: `admin`, `teacher`, `student`, `pending`
-- `RoleEntitySyncService` — синхронизация профилей при смене роли
+### Роли в БД
+`admin`, `teacher`, `student`, `pending`, `user` (без роли).  
+Onboarding states на клиенте: `needs_verification`, `awaiting_role`, `active`, `blocked`.
 
 ## Production middleware
 
-`apps/api/src/bootstrap/http-bootstrap.ts`:
-- **Helmet** + **compression** (только `NODE_ENV=production`)
-- **CORS** из `CORS_ORIGINS` или `APP_PUBLIC_URL`
-- **Graceful shutdown** на SIGTERM/SIGINT
-- **Rate limiting** — `@nestjs/throttler` (webhooks и health исключены)
+`apps/api/src/bootstrap/http-bootstrap.ts` (только при `NODE_ENV=production` для helmet/compression):
 
-## Health endpoints
+| Feature | Реализация |
+|---------|------------|
+| Helmet | Security headers (CSP отключён для SPA) |
+| Compression | gzip |
+| CORS | `CORS_ORIGINS` или `APP_PUBLIC_URL` |
+| Trust proxy | `TRUST_PROXY=true` |
+| Graceful shutdown | SIGTERM / SIGINT → `app.close()` |
+| Rate limit | `@nestjs/throttler` global guard |
+
+Исключения throttler: `@SkipThrottle()` на `HealthController`, `WebhooksController`.
+
+## Health
 
 | Endpoint | Назначение |
 |----------|------------|
-| `GET /api/health/live` | Liveness — процесс жив |
-| `GET /api/health/ready` | Readiness — + проверка PostgreSQL |
-| `GET /api/health` | Alias для ready |
+| `GET /api/health/live` | Liveness |
+| `GET /api/health/ready` | Readiness + PostgreSQL |
+| `GET /api/health` | = ready |
 
-## Cron jobs
+## Миграции при старте
 
-`ENABLE_CRON=true` (по умолчанию):
-- `JobsService` — напоминания об уроках
-- `PendingRegistrationCleanupService` — очистка неподтверждённых регистраций
+`TypeOrmModule` в `app.module.ts`:
+
+- `migrationsRun: process.env.E2E_SYNC_SCHEMA !== 'true'` — миграции применяются при каждом старте API
+- `synchronize: true` только при `NODE_ENV=test` + `E2E_SYNC_SCHEMA=true`
+
+## Cron (`ENABLE_CRON`, default true)
+
+| Service | Schedule | Задачи |
+|---------|----------|--------|
+| `JobsService` | `0 12 * * *` | Напоминания за 24ч |
+| `JobsService` | `* * * * *` | Напоминания за 2ч, auto-complete expired lessons |
+| `PendingRegistrationCleanupService` | `*/15 * * * *` | Очистка `pending_registrations` |
+
+Ручной запуск: `POST /api/jobs/*` или legacy `POST /api/functions/:name`.
 
 ## Файлы
 
-`SecureFilesModule` — загрузка в `uploads/`, signed URLs, лимит 50 MB, allowlist расширений.
+`SecureFilesModule`:
+- `POST /api/files/upload` — admin, multipart, 50 MB, allowlist расширений
+- Диск: `uploads/` (volume в docker-compose.prod)
+- Signed URLs: `/api/files/signed/:token`
 
 ## Тестирование
 
 ```bash
-npm run test:e2e    # 36 тестов, Jest + supertest
+npm run test:e2e    # из корня; 9 suites, 36 tests
 ```
 
-Требуется `DATABASE_URL` и применённые миграции.
+Требуется `DATABASE_URL`, PostgreSQL, применённые миграции (или `E2E_SYNC_SCHEMA`).
 
-## Создание CRUD (чеклист)
+Сьюты: `users-directory`, `certificates-validation`, `business-flows`, `schedule-lessons`, `lesson-series`, `payments-integrity`, `files-upload`, `lesson-completion-idempotency`, `validation`.
 
-1. Entity + migration
-2. `CreateDto`, `UpdateDto`, `FilterDto` (если нужен filter endpoint)
-3. Service: `findAll`, `findById`, `create`, `update`, `delete` + access scope
-4. Controller: REST paths согласно существующим модулям (`GET`, `POST`, `PATCH`, `DELETE`, `POST filter`)
-5. Зарегистрировать module в `app.module.ts`
-6. Frontend API client
-7. E2E test для критичного flow
+## Создание CRUD
+
+1. Entity + migration + `entity-registry.ts`
+2. DTOs (`Create`, `Update`, `FilterQuery`)
+3. Service с access scope
+4. Controller: GET, GET :id, POST, PATCH :id, DELETE :id, POST filter
+5. Module → `app.module.ts`
+6. `src/api/<domain>.api.js`
+7. E2E test при необходимости
 
 ## Логирование
 
-- NestJS Logger в bootstrap и сервисах
-- `LoggingInterceptor` — HTTP method, path, status, duration
-- `LOG_LEVEL` в env (планируется расширение structured logging)
+NestJS Logger + `LoggingInterceptor`. `LOG_LEVEL` в env (расширение structured logging — в [Technical-Debt.md](./Technical-Debt.md)).
