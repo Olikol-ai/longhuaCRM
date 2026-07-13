@@ -1,97 +1,85 @@
 # Longhua CRM
 
-CRM-платформа для языковой школы Longhua Chinese. Фронтенд — React + Vite, бэкенд — NestJS + PostgreSQL + TypeORM.
+CRM-платформа для языковой школы **Longhua Chinese**: ученики, преподаватели, расписание, платежи, сертификаты, материалы.
+
+| Слой | Стек |
+|------|------|
+| Frontend | React 18, Vite, Tailwind, shadcn/ui |
+| Backend | NestJS 11, TypeORM |
+| Database | PostgreSQL 17 |
+| Auth | JWT |
 
 ## Быстрый старт
 
 ```bash
-npm install
-cd apps/api && npm install && cd ../..
-cp .env.example .env
-# Настройте DATABASE_URL и другие переменные в .env
+npm install && cd apps/api && npm install && cd ../..
+cp .env.example .env          # настройте DATABASE_URL, ADMIN_PASSWORD
+docker compose up -d postgres
+npm run migration:run
 npm run dev
 ```
 
-- Фронтенд: http://localhost:5173
-- API: http://localhost:3001
+| URL | Сервис |
+|-----|--------|
+| http://localhost:5173 | Frontend (dev) |
+| http://localhost:3001 | API |
+| http://localhost:5050 | pgAdmin |
 
-## Вход по умолчанию
+Вход admin: `ADMIN_EMAIL` / `ADMIN_PASSWORD` из `.env`.
 
-После первого запуска создаётся администратор (если задан `ADMIN_PASSWORD`):
-
-- **Email:** `admin@longhua.local` (или `ADMIN_EMAIL`)
-- **Пароль:** значение `ADMIN_PASSWORD` из `.env`
-
-## Архитектура
-
-| Слой | Технологии |
-|------|------------|
-| Frontend | React 18, Vite, Tailwind, shadcn/ui |
-| Backend | NestJS, TypeORM, PostgreSQL |
-| Auth | JWT (Passport) |
-| Платежи | Alfa Bank Belarus (опционально) |
-| Уведомления | Telegram Bot через Webhook |
-
-## API
-
-Фронтенд обращается к локальному API через прокси Vite (`/api` → `:3001`).
-
-- `POST /api/auth/login` — вход
-- `POST /api/auth/register` — регистрация
-- `GET /api/auth/me` — текущий пользователь
-- `GET/POST/PATCH/DELETE /api/entities/:entity` — CRUD сущностей
-- `POST /api/functions/:name` — серверные функции
-- `POST /api/uploads` — загрузка файлов материалов (admin/teacher)
-- `POST /api/webhooks/telegram` — Telegram webhook
-- `POST /api/webhooks/alfabank` — Alfa Bank webhook
-
-## Переменные окружения
-
-См. `.env.example`.
-
-## Сборка и запуск
+## Production
 
 ```bash
-npm run build        # фронтенд
-npm run build:api    # NestJS API
-npm start            # production API
+npm run build
+docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-## Миграции БД
+Подробно: [docs/Deployment.md](docs/Deployment.md) · [docs/Production-Readiness.md](docs/Production-Readiness.md)
+
+## Документация
+
+Полный индекс: **[docs/README.md](docs/README.md)**
+
+| | |
+|--|--|
+| [Architecture](docs/Architecture.md) | Модули, потоки данных |
+| [Development](docs/Development.md) | Локальная разработка |
+| [API](docs/API.md) | REST endpoints |
+| [Release Checklist](docs/Release-Checklist.md) | Чеклист релиза |
+
+## Команды
 
 ```bash
-# Production: только миграции (synchronize: false)
-npm run migration:run
-
-# Development: synchronize: true (авто-схема)
-npm run dev:server
+npm run dev              # API + frontend
+npm run build            # production build
+npm run test:e2e         # API tests (36)
+npm run test:browser     # Playwright (8)
+npm run migration:run    # DB migrations
+npm run db:backup:docker # backup PostgreSQL
 ```
 
-## Импорт данных из JSON
-
-```bash
-npm run import:json -- path/to/database.json
-```
-
-## Структура backend
+## Структура
 
 ```
-apps/api/src/
-  modules/     # NestJS modules (auth, entities, telegram, jobs, ...)
-  entities/    # TypeORM entities
-  database/    # migrations, import scripts
-  config/      # ConfigModule
-  common/      # guards, filters, interceptors
+apps/api/     NestJS backend
+src/          React frontend
+docs/         Documentation
+e2e/          Playwright tests
+scripts/      DB backup/restore
 ```
 
-## Frontend API client
+## Принципы
 
-Все запросы фронтенда идут через единый клиент `src/api/`:
+- Бизнес-данные только в PostgreSQL (реляционные entities)
+- Без `json_record` для стабильных сущностей
+- Миграции обязательны в production
+- Единый API-клиент: `src/api/`
 
-- `src/api/http.js` — fetch-обёртка, JWT token
-- `src/api/auth.js` — `/api/auth/*`
-- `src/api/entities.js` — `/api/entities/*` и `/api/users`
-- `src/api/functions.js` — `/api/functions/*`
-- `src/api/index.js` — экспорт `api` (единая точка входа)
+## Health
 
-Auth state — только через `AuthContext` (`src/lib/AuthContext.jsx`).
+- `GET /api/health/live` — liveness
+- `GET /api/health/ready` — readiness + database
+
+## Лицензия
+
+Private — Longhua Chinese.
