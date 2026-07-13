@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "flow": "student",
+    "step": "credentials",
+    "issue": "Used admin login as student flow fallback — dedicated student account not provisioned",
+    "severity": "medium",
+    "timestamp": "2026-07-13T06:51:02.801Z"
+  }
+]
