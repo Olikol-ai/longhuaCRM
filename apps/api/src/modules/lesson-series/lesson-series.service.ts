@@ -48,7 +48,8 @@ export class LessonSeriesService {
     lessonsCreated: number;
     skippedDates: string[];
   }> {
-    const teacher = await this.teacherRepo.findOne({ where: { id: dto.teacherId } });
+    const teacherId = dto.teacherId;
+    const teacher = await this.teacherRepo.findOne({ where: { id: teacherId } });
     if (!teacher) {
       throw new NotFoundException('Teacher not found');
     }
@@ -57,7 +58,7 @@ export class LessonSeriesService {
     if (!group) {
       throw new NotFoundException('Group not found');
     }
-    if (group.teacherId !== dto.teacherId) {
+    if (group.teacherId !== teacherId) {
       throw new BadRequestException('Group does not belong to the selected teacher');
     }
 
@@ -70,7 +71,7 @@ export class LessonSeriesService {
       id: randomUUID(),
       courseId: dto.courseId,
       groupId: dto.groupId,
-      teacherId: dto.teacherId,
+      teacherId,
       startDate: dto.startDate,
       startTime: dto.startTime,
       frequency: dto.frequency ?? 'weekly',
@@ -109,20 +110,20 @@ export class LessonSeriesService {
 
       try {
         await this.scheduleService.assertAvailableForLesson(
-          series.teacherId,
+          teacherId,
           dateStr,
           series.startTime,
           duration,
         );
         await this.scheduleService.assertNoScheduleConflicts(
-          series.teacherId,
+          teacherId,
           dateStr,
           series.startTime,
           duration,
         );
 
         const lessonDto: CreateLessonDto = {
-          teacherId: series.teacherId,
+          teacherId,
           groupId: series.groupId ?? undefined,
           seriesId: series.id,
           date: dateStr,

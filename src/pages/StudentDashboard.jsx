@@ -11,6 +11,7 @@ import TopUpModal from "@/components/student/TopUpModal";
 import { useAuth } from "@/lib/AuthContext";
 import { getGreetingName } from "@/lib/display-name";
 import { useTheme } from "@/lib/ThemeContext";
+import { resolveAssignedTeacherLabel, resolveLessonTeacherLabel } from "@/lib/teacherLabels";
 
 const STATUS_LABELS = {
   planned: "Запланировано",
@@ -33,6 +34,7 @@ export default function StudentDashboard() {
   const [student, setStudent] = useState(null);
   const [lessons, setLessons] = useState([]);
   const [teacher, setTeacher] = useState(null);
+  const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showTopUp, setShowTopUp] = useState(false);
   const [upcomingExpanded, setUpcomingExpanded] = useState(true);
@@ -58,10 +60,13 @@ export default function StudentDashboard() {
     ]);
     const s = myStudents[0] || null;
     setStudent(s);
+    setTeachers(allTeachers);
     if (s) {
       setLessons(allLessons.filter((l) => l.student_id === s.id || (l.student_ids || []).includes(s.id)));
       if (s.assigned_teacher) {
         setTeacher(allTeachers.find((t) => t.id === s.assigned_teacher));
+      } else {
+        setTeacher(null);
       }
     }
     setLoading(false);
@@ -145,20 +150,20 @@ export default function StudentDashboard() {
       </div>
 
       {/* Teacher card */}
-      {teacher && (
-        <Card className="p-4 mb-8 flex items-center gap-4">
-          <div className="h-12 w-12 rounded-xl bg-amber-50 flex items-center justify-center">
-            <GraduationCap className="h-6 w-6 text-amber-600" />
-          </div>
-          <div>
-            <p className="text-xs text-slate-400">Ваш преподаватель</p>
-            <p className="text-lg font-semibold text-slate-900">{teacher.name}</p>
-            {teacher.specializations && (
-              <p className="text-xs text-slate-500">{teacher.specializations}</p>
-            )}
-          </div>
-        </Card>
-      )}
+      <Card className="p-4 mb-8 flex items-center gap-4">
+        <div className="h-12 w-12 rounded-xl bg-amber-50 flex items-center justify-center">
+          <GraduationCap className="h-6 w-6 text-amber-600" />
+        </div>
+        <div>
+          <p className="text-xs text-slate-400">Ваш преподаватель</p>
+          <p className="text-lg font-semibold text-slate-900">
+            {resolveAssignedTeacherLabel(student.assigned_teacher, teachers)}
+          </p>
+          {teacher?.specializations && (
+            <p className="text-xs text-slate-500">{teacher.specializations}</p>
+          )}
+        </div>
+      </Card>
 
       {/* Upcoming lessons section */}
       <div className="mb-8">
@@ -231,7 +236,7 @@ export default function StudentDashboard() {
                         </div>
                         <div>
                           <p className="font-semibold text-slate-900">{lesson.start_time}</p>
-                          <p className="text-sm text-slate-600">{lesson.teacher_name}</p>
+                          <p className="text-sm text-slate-600">{resolveLessonTeacherLabel(lesson, teachers)}</p>
                           <p className="text-xs text-slate-400">{lesson.duration || 60} мин</p>
                           {lesson.notes && <p className="text-xs text-slate-400 mt-1">{lesson.notes}</p>}
                         </div>
@@ -273,7 +278,7 @@ export default function StudentDashboard() {
                             <p className="text-[10px] text-slate-400">{lesson.duration || 60} мин</p>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-800">{lesson.teacher_name}</p>
+                            <p className="text-sm font-medium text-slate-800">{resolveLessonTeacherLabel(lesson, teachers)}</p>
                             {lesson.notes && <p className="text-xs text-slate-400 truncate">{lesson.notes}</p>}
                           </div>
                           {lesson.meeting_link && (
@@ -315,7 +320,7 @@ export default function StudentDashboard() {
                   <p className="text-sm font-medium text-slate-900">
                     {format(new Date(lesson.date), "d MMMM yyyy", { locale: ru })} · {lesson.start_time}
                   </p>
-                  <p className="text-xs text-slate-400">{lesson.teacher_name}</p>
+                  <p className="text-xs text-slate-400">{resolveLessonTeacherLabel(lesson, teachers)}</p>
                 </div>
               </div>
               <Badge

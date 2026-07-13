@@ -23,6 +23,8 @@ const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 const Groups = lazy(() => import('./pages/Groups'));
 const Certificates = lazy(() => import('./pages/Certificates'));
 const Attendance = lazy(() => import('./pages/Attendance'));
+const Payments = lazy(() => import('./pages/Payments'));
+const LessonSeriesAdmin = lazy(() => import('./pages/LessonSeriesAdmin'));
 const TeacherPayments = lazy(() => import('./pages/TeacherPayments'));
 
 /**
@@ -115,6 +117,8 @@ const AuthenticatedApp = () => {
         <Route path="/Groups" element={<AdminRoute><LayoutWrapper currentPageName="Groups"><Groups /></LayoutWrapper></AdminRoute>} />
         <Route path="/Certificates" element={<AdminRoute><LayoutWrapper currentPageName="Certificates"><Certificates /></LayoutWrapper></AdminRoute>} />
         <Route path="/Attendance" element={<AdminRoute><LayoutWrapper currentPageName="Attendance"><Attendance /></LayoutWrapper></AdminRoute>} />
+        <Route path="/Payments" element={<AdminRoute><LayoutWrapper currentPageName="Payments"><Payments /></LayoutWrapper></AdminRoute>} />
+        <Route path="/LessonSeriesAdmin" element={<AdminRoute><LayoutWrapper currentPageName="LessonSeriesAdmin"><LessonSeriesAdmin /></LayoutWrapper></AdminRoute>} />
         <Route path="/TeacherPayments" element={<TeacherRoute><LayoutWrapper currentPageName="TeacherPayments"><TeacherPayments /></LayoutWrapper></TeacherRoute>} />
         <Route path="*" element={<OnboardingFallback />} />
       </Routes>

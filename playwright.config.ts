@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:5173';
 const apiURL = process.env.PLAYWRIGHT_API_URL ?? 'http://localhost:3001';
+const apiPort = process.env.PLAYWRIGHT_API_PORT ?? (new URL(apiURL).port || '3001');
+const clientPort = process.env.PLAYWRIGHT_CLIENT_PORT ?? (new URL(baseURL).port || '5173');
 
 export default defineConfig({
   testDir: './e2e/browser',
@@ -28,6 +30,7 @@ export default defineConfig({
       timeout: 180_000,
       env: {
         ...process.env,
+        PORT: apiPort,
         NODE_ENV: 'test',
         SERVE_FRONTEND: 'false',
         ENABLE_CRON: 'false',
@@ -37,10 +40,14 @@ export default defineConfig({
       },
     },
     {
-      command: 'npm run dev:client -- --host 127.0.0.1 --port 5173 --strictPort',
+      command: `npm run dev:client -- --host 127.0.0.1 --port ${clientPort} --strictPort`,
       url: `${baseURL}/login`,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
+      env: {
+        ...process.env,
+        VITE_API_PROXY_TARGET: apiURL,
+      },
     },
   ],
 });

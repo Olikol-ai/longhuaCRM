@@ -44,6 +44,31 @@ export async function apiRequest(
   });
 }
 
+const TOKEN_KEY = 'longhua_access_token';
+
+/** API login + token injection — avoids UI rate limits in multi-test suites. */
+export async function loginViaApi(
+  page: Page,
+  email: string,
+  password: string,
+  redirectPath = '/Dashboard',
+): Promise<void> {
+  const { token } = await apiLogin(email, password);
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
+  await page.evaluate(
+    ({ key, tokenValue }) => {
+      localStorage.setItem(key, tokenValue);
+      window.dispatchEvent(new CustomEvent('longhua:token-change'));
+    },
+    { key: TOKEN_KEY, tokenValue: token },
+  );
+  await page.goto(redirectPath);
+  await page.waitForURL(
+    /Dashboard|AdminPanel|Schedule|UserManagement|Payments|teacher|student|pending-approval|auth\/pending/,
+    { timeout: 30_000 },
+  );
+}
+
 export async function loginViaUi(
   page: Page,
   email: string,

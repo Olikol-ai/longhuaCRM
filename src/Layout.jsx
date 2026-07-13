@@ -17,6 +17,8 @@ import {
   Layers,
   Award,
   ClipboardCheck,
+  CalendarRange,
+  CreditCard,
   DollarSign,
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
@@ -33,11 +35,14 @@ const adminNav = [
   { name: "Главная", icon: LayoutDashboard, page: "Dashboard" },
   { name: "Расписание", icon: Calendar, page: "Schedule" },
   { name: "Панель управления", icon: Layers, page: "AdminPanel" },
-  { name: "Материалы", icon: BookOpen, page: "MaterialsHub" },
   { name: "Пользователи", icon: Users, page: "UserManagement" },
   { name: "Группы", icon: Users, page: "Groups" },
   { name: "Сертификаты", icon: Award, page: "Certificates" },
   { name: "Посещаемость", icon: ClipboardCheck, page: "Attendance" },
+  { name: "Платежи", icon: CreditCard, page: "Payments" },
+  { name: "Выплаты", icon: DollarSign, page: "TeacherPayments" },
+  { name: "Серии уроков", icon: CalendarRange, page: "LessonSeriesAdmin" },
+  { name: "Материалы", icon: BookOpen, page: "MaterialsHub" },
   { name: "Настройки", icon: Settings, page: "Settings" },
 ];
 

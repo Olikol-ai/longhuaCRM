@@ -59,8 +59,8 @@ test.describe('Admin flow', () => {
     });
 
     await page.goto('/AdminPanel');
-    await expect(page.getByRole('heading', { name: 'Платежи' })).toBeVisible();
-    await page.getByRole('button', { name: 'Сертификаты' }).click();
+    await expect(page.getByRole('heading', { name: 'Обзор CRM' })).toBeVisible();
+    await page.goto('/Certificates');
     await expect(page.getByRole('heading', { name: 'Сертификаты' })).toBeVisible();
 
     await page.goto('/Schedule');

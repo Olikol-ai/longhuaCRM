@@ -1,50 +1,39 @@
 import { useState } from "react";
-import { CreditCard, TrendingUp, DollarSign, Download, ShoppingBag, FileText, Settings, Send, Users, Award, ClipboardCheck, CalendarRange } from "lucide-react";
-
-// Import content from existing pages (inline as tabs)
-import Payments from "./Payments";
+import {
+  LayoutDashboard,
+  TrendingUp,
+  DollarSign,
+  Download,
+  Settings2,
+} from "lucide-react";
 import Analytics from "./Analytics";
 import Salary from "./Salary";
 import ExportData from "./ExportData";
-import ShopSettingsAdmin from "./ShopSettingsAdmin";
-import WelcomePageEditor from "./WelcomePageEditor";
-import AdminSettings from "./AdminSettings";
-import TelegramSettings from "./TelegramSettings";
-import Groups from "./Groups";
-import Certificates from "./Certificates";
-import Attendance from "./Attendance";
-import TeacherPayments from "./TeacherPayments";
-import LessonSeriesAdmin from "./LessonSeriesAdmin";
+import AdminPanelOverview from "@/components/admin/AdminPanelOverview";
+import AdminPanelSystem from "@/components/admin/AdminPanelSystem";
 
 const TABS = [
-  { id: "payments",   label: "Платежи",            icon: CreditCard },
-  { id: "analytics",  label: "Аналитика",           icon: TrendingUp },
-  { id: "salary",     label: "Зарплата",            icon: DollarSign },
-  { id: "teacherPayments", label: "Выплаты",        icon: DollarSign },
-  { id: "groups",     label: "Группы",              icon: Users },
-  { id: "certificates", label: "Сертификаты",       icon: Award },
-  { id: "attendance", label: "Посещаемость",        icon: ClipboardCheck },
-  { id: "lessonSeries", label: "Серии уроков",      icon: CalendarRange },
-  { id: "export",     label: "Экспорт",             icon: Download },
-  { id: "shop",       label: "Магазин",             icon: ShoppingBag },
-  { id: "welcome",    label: "Страница встречи",    icon: FileText },
-  { id: "telegram",   label: "Telegram Bot",        icon: Send },
-  { id: "integrations", label: "Интеграции",        icon: Settings },
+  { id: "overview", label: "Обзор", icon: LayoutDashboard },
+  { id: "analytics", label: "Аналитика", icon: TrendingUp },
+  { id: "salary", label: "Зарплата", icon: DollarSign },
+  { id: "export", label: "Экспорт", icon: Download },
+  { id: "system", label: "Система", icon: Settings2 },
 ];
 
 export default function AdminPanel() {
-  const [activeTab, setActiveTab] = useState("payments");
+  const [activeTab, setActiveTab] = useState("overview");
 
   return (
     <div className="flex flex-col h-full min-h-screen bg-background">
       <div className="bg-card border-b border-border px-3 lg:px-6 overflow-x-auto scrollbar-thin">
         <div className="flex gap-0.5 py-1 min-w-max lg:gap-1 lg:py-1.5">
-          {TABS.map(tab => {
+          {TABS.map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium rounded-lg whitespace-nowrap transition-colors shrink-0 lg:px-3 lg:py-1.5 lg:text-sm ${
                   active
@@ -60,21 +49,14 @@ export default function AdminPanel() {
         </div>
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-auto">
-        {activeTab === "payments"      && <Payments />}
-        {activeTab === "analytics"     && <Analytics />}
-        {activeTab === "salary"        && <Salary />}
-        {activeTab === "teacherPayments" && <TeacherPayments />}
-        {activeTab === "groups"        && <Groups />}
-        {activeTab === "certificates"  && <Certificates />}
-        {activeTab === "attendance"    && <Attendance />}
-        {activeTab === "lessonSeries"  && <LessonSeriesAdmin />}
-        {activeTab === "export"        && <ExportData />}
-        {activeTab === "shop"          && <ShopSettingsAdmin />}
-        {activeTab === "welcome"       && <WelcomePageEditor />}
-        {activeTab === "telegram"      && <TelegramSettings />}
-        {activeTab === "integrations"  && <AdminSettings />}
+        {activeTab === "overview" && (
+          <AdminPanelOverview onOpenExport={() => setActiveTab("export")} />
+        )}
+        {activeTab === "analytics" && <Analytics />}
+        {activeTab === "salary" && <Salary />}
+        {activeTab === "export" && <ExportData />}
+        {activeTab === "system" && <AdminPanelSystem />}
       </div>
     </div>
   );

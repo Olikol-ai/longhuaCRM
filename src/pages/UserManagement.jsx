@@ -20,6 +20,7 @@ import {
   visibleStudents,
   visibleTeachers,
 } from "./userManagement.constants";
+import { resolveAssignedTeacherLabel } from "@/lib/teacherLabels";
 
 const showOrphanNotice = (result) => showOrphanStudentsNotice(result, toast);
 
@@ -333,7 +334,7 @@ function StudentsTab({ students, teachers, loading, onReload }) {
     }
   };
 
-  const getTeacherName = (id) => teachers.find(t => t.id === id)?.name || "—";
+  const getTeacherName = (id) => resolveAssignedTeacherLabel(id, teachers);
 
   const filtered = students.filter(s =>
     (s.name || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -455,11 +456,6 @@ function TeachersTab({ teachers, students, loading, onReload }) {
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    if (hasActiveLessons(deleteTarget.id)) {
-      alert("Нельзя удалить преподавателя с активными уроками.");
-      setDeleteTarget(null);
-      return;
-    }
     setDeleting(true);
     try {
       const result = await api.teachers.delete(deleteTarget.id);

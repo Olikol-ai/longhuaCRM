@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { X, Edit2, Trash2, CheckCircle2, XCircle, Video, Clock, Calendar, RefreshCw, Users } from "lucide-react";
+import { resolveLessonTeacherLabel } from "@/lib/teacherLabels";
 
 export const STATUS_LABELS = {
   planned: "Запланировано",
@@ -39,7 +40,7 @@ export default function LessonDetailModal({ lesson, teachers, students, isAdmin,
     const selectedStudents = students.filter(s => ids.includes(s.id));
     onUpdate(lesson.id, {
       ...form,
-      teacher_name: teacher?.name || form.teacher_name,
+      teacher_name: teacher?.name || resolveLessonTeacherLabel(lesson, teachers),
       student_id: ids[0] || form.student_id,
       student_name: selectedStudents[0]?.name || form.student_name,
       student_ids: ids,
@@ -182,7 +183,7 @@ export default function LessonDetailModal({ lesson, teachers, students, isAdmin,
           <div className="bg-slate-50 rounded-xl p-3 space-y-2">
             <div>
               <p className="text-[10px] text-slate-400 font-medium">Преподаватель</p>
-              <p className="text-sm font-medium text-slate-700">{lesson.teacher_name}</p>
+              <p className="text-sm font-medium text-slate-700">{resolveLessonTeacherLabel(lesson, teachers)}</p>
             </div>
             <div>
               <p className="text-[10px] text-slate-400 font-medium flex items-center gap-1">

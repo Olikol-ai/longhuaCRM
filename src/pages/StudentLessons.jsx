@@ -31,6 +31,7 @@ import {
   isSameMonth,
 } from "date-fns";
 import { ru } from "date-fns/locale";
+import { resolveLessonTeacherLabel } from "@/lib/teacherLabels";
 
 const STATUS_BG = {
   planned: "bg-indigo-500",
@@ -221,7 +222,7 @@ export default function StudentLessons() {
                           key={lesson.id}
                           className={`text-[10px] font-medium text-white px-1.5 py-0.5 rounded-md truncate ${STATUS_BG[lesson.status] || "bg-slate-400"}`}
                         >
-                          {lesson.start_time} {lesson.teacher_name?.split(" ")[0] || ""}
+                          {lesson.start_time} {(resolveLessonTeacherLabel(lesson)).split(" ")[0]}
                         </div>
                       ))}
                       {dayLessons.length > 2 && (
@@ -296,7 +297,7 @@ export default function StudentLessons() {
                           className={`p-2.5 bg-white rounded-xl border-l-4 border border-slate-100 shadow-sm ${STATUS_BORDER[lesson.status] || "border-l-slate-300"}`}
                         >
                           <p className="text-xs font-bold text-slate-900">{lesson.start_time}</p>
-                          <p className="text-[11px] text-slate-600 mt-0.5 truncate">{lesson.teacher_name}</p>
+                          <p className="text-[11px] text-slate-600 mt-0.5 truncate">{resolveLessonTeacherLabel(lesson)}</p>
                           <p className="text-[10px] text-slate-400">{lesson.duration || 60} мин</p>
                           {lesson.meeting_link && (
                             <a
@@ -380,7 +381,7 @@ function LessonCard({ lesson }) {
         </div>
         <div>
           <p className="font-semibold text-slate-900">{lesson.start_time}</p>
-          <p className="text-sm text-slate-600">{lesson.teacher_name}</p>
+          <p className="text-sm text-slate-600">{resolveLessonTeacherLabel(lesson)}</p>
           <p className="text-xs text-slate-400">{lesson.duration || 60} мин</p>
           {lesson.notes && <p className="text-xs text-slate-400 mt-0.5">{lesson.notes}</p>}
         </div>

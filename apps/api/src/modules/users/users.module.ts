@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { StudentEntity } from '../students/entities/student.entity';
+import { TeachersModule } from '../teachers/teachers.module';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { UserEntity } from './entities/user.entity';
 import { ProfileRelationsService } from './profile-relations.service';
@@ -11,7 +12,7 @@ import { UsersRepository } from './users.repository';
 import { UsersService } from './users.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([UserEntity, StudentEntity, TeacherEntity])],
+  imports: [TypeOrmModule.forFeature([UserEntity, StudentEntity, TeacherEntity]), TeachersModule],
   controllers: [UsersController],
   providers: [
     UsersRepository,

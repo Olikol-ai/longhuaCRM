@@ -180,6 +180,75 @@ export async function alignLegacyTablesForV2(queryRunner: QueryRunner): Promise<
   `);
 }
 
+/**
+ * Rebinds a teachers FK from RESTRICT/NOT NULL to ON DELETE SET NULL.
+ * Used when deleting a teacher must preserve CRM history (lessons, groups, payments).
+ */
+export async function rebindTeacherFkToSetNull(
+  queryRunner: QueryRunner,
+  table: string,
+  column: string,
+  constraintName: string,
+): Promise<void> {
+  await queryRunner.query(`
+    DO $$
+    DECLARE
+      r RECORD;
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = '${table}'
+      ) THEN
+        FOR r IN
+          SELECT tc.constraint_name
+          FROM information_schema.table_constraints tc
+          JOIN information_schema.key_column_usage kcu
+            ON tc.constraint_name = kcu.constraint_name
+            AND tc.table_schema = kcu.table_schema
+          WHERE tc.table_schema = 'public'
+            AND tc.table_name = '${table}'
+            AND tc.constraint_type = 'FOREIGN KEY'
+            AND kcu.column_name = '${column}'
+        LOOP
+          EXECUTE format('ALTER TABLE "${table}" DROP CONSTRAINT %I', r.constraint_name);
+        END LOOP;
+      END IF;
+    END $$;
+  `);
+
+  await queryRunner.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = '${table}' AND column_name = '${column}'
+      ) THEN
+        ALTER TABLE "${table}" ALTER COLUMN "${column}" DROP NOT NULL;
+      END IF;
+    END $$;
+  `);
+
+  await queryRunner.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = '${table}' AND column_name = '${column}'
+      ) AND EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'teachers'
+      ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_schema = 'public' AND constraint_name = '${constraintName}'
+      ) THEN
+        ALTER TABLE "${table}"
+        ADD CONSTRAINT "${constraintName}"
+        FOREIGN KEY ("${column}") REFERENCES "teachers"("id") ON DELETE SET NULL;
+      END IF;
+    END $$;
+  `);
+}
+
 export async function alignLegacyForeignKeysForV2(queryRunner: QueryRunner): Promise<void> {
   const fkDefs: Array<{ name: string; table: string; column: string; refTable: string; onDelete: string }> = [
     { name: 'FK_lessons_series_id', table: 'lessons', column: 'series_id', refTable: 'lesson_series', onDelete: 'SET NULL' },

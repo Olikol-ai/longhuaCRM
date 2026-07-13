@@ -73,6 +73,10 @@ export class TeacherPaymentsService {
       return existing;
     }
 
+    if (!lesson.teacherId) {
+      return null;
+    }
+
     const resolvedTeacher = manager
       ? await manager.getRepository(TeacherEntity).findOne({ where: { id: lesson.teacherId } })
       : await this.teacherRepo.findOne({ where: { id: lesson.teacherId } });

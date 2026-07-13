@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, apiFetch } from "@/api";
 import { Plus, Users, Pencil, Trash2, UserPlus } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+import { resolveAssignedTeacherLabel } from "@/lib/teacherLabels";
 
 export default function Groups() {
   const [groups, setGroups] = useState([]);
@@ -59,7 +60,7 @@ export default function Groups() {
     toast({ title: "Участник добавлен" });
   };
 
-  const teacherName = (id) => teachers.find((t) => t.id === id)?.name || "—";
+  const teacherName = (id) => resolveAssignedTeacherLabel(id, teachers);
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">

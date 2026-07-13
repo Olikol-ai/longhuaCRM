@@ -38,12 +38,12 @@ export class LessonSeriesEntity {
   group?: GroupEntity | null;
 
   @Index('IDX_LESSON_SERIES_TEACHER_ID')
-  @Column({ name: 'teacher_id', type: 'uuid' })
-  teacherId: string;
+  @Column({ name: 'teacher_id', type: 'uuid', nullable: true })
+  teacherId: string | null;
 
-  @ManyToOne(() => TeacherEntity, { nullable: false, onDelete: 'RESTRICT' })
+  @ManyToOne(() => TeacherEntity, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'teacher_id' })
-  teacher?: TeacherEntity;
+  teacher?: TeacherEntity | null;
 
   @Column({ name: 'start_date', type: 'date' })
   startDate: string;

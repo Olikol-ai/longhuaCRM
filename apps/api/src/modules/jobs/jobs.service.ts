@@ -70,7 +70,7 @@ export class JobsService {
     for (const lesson of lessons) {
       await this.lessonsService.update(SYSTEM_ACTOR, lesson.id, { reminder24hSent: true });
 
-      const teacher = teacherMap.get(lesson.teacherId);
+      const teacher = lesson.teacherId ? teacherMap.get(lesson.teacherId) : undefined;
       const lessonStudents = await this.resolveLessonStudents(lesson, studentMap);
 
       const timeStr = lesson.startTime;
@@ -121,7 +121,7 @@ export class JobsService {
     for (const lesson of lessons) {
       await this.lessonsService.update(SYSTEM_ACTOR, lesson.id, { reminder2hSent: true });
 
-      const teacher = teacherMap.get(lesson.teacherId);
+      const teacher = lesson.teacherId ? teacherMap.get(lesson.teacherId) : undefined;
       const lessonStudents = await this.resolveLessonStudents(lesson, studentMap);
 
       for (const student of lessonStudents) {

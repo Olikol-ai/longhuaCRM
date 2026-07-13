@@ -28,6 +28,7 @@ import {
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { format } from "date-fns";
+import { resolveAssignedTeacherLabel, resolveLessonTeacherLabel } from "@/lib/teacherLabels";
 import StudentFormDialog from "@/components/students/StudentFormDialog";
 import PaymentFormDialog from "@/components/payments/PaymentFormDialog";
 import { Progress } from "@/components/ui/progress";
@@ -38,6 +39,7 @@ export default function StudentDetail() {
 
   const [student, setStudent] = useState(null);
   const [teacher, setTeacher] = useState(null);
+  const [teachers, setTeachers] = useState([]);
   const [lessons, setLessons] = useState([]);
   const [payments, setPayments] = useState([]);
   const [enrollmentProgress, setEnrollmentProgress] = useState([]);
@@ -61,8 +63,12 @@ export default function StudentDetail() {
     const s = allStudents.find((x) => x.id === studentId);
     setStudent(s);
 
+    setTeachers(allTeachers);
+
     if (s?.assigned_teacher) {
       setTeacher(allTeachers.find((t) => t.id === s.assigned_teacher));
+    } else {
+      setTeacher(null);
     }
 
     setLessons(allLessons.filter((l) => l.student_id === studentId));
@@ -108,7 +114,7 @@ export default function StudentDetail() {
     { icon: Mail, label: "Email", value: student.email },
     { icon: Phone, label: "Телефон", value: student.phone },
     { icon: MessageCircle, label: "Telegram", value: student.telegram_id },
-    { icon: GraduationCap, label: "Преподаватель", value: teacher?.name },
+    { icon: GraduationCap, label: "Преподаватель", value: resolveAssignedTeacherLabel(student.assigned_teacher, teachers) },
     { icon: BookOpen, label: "Баланс", value: `${student.lesson_balance || 0} уроков` },
   ].filter((x) => x.value);
 
@@ -262,7 +268,7 @@ export default function StudentDetail() {
                     <TableRow key={l.id}>
                       <TableCell className="font-medium">{l.date}</TableCell>
                       <TableCell>{l.start_time}</TableCell>
-                      <TableCell>{l.teacher_name || "—"}</TableCell>
+                      <TableCell>{resolveLessonTeacherLabel(l, teachers)}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={
                           l.status === "completed" ? "bg-emerald-50 text-emerald-700" :

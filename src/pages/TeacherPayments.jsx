@@ -3,6 +3,7 @@ import { api } from "@/api";
 import { DollarSign, CheckCircle2 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { useAuth } from "@/lib/AuthContext";
+import { resolveTeacherPaymentLabel } from "@/lib/teacherLabels";
 
 export default function TeacherPayments() {
   const { user } = useAuth();
@@ -29,7 +30,7 @@ export default function TeacherPayments() {
     toast({ title: "Выплата отмечена как paid" });
   };
 
-  const teacherName = (id) => teachers.find((t) => t.id === id)?.name || id;
+  const teacherName = (id) => resolveTeacherPaymentLabel(id, teachers);
   const lessonLabel = (id) => {
     const lesson = lessons.find((l) => l.id === id);
     return lesson ? `${lesson.date} ${lesson.start_time}` : id;

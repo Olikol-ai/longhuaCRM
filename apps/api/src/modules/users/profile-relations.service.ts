@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -10,9 +9,9 @@ import { LessonEntity } from '../lessons/entities/lesson.entity';
 import { EnrollmentEntity } from '../courses/entities/enrollment.entity';
 import { PaymentEntity } from '../payments/entities/payment.entity';
 import { SeriesStudentEntity } from '../schedule/entities/series-student.entity';
-import { AvailabilitySlotEntity } from '../schedule/entities/availability-slot.entity';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
+import { TeacherDeletionService } from '../teachers/teacher-deletion.service';
 
 export interface OrphanStudentRecord {
   id: string;
@@ -26,7 +25,10 @@ export interface ProfileDeleteResult {
 
 @Injectable()
 export class ProfileRelationsService {
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly teacherDeletion: TeacherDeletionService,
+  ) {}
 
   async findOrphanStudents(): Promise<OrphanStudentRecord[]> {
     const rows = await this.dataSource.getRepository(StudentEntity).find({
@@ -55,28 +57,8 @@ export class ProfileRelationsService {
     return { orphanStudents: await this.findOrphanStudents() };
   }
 
-  async deleteTeacher(teacherId: string): Promise<ProfileDeleteResult> {
-    await this.dataSource.transaction(async (manager) => {
-      const teacher = await manager.findOne(TeacherEntity, {
-        where: { id: teacherId },
-      });
-      if (!teacher) {
-        throw new NotFoundException('Teacher not found');
-      }
-
-      const plannedCount = await manager.count(LessonEntity, {
-        where: { teacherId, status: 'planned' },
-      });
-      if (plannedCount > 0) {
-        throw new BadRequestException('Cannot delete teacher with planned lessons');
-      }
-
-      await this.unassignStudentsFromTeacher(manager, teacherId);
-      await this.clearTeacherRelations(manager, teacherId);
-      await manager.delete(TeacherEntity, { id: teacherId });
-    });
-
-    return { orphanStudents: await this.findOrphanStudents() };
+  deleteTeacher(teacherId: string): Promise<ProfileDeleteResult> {
+    return this.teacherDeletion.deleteTeacher(teacherId);
   }
 
   async deleteProfilesForUser(userId: string): Promise<ProfileDeleteResult> {
@@ -113,35 +95,6 @@ export class ProfileRelationsService {
     if (lessonIds.length > 0) {
       await this.deleteLessonsByIds(manager, lessonIds);
     }
-  }
-
-  private async clearTeacherRelations(
-    manager: EntityManager,
-    teacherId: string,
-  ): Promise<void> {
-    const lessonIds = (
-      await manager.find(LessonEntity, {
-        where: { teacherId },
-        select: ['id'],
-      })
-    ).map((row) => row.id);
-
-    await manager.delete(AvailabilitySlotEntity, { teacherId });
-
-    if (lessonIds.length > 0) {
-      await this.deleteLessonsByIds(manager, lessonIds);
-    }
-  }
-
-  private async unassignStudentsFromTeacher(
-    manager: EntityManager,
-    teacherId: string,
-  ): Promise<void> {
-    await manager.update(
-      StudentEntity,
-      { assignedTeacherId: teacherId },
-      { assignedTeacherId: null },
-    );
   }
 
   private async collectStudentLessonIds(

@@ -155,7 +155,7 @@ export class LessonsService {
       startTime !== before.startTime ||
       duration !== (before.duration ?? 60);
 
-    if (scheduleChanged && before.status !== 'cancelled' && nextStatus !== 'cancelled') {
+    if (scheduleChanged && before.status !== 'cancelled' && nextStatus !== 'cancelled' && teacherId) {
       await this.scheduleService.assertAvailableForLesson(teacherId, date, startTime, duration);
       await this.scheduleService.assertNoScheduleConflicts(
         teacherId,
@@ -174,15 +174,18 @@ export class LessonsService {
     if (scheduleChanged) {
       const timeFrom = this.scheduleService.normalizeTime(startTime);
       const timeTo = this.scheduleService.addMinutesToTime(timeFrom, duration);
+      const bookingUpdate: Partial<AvailabilityBookingEntity> = {
+        date,
+        timeFrom,
+        timeTo,
+        status: nextStatus === 'cancelled' ? 'cancelled' : 'active',
+      };
+      if (teacherId) {
+        bookingUpdate.teacherId = teacherId;
+      }
       await this.dataSource.getRepository(AvailabilityBookingEntity).update(
         { lessonId: id },
-        {
-          teacherId,
-          date,
-          timeFrom,
-          timeTo,
-          status: nextStatus === 'cancelled' ? 'cancelled' : 'active',
-        },
+        bookingUpdate,
       );
     }
 

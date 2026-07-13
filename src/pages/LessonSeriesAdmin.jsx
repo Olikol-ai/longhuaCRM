@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/api";
 import { Plus, CalendarRange } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+import { resolveSeriesTeacherLabel } from "@/lib/teacherLabels";
 
 export default function LessonSeriesAdmin() {
   const [series, setSeries] = useState([]);
@@ -79,7 +80,9 @@ export default function LessonSeriesAdmin() {
         {series.map((row) => (
           <div key={row.id} className="border rounded-xl p-4 bg-card">
             <p className="font-semibold flex items-center gap-2"><CalendarRange className="w-4 h-4" /> {row.start_date} · {row.total_lessons} уроков</p>
-            <p className="text-xs text-muted-foreground">{row.frequency} · {row.status}</p>
+            <p className="text-xs text-muted-foreground">
+              {resolveSeriesTeacherLabel(row, teachers)} · {row.frequency} · {row.status}
+            </p>
           </div>
         ))}
       </div>

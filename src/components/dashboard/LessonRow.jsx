@@ -1,4 +1,5 @@
 import { Clock, Video } from "lucide-react";
+import { DELETED_LESSON_TEACHER_LABEL } from "@/lib/teacherLabels";
 
 const statusStyles = {
   planned: "bg-sky-50 text-sky-600 border-sky-100 dark:bg-sky-950/50 dark:text-sky-400 dark:border-sky-900/50",
@@ -21,8 +22,8 @@ export default function LessonRow({ lesson, role = "admin", onAction }) {
   const teacherDisplay = getDisplayName(
     lesson.teacher_first_name,
     lesson.teacher_last_name,
-    lesson.teacher_name
-  );
+    lesson.teacher_name,
+  ) || DELETED_LESSON_TEACHER_LABEL;
 
   return (
     <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors group">
