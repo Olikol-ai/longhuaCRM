@@ -2,6 +2,18 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import path from 'path'
 
+// IMPORTANT:
+// React ecosystem (react, react-dom, react-router, react-query)
+// must stay in the same vendor chunk.
+//
+// Splitting them into different manualChunks causes multiple runtime
+// initialization paths and can produce:
+//
+// Cannot read properties of undefined (reading 'exports')
+//
+// Do not move these packages into separate chunks unless the whole
+// chunking strategy is redesigned.
+
 /** React core must live in a single chunk — never split react / react-dom / query. */
 function isReactCorePackage(id) {
   return (

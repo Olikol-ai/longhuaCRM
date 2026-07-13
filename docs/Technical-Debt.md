@@ -11,6 +11,7 @@
 | `origin: true` CORS в development | Удобство локальной разработки |
 | Admin pages вне `pages.config` | Историческая структура маршрутов; работает стабильно |
 | Нет `@VersionColumn` | Optimistic locking отложен; pessimistic locks на hot paths |
+| React в одном `vendor-react` чанке | Разделение react / react-query ломает production build — см. [Frontend.md § Vite bundle rules](./Frontend.md#vite-bundle-rules) |
 
 ## Улучшить в ближайшие 3–6 месяцев
 

@@ -78,10 +78,11 @@ Token: `localStorage` key `longhua_access_token` (`TOKEN_KEY` в `http.js`).
 ## Сборка и code splitting
 
 `vite.config.js` — `manualChunks`:
-- `vendor-react` — react-dom, react-router
+- `vendor-react` — **единый чанк** для всей React-экосистемы (см. ниже)
 - `vendor-ui` — radix, lucide
 - `vendor-charts` — recharts, moment, date-fns
-- `vendor-query` — @tanstack/react-query
+
+`resolve.dedupe: ['react', 'react-dom']` и `optimizeDeps.include` — для dev/pre-bundle.
 
 `App.jsx` — `React.lazy` + `Suspense` для тяжёлых admin/teacher страниц (см. список выше).
 
@@ -89,6 +90,22 @@ Token: `localStorage` key `longhua_access_token` (`TOKEN_KEY` в `http.js`).
 npm run build:client   # → dist/
 npm run preview
 ```
+
+### Vite bundle rules
+
+The following packages must remain in the same vendor chunk (`vendor-react`):
+
+- `react`
+- `react-dom`
+- `react-router`
+- `react-router-dom`
+- `scheduler`
+- `@tanstack/react-query`
+- `@tanstack/query-core`
+
+**Reason:** React runtime must exist as a single instance. Separating these libraries into different `manualChunks` previously caused a white screen on startup due to runtime initialization order (`Cannot read properties of undefined (reading 'exports')`).
+
+See the `IMPORTANT` comment in `vite.config.js` before changing chunking.
 
 ## Добавление страницы
 
