@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { api } from '@/api';
 import {
-  Users, GraduationCap, Shield, Clock, Trash2, Search,
-  ChevronDown, UserCheck, Loader2, X, Plus, Pencil, Eye, CheckCircle2
+  Users, GraduationCap, Shield, Trash2, Search,
+  ChevronDown, Loader2, X, Plus, Pencil, Eye, CheckCircle2
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -12,64 +12,16 @@ import TeacherFormDialog from "@/components/teachers/TeacherFormDialog";
 import TeacherDetailModal from "@/components/teachers/TeacherDetailModal";
 import DeleteConfirmModal from "@/components/common/DeleteConfirmModal";
 import { toast } from "@/components/ui/use-toast";
+import {
+  ALL_ROLE_OPTIONS,
+  ROLE_CONFIG,
+  displayRole,
+  showOrphanStudentsNotice,
+  visibleStudents,
+  visibleTeachers,
+} from "./userManagement.constants";
 
-function showOrphanStudentsNotice(result) {
-  const orphans = result?.orphanStudents;
-  if (!Array.isArray(orphans) || orphans.length === 0) return;
-  const names = orphans.map((s) => s.name).filter(Boolean);
-  const preview = names.slice(0, 5).join(", ");
-  const more = names.length > 5 ? ` и ещё ${names.length - 5}` : "";
-  toast({
-    title: "Есть ученики без преподавателя",
-    description: `${orphans.length}: ${preview}${more}`,
-    variant: "destructive",
-  });
-}
-
-const ROLE_CONFIG = {
-  admin:   { label: "Администратор", bg: "bg-violet-100", text: "text-violet-700", dot: "bg-violet-500", icon: Shield },
-  teacher: { label: "Преподаватель", bg: "bg-emerald-100", text: "text-emerald-700", dot: "bg-emerald-500", icon: GraduationCap },
-  student: { label: "Ученик", bg: "bg-blue-100", text: "text-blue-700", dot: "bg-blue-500", icon: Users },
-  pending: { label: "Ожидает роли", bg: "bg-amber-100", text: "text-amber-700", dot: "bg-amber-400", icon: Clock },
-  user:    { label: "Без роли", bg: "bg-slate-100", text: "text-slate-600", dot: "bg-slate-400", icon: UserCheck },
-};
-
-function displayRole(role) {
-  if (!role) return 'pending';
-  return role;
-}
-
-const ALL_ROLE_OPTIONS = ["admin", "teacher", "student", "pending", "user"];
-
-/** Profiles visible in Students tab: active + linked user has student role (or no linked account). */
-function visibleStudents(students, users) {
-  const roleByUserId = new Map(users.map((u) => [u.id, displayRole(u.role)]));
-  const seenUserIds = new Set();
-  return students.filter((s) => {
-    if (s.status === "inactive") return false;
-    if (!s.user_id) return true;
-    const role = roleByUserId.get(s.user_id);
-    if (role !== "student") return false;
-    if (seenUserIds.has(s.user_id)) return false;
-    seenUserIds.add(s.user_id);
-    return true;
-  });
-}
-
-/** Profiles visible in Teachers tab: active + linked user has teacher role (or no linked account). */
-function visibleTeachers(teachers, users) {
-  const roleByUserId = new Map(users.map((u) => [u.id, displayRole(u.role)]));
-  const seenUserIds = new Set();
-  return teachers.filter((t) => {
-    if (t.status === "inactive") return false;
-    if (!t.user_id) return true;
-    const role = roleByUserId.get(t.user_id);
-    if (role !== "teacher") return false;
-    if (seenUserIds.has(t.user_id)) return false;
-    seenUserIds.add(t.user_id);
-    return true;
-  });
-}
+const showOrphanNotice = (result) => showOrphanStudentsNotice(result, toast);
 
 function RoleBadge({ role }) {
   const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.user;
@@ -195,7 +147,7 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
     setDeleteConfirm(null);
     try {
       const result = await api.users.delete(u.id);
-      showOrphanStudentsNotice(result);
+      showOrphanNotice(result);
       await onReload();
     } catch (err) {
       console.error("Failed to delete user:", err);
@@ -370,7 +322,7 @@ function StudentsTab({ students, teachers, loading, onReload }) {
     setDeleting(true);
     try {
       const result = await api.students.delete(deleteTarget.id);
-      showOrphanStudentsNotice(result);
+      showOrphanNotice(result);
       setDeleteTarget(null);
       await onReload();
     } catch (err) {
@@ -511,7 +463,7 @@ function TeachersTab({ teachers, students, loading, onReload }) {
     setDeleting(true);
     try {
       const result = await api.teachers.delete(deleteTarget.id);
-      showOrphanStudentsNotice(result);
+      showOrphanNotice(result);
       setDeleteTarget(null);
       await onReload();
     } catch (err) {

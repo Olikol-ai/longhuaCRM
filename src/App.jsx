@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -6,16 +7,6 @@ import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { AuthLoadingScreen, shouldBlockProtectedUI } from '@/lib/auth-gate';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-
-import AdminLessonMaterials from './pages/AdminLessonMaterials';
-import UserManagement from './pages/UserManagement';
-import StudentLessonMaterials from './pages/StudentLessonMaterials';
-import MaterialsHub from './pages/MaterialsHub';
-import AdminPanel from './pages/AdminPanel';
-import Groups from './pages/Groups';
-import Certificates from './pages/Certificates';
-import Attendance from './pages/Attendance';
-import TeacherPayments from './pages/TeacherPayments';
 import Login from './pages/Login';
 import PendingApproval from './pages/PendingApproval';
 import { ThemeProvider } from '@/lib/ThemeContext';
@@ -23,6 +14,16 @@ import NameFormModal from '@/components/auth/NameFormModal';
 import RoleRouteGuard, { RoleHomeRedirect, OnboardingFallback, RootRedirect } from '@/components/auth/RoleRouteGuard';
 import { AdminRoute, TeacherRoute, StudentRoute } from '@/components/auth/AdminRoute';
 import { ONBOARDING_PATH } from '@/lib/routing';
+
+const AdminLessonMaterials = lazy(() => import('./pages/AdminLessonMaterials'));
+const UserManagement = lazy(() => import('./pages/UserManagement'));
+const StudentLessonMaterials = lazy(() => import('./pages/StudentLessonMaterials'));
+const MaterialsHub = lazy(() => import('./pages/MaterialsHub'));
+const AdminPanel = lazy(() => import('./pages/AdminPanel'));
+const Groups = lazy(() => import('./pages/Groups'));
+const Certificates = lazy(() => import('./pages/Certificates'));
+const Attendance = lazy(() => import('./pages/Attendance'));
+const TeacherPayments = lazy(() => import('./pages/TeacherPayments'));
 
 /**
  * Route registration: see docs/frontend-routing.md
@@ -79,6 +80,7 @@ const AuthenticatedApp = () => {
 
   return (
     <RoleRouteGuard>
+      <Suspense fallback={<AuthLoadingScreen />}>
       <Routes>
         <Route path={ONBOARDING_PATH} element={<PendingApproval />} />
         <Route path="/Welcome" element={<Navigate to={ONBOARDING_PATH} replace />} />
@@ -116,6 +118,7 @@ const AuthenticatedApp = () => {
         <Route path="/TeacherPayments" element={<TeacherRoute><LayoutWrapper currentPageName="TeacherPayments"><TeacherPayments /></LayoutWrapper></TeacherRoute>} />
         <Route path="*" element={<OnboardingFallback />} />
       </Routes>
+      </Suspense>
     </RoleRouteGuard>
   );
 };
