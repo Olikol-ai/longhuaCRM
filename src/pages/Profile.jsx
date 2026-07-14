@@ -1,75 +1,100 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
-import { Save, CheckCircle2, User, Send, Link2, Loader2 } from "lucide-react";
+import { Save, CheckCircle2, User, Send, Link2, Loader2, Unlink } from "lucide-react";
 import { formatBelarusPhone, PHONE_PLACEHOLDER } from "@/utils/phone";
 
 export default function Profile() {
   const { user, isLoadingAuth, checkAppState } = useAuth();
-  const [form, setForm] = useState({ full_name: "", email: "", phone: "", telegram_id: "", birthday: "" });
+  const [form, setForm] = useState({ full_name: "", email: "", phone: "", birthday: "" });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [linking, setLinking] = useState(false);
-  const [telegramLink, setTelegramLink] = useState(null);
+  const [unlinking, setUnlinking] = useState(false);
+  const [waitingLink, setWaitingLink] = useState(false);
+  const [tgStatus, setTgStatus] = useState(null);
+  const pollRef = useRef(null);
+
+  const loadTelegramStatus = async () => {
+    try {
+      const status = await api.telegram.linkStatus();
+      setTgStatus(status);
+      return status;
+    } catch {
+      const fallback = { connected: false, username: null, connected_at: null };
+      setTgStatus(fallback);
+      return fallback;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!user) return;
 
     (async () => {
-      let telegramId = user.telegram_id || "";
       let birthday = "";
-
       if (user.role === "student" || user.has_student_profile) {
         const students = user.student_profile_id
           ? await api.students.filter({ id: user.student_profile_id })
           : await api.students.filter({ user_id: user.id });
         birthday = students[0]?.birthday || "";
-        if (!telegramId && students[0]?.telegram_id) telegramId = students[0].telegram_id;
-      } else if (user.role === "teacher" || user.has_teacher_profile) {
-        let teachers = user.teacher_profile_id
-          ? await api.teachers.filter({ id: user.teacher_profile_id })
-          : await api.teachers.filter({ user_id: user.id });
-        if (!teachers.length) teachers = await api.teachers.filter({ email: user.email });
-        if (!telegramId && teachers[0]?.telegram_id) telegramId = teachers[0].telegram_id;
       }
 
       setForm({
         full_name: user.full_name || "",
         email: user.email || "",
         phone: user.phone ? formatBelarusPhone(user.phone) : "",
-        telegram_id: telegramId,
         birthday,
       });
+      await loadTelegramStatus();
     })();
   }, [user]);
+
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    setWaitingLink(false);
+  };
+
+  const startStatusPolling = () => {
+    stopPolling();
+    setWaitingLink(true);
+    let attempts = 0;
+    pollRef.current = setInterval(async () => {
+      attempts += 1;
+      const status = await loadTelegramStatus();
+      if (status?.connected) {
+        stopPolling();
+        await checkAppState({ force: true });
+        return;
+      }
+      if (attempts >= 36) {
+        stopPolling();
+      }
+    }, 5000);
+  };
 
   const handleSave = async () => {
     setSaving(true);
     await api.auth.updateMe({
       ...(user.role !== 'admin' ? { email: form.email.trim() } : {}),
       phone: form.phone,
-      telegram_id: form.telegram_id,
     });
 
     if (user.role === "student" || user.has_student_profile) {
       const students = user.student_profile_id
         ? await api.students.filter({ id: user.student_profile_id })
         : await api.students.filter({ user_id: user.id });
-      if (students.length > 0) {
+      if (students.length > 0 && form.birthday !== undefined) {
         await api.students.update(students[0].id, {
-          telegram_id: form.telegram_id,
           birthday: form.birthday,
-        });
-      }
-    } else if (user.role === "teacher" || user.has_teacher_profile) {
-      let teachers = user.teacher_profile_id
-        ? await api.teachers.filter({ id: user.teacher_profile_id })
-        : await api.teachers.filter({ user_id: user.id });
-      if (!teachers.length) teachers = await api.teachers.filter({ email: user.email });
-      if (teachers.length > 0) {
-        await api.teachers.update(teachers[0].id, {
-          telegram_id: form.telegram_id,
-          user_id: user.id,
         });
       }
     }
@@ -83,12 +108,30 @@ export default function Profile() {
   const handleTelegramLink = async () => {
     setLinking(true);
     try {
-      const link = await api.auth.createTelegramLink();
-      setTelegramLink(link);
+      const created = await api.telegram.createLink();
+      if (created?.link) {
+        window.open(created.link, '_blank', 'noopener,noreferrer');
+      }
+      startStatusPolling();
     } catch (err) {
       alert(err.message || 'Не удалось создать ссылку');
     } finally {
       setLinking(false);
+    }
+  };
+
+  const handleTelegramUnlink = async () => {
+    if (!confirm('Отвязать Telegram от аккаунта?')) return;
+    setUnlinking(true);
+    try {
+      stopPolling();
+      await api.telegram.unlink();
+      await loadTelegramStatus();
+      await checkAppState({ force: true });
+    } catch (err) {
+      alert(err.message || 'Не удалось отвязать Telegram');
+    } finally {
+      setUnlinking(false);
     }
   };
 
@@ -102,6 +145,8 @@ export default function Profile() {
       <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
     </div>
   );
+
+  const connected = Boolean(tgStatus?.connected);
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
@@ -140,9 +185,6 @@ export default function Profile() {
             onChange={e => set("email", e.target.value)}
             disabled={user.role === 'admin'}
             className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 ${user.role === 'admin' ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : ''}`} />
-          {user.role === 'admin' && (
-            <p className="text-xs text-slate-400 mt-1">Email администратора изменяется только через систему</p>
-          )}
         </div>
 
         <div>
@@ -152,45 +194,43 @@ export default function Profile() {
             placeholder={PHONE_PLACEHOLDER}
             className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
         </div>
+
+        {user.has_student_profile && (
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Дата рождения</label>
+            <input type="date" value={form.birthday} onChange={e => set("birthday", e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+          </div>
+        )}
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-100 p-5 space-y-4">
+      <div className="bg-white rounded-2xl border border-slate-100 p-5 space-y-3">
         <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
           <Send className="w-4 h-4 text-blue-400" /> Telegram
         </h3>
+        <div className="border-t border-slate-100" />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Telegram ID</label>
-            <input value={form.telegram_id} onChange={e => set("telegram_id", e.target.value)}
-              placeholder="123456789"
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+        {connected ? (
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-emerald-700">✅ Подключён</p>
+            <button type="button" onClick={handleTelegramUnlink} disabled={unlinking}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 text-red-700 text-sm font-medium rounded-xl hover:bg-red-100 transition-colors disabled:opacity-50">
+              {unlinking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unlink className="w-4 h-4" />}
+              Отвязать Telegram
+            </button>
           </div>
-          {user.has_student_profile && (
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Дата рождения</label>
-              <input type="date" value={form.birthday} onChange={e => set("birthday", e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <button type="button" onClick={handleTelegramLink} disabled={linking}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-700 text-sm font-medium rounded-xl hover:bg-blue-100 transition-colors disabled:opacity-50">
-            {linking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
-            Связать Telegram
-          </button>
-          {telegramLink && (
-            <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700 space-y-2">
-              <p>Откройте бота и отправьте команду:</p>
-              <p className="font-mono bg-blue-100 px-2 py-1 rounded">{telegramLink.link_command}</p>
-              <a href={telegramLink.deep_link} target="_blank" rel="noopener noreferrer" className="underline font-medium">
-                Открыть @{telegramLink.bot_username}
-              </a>
-            </div>
-          )}
-        </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-amber-700">
+              ⚠️ Не подключён{waitingLink ? ' — ожидаем привязку…' : ''}
+            </p>
+            <button type="button" onClick={handleTelegramLink} disabled={linking}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-700 text-sm font-medium rounded-xl hover:bg-blue-100 transition-colors disabled:opacity-50">
+              {linking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+              Привязать Telegram
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex justify-end">

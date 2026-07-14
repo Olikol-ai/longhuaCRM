@@ -83,6 +83,28 @@ export async function createTestApp(options: CreateTestAppOptions = {}): Promise
   return app;
 }
 
+/**
+ * Close Nest app and release DB / schedulers / telegram lifecycle handles.
+ */
+export async function closeTestApp(app: INestApplication | undefined): Promise<void> {
+  if (!app) {
+    return;
+  }
+
+  let dataSource: DataSource | null = null;
+  try {
+    dataSource = app.get(DataSource, { strict: false });
+  } catch {
+    dataSource = null;
+  }
+
+  await app.close();
+
+  if (dataSource?.isInitialized) {
+    await dataSource.destroy();
+  }
+}
+
 export function api(app: INestApplication) {
   return request(app.getHttpServer());
 }
@@ -151,6 +173,7 @@ export async function createTeacherUser(
     phone: '',
     telegramId: '',
     telegramUsername: '',
+    telegramConnectedAt: null,
     telegramLinkToken: null,
     telegramLinkExpires: null,
     createdDate: now,

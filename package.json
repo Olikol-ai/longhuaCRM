@@ -23,6 +23,7 @@
     "db:backup:docker": "bash scripts/backup-db.sh --docker",
     "db:restore": "bash scripts/restore-db.sh",
     "test:e2e": "npm run test:e2e --prefix apps/api",
+    "test:unit": "node --test src/lib/materialMeta.test.js src/lib/forgotPasswordUi.test.js",
     "test:browser": "playwright test",
     "test:browser:report": "node e2e/browser/merge-audit-report.mjs"
   },

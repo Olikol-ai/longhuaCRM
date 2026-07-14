@@ -4,6 +4,7 @@ import { getClientIp } from '../../common/security/client-ip';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AuthService, JwtPayload } from './auth.service';
+import { ForgotPasswordDto, ResetPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ResendRegistrationDto } from './dto/resend-registration.dto';
@@ -18,6 +19,16 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto, @Req() req: Request) {
     return this.authService.login(dto, getClientIp(req));
+  }
+
+  @Post('forgot-password')
+  forgotPassword(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
+    return this.authService.forgotPassword(dto, getClientIp(req));
+  }
+
+  @Post('reset-password')
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
   }
 
   @Post('register')
@@ -51,12 +62,6 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   resendCodeLegacy(@CurrentUser() user: JwtPayload) {
     return this.authService.resendVerificationCode(user.sub);
-  }
-
-  @Post('telegram-link')
-  @UseGuards(JwtAuthGuard)
-  createTelegramLink(@CurrentUser() user: JwtPayload) {
-    return this.authService.createTelegramLinkToken(user.sub);
   }
 
   @Get('me')

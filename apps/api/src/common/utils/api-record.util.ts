@@ -7,6 +7,8 @@ export function camelToSnake(key: string): string {
 const API_FIELD_ALIASES: Record<string, string> = {
   assignedTeacherId: 'assigned_teacher',
   courseTemplateId: 'course_id',
+  // Explicit contract: frontend always uses telegram_id (not telegram_chat_id)
+  telegramId: 'telegram_id',
 };
 
 const FILTER_FIELD_ALIASES: Record<string, string> = {

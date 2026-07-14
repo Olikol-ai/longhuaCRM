@@ -22,7 +22,8 @@ export class StudentsService {
 
   async findAll(actor: JwtPayload): Promise<StudentEntity[]> {
     const where = await this.studentAccess.scopeStudentFilter(actor, {});
-    return this.repository.filter(where as FindOptionsWhere<StudentEntity>);
+    const rows = await this.repository.filter(where as FindOptionsWhere<StudentEntity>);
+    return this.applyUserTelegram(rows);
   }
 
   async findById(actor: JwtPayload, id: string): Promise<StudentEntity> {
@@ -31,7 +32,8 @@ export class StudentsService {
     if (!row) {
       throw new NotFoundException('Student not found');
     }
-    return row;
+    const [enriched] = await this.applyUserTelegram([row]);
+    return enriched;
   }
 
   async create(dto: CreateStudentDto): Promise<StudentEntity> {
@@ -66,6 +68,37 @@ export class StudentsService {
 
   async filter(actor: JwtPayload, where: Record<string, unknown>): Promise<StudentEntity[]> {
     const scoped = await this.studentAccess.scopeStudentFilter(actor, where);
-    return this.repository.filter(scoped as FindOptionsWhere<StudentEntity>);
+    const rows = await this.repository.filter(scoped as FindOptionsWhere<StudentEntity>);
+    return this.applyUserTelegram(rows);
+  }
+
+  /** Prefer linked User.telegram_id for API responses (source of truth). */
+  private async applyUserTelegram(rows: StudentEntity[]): Promise<StudentEntity[]> {
+    const userIds = [
+      ...new Set(rows.map((row) => row.userId).filter((id): id is string => Boolean(id))),
+    ];
+    if (userIds.length === 0) {
+      return rows;
+    }
+
+    const users = await Promise.all(
+      userIds.map((id) => this.usersRepository.findById(id)),
+    );
+    const byId = new Map(
+      users
+        .filter((user): user is NonNullable<typeof user> => Boolean(user))
+        .map((user) => [user.id, user]),
+    );
+
+    for (const row of rows) {
+      if (!row.userId) continue;
+      const user = byId.get(row.userId);
+      const telegramId = (user?.telegramId ?? '').trim();
+      if (!telegramId) continue;
+      row.telegramId = telegramId;
+      row.telegramUsername = (user?.telegramUsername ?? '').trim() || row.telegramUsername;
+      row.telegramConnectedAt = user?.telegramConnectedAt ?? row.telegramConnectedAt;
+    }
+    return rows;
   }
 }

@@ -98,9 +98,8 @@ test.describe('Materials access grant UI', () => {
 
     await loginViaApi(page, admin.email, admin.password, '/MaterialsHub');
     await expect(page.getByRole('heading', { name: 'Материалы уроков' })).toBeVisible();
-    await page.getByRole('button', { name: 'Материалы', exact: true }).click();
 
-    const materialCard = page.locator('.group').filter({ has: page.getByText(title, { exact: true }) });
+    const materialCard = page.locator('tr.group').filter({ has: page.getByText(title, { exact: true }) });
     await expect(materialCard).toBeVisible({ timeout: 15_000 });
     await materialCard.locator('input[type="checkbox"]').first().check();
 

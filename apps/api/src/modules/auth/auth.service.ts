@@ -8,6 +8,8 @@ import {
 
   Injectable,
 
+  Logger,
+
   UnauthorizedException,
 
 } from '@nestjs/common';
@@ -18,19 +20,25 @@ import { JwtService } from '@nestjs/jwt';
 
 import * as bcrypt from 'bcryptjs';
 
-import { randomBytes, randomUUID } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 
 import { validateRegistrationEmail } from '../../common/security/email-validation';
+
+import { validateRegistrationPassword } from '../../common/security/password-validation';
 
 import { RateLimitService } from '../../common/security/rate-limit.service';
 
 import { AuditService } from '../audit/audit.service';
+
+import { MailService } from '../mail/mail.service';
 
 import { UsersRepository } from '../users/users.repository';
 
 import { UserProfileService } from '../users/user-profile.service';
 
 import { userToRecord } from '../users/user.mapper';
+
+import { ForgotPasswordDto, ResetPasswordDto } from './dto/forgot-password.dto';
 
 import { LoginDto } from './dto/login.dto';
 
@@ -80,13 +88,17 @@ const MAX_VERIFY_REQUESTS_PER_USER = 20;
 
 const MAX_VERIFY_REQUESTS_PER_IP = 40;
 
+const FORGOT_PASSWORD_WINDOW_MS = 15 * 60 * 1000;
 
+const MAX_FORGOT_PASSWORD_PER_IP = 8;
 
-function generateLinkToken(): string {
+const MAX_FORGOT_PASSWORD_PER_EMAIL = 3;
 
-  return randomBytes(16).toString('hex');
+const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 
-}
+const GENERIC_FORGOT_PASSWORD_MESSAGE =
+  'Если такой email зарегистрирован, на него отправлена ссылка для восстановления пароля.';
+
 
 
 
@@ -118,6 +130,8 @@ function authResponse(row: Awaited<ReturnType<UsersRepository['findById']>>, sig
 
 export class AuthService {
 
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
 
     private readonly usersRepository: UsersRepository,
@@ -137,6 +151,8 @@ export class AuthService {
     private readonly pendingRegistration: PendingRegistrationService,
 
     private readonly pendingRepository: PendingRegistrationRepository,
+
+    private readonly mail: MailService,
 
   ) {}
 
@@ -498,10 +514,6 @@ export class AuthService {
 
 
 
-    if (dto.telegram_id !== undefined) row.telegramId = dto.telegram_id;
-
-
-
     if (dto.email !== undefined) {
 
       const dashboardRole = getOnboardingContext(row).role;
@@ -698,143 +710,93 @@ export class AuthService {
 
   }
 
+  async forgotPassword(dto: ForgotPasswordDto, clientIp: string) {
+    const normalizedEmail = dto.email.trim().toLowerCase();
 
+    this.rateLimit.assertAllowed(
+      `forgot-ip:${clientIp}`,
+      MAX_FORGOT_PASSWORD_PER_IP,
+      FORGOT_PASSWORD_WINDOW_MS,
+      'Слишком много запросов. Попробуйте позже.',
+    );
+    this.rateLimit.assertAllowed(
+      `forgot-email:${normalizedEmail}`,
+      MAX_FORGOT_PASSWORD_PER_EMAIL,
+      FORGOT_PASSWORD_WINDOW_MS,
+      'Слишком много запросов. Попробуйте позже.',
+    );
 
-  async createTelegramLinkToken(userId: string) {
+    try {
+      const user = await this.usersRepository.findByEmail(normalizedEmail);
+      if (user) {
+        const rawToken = randomBytes(32).toString('hex');
+        const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+        user.passwordResetToken = tokenHash;
+        user.passwordResetExpiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MS);
+        await this.usersRepository.save(user);
 
-    const row = await this.usersRepository.findById(userId);
-
-    if (!row) throw new UnauthorizedException('User not found');
-
-
-
-    const onboarding = getOnboardingContext(row);
-
-    if (!hasDashboardAccess(onboarding.onboarding_state) && onboarding.status !== 'active') {
-
-      throw new ForbiddenException('Telegram linking requires an active account');
-
+        const resetUrl = this.buildFrontendUrl(
+          `/reset-password?token=${encodeURIComponent(rawToken)}`,
+        );
+        await this.mail.sendPasswordReset(user.email, resetUrl);
+      }
+    } catch (error) {
+      this.logger.warn(
+        `forgotPassword processing failed for ${normalizedEmail}: ${(error as Error).message}`,
+      );
     }
-
-    if (onboarding.status !== 'active') {
-
-      throw new ForbiddenException('Telegram linking requires an active account');
-
-    }
-
-
-
-    const token = generateLinkToken();
-
-    const expires = new Date(Date.now() + 15 * 60 * 1000);
-
-    row.telegramLinkToken = token;
-
-    row.telegramLinkExpires = expires;
-
-    row.updatedDate = new Date();
-
-    await this.usersRepository.save(row);
-
-
-
-    const botUsername =
-
-      this.config.get<string>('telegram.botUsername') || 'LonghuaChinese_bot';
-
-
 
     return {
-
-      token,
-
-      expires_at: expires.toISOString(),
-
-      bot_username: botUsername,
-
-      link_command: `/link ${token}`,
-
-      deep_link: `https://t.me/${botUsername}?start=link_${token}`,
-
+      ok: true,
+      message: GENERIC_FORGOT_PASSWORD_MESSAGE,
     };
-
   }
 
-
-
-  async linkTelegramByToken(
-
-    token: string,
-
-    telegramId: string,
-
-    telegramUsername?: string,
-
-  ): Promise<boolean> {
-
-    const row = await this.usersRepository.findByLinkToken(token);
-
-    if (!row) return false;
-
-
-
-    if (row.status !== 'active') return false;
-
-
-
-    if (row.telegramLinkExpires && row.telegramLinkExpires < new Date()) {
-
-      return false;
-
+  async resetPassword(dto: ResetPasswordDto) {
+    const token = dto.token?.trim();
+    if (!token) {
+      throw new BadRequestException('Ссылка для сброса пароля недействительна или устарела.');
     }
 
-
-
-    const existing = await this.usersRepository.findByTelegramId(telegramId);
-
-    if (existing && existing.id !== row.id) {
-
-      return false;
-
+    if (dto.password !== dto.confirm_password) {
+      throw new BadRequestException('Пароли не совпадают');
     }
 
+    try {
+      validateRegistrationPassword(dto.password);
+    } catch (error) {
+      throw new BadRequestException((error as Error).message);
+    }
 
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const user = await this.usersRepository.findByPasswordResetToken(tokenHash);
 
-    row.telegramId = telegramId;
+    if (!user || !user.passwordResetExpiresAt || user.passwordResetExpiresAt.getTime() < Date.now()) {
+      throw new BadRequestException('Ссылка для сброса пароля недействительна или устарела.');
+    }
 
-    row.telegramUsername = telegramUsername ?? '';
+    user.passwordHash = bcrypt.hashSync(dto.password, 10);
+    user.passwordResetToken = null;
+    user.passwordResetExpiresAt = null;
+    await this.usersRepository.save(user);
 
-    row.telegramLinkToken = null;
+    this.logger.log(`Password reset completed for user ${user.id}`);
 
-    row.telegramLinkExpires = null;
-
-    row.updatedDate = new Date();
-
-    await this.usersRepository.save(row);
-
-
-
-    await this.audit.log({
-
-      actorUserId: row.id,
-
-      action: 'telegram_link',
-
-      entityType: 'User',
-
-      entityId: row.id,
-
-      summary: `Telegram linked: @${telegramUsername ?? telegramId}`,
-
-    });
-
-
-
-    return true;
-
+    return {
+      ok: true,
+      message: 'Пароль успешно изменён. Теперь вы можете войти с новым паролем.',
+    };
   }
 
-
+  private buildFrontendUrl(path: string): string {
+    let base = (this.config.get<string>('appPublicUrl') || 'http://localhost:5173').trim();
+    base = base.replace(/\/$/, '');
+    if (!/^https?:\/\//i.test(base)) {
+      base = `https://${base}`;
+    }
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    return `${base}${normalizedPath}`;
+  }
 
   signToken(user: Record<string, unknown>): string {
 

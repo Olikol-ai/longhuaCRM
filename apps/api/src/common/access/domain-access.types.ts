@@ -24,6 +24,4 @@ export const TEACHER_LESSON_UPDATE_FIELDS = [
   'status',
   'notes',
   'meetingLink',
-  'reminder24hSent',
-  'reminder2hSent',
 ] as const;

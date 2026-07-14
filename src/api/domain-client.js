@@ -31,6 +31,8 @@ const FIELD_ALIASES = {
   lesson_balance: 'lessonBalance',
   start_date: 'startDate',
   telegram_id: 'telegramId',
+  telegram_username: 'telegramUsername',
+  telegram_connected_at: 'telegramConnectedAt',
 };
 
 export function snakeToCamel(key) {

@@ -1,6 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Min, validateSync } from 'class-validator';
 import { getEmailDomain, TEST_EMAIL_DOMAIN } from '../common/security/email-validation';
+import { parseEnvBoolean } from './env-boolean';
 
 function assertProductionEmail(value: string | undefined, field: string): void {
   if (!value?.trim()) {
@@ -67,6 +68,14 @@ class EnvironmentVariables {
   @IsBoolean()
   @IsOptional()
   TELEGRAM_ENABLED?: boolean;
+
+  @IsIn(['polling', 'webhook'])
+  @IsOptional()
+  TELEGRAM_MODE?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  TELEGRAM_MOCK?: boolean;
 
   @IsString()
   @IsOptional()
@@ -181,10 +190,43 @@ class EnvironmentVariables {
   SMTP_FROM?: string;
 }
 
+/**
+ * Re-apply boolean env values from the raw config so enableImplicitConversion
+ * cannot turn the string "false" into true (Boolean("false") === true).
+ */
+function normalizeEnvBooleans(
+  parsed: EnvironmentVariables,
+  raw: Record<string, unknown>,
+): void {
+  if ('TELEGRAM_ENABLED' in raw) {
+    parsed.TELEGRAM_ENABLED = parseEnvBoolean(raw.TELEGRAM_ENABLED, true);
+  }
+  if ('TELEGRAM_MOCK' in raw) {
+    parsed.TELEGRAM_MOCK = parseEnvBoolean(raw.TELEGRAM_MOCK, false);
+  }
+  if ('ENABLE_CRON' in raw) {
+    parsed.ENABLE_CRON = parseEnvBoolean(raw.ENABLE_CRON, true);
+  }
+  if ('SERVE_FRONTEND' in raw) {
+    parsed.SERVE_FRONTEND = parseEnvBoolean(raw.SERVE_FRONTEND, true);
+  }
+  if ('MAIL_SECURE' in raw) {
+    parsed.MAIL_SECURE = parseEnvBoolean(raw.MAIL_SECURE, false);
+  }
+  if ('TRUST_PROXY' in raw) {
+    parsed.TRUST_PROXY = parseEnvBoolean(raw.TRUST_PROXY, false);
+  }
+  if ('SMTP_SECURE' in raw) {
+    parsed.SMTP_SECURE = parseEnvBoolean(raw.SMTP_SECURE, false);
+  }
+}
+
 export function validateEnv(config: Record<string, unknown>) {
   const parsed = plainToInstance(EnvironmentVariables, config, {
     enableImplicitConversion: true,
   });
+  normalizeEnvBooleans(parsed, config);
+
   const errors = validateSync(parsed, { skipMissingProperties: false });
   if (errors.length > 0) {
     throw new Error(errors.toString());

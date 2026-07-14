@@ -7,6 +7,16 @@ const fieldCls = "w-full px-3 py-2 text-sm border border-border rounded-lg bg-ba
 const fieldMono = `${fieldCls} font-mono`;
 const btnOutline = "px-3 py-2 text-xs font-medium border border-border rounded-lg hover:bg-muted text-muted-foreground flex items-center gap-1.5";
 
+function resolveTelegramId(target) {
+  if (!target) return '';
+  return String(target.telegram_id || target.telegram_chat_id || '').trim();
+}
+
+function resolveTelegramUsername(target) {
+  if (!target) return '';
+  return String(target.telegram_username || '').trim();
+}
+
 export default function TelegramSettings() {
   const [token, setToken] = useState("");
   const [savedMasked, setSavedMasked] = useState("");
@@ -22,14 +32,16 @@ export default function TelegramSettings() {
   const [botToken, setBotToken] = useState("");
   const [webhookStatus, setWebhookStatus] = useState(null);
   const [webhookLoading, setWebhookLoading] = useState(false);
+  const [integrationStatus, setIntegrationStatus] = useState(null);
 
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
-    const [settings, s, t] = await Promise.all([
+    const [settings, s, t, status] = await Promise.all([
       api.settings.filter({ key: "telegram_bot_token" }),
       api.students.list(),
       api.teachers.list(),
+      api.telegram.status().catch(() => null),
     ]);
     if (settings.length > 0) {
       const v = settings[0].value || "";
@@ -38,6 +50,7 @@ export default function TelegramSettings() {
     }
     setStudents(s);
     setTeachers(t);
+    setIntegrationStatus(status);
   };
 
   const saveToken = async () => {
@@ -84,27 +97,29 @@ export default function TelegramSettings() {
       case "balance_low": return `⚠️ Низкий баланс\n\nУважаемый(ая) ${name}, на вашем балансе осталось мало уроков. Рекомендуем пополнить баланс, чтобы не прерывать обучение.`;
       case "payment_received": return `💳 Платёж получен\n\nУважаемый(ая) ${name}, ваш платёж успешно зачислен. Баланс уроков пополнен.`;
       case "welcome": return `🎉 Добро пожаловать в Longhua Chinese!\n\nУважаемый(ая) ${name}, рады приветствовать вас! Ваш аккаунт активирован. Желаем успехов в изучении китайского языка!`;
-      default: return testTarget.customMsg || "Тестовое сообщение от Longhua Chinese";
+      default: return testTarget.customMsg || "✅ Тестовое уведомление Longhua CRM успешно отправлено.";
     }
   };
 
   const sendTest = async () => {
-    const target = testTarget.type === "student"
-      ? students.find(s => s.id === testTarget.id)
-      : teachers.find(t => t.id === testTarget.id);
-    if (!botToken) { setTestResult("error: Токен бота не настроен"); return; }
-    if (!target?.telegram_id) { setTestResult("error: У выбранного пользователя нет Telegram ID в профиле"); return; }
+    if (!testTarget.id) {
+      setTestResult("error: Выберите получателя");
+      return;
+    }
     setTesting(true);
     setTestResult(null);
     const message = buildMessage();
     try {
-      const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: target.telegram_id, text: message, parse_mode: "HTML" }),
+      const data = await api.telegram.sendTest({
+        targetType: testTarget.type,
+        targetId: testTarget.id,
+        message,
       });
-      const data = await res.json();
-      setTestResult(data.ok ? "success" : `error: ${data.description}`);
+      if (data.ok) {
+        setTestResult("success");
+      } else {
+        setTestResult(`error: ${data.error || "Не удалось отправить"}`);
+      }
     } catch (e) {
       setTestResult(`error: ${e.message}`);
     }
@@ -114,6 +129,8 @@ export default function TelegramSettings() {
   const selectedTarget = testTarget.type === "student"
     ? students.find(s => s.id === testTarget.id)
     : teachers.find(t => t.id === testTarget.id);
+  const selectedTelegramId = resolveTelegramId(selectedTarget);
+  const selectedTelegramUsername = resolveTelegramUsername(selectedTarget);
 
   const registerWebhook = async () => {
     setWebhookLoading(true);
@@ -220,6 +237,20 @@ export default function TelegramSettings() {
       </Card>
 
       <Card className="p-5 space-y-4">
+        <h3 className="text-sm font-semibold text-foreground">Статус интеграции</h3>
+        {integrationStatus ? (
+          <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+            <p>Bot: <span className="font-medium text-foreground">{integrationStatus.bot_connected ? 'YES' : 'NO'}</span></p>
+            <p>Mode: <span className="font-medium text-foreground">{integrationStatus.mode}</span></p>
+            <p>Mock: <span className="font-medium text-foreground">{integrationStatus.mock ? 'YES' : 'NO'}</span></p>
+            <p>Polling: <span className="font-medium text-foreground">{integrationStatus.polling?.running ? 'running' : 'stopped'}</span></p>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">Статус недоступен</p>
+        )}
+      </Card>
+
+      <Card className="p-5 space-y-4">
         <h3 className="text-sm font-semibold text-foreground">Тест уведомлений</h3>
 
         <div className="grid grid-cols-2 gap-3">
@@ -235,7 +266,9 @@ export default function TelegramSettings() {
             <select value={testTarget.id} onChange={e => setTestTarget(p => ({ ...p, id: e.target.value }))} className={fieldCls}>
               <option value="">Выбрать...</option>
               {(testTarget.type === "student" ? students : teachers).map(u => (
-                <option key={u.id} value={u.id}>{u.name}{u.telegram_id ? "" : " ⚠️ нет TG ID"}</option>
+                <option key={u.id} value={u.id}>
+                  {u.name}{resolveTelegramId(u) ? "" : " — Telegram не подключен"}
+                </option>
               ))}
             </select>
           </div>
@@ -257,17 +290,45 @@ export default function TelegramSettings() {
           <div className="bg-muted rounded-xl p-3">
             <p className="text-xs font-medium text-muted-foreground mb-1">Предпросмотр сообщения:</p>
             <p className="text-xs text-foreground whitespace-pre-line font-mono">{buildMessage()}</p>
-            {!selectedTarget?.telegram_id && (
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 font-medium">⚠️ У этого пользователя не указан Telegram ID в профиле</p>
-            )}
+            <div className="mt-2 text-xs space-y-1">
+              <p className="font-medium text-foreground">
+                {selectedTelegramId ? 'Telegram подключен' : 'У пользователя не подключен Telegram'}
+              </p>
+              {selectedTelegramUsername && selectedTelegramId && (
+                <p className="text-muted-foreground">@{selectedTelegramUsername}</p>
+              )}
+            </div>
           </div>
         )}
 
-        <button onClick={sendTest} disabled={!testTarget.id || testing || !botToken}
+        <button onClick={sendTest} disabled={!testTarget.id || testing || !selectedTelegramId}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
           <TestTube className="w-4 h-4" />
           {testing ? "Отправка..." : "Отправить тест"}
         </button>
+
+        {testTarget.type === "student" && (
+          <button
+            onClick={async () => {
+              if (!testTarget.id) return;
+              setTesting(true);
+              setTestResult(null);
+              try {
+                const data = await api.telegram.sendTestConfirmation({
+                  studentId: testTarget.id,
+                });
+                setTestResult(data.ok ? "success" : `error: ${data.error || "Ошибка"}`);
+              } catch (e) {
+                setTestResult(`error: ${e.message}`);
+              }
+              setTesting(false);
+            }}
+            disabled={!testTarget.id || testing || !selectedTelegramId}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+          >
+            Отправить тестовое подтверждение урока
+          </button>
+        )}
 
         {testResult && (
           <div className={`rounded-xl px-3 py-2 text-sm font-medium ${testResult === "success" ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300" : "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400"}`}>
@@ -280,11 +341,9 @@ export default function TelegramSettings() {
         <h3 className="text-sm font-semibold text-foreground mb-3">Автоматические уведомления</h3>
         <div className="space-y-3">
           {[
-            { trigger: "Урок завершён (преподаватель отметил)", msg: "✅ Урок завершён. Осталось уроков: X", active: true },
-            { trigger: "Пропуск без предупреждения", msg: "⚠️ Урок пропущен. Баланс списан.", active: true },
-            { trigger: "Напоминание за день до урока", msg: "⏰ Завтра урок в HH:MM. Ссылка: ...", active: true },
-            { trigger: "/start в боте", msg: "🎉 Спасибо за подключение уведомлений!", active: true },
-            { trigger: "Подключение Telegram в профиле", msg: "🎉 Уведомления активированы!", active: true },
+            { trigger: "Напоминание (~за 24 часа)", msg: "Информационное сообщение без кнопок", active: true },
+            { trigger: "Подтверждение занятия (~за 3 часа)", msg: "Сообщение + кнопки Подтвердить/Отменить", active: true },
+            { trigger: "Привязка в профиле", msg: "Deep-link → /start TOKEN", active: true },
           ].map((item, i) => (
             <div key={i} className="flex items-start gap-3 py-2 border-b border-border last:border-0">
               <div className="mt-0.5 w-2 h-2 rounded-full flex-shrink-0 bg-emerald-400" />
@@ -301,18 +360,18 @@ export default function TelegramSettings() {
       </Card>
 
       <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/50 rounded-xl p-4 space-y-2">
-        <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">⚙️ Как ученики подключают уведомления:</p>
+        <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">Как подключить уведомления:</p>
         <ol className="list-decimal list-inside space-y-1 text-xs text-muted-foreground">
-          <li>Открывают бота <span className="font-semibold text-foreground">@LonghuaChinese_bot</span> в Telegram</li>
-          <li>Нажимают <span className="font-mono bg-muted px-1 rounded">/start</span> — бот автоматически ответит ✅</li>
-          <li>Копируют свой Telegram ID и вводят его в профиле на сайте</li>
+          <li>Ученик или преподаватель открывает профиль в CRM</li>
+          <li>Нажимает «Привязать Telegram»</li>
+          <li>Открывает бота и подтверждает привязку</li>
         </ol>
       </div>
 
       <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 rounded-xl p-4 flex gap-3">
         <Info className="w-4 h-4 text-blue-500 dark:text-blue-400 flex-shrink-0 mt-0.5" />
         <p className="text-xs text-blue-700 dark:text-blue-300">
-          Токен сохраняется в базе данных приложения и доступен только администратору. Для работы уведомлений ученики и преподаватели должны указать свой Telegram ID в профиле.
+          Токен бота доступен только администратору. Уведомления уходят пользователям с привязанным Telegram.
         </p>
       </div>
     </div>

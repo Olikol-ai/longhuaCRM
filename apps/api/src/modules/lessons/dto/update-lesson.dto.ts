@@ -62,12 +62,6 @@ export class UpdateLessonDto {
   meetingLink?: string;
 
   @IsOptional()
-  reminder24hSent?: boolean;
-
-  @IsOptional()
-  reminder2hSent?: boolean;
-
-  @IsOptional()
   @IsString()
   notes?: string;
 }

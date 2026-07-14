@@ -25,7 +25,6 @@ export default function TeacherFormDialog({ open, onOpenChange, teacher, onSave 
     name: "",
     email: "",
     hourly_rate: 0,
-    telegram_id: "",
     status: "active",
     specializations: "",
   });
@@ -33,13 +32,18 @@ export default function TeacherFormDialog({ open, onOpenChange, teacher, onSave 
   useEffect(() => {
     if (open) {
       if (teacher) {
-        setFormData({ ...teacher });
+        setFormData({
+          name: teacher.name || "",
+          email: teacher.email || "",
+          hourly_rate: teacher.hourly_rate ?? 0,
+          status: teacher.status || "active",
+          specializations: teacher.specializations || "",
+        });
       } else {
         setFormData({
           name: "",
           email: "",
           hourly_rate: 0,
-          telegram_id: "",
           status: "active",
           specializations: "",
         });
@@ -112,14 +116,6 @@ export default function TeacherFormDialog({ open, onOpenChange, teacher, onSave 
                 </SelectContent>
               </Select>
             </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Telegram ID</Label>
-            <Input
-              value={formData.telegram_id}
-              onChange={(e) => setFormData({ ...formData, telegram_id: e.target.value })}
-              placeholder="@username or ID"
-            />
           </div>
           <div className="space-y-2">
             <Label>Специализация</Label>

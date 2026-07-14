@@ -6,10 +6,13 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
+import { assertHttpsTelegramWebhookUrl } from './telegram-mode.util';
 import { TelegramService } from './telegram.service';
 
 @Injectable()
-export class TelegramWebhookLifecycleService implements OnApplicationBootstrap, BeforeApplicationShutdown {
+export class TelegramWebhookLifecycleService
+  implements OnApplicationBootstrap, BeforeApplicationShutdown
+{
   private readonly logger = new Logger(TelegramWebhookLifecycleService.name);
 
   constructor(
@@ -22,11 +25,27 @@ export class TelegramWebhookLifecycleService implements OnApplicationBootstrap, 
       this.logger.log('Telegram webhook registration skipped (TELEGRAM_ENABLED=false)');
       return;
     }
+
+    if (this.config.get<boolean>('telegram.mock') === true) {
+      this.logger.log('Telegram webhook registration skipped (TELEGRAM_MOCK=true)');
+      return;
+    }
+
+    const mode = this.config.get<string>('telegram.mode') ?? 'webhook';
+    if (mode === 'polling') {
+      // Polling clears any prior webhook once in TelegramPollingService before getUpdates.
+      this.logger.log('Telegram webhook registration skipped (TELEGRAM_MODE=polling)');
+      return;
+    }
+
     await this.ensureWebhook();
   }
 
   async beforeApplicationShutdown() {
     if (!this.config.get<boolean>('telegram.enabled')) return;
+    if (this.config.get<boolean>('telegram.mock') === true) return;
+    const mode = this.config.get<string>('telegram.mode') ?? 'webhook';
+    if (mode === 'polling') return;
     await this.telegramService.deleteWebhook();
   }
 
@@ -34,14 +53,25 @@ export class TelegramWebhookLifecycleService implements OnApplicationBootstrap, 
   async verifyWebhookHealth() {
     if (!this.config.get<boolean>('telegram.enabled')) return;
     if (!this.config.get<boolean>('jobs.enabled')) return;
+    if (this.config.get<boolean>('telegram.mock') === true) return;
+    if ((this.config.get<string>('telegram.mode') ?? 'webhook') === 'polling') {
+      return;
+    }
 
-    const expectedUrl = this.resolveWebhookUrl();
-    if (!expectedUrl) return;
+    let expectedUrl: string;
+    try {
+      expectedUrl = this.resolveWebhookUrl();
+    } catch (error) {
+      this.logger.error((error as Error).message);
+      return;
+    }
 
     try {
       const info = await this.telegramService.getWebhookInfo();
-      const currentUrl = info?.result?.url;
-      const lastErrorDate = info?.result?.last_error_date;
+      const currentUrl = (info as { result?: { url?: string; last_error_date?: number } })
+        ?.result?.url;
+      const lastErrorDate = (info as { result?: { last_error_date?: number } })?.result
+        ?.last_error_date;
 
       if (currentUrl !== expectedUrl || lastErrorDate) {
         this.logger.warn(
@@ -55,15 +85,20 @@ export class TelegramWebhookLifecycleService implements OnApplicationBootstrap, 
   }
 
   private async ensureWebhook() {
-    const webhookUrl = this.resolveWebhookUrl();
-    if (!webhookUrl) {
-      this.logger.warn('TELEGRAM_WEBHOOK_URL is not configured; webhook was not registered');
+    let webhookUrl: string;
+    try {
+      webhookUrl = this.resolveWebhookUrl();
+    } catch (error) {
+      this.logger.error((error as Error).message);
       return;
     }
 
     try {
       const secret = this.config.get<string>('telegram.webhookSecret');
-      const result = await this.telegramService.registerWebhook(webhookUrl, secret || undefined);
+      const result = await this.telegramService.registerWebhook(
+        webhookUrl,
+        secret || undefined,
+      );
       if (result.set?.ok) {
         this.logger.log('Telegram webhook registered successfully');
       } else {
@@ -76,13 +111,10 @@ export class TelegramWebhookLifecycleService implements OnApplicationBootstrap, 
     }
   }
 
-  private resolveWebhookUrl(): string | undefined {
-    const configured = this.config.get<string>('telegram.webhookUrl');
-    if (configured) return configured;
-
-    const publicUrl = this.config.get<string>('appPublicUrl');
-    if (publicUrl) return `${publicUrl.replace(/\/$/, '')}/api/webhooks/telegram`;
-
-    return undefined;
+  /**
+   * Webhook mode uses only TELEGRAM_WEBHOOK_URL (no APP_PUBLIC_URL fallback).
+   */
+  private resolveWebhookUrl(): string {
+    return assertHttpsTelegramWebhookUrl(this.config.get<string>('telegram.webhookUrl'));
   }
 }

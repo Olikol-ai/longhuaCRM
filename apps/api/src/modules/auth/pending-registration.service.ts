@@ -225,8 +225,13 @@ export class PendingRegistrationService {
         phone: pending.phone,
         telegramId: '',
         telegramUsername: '',
+        telegramConnectedAt: null,
         telegramLinkToken: null,
         telegramLinkExpires: null,
+        passwordResetToken: null,
+        passwordResetExpiresAt: null,
+        telegramNotify24h: true,
+        telegramNotify3h: true,
         createdDate: now,
         updatedDate: now,
       });

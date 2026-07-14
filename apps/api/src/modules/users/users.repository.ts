@@ -36,6 +36,11 @@ export class UsersRepository implements OnModuleInit {
     return this.usersRepo.findOne({ where: { telegramLinkToken: token } });
   }
 
+  findByPasswordResetToken(tokenHash: string): Promise<UserEntity | null> {
+    if (!tokenHash) return Promise.resolve(null);
+    return this.usersRepo.findOne({ where: { passwordResetToken: tokenHash } });
+  }
+
   findByTelegramId(telegramId: string): Promise<UserEntity | null> {
     if (!telegramId) return Promise.resolve(null);
     return this.usersRepo.findOne({ where: { telegramId } });
@@ -83,8 +88,13 @@ export class UsersRepository implements OnModuleInit {
       phone: '',
       telegramId: '',
       telegramUsername: '',
+      telegramConnectedAt: null,
       telegramLinkToken: null,
       telegramLinkExpires: null,
+      passwordResetToken: null,
+      passwordResetExpiresAt: null,
+      telegramNotify24h: true,
+      telegramNotify3h: true,
       createdDate: now,
       updatedDate: now,
     });

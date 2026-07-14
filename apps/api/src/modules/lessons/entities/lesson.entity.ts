@@ -106,9 +106,6 @@ export class LessonEntity {
   @Column({ name: 'reminder_24h_sent', type: 'boolean', default: false })
   reminder24hSent: boolean;
 
-  @Column({ name: 'reminder_2h_sent', type: 'boolean', default: false })
-  reminder2hSent: boolean;
-
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 

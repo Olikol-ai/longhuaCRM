@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
 import { resolveRedirect } from '@/lib/routing';
@@ -141,6 +141,18 @@ export default function Login() {
                 'Зарегистрироваться'
               )}
             </Button>
+
+            {mode === 'login' && (
+              <div className="text-center pt-1">
+                <Link
+                  to="/forgot-password"
+                  className="text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+                  data-testid="forgot-password-link"
+                >
+                  Забыли пароль?
+                </Link>
+              </div>
+            )}
           </form>
         </div>
       </div>

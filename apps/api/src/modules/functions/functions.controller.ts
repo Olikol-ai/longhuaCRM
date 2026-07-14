@@ -47,8 +47,6 @@ export class FunctionsController {
       'registerTelegramWebhook',
       'revokeAllAccess',
       'autoCompleteExpiredLessons',
-      'sendLessonReminders',
-      'sendLessonReminders2h',
       'fixWebhook',
       'clearTelegramUpdates',
       'sendTelegramMessage',
@@ -116,10 +114,6 @@ export class FunctionsController {
         return this.telegramService.getBotInfo();
       case 'autoCompleteExpiredLessons':
         return this.jobsService.autoCompleteExpiredLessons();
-      case 'sendLessonReminders':
-        return this.jobsService.sendLessonReminders24h();
-      case 'sendLessonReminders2h':
-        return this.jobsService.sendLessonReminders2h();
       case 'revokeAllAccess':
         return this.jobsService.revokeAllAccess();
       case 'tgDebug':

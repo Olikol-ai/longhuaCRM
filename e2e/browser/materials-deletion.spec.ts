@@ -48,7 +48,6 @@ test.describe('Materials deletion UI', () => {
 
     await loginViaApi(page, admin.email, admin.password, '/MaterialsHub');
     await expect(page.getByRole('heading', { name: 'Материалы уроков' })).toBeVisible();
-    await page.getByRole('button', { name: 'Материалы', exact: true }).click();
 
     const deleteResponse = page.waitForResponse(
       (resp) =>
@@ -57,9 +56,9 @@ test.describe('Materials deletion UI', () => {
       { timeout: 20_000 },
     );
 
-    const materialCard = page.locator('.group').filter({ has: page.getByText(title, { exact: true }) });
-    await expect(materialCard).toBeVisible({ timeout: 15_000 });
-    await materialCard.getByTitle('Удалить').click();
+    const materialRow = page.locator('tr.group').filter({ has: page.getByText(title, { exact: true }) });
+    await expect(materialRow).toBeVisible({ timeout: 15_000 });
+    await materialRow.getByTitle('Удалить').click();
 
     const response = await deleteResponse;
     expect(response.ok()).toBeTruthy();

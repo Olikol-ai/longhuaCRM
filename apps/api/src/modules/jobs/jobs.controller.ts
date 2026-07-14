@@ -20,16 +20,6 @@ export class JobsController {
     return this.jobsService.autoCompleteExpiredLessons();
   }
 
-  @Post('send-lesson-reminders')
-  sendLessonReminders24h() {
-    return this.jobsService.sendLessonReminders24h();
-  }
-
-  @Post('send-lesson-reminders-2h')
-  sendLessonReminders2h() {
-    return this.jobsService.sendLessonReminders2h();
-  }
-
   @Post('revoke-all-access')
   revokeAllAccess() {
     return this.jobsService.revokeAllAccess();

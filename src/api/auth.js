@@ -74,7 +74,20 @@ export const auth = {
   async resendCode() {
     return apiFetch('/auth/resend-code', { method: 'POST' });
   },
-  async createTelegramLink() {
-    return apiFetch('/auth/telegram-link', { method: 'POST' });
+  async forgotPassword(email) {
+    return apiFetch('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+  async resetPassword(token, password, confirmPassword) {
+    return apiFetch('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        token,
+        password,
+        confirm_password: confirmPassword,
+      }),
+    });
   },
 };

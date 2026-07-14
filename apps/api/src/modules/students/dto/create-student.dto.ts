@@ -31,6 +31,14 @@ export class CreateStudentDto {
   phone?: string;
 
   @IsOptional()
+  @IsString()
+  telegramId?: string;
+
+  @IsOptional()
+  @IsString()
+  telegramUsername?: string;
+
+  @IsOptional()
   @IsUUID()
   assignedTeacherId?: string;
 

@@ -37,6 +37,12 @@ export class StudentEntity {
   @Column({ name: 'telegram_id', type: 'text', nullable: true })
   telegramId: string | null;
 
+  @Column({ name: 'telegram_username', type: 'text', nullable: true })
+  telegramUsername: string | null;
+
+  @Column({ name: 'telegram_connected_at', type: 'timestamptz', nullable: true })
+  telegramConnectedAt: Date | null;
+
   @Index('IDX_STUDENT_ASSIGNED_TEACHER_ID')
   @Column({ name: 'assigned_teacher_id', type: 'uuid', nullable: true })
   assignedTeacherId: string | null;

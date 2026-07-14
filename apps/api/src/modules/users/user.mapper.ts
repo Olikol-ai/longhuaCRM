@@ -18,6 +18,9 @@ export function userToRecord(row: UserEntity): Record<string, unknown> {
     phone: row.phone || '',
     telegram_id: row.telegramId || '',
     telegram_username: row.telegramUsername || '',
+    telegram_connected_at: row.telegramConnectedAt
+      ? row.telegramConnectedAt.toISOString()
+      : null,
     full_name: fullName,
     created_date: row.createdDate.toISOString(),
     updated_date: row.updatedDate.toISOString(),

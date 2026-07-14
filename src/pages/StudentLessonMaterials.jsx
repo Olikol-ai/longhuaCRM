@@ -1,26 +1,20 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect } from 'react';
 import { api } from '@/api';
-import { useAuth } from "@/lib/AuthContext";
-import { Card } from "@/components/ui/card";
-import { FileText, Video, Link, File, Loader2, BookOpen, ExternalLink } from "lucide-react";
-import { getMaterialUrl } from "@/lib/materialUrl";
-import AccessSourceBadges from "@/components/materials/AccessSourceBadges";
-
-const FILE_TYPE_ICONS = {
-  pdf: { icon: FileText, color: "text-red-500", bg: "bg-red-50 dark:bg-red-950/40", label: "PDF" },
-  pptx: { icon: FileText, color: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-950/40", label: "PPTX" },
-  video: { icon: Video, color: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-950/40", label: "Видео" },
-  link: { icon: Link, color: "text-indigo-500", bg: "bg-indigo-50 dark:bg-indigo-950/40", label: "Ссылка" },
-  other: { icon: File, color: "text-slate-500", bg: "bg-muted", label: "Файл" },
-};
+import { useAuth } from '@/lib/AuthContext';
+import { Card } from '@/components/ui/card';
+import { Loader2, BookOpen, ExternalLink } from 'lucide-react';
+import { getMaterialUrl } from '@/lib/materialUrl';
+import { getMaterialTypeInfo } from '@/lib/materialIcons';
+import { publicMaterialDescription, unpackMaterialDescription } from '@/lib/materialMeta';
+import AccessSourceBadges from '@/components/materials/AccessSourceBadges';
 
 export default function StudentLessonMaterials() {
   const { user, isLoadingAuth } = useAuth();
   const [materials, setMaterials] = useState([]);
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [error, setError] = useState("");
+  const [search, setSearch] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (isLoadingAuth) return;
@@ -33,32 +27,29 @@ export default function StudentLessonMaterials() {
 
   const loadData = async () => {
     setLoading(true);
-    setError("");
+    setError('');
     try {
       const [matsResult, coursesResult] = await Promise.allSettled([
-        api.materials.list("-created_date", 500),
+        api.materials.list('-created_date', 500),
         api.courses.list(),
       ]);
 
-      if (matsResult.status === "fulfilled") {
+      if (matsResult.status === 'fulfilled') {
         setMaterials(Array.isArray(matsResult.value) ? matsResult.value : []);
       } else {
-        console.error("Failed to load student materials:", matsResult.reason);
         setMaterials([]);
-        setError(matsResult.reason?.message || "Не удалось загрузить материалы");
+        setError(matsResult.reason?.message || 'Не удалось загрузить материалы');
       }
 
-      if (coursesResult.status === "fulfilled") {
+      if (coursesResult.status === 'fulfilled') {
         setCourses(Array.isArray(coursesResult.value) ? coursesResult.value : []);
       } else {
-        console.error("Failed to load courses for student materials:", coursesResult.reason);
         setCourses([]);
       }
     } catch (err) {
-      console.error("Failed to load student materials:", err);
       setMaterials([]);
       setCourses([]);
-      setError(err.message || "Не удалось загрузить материалы");
+      setError(err.message || 'Не удалось загрузить материалы');
     } finally {
       setLoading(false);
     }
@@ -72,20 +63,21 @@ export default function StudentLessonMaterials() {
     );
   }
 
-  const courseNameById = new Map(courses.map((c) => [c.id, c.course_name || c.course_type || "Курс"]));
+  const courseNameById = new Map(courses.map((c) => [c.id, c.course_name || c.course_type || 'Курс']));
 
   const filtered = materials.filter((m) => {
-    if (m.status === "deleted") return false;
+    if (m.status === 'deleted') return false;
+    const meta = unpackMaterialDescription(m.description);
     const q = search.toLowerCase();
     return (
-      (m.title || "").toLowerCase().includes(q) ||
-      (m.block_name || "").toLowerCase().includes(q) ||
-      (courseNameById.get(m.course_id) || "").toLowerCase().includes(q)
+      (m.title || '').toLowerCase().includes(q)
+      || meta.blockName.toLowerCase().includes(q)
+      || (courseNameById.get(m.course_id) || '').toLowerCase().includes(q)
     );
   });
 
   const grouped = filtered.reduce((acc, mat) => {
-    const key = mat.course_id || "other";
+    const key = mat.course_id || 'other';
     if (!acc[key]) acc[key] = [];
     acc[key].push(mat);
     return acc;
@@ -97,7 +89,7 @@ export default function StudentLessonMaterials() {
         <div>
           <h1 className="text-3xl font-bold text-foreground">Мои материалы</h1>
           <p className="text-sm text-muted-foreground mt-2">
-            Материалы, к которым вам предоставлен доступ. Рядом с каждым указан источник.
+            Материалы, к которым вам предоставлен доступ
           </p>
         </div>
         {materials.length > 0 && (
@@ -121,26 +113,22 @@ export default function StudentLessonMaterials() {
         <Card className="p-16 text-center border-dashed" data-testid="student-materials-empty">
           <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
           <p className="text-foreground font-medium">
-            {search ? "Материалы не найдены" : "Пока нет доступных материалов"}
-          </p>
-          <p className="text-sm text-muted-foreground mt-2">
-            {search
-              ? "Попробуйте изменить поисковый запрос"
-              : "Преподаватель или администратор выдаст доступ через раздел «Материалы»"}
+            {search ? 'Материалы не найдены' : 'Пока нет доступных материалов'}
           </p>
         </Card>
       ) : (
         <div className="space-y-8">
           {Object.entries(grouped).map(([courseId, courseMats]) => (
             <div key={courseId}>
-              <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                <span className="text-amber-500">📁</span>
-                {courseId === "other" ? "Без курса" : courseNameById.get(courseId) || "Курс"}
+              <h2 className="text-sm font-semibold text-foreground mb-3">
+                {courseId === 'other' ? 'Без курса' : courseNameById.get(courseId) || 'Курс'}
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {courseMats.map((mat) => {
-                  const typeInfo = FILE_TYPE_ICONS[mat.file_type] || FILE_TYPE_ICONS.other;
+                  const typeInfo = getMaterialTypeInfo(mat.file_type);
                   const IconComp = typeInfo.icon;
+                  const meta = unpackMaterialDescription(mat.description);
+                  const description = publicMaterialDescription(mat.description);
                   return (
                     <a
                       key={mat.id}
@@ -157,8 +145,11 @@ export default function StudentLessonMaterials() {
                           <ExternalLink className="h-4 w-4 text-muted-foreground" />
                         </div>
                         <p className="text-sm font-semibold text-foreground line-clamp-2 mb-1">{mat.title}</p>
-                        {mat.block_name && (
-                          <p className="text-xs text-muted-foreground mb-2">{mat.block_name}</p>
+                        {meta.blockName && (
+                          <p className="text-xs text-muted-foreground mb-1">{meta.blockName}</p>
+                        )}
+                        {description && (
+                          <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{description}</p>
                         )}
                         <AccessSourceBadges sources={mat.access_sources} className="mt-auto pt-2" />
                       </Card>

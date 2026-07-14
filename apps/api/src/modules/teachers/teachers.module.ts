@@ -7,6 +7,7 @@ import { AvailabilityBookingEntity } from '../schedule/entities/availability-boo
 import { AvailabilitySlotEntity } from '../schedule/entities/availability-slot.entity';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherPaymentEntity } from '../teacher-payments/entities/teacher-payment.entity';
+import { UserEntity } from '../users/entities/user.entity';
 import { TeacherEntity } from './entities/teacher.entity';
 import { TeacherDeletionService } from './teacher-deletion.service';
 import { TeachersController } from './teachers.controller';
@@ -17,6 +18,7 @@ import { TeachersService } from './teachers.service';
   imports: [
     TypeOrmModule.forFeature([
       TeacherEntity,
+      UserEntity,
       LessonEntity,
       GroupEntity,
       LessonSeriesEntity,

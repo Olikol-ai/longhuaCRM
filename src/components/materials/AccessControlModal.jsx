@@ -4,10 +4,14 @@ import { useAuth } from '@/lib/AuthContext';
 import { grantAccess, revokeAccess } from "@/lib/materialAccess";
 import { X, Users, Lock, Save, Loader2, BookOpen, FolderKanban, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getMaterialTypeInfo } from "@/lib/materialIcons";
+import { publicMaterialDescription, unpackMaterialDescription } from "@/lib/materialMeta";
+import { getMaterialUrl } from "@/lib/materialUrl";
 import AccessSourceBadges from "./AccessSourceBadges";
 
-export default function AccessControlModal({ material, course, onClose, onSave }) {
+export default function AccessControlModal({ material, course, folders = [], onClose, onSave }) {
   const { user } = useAuth();
+  const [tab, setTab] = useState("access");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [revokingKey, setRevokingKey] = useState("");
@@ -173,14 +177,32 @@ export default function AccessControlModal({ material, course, onClose, onSave }
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card z-10">
           <div>
-            <h2 className="text-lg font-bold text-foreground">Управление доступом</h2>
+            <h2 className="text-lg font-bold text-foreground">Материал</h2>
             <p className="text-xs text-muted-foreground mt-0.5">{material.title}</p>
-            {(course?.course_name || course?.name) && (
-              <p className="text-xs text-muted-foreground">{course.course_name || course.name}</p>
-            )}
           </div>
           <button type="button" onClick={onClose} className="p-2 hover:bg-muted rounded-xl transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
+          </button>
+        </div>
+
+        <div className="px-6 pt-3 flex gap-2 border-b border-border">
+          <button
+            type="button"
+            onClick={() => setTab("info")}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
+              tab === "info" ? "border-indigo-600 text-indigo-700" : "border-transparent text-muted-foreground"
+            }`}
+          >
+            Информация
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("access")}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
+              tab === "access" ? "border-indigo-600 text-indigo-700" : "border-transparent text-muted-foreground"
+            }`}
+          >
+            Доступ
           </button>
         </div>
 
@@ -191,11 +213,44 @@ export default function AccessControlModal({ material, course, onClose, onSave }
             </div>
           )}
 
+          {tab === "info" && (() => {
+            const typeInfo = getMaterialTypeInfo(material.file_type);
+            const meta = unpackMaterialDescription(material.description);
+            const folder = folders.find((f) => f.id === material.folder_id);
+            return (
+              <section className="space-y-3 text-sm">
+                <div className="rounded-xl border border-border p-4 space-y-2">
+                  <p><span className="text-muted-foreground">Название:</span> {material.title}</p>
+                  <p><span className="text-muted-foreground">Тип:</span> {typeInfo.label}</p>
+                  <p><span className="text-muted-foreground">Курс:</span> {course?.course_name || course?.name || "—"}</p>
+                  <p><span className="text-muted-foreground">Папка:</span> {folder?.name || "Корень"}</p>
+                  {meta.blockName && (
+                    <p><span className="text-muted-foreground">Блок:</span> {meta.blockName}</p>
+                  )}
+                  <p><span className="text-muted-foreground">Описание:</span> {publicMaterialDescription(material.description) || "—"}</p>
+                  {meta.notes && (
+                    <p><span className="text-muted-foreground">Заметки:</span> {meta.notes}</p>
+                  )}
+                  <a
+                    href={getMaterialUrl(material)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex text-indigo-600 hover:underline"
+                  >
+                    Открыть материал
+                  </a>
+                </div>
+              </section>
+            );
+          })()}
+
+          {tab === "access" && (
+          <>
           <div className="p-4 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-300 flex items-start gap-2">
             <Lock className="h-4 w-4 mt-0.5 shrink-0" />
             <p>
-              Здесь видны текущие права и источник доступа. Персональный доступ можно
-              менять галочками; гранты группе и курсу отзываются отдельно.
+              Пользователи, группы и курсы. Персональный доступ меняется галочками;
+              гранты группе и курсу отзываются отдельно.
             </p>
           </div>
 
@@ -358,19 +413,23 @@ export default function AccessControlModal({ material, course, onClose, onSave }
               Выбрано: {selectedStudentIds.length} из {students.length}
             </p>
           </section>
+          </>
+          )}
         </div>
 
         <div className="flex justify-end gap-3 px-6 py-4 border-t border-border sticky bottom-0 bg-card">
           <Button variant="outline" onClick={onClose}>Закрыть</Button>
-          <Button
-            onClick={handleSavePersonal}
-            disabled={saving}
-            className="bg-indigo-600 hover:bg-indigo-700 gap-2"
-            data-testid="access-save-personal"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Сохранить персональный доступ
-          </Button>
+          {tab === "access" && (
+            <Button
+              onClick={handleSavePersonal}
+              disabled={saving}
+              className="bg-indigo-600 hover:bg-indigo-700 gap-2"
+              data-testid="access-save-personal"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Сохранить персональный доступ
+            </Button>
+          )}
         </div>
       </div>
     </div>

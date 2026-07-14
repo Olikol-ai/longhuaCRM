@@ -28,7 +28,6 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
     name: "",
     email: "",
     phone: "",
-    telegram_id: "",
     assigned_teacher: "",
     lesson_balance: 0,
     start_date: "",
@@ -40,13 +39,21 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
     if (open) {
       loadTeachers();
       if (student) {
-        setFormData({ ...student });
+        setFormData({
+          name: student.name || "",
+          email: student.email || "",
+          phone: student.phone || "",
+          assigned_teacher: student.assigned_teacher || "",
+          lesson_balance: student.lesson_balance ?? 0,
+          start_date: student.start_date || "",
+          notes: student.notes || "",
+          status: student.status || "active",
+        });
       } else {
         setFormData({
           name: "",
           email: "",
           phone: "",
-          telegram_id: "",
           assigned_teacher: "",
           lesson_balance: 0,
           start_date: new Date().toISOString().split("T")[0],
@@ -105,23 +112,13 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Телефон</Label>
-              <Input
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: formatBelarusPhone(e.target.value) })}
-                placeholder={PHONE_PLACEHOLDER}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Telegram ID</Label>
-              <Input
-                value={formData.telegram_id}
-                onChange={(e) => setFormData({ ...formData, telegram_id: e.target.value })}
-                placeholder="@username or ID"
-              />
-            </div>
+          <div className="space-y-2">
+            <Label>Телефон</Label>
+            <Input
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: formatBelarusPhone(e.target.value) })}
+              placeholder={PHONE_PLACEHOLDER}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">

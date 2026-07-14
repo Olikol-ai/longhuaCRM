@@ -1,3 +1,5 @@
+import { resolveTelegramMode } from '../modules/telegram/telegram-mode.util';
+import { parseEnvBoolean } from './env-boolean';
 import { readMailEnvFromProcess } from './mail-config';
 
 export default () => ({
@@ -21,7 +23,13 @@ export default () => ({
     botToken: process.env.TELEGRAM_BOT_TOKEN,
     webhookUrl: process.env.TELEGRAM_WEBHOOK_URL,
     webhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET,
-    enabled: process.env.TELEGRAM_ENABLED !== 'false',
+    // Default enabled when unset; only explicit false disables.
+    enabled: parseEnvBoolean(process.env.TELEGRAM_ENABLED, true),
+    // Unset TELEGRAM_MODE → polling outside production (local getUpdates without a public domain).
+    mode: resolveTelegramMode(process.env.TELEGRAM_MODE, process.env.NODE_ENV),
+    mock: parseEnvBoolean(process.env.TELEGRAM_MOCK, false),
+    botUsername:
+      process.env.TELEGRAM_BOT_USERNAME?.trim() || 'LonghuaChinese_bot',
   },
   alfaBank: {
     token: process.env.ALFA_BANK_TOKEN,
@@ -29,16 +37,16 @@ export default () => ({
     apiUrl: process.env.ALFA_BANK_API_URL ?? 'https://pay.alfabank.by/api',
   },
   jobs: {
-    enabled: process.env.ENABLE_CRON !== 'false',
+    enabled: parseEnvBoolean(process.env.ENABLE_CRON, true),
     reminderTimezone: process.env.REMINDER_TIMEZONE ?? 'Europe/Minsk',
   },
-  serveFrontend: process.env.SERVE_FRONTEND !== 'false',
+  serveFrontend: parseEnvBoolean(process.env.SERVE_FRONTEND, true),
   appPublicUrl: process.env.APP_PUBLIC_URL,
   mail: readMailEnvFromProcess(),
   pendingRegistration: {
     ttlHours: parseInt(process.env.PENDING_REGISTRATION_TTL_HOURS ?? '24', 10),
   },
-  trustProxy: (process.env.TRUST_PROXY ?? 'false') === 'true',
+  trustProxy: parseEnvBoolean(process.env.TRUST_PROXY, false),
   cors: {
     origins: (process.env.CORS_ORIGINS ?? '')
       .split(',')

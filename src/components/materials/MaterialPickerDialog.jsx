@@ -2,15 +2,9 @@ import React, { useState, useEffect } from "react";
 import { api } from '@/api';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { X, Search, FileText, Video, Link, File, CheckCircle2, Loader2 } from "lucide-react";
-
-const FILE_TYPE_ICONS = {
-  pdf: { icon: FileText, color: "text-red-500" },
-  pptx: { icon: FileText, color: "text-orange-500" },
-  video: { icon: Video, color: "text-blue-500" },
-  link: { icon: Link, color: "text-indigo-500" },
-  other: { icon: File, color: "text-slate-500" },
-};
+import { X, Search, CheckCircle2, Loader2 } from "lucide-react";
+import { getMaterialTypeInfo } from "@/lib/materialIcons";
+import { unpackMaterialDescription } from "@/lib/materialMeta";
 
 export default function MaterialPickerDialog({ onConfirm, onSkip, onCancel, lessonInfo }) {
   const [materials, setMaterials] = useState([]);
@@ -29,10 +23,11 @@ export default function MaterialPickerDialog({ onConfirm, onSkip, onCancel, less
     setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
-  const filtered = materials.filter(m =>
-    (m.title || "").toLowerCase().includes(search.toLowerCase()) ||
-    (m.block_name || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = materials.filter((m) => {
+    const block = unpackMaterialDescription(m.description).blockName;
+    const q = search.toLowerCase();
+    return (m.title || "").toLowerCase().includes(q) || block.toLowerCase().includes(q);
+  });
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
@@ -62,10 +57,11 @@ export default function MaterialPickerDialog({ onConfirm, onSkip, onCancel, less
           ) : filtered.length === 0 ? (
             <p className="text-center text-sm text-slate-400 py-8">Материалы не найдены</p>
           ) : (
-            filtered.map(mat => {
-              const typeInfo = FILE_TYPE_ICONS[mat.file_type] || FILE_TYPE_ICONS.other;
+            filtered.map((mat) => {
+              const typeInfo = getMaterialTypeInfo(mat.file_type);
               const IconComp = typeInfo.icon;
               const isSelected = selected.includes(mat.id);
+              const block = unpackMaterialDescription(mat.description).blockName;
               return (
                 <button
                   key={mat.id}
@@ -77,7 +73,7 @@ export default function MaterialPickerDialog({ onConfirm, onSkip, onCancel, less
                   <IconComp className={`h-4 w-4 shrink-0 ${typeInfo.color}`} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-800 truncate">{mat.title}</p>
-                    {mat.block_name && <p className="text-xs text-slate-400">{mat.block_name}</p>}
+                    {block && <p className="text-xs text-slate-400">{block}</p>}
                   </div>
                   {isSelected && <CheckCircle2 className="h-4 w-4 text-indigo-600 shrink-0" />}
                 </button>

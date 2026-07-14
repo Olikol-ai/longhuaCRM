@@ -55,11 +55,26 @@ export class UserEntity {
   @Column({ name: 'telegram_username', default: '' })
   telegramUsername: string;
 
+  @Column({ name: 'telegram_connected_at', type: 'timestamptz', nullable: true })
+  telegramConnectedAt: Date | null;
+
   @Column({ name: 'telegram_link_token', type: 'text', nullable: true })
   telegramLinkToken: string | null;
 
   @Column({ name: 'telegram_link_expires', type: 'timestamptz', nullable: true })
   telegramLinkExpires: Date | null;
+
+  @Column({ name: 'password_reset_token', type: 'text', nullable: true })
+  passwordResetToken: string | null;
+
+  @Column({ name: 'password_reset_expires_at', type: 'timestamptz', nullable: true })
+  passwordResetExpiresAt: Date | null;
+
+  @Column({ name: 'telegram_notify_24h', default: true })
+  telegramNotify24h: boolean;
+
+  @Column({ name: 'telegram_notify_3h', default: true })
+  telegramNotify3h: boolean;
 
   @CreateDateColumn({ name: 'created_date', type: 'timestamptz' })
   createdDate: Date;

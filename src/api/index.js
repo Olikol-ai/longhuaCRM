@@ -15,6 +15,7 @@ import { students } from './students.api';
 import { teachers } from './teachers.api';
 import { teacherPayments } from './teacher-payments.api';
 import { lessonSeries } from './lesson-series.api';
+import { telegram } from './telegram.api';
 import { apiUpload } from './http';
 
 export { getToken, setToken, apiFetch, TOKEN_KEY, onTokenChange } from './http';
@@ -35,6 +36,7 @@ export { users } from './users.api';
 export { notifications } from './notifications.api';
 export { teacherPayments } from './teacher-payments.api';
 export { lessonSeries } from './lesson-series.api';
+export { telegram } from './telegram.api';
 
 /** Unified API client — all frontend requests go through /api/* */
 export const api = {
@@ -53,6 +55,7 @@ export const api = {
   notifications,
   teacherPayments,
   lessonSeries,
+  telegram,
   functions,
   schedule,
   uploads: {

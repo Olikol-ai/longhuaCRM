@@ -9,7 +9,7 @@ import {
   type MailEnvConfig,
 } from '../../config/mail-config';
 import { getEmailDomain, TEST_EMAIL_DOMAIN } from '../../common/security/email-validation';
-import { smtpTestEmail, verificationCodeEmail } from './mail.templates';
+import { passwordResetEmail, smtpTestEmail, verificationCodeEmail } from './mail.templates';
 
 export type MailSendResult = {
   sent: boolean;
@@ -84,6 +84,27 @@ export class MailService implements OnModuleInit {
 
     const template = verificationCodeEmail(code);
     return this.sendMail(to, template.subject, template.text, template.html, 'verification');
+  }
+
+  async sendPasswordReset(to: string, resetUrl: string): Promise<MailSendResult> {
+    const domain = getEmailDomain(to);
+    if (
+      process.env.E2E_STUB_MAIL === 'true'
+      && domain
+      && domain !== TEST_EMAIL_DOMAIN
+    ) {
+      this.logger.log(`[E2E_STUB_MAIL] password reset link for ${to}: ${resetUrl}`);
+      return { sent: true, status: 'sent' };
+    }
+
+    if (!this.isConfigured()) {
+      const error = this.getConfigurationError();
+      this.logger.warn(`[password-reset] ${error} — email to ${to} was not sent`);
+      return { sent: false, status: 'email_not_sent', error };
+    }
+
+    const template = passwordResetEmail(resetUrl);
+    return this.sendMail(to, template.subject, template.text, template.html, 'password-reset');
   }
 
   async sendTestEmail(to: string): Promise<MailTestResult> {

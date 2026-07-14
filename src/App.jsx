@@ -8,6 +8,8 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { AuthLoadingScreen, shouldBlockProtectedUI } from '@/lib/auth-gate';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import PendingApproval from './pages/PendingApproval';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import NameFormModal from '@/components/auth/NameFormModal';
@@ -15,7 +17,6 @@ import RoleRouteGuard, { RoleHomeRedirect, OnboardingFallback, RootRedirect } fr
 import { AdminRoute, TeacherRoute, StudentRoute } from '@/components/auth/AdminRoute';
 import { ONBOARDING_PATH } from '@/lib/routing';
 
-const AdminLessonMaterials = lazy(() => import('./pages/AdminLessonMaterials'));
 const UserManagement = lazy(() => import('./pages/UserManagement'));
 const StudentLessonMaterials = lazy(() => import('./pages/StudentLessonMaterials'));
 const MaterialsHub = lazy(() => import('./pages/MaterialsHub'));
@@ -28,7 +29,7 @@ const TeacherPayments = lazy(() => import('./pages/TeacherPayments'));
 
 /**
  * Route registration: see docs/frontend-routing.md
- * - Public routes: /login, onboarding
+ * - Public routes: /login, /forgot-password, /reset-password, onboarding
  * - pages.config Pages → /{PageName} with role guards below
  * - Manual admin/teacher/student routes declared after the Pages map
  */
@@ -108,7 +109,7 @@ const AuthenticatedApp = () => {
 
           return <Route key={path} path={`/${path}`} element={element} />;
         })}
-        <Route path="/AdminLessonMaterials" element={<AdminRoute><LayoutWrapper currentPageName="AdminLessonMaterials"><AdminLessonMaterials /></LayoutWrapper></AdminRoute>} />
+        <Route path="/AdminLessonMaterials" element={<Navigate to="/MaterialsHub" replace />} />
         <Route path="/MaterialsHub" element={<TeacherRoute><LayoutWrapper currentPageName="MaterialsHub"><MaterialsHub /></LayoutWrapper></TeacherRoute>} />
         <Route path="/StudentLessonMaterials" element={<StudentRoute><LayoutWrapper currentPageName="StudentLessonMaterials"><StudentLessonMaterials /></LayoutWrapper></StudentRoute>} />
         <Route path="/UserManagement" element={<AdminRoute><LayoutWrapper currentPageName="UserManagement"><UserManagement /></LayoutWrapper></AdminRoute>} />
@@ -136,6 +137,8 @@ function App() {
           <Router>
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path={ONBOARDING_PATH} element={<PendingApproval />} />
               <Route path="*" element={<AuthenticatedApp />} />
             </Routes>

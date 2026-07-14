@@ -73,6 +73,47 @@ export function verificationCodeEmail(code: string): { subject: string; text: st
   return { subject, text, html };
 }
 
+export function passwordResetEmail(resetUrl: string): { subject: string; text: string; html: string } {
+  const subject = `Восстановление пароля — ${BRAND_NAME}`;
+  const text = [
+    'Здравствуйте!',
+    '',
+    'Вы запросили восстановление пароля в Longhua Chinese.',
+    '',
+    'Перейдите по ссылке, чтобы задать новый пароль:',
+    resetUrl,
+    '',
+    'Ссылка действует 1 час.',
+    '',
+    `Если вы не запрашивали восстановление пароля, проигнорируйте это письмо.`,
+  ].join('\n');
+
+  const safeUrl = resetUrl.replace(/"/g, '&quot;');
+  const html = layout(`
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;line-height:1.6;">Здравствуйте!</p>
+    <p style="margin:0 0 20px;font-size:15px;color:#334155;line-height:1.6;">
+      Вы запросили восстановление пароля. Нажмите кнопку ниже, чтобы задать новый пароль.
+    </p>
+    <p style="margin:0 0 24px;text-align:center;">
+      <a href="${safeUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:14px 28px;border-radius:10px;">
+        Задать новый пароль
+      </a>
+    </p>
+    <p style="margin:0 0 12px;font-size:13px;color:#64748b;line-height:1.5;word-break:break-all;">
+      Если кнопка не работает, скопируйте ссылку в браузер:<br/>
+      <a href="${safeUrl}" style="color:${BRAND_COLOR};">${safeUrl}</a>
+    </p>
+    <p style="margin:0 0 12px;font-size:14px;color:#475569;line-height:1.6;">
+      Ссылка действительна <strong>1 час</strong>.
+    </p>
+    <p style="margin:0;font-size:13px;color:#64748b;line-height:1.5;">
+      Если вы не запрашивали восстановление пароля, проигнорируйте это письмо.
+    </p>
+  `);
+
+  return { subject, text, html };
+}
+
 export function smtpTestEmail(): { subject: string; text: string; html: string } {
   const subject = `${BRAND_NAME} — Проверка отправки почты`;
   const text = [

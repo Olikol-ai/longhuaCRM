@@ -36,6 +36,8 @@ export function studentProfileToDirectoryEntry(student: StudentEntity): Record<s
     full_name: student.name,
     phone: student.phone ?? '',
     telegram_id: student.telegramId ?? '',
+    telegram_username: student.telegramUsername ?? '',
+    telegram_connected_at: student.telegramConnectedAt?.toISOString() ?? null,
     created_date: student.createdAt?.toISOString() ?? null,
     updated_date: student.updatedAt?.toISOString() ?? null,
   };

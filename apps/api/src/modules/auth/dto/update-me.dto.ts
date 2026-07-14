@@ -19,9 +19,5 @@ export class UpdateMeDto {
 
   @IsOptional()
   @IsString()
-  telegram_id?: string;
-
-  @IsOptional()
-  @IsString()
   role?: string;
 }

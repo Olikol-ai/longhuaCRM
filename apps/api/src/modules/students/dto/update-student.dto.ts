@@ -35,6 +35,10 @@ export class UpdateStudentDto {
   telegramId?: string;
 
   @IsOptional()
+  @IsString()
+  telegramUsername?: string;
+
+  @IsOptional()
   @IsUUID()
   assignedTeacherId?: string;
 
