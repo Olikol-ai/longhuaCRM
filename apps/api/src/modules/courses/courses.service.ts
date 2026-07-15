@@ -20,7 +20,8 @@ export class CoursesService {
   ) {}
 
   async findAllTemplates(actor: JwtPayload): Promise<CourseTemplateEntity[]> {
-    const where = this.courseAccess.scopeTemplateFilter(actor, {});
+    // Active catalog only — archived courses stay in DB for enrollments/certs/history.
+    const where = this.courseAccess.scopeTemplateFilter(actor, { is_active: true });
     return this.repository.filterTemplates(where as FindOptionsWhere<CourseTemplateEntity>);
   }
 
@@ -34,7 +35,23 @@ export class CoursesService {
   }
 
   createTemplate(dto: CreateCourseTemplateDto): Promise<CourseTemplateEntity> {
-    return this.repository.saveTemplate(dto);
+    return this.nextCourseSortOrder().then((sortOrder) =>
+      this.repository.saveTemplate({
+        name: dto.name,
+        courseType: dto.courseType ?? 'basic_beginner',
+        totalLessons: dto.totalLessons ?? 35,
+        sortOrder: dto.sortOrder ?? sortOrder,
+        description: dto.description ?? null,
+        price: dto.price ?? null,
+        isActive: dto.isActive ?? true,
+      }),
+    );
+  }
+
+  private async nextCourseSortOrder(): Promise<number> {
+    const rows = await this.repository.filterTemplates({ isActive: true });
+    if (rows.length === 0) return 0;
+    return Math.max(...rows.map((row) => row.sortOrder ?? 0)) + 1;
   }
 
   async updateTemplate(id: string, dto: UpdateCourseTemplateDto): Promise<CourseTemplateEntity> {
@@ -45,12 +62,20 @@ export class CoursesService {
     return row;
   }
 
-  async deleteTemplate(id: string): Promise<void> {
+  /**
+   * Soft-delete (archive) course from the Materials catalog.
+   * Admin-only via controller. Keeps enrollments/certificates/history.
+   * Soft-deletes course materials and clears related access/grants.
+   */
+  async deleteTemplate(id: string): Promise<CourseTemplateEntity> {
     const row = await this.repository.findTemplateById(id);
     if (!row) {
       throw new NotFoundException('Course template not found');
     }
-    await this.repository.deleteTemplate(id);
+    if (!row.isActive) {
+      return row;
+    }
+    return this.repository.archiveTemplate(id);
   }
 
   async filterTemplates(
@@ -58,6 +83,10 @@ export class CoursesService {
     where: Record<string, unknown>,
   ): Promise<CourseTemplateEntity[]> {
     const scoped = this.courseAccess.scopeTemplateFilter(actor, where);
+    // Default to active catalog unless caller explicitly filters is_active / isActive.
+    if (scoped.isActive === undefined) {
+      scoped.isActive = true;
+    }
     return this.repository.filterTemplates(scoped as FindOptionsWhere<CourseTemplateEntity>);
   }
 

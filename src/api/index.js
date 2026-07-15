@@ -13,6 +13,7 @@ import { settings } from './settings.api';
 import { users } from './users.api';
 import { students } from './students.api';
 import { teachers } from './teachers.api';
+import { teacherInvites } from './teacher-invites.api';
 import { teacherPayments } from './teacher-payments.api';
 import { lessonSeries } from './lesson-series.api';
 import { telegram } from './telegram.api';
@@ -25,6 +26,7 @@ export { functions } from './functions';
 export { schedule } from './schedule';
 export { students } from './students.api';
 export { teachers } from './teachers.api';
+export { teacherInvites } from './teacher-invites.api';
 export { courses } from './courses.api';
 export { groups } from './groups.api';
 export { lessons } from './lessons.api';
@@ -44,6 +46,7 @@ export const api = {
   alfabank,
   students,
   teachers,
+  teacherInvites,
   courses,
   groups,
   lessons,

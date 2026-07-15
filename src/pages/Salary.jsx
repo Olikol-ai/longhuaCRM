@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { api } from '@/api';
 import { format, parseISO, startOfMonth, endOfMonth, subMonths } from "date-fns";
-import { Download, GraduationCap, DollarSign } from "lucide-react";
+import { Download, GraduationCap, DollarSign, CheckCircle2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { toast } from "@/components/ui/use-toast";
+import { resolveTeacherPaymentLabel } from "@/lib/teacherLabels";
 
 const fieldCls = "px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500/20";
 
@@ -22,16 +24,24 @@ function exportCSV(filename, rows) {
 export default function Salary() {
   const [lessons, setLessons] = useState([]);
   const [teachers, setTeachers] = useState([]);
+  const [paymentRows, setPaymentRows] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(MONTHS[0].value);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    Promise.all([
+  const load = async () => {
+    const [l, t, payments] = await Promise.all([
       api.lessons.list("-date", 1000),
       api.teachers.list(),
-    ]).then(([l, t]) => {
-      setLessons(l); setTeachers(t); setLoading(false);
-    });
+      api.teacherPayments.list(),
+    ]);
+    setLessons(l);
+    setTeachers(t);
+    setPaymentRows(Array.isArray(payments) ? payments : []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load().catch(() => setLoading(false));
   }, []);
 
   const [yearStr, monthStr] = selectedMonth.split("-");
@@ -69,6 +79,22 @@ export default function Salary() {
     ]);
   };
 
+  const markPaid = async (row) => {
+    try {
+      await api.teacherPayments.update(row.id, { status: "paid" });
+      toast({ title: "Выплата отмечена как оплаченная" });
+      await load();
+    } catch (err) {
+      toast({ title: "Не удалось обновить выплату", description: err?.message, variant: "destructive" });
+    }
+  };
+
+  const teacherName = (id) => resolveTeacherPaymentLabel(id, teachers);
+  const lessonLabel = (id) => {
+    const lesson = lessons.find((l) => l.id === id);
+    return lesson ? `${lesson.date} ${lesson.start_time}` : id;
+  };
+
   if (loading) return (
     <div className="p-6 space-y-4">
       {[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-muted rounded-xl animate-pulse" />)}
@@ -80,7 +106,7 @@ export default function Salary() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold text-foreground">Зарплата преподавателей</h2>
-          <p className="text-sm text-muted-foreground">Расчёт за проведённые уроки</p>
+          <p className="text-sm text-muted-foreground">Расчёт за проведённые уроки и реестр начислений</p>
         </div>
         <div className="flex gap-2">
           <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className={fieldCls}>
@@ -93,7 +119,6 @@ export default function Salary() {
         </div>
       </div>
 
-      {/* Total */}
       <div className="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-xl p-5 text-white">
         <p className="text-indigo-200 text-sm mb-1">Итого к выплате — {monthLabel}</p>
         <p className="text-3xl font-bold">{totalSalary.toLocaleString()} BYN</p>
@@ -102,7 +127,6 @@ export default function Salary() {
         </p>
       </div>
 
-      {/* Teacher cards */}
       <div className="space-y-3">
         {teachers.length === 0 ? (
           <Card className="text-center py-12">
@@ -153,6 +177,38 @@ export default function Salary() {
             )}
           </Card>
         ))}
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <h3 className="text-base font-semibold text-foreground">Начисления по урокам</h3>
+          <p className="text-sm text-muted-foreground">Записи из реестра выплат после завершённых уроков</p>
+        </div>
+        {paymentRows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Начислений пока нет</p>
+        ) : (
+          paymentRows.map((row) => (
+            <div key={row.id} className="border rounded-xl p-4 bg-card flex items-center justify-between gap-4">
+              <div>
+                <p className="font-semibold flex items-center gap-2">
+                  <DollarSign className="w-4 h-4" /> {Number(row.amount).toFixed(2)} BYN
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {teacherName(row.teacher_id)} · Урок {lessonLabel(row.lesson_id)} · {row.status}
+                </p>
+              </div>
+              {row.status === "pending" && (
+                <button
+                  type="button"
+                  onClick={() => markPaid(row)}
+                  className="px-3 py-1.5 text-xs bg-emerald-600 text-white rounded-lg flex items-center gap-1"
+                >
+                  <CheckCircle2 className="w-3 h-3" /> Оплачено
+                </button>
+              )}
+            </div>
+          ))
+        )}
       </div>
 
       <div className="bg-muted rounded-xl p-4 text-xs text-muted-foreground">

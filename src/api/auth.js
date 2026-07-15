@@ -37,7 +37,9 @@ export const auth = {
     setToken(result.token);
     return flattenAuthResult(result);
   },
-  async register(email, password, firstName, lastName) {
+  async register(email, password, firstName, lastName, options = {}) {
+    const wantsStudentRole = Boolean(options.wantsStudentRole);
+    const inviteToken = options.inviteToken ? String(options.inviteToken).trim() : undefined;
     const result = await apiFetch('/auth/register', {
       method: 'POST',
       body: JSON.stringify({
@@ -45,16 +47,22 @@ export const auth = {
         password,
         first_name: firstName,
         last_name: lastName,
+        wantsStudentRole,
+        wants_student_role: wantsStudentRole,
+        ...(inviteToken ? { inviteToken, invite_token: inviteToken } : {}),
       }),
     });
     return result;
   },
+  /**
+   * Completes pending registration. Does not establish a session — caller should
+   * send the user to the login page.
+   */
   async verifyRegistration(email, code) {
-    const result = await apiFetch('/auth/verify-registration', {
+    return apiFetch('/auth/verify-registration', {
       method: 'POST',
       body: JSON.stringify({ email, code }),
     });
-    return flattenAuthResult(result);
   },
   async resendRegistrationCode(email) {
     return apiFetch('/auth/resend-registration-code', {

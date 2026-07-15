@@ -6,9 +6,14 @@ import {
   IsString,
   IsUUID,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { StudentStatus } from '../entities/student.entity';
 
+/**
+ * Empty strings from the FE are treated as “omit / clear” via ValidateIf,
+ * so @IsEmail / @IsUUID do not reject "".
+ */
 export class UpdateStudentDto {
   @IsOptional()
   @IsString()
@@ -23,8 +28,9 @@ export class UpdateStudentDto {
   lastName?: string;
 
   @IsOptional()
+  @ValidateIf((_o, v) => v !== null && v !== undefined && String(v).trim() !== '')
   @IsEmail()
-  email?: string;
+  email?: string | null;
 
   @IsOptional()
   @IsString()
@@ -38,9 +44,11 @@ export class UpdateStudentDto {
   @IsString()
   telegramUsername?: string;
 
+  /** null / "" clears assigned teacher */
   @IsOptional()
+  @ValidateIf((_o, v) => v !== null && v !== undefined && String(v).trim() !== '')
   @IsUUID()
-  assignedTeacherId?: string;
+  assignedTeacherId?: string | null;
 
   @IsOptional()
   @IsInt()
@@ -64,6 +72,7 @@ export class UpdateStudentDto {
   status?: StudentStatus;
 
   @IsOptional()
+  @ValidateIf((_o, v) => v !== null && v !== undefined && String(v).trim() !== '')
   @IsUUID()
-  userId?: string;
+  userId?: string | null;
 }

@@ -18,7 +18,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3001
 
-RUN apk add --no-cache tini
+RUN apk add --no-cache tini font-dejavu
 
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package-lock.json ./apps/api/

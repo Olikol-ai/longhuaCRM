@@ -20,6 +20,13 @@ import {
 import { api } from '@/api';
 import { Loader2 } from "lucide-react";
 import { formatBelarusPhone, PHONE_PLACEHOLDER } from "@/utils/phone";
+import { toast } from "@/components/ui/use-toast";
+
+function emptyToNull(value) {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  return value;
+}
 
 export default function StudentFormDialog({ open, onOpenChange, student, onSave }) {
   const [teachers, setTeachers] = useState([]);
@@ -65,21 +72,50 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
   }, [open, student]);
 
   const loadTeachers = async () => {
-    const t = await api.teachers.list();
-    setTeachers(t.filter((x) => x.status === "active"));
+    try {
+      const t = await api.teachers.list();
+      setTeachers((Array.isArray(t) ? t : []).filter((x) => x.status === "active"));
+    } catch (err) {
+      toast({
+        title: "Не удалось загрузить преподавателей",
+        description: err?.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSubmit = async () => {
+    if (!formData.name.trim()) {
+      toast({ title: "Укажите имя ученика", variant: "destructive" });
+      return;
+    }
     setLoading(true);
     try {
-      const data = { ...formData, lesson_balance: Number(formData.lesson_balance) };
+      const data = {
+        name: formData.name.trim(),
+        email: emptyToNull(formData.email),
+        phone: formData.phone || "",
+        assigned_teacher: emptyToNull(formData.assigned_teacher),
+        lesson_balance: Number(formData.lesson_balance) || 0,
+        start_date: emptyToNull(formData.start_date),
+        notes: formData.notes || "",
+        status: formData.status || "active",
+      };
       if (student) {
         await api.students.update(student.id, data);
+        toast({ title: "Данные ученика сохранены" });
       } else {
         await api.students.create(data);
+        toast({ title: "Ученик создан" });
       }
       onSave?.();
       onOpenChange(false);
+    } catch (err) {
+      toast({
+        title: "Не удалось сохранить",
+        description: err?.message || "Проверьте поля и попробуйте снова",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -189,8 +225,14 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Отмена</Button>
-          <Button onClick={handleSubmit} disabled={loading || !formData.name} className="bg-indigo-600 hover:bg-indigo-700">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Отмена</Button>
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={loading || !formData.name}
+            className="bg-indigo-600 hover:bg-indigo-700"
+            data-testid="student-form-save"
+          >
             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {student ? "Сохранить" : "Создать"}
           </Button>

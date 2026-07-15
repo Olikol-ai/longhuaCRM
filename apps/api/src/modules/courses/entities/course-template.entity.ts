@@ -26,6 +26,9 @@ export class CourseTemplateEntity {
   @Column({ name: 'total_lessons', type: 'int', default: 35 })
   totalLessons: number;
 
+  @Column({ name: 'sort_order', type: 'int', default: 0 })
+  sortOrder: number;
+
   @Column({ type: 'text', nullable: true })
   description: string | null;
 

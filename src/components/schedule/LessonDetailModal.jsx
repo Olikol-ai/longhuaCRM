@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { X, Edit2, Trash2, CheckCircle2, XCircle, Video, Clock, Calendar, RefreshCw, Users } from "lucide-react";
 import { resolveLessonTeacherLabel } from "@/lib/teacherLabels";
-import { DELETED_STUDENT_LABEL, resolveLessonStudentNames } from "@/lib/studentLabels";
+import { resolveLessonStudentNames } from "@/lib/studentLabels";
 import LessonAttendancePanel from "@/components/groups/LessonAttendancePanel";
 
 export const STATUS_LABELS = {
@@ -30,33 +30,35 @@ export default function LessonDetailModal({ lesson, teachers, students, isAdmin,
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const toggleStudent = (id) => {
-    const current = form.student_ids || (form.student_id ? [form.student_id] : []);
-    const updated = current.includes(id) ? current.filter(s => s !== id) : [...current, id];
-    setForm(f => ({ ...f, student_ids: updated }));
-  };
+  const isGroupLesson = Boolean(form.group_id || lesson.group_id || lesson.lesson_type === "group");
 
   const handleSave = () => {
-    const teacher = teachers.find(t => t.id === form.teacher_id);
-    const ids = form.student_ids || (form.student_id ? [form.student_id] : []);
-    const selectedStudents = students.filter(s => ids.includes(s.id));
+    const primaryStudentId =
+      form.primary_student_id || form.student_id || "";
+    if (!isGroupLesson && !primaryStudentId) {
+      alert("Выберите ученика для индивидуального урока");
+      return;
+    }
     onUpdate(lesson.id, {
-      ...form,
-      teacher_name: teacher?.name || resolveLessonTeacherLabel(lesson, teachers),
-      student_id: ids[0] || form.student_id,
-      student_name: selectedStudents[0]?.name || form.student_name || DELETED_STUDENT_LABEL,
-      student_ids: ids,
-      student_names: selectedStudents.map(s => s.name),
+      teacher_id: form.teacher_id,
+      date: form.date,
+      start_time: form.start_time,
+      duration: form.duration,
+      status: form.status,
+      lesson_format: form.lesson_format,
+      meeting_link: form.meeting_link,
+      notes: form.notes,
+      lesson_type: isGroupLesson ? "group" : "individual",
+      ...(isGroupLesson
+        ? { group_id: form.group_id || lesson.group_id }
+        : { primary_student_id: primaryStudentId }),
     });
   };
 
   const displayStudentNames = resolveLessonStudentNames(lesson, students);
 
-  const currentStudentIds = form.student_ids?.length
-    ? form.student_ids
-    : form.student_id
-    ? [form.student_id]
-    : [];
+  const currentStudentId =
+    form.primary_student_id || form.student_id || lesson.primary_student_id || lesson.student_id || "";
 
   if (editing) {
     return (
@@ -78,18 +80,28 @@ export default function LessonDetailModal({ lesson, teachers, students, isAdmin,
                 </select>
               </div>
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Ученики {currentStudentIds.length > 0 && <span className="text-indigo-600">({currentStudentIds.length})</span>}
-                </label>
-                <div className="border border-slate-200 rounded-lg max-h-32 overflow-y-auto divide-y divide-slate-50">
-                  {students.filter(s => s.status !== "inactive").map(s => (
-                    <label key={s.id} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-50">
-                      <input type="checkbox" checked={currentStudentIds.includes(s.id)}
-                        onChange={() => toggleStudent(s.id)} className="accent-indigo-600" />
-                      <span className="text-sm text-slate-700">{s.name}</span>
-                    </label>
-                  ))}
-                </div>
+                {isGroupLesson ? (
+                  <>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Группа</label>
+                    <p className="text-sm text-slate-700 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50">
+                      Групповой урок — состав учеников берётся из группы
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Ученик *</label>
+                    <select
+                      value={currentStudentId}
+                      onChange={(e) => set("primary_student_id", e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+                    >
+                      <option value="">Выбрать ученика</option>
+                      {students.filter((s) => s.status !== "inactive").map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Дата</label>

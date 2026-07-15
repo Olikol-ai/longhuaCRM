@@ -4,6 +4,7 @@ import { api } from '@/api';
 import { BookOpen, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { REGISTRATION_PASSWORD_HINT } from '@/lib/passwordPolicy';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -96,13 +97,10 @@ export default function ResetPassword() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  minLength={6}
                   autoComplete="new-password"
                   data-testid="reset-password-password"
                 />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Минимум 6 символов, буква и цифра
-                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{REGISTRATION_PASSWORD_HINT}</p>
               </div>
 
               <div>
@@ -115,7 +113,6 @@ export default function ResetPassword() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  minLength={6}
                   autoComplete="new-password"
                   data-testid="reset-password-confirm"
                 />

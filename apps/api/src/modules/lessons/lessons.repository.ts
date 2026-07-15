@@ -14,11 +14,16 @@ export class LessonsRepository {
   ) {}
 
   findAll(): Promise<LessonEntity[]> {
-    return this.lessonRepo.find();
+    return this.lessonRepo.find({
+      relations: ['teacher', 'primaryStudent', 'group'],
+    });
   }
 
   findById(id: string): Promise<LessonEntity | null> {
-    return this.lessonRepo.findOne({ where: { id } });
+    return this.lessonRepo.findOne({
+      where: { id },
+      relations: ['teacher', 'primaryStudent', 'group'],
+    });
   }
 
   save(entity: Partial<LessonEntity>): Promise<LessonEntity> {
@@ -35,7 +40,10 @@ export class LessonsRepository {
   }
 
   filter(where: FindOptionsWhere<LessonEntity>): Promise<LessonEntity[]> {
-    return this.lessonRepo.find({ where });
+    return this.lessonRepo.find({
+      where,
+      relations: ['teacher', 'primaryStudent', 'group'],
+    });
   }
 
   findAllAttendance(): Promise<AttendanceEntity[]> {

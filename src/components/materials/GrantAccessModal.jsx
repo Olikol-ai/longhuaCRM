@@ -139,8 +139,8 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
           }))
         : courses.map((c) => ({
             id: c.id,
-            title: c.name || c.course_name,
-            subtitle: c.course_type || "курс",
+            title: c.name || c.course_name || "Курс",
+            subtitle: "курс",
             disabled: false,
           }));
 

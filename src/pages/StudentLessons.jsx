@@ -88,7 +88,11 @@ export default function StudentLessons() {
     ]);
     const student = allStudents.find((s) => s.user_id === user.id || s.email === user.email);
     if (student) {
-      setLessons(allLessons.filter((l) => l.student_id === student.id));
+      setLessons(allLessons.filter((l) =>
+        l.primary_student_id === student.id ||
+        l.student_id === student.id ||
+        (l.student_ids || []).includes(student.id)
+      ));
     }
     setLoading(false);
   };

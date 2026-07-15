@@ -14,6 +14,7 @@ import DeleteConfirmModal from "@/components/common/DeleteConfirmModal";
 import { toast } from "@/components/ui/use-toast";
 import {
   ALL_ROLE_OPTIONS,
+  ACCOUNT_FILTER_TABS,
   ROLE_CONFIG,
   displayRole,
   showOrphanStudentsNotice,
@@ -161,15 +162,12 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
     }
   };
 
-  const FILTER_TABS = [
-    { value: "all", label: "Все" },
-    ...ALL_ROLE_OPTIONS.map(r => ({ value: r, label: ROLE_CONFIG[r]?.label || r })),
-  ];
+  const FILTER_TABS = ACCOUNT_FILTER_TABS;
+  const activeFilter = FILTER_TABS.some((tab) => tab.value === roleFilter)
+    ? roleFilter
+    : "all";
 
-  const counts = ALL_ROLE_OPTIONS.reduce((acc, r) => {
-    acc[r] = entries.filter((u) => displayRole(u.role) === r).length;
-    return acc;
-  }, {});
+  const pendingCount = entries.filter((u) => displayRole(u.role) === "pending").length;
 
   const getFullName = (entry) => {
     if (entry.first_name && entry.last_name) {
@@ -180,7 +178,7 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
 
   const filtered = entries.filter((u) => {
     const role = displayRole(u.role);
-    const matchRole = roleFilter === "all" || role === roleFilter;
+    const matchRole = activeFilter === "all" || role === activeFilter;
     const fullName = getFullName(u);
     const matchSearch = !search ||
       fullName.toLowerCase().includes(search.toLowerCase()) ||
@@ -190,12 +188,12 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
 
   return (
     <div className="space-y-4">
-      {/* Filter pills */}
+      {/* Filter pills: Все / Ожидают роли (entity lists live on top-level tabs) */}
       <div className="flex flex-wrap gap-2">
         {FILTER_TABS.map(tab => {
-          const count = tab.value === "all" ? entries.length : (counts[tab.value] || 0);
-          const active = roleFilter === tab.value;
-          const cfg = ROLE_CONFIG[tab.value];
+          const count = tab.value === "all" ? entries.length : pendingCount;
+          const active = activeFilter === tab.value;
+          const cfg = tab.value === "pending" ? ROLE_CONFIG.pending : null;
           return (
             <button key={tab.value} onClick={() => setRoleFilter(tab.value)}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border ${

@@ -86,13 +86,13 @@ export default function AccessManagementPanel({ isAdmin }) {
     isAdmin && userTypeTab === "teachers"
       ? teachers.map((t) => ({
           userId: t.user_id,
-          name: t.name,
+          name: t.name || t.email || 'Преподаватель',
           email: t.email,
           type: "teacher",
         }))
       : students.map((s) => ({
           userId: s.user_id,
-          name: s.name,
+          name: s.name || s.email || 'Ученик',
           email: s.email,
           type: "student",
         }));
@@ -145,7 +145,7 @@ export default function AccessManagementPanel({ isAdmin }) {
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-950 flex items-center justify-center shrink-0">
                   <span className="text-sm font-bold text-indigo-700 dark:text-indigo-300">
-                    {row.name.charAt(0).toUpperCase()}
+                    {(row.name || row.email || '?').charAt(0).toUpperCase()}
                   </span>
                 </div>
                 <div className="min-w-0">

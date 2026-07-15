@@ -220,7 +220,7 @@ export class LessonSeriesService {
           meetingLink: series.meetingLink ?? undefined,
           notes: series.notes ?? undefined,
         };
-        await this.lessonsService.create(lessonDto);
+        await this.lessonsService.create(null, lessonDto);
         created += 1;
 
         cursor = this.addDays(cursor, stepDays);
@@ -314,7 +314,7 @@ export class LessonSeriesService {
             meetingLink: series.meetingLink ?? undefined,
             notes: series.notes ?? undefined,
           };
-          await this.lessonsService.create(lessonDto);
+          await this.lessonsService.create(null, lessonDto);
           created += 1;
         } catch {
           pushSkipped(slotLabel);

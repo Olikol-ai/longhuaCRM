@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { addDays, format, parseISO } from "date-fns";
-import { X, RefreshCw, ChevronDown } from "lucide-react";
+import { X, RefreshCw } from "lucide-react";
 import { api } from "@/api";
 import TeacherAvailabilityPanel, { dayIndexFromDate } from "./TeacherAvailabilityPanel";
 import {
@@ -11,18 +11,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
 
 const DROPDOWN_Z = "z-[200]";
 
-export default function LessonModal({ date, teachers, students, onSave, onClose, defaultTeacherId }) {
+export default function LessonModal({
+  date,
+  teachers,
+  students,
+  groups = [],
+  onSave,
+  onClose,
+  defaultTeacherId,
+}) {
   const [form, setForm] = useState({
     teacher_id: defaultTeacherId || "",
-    teacher_name: "",
-    teacher_first_name: "",
-    teacher_last_name: "",
-    student_ids: [],
+    lesson_type: "individual",
+    primary_student_id: "",
+    group_id: "",
     date: date || "",
     start_time: "10:00",
     duration: 60,
@@ -33,11 +38,10 @@ export default function LessonModal({ date, teachers, students, onSave, onClose,
   });
   const [recurring, setRecurring] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [studentPickerOpen, setStudentPickerOpen] = useState(false);
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [teacherSchedule, setTeacherSchedule] = useState({ hasSchedule: false, slots: [] });
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   useEffect(() => {
     if (!form.teacher_id) {
@@ -74,10 +78,24 @@ export default function LessonModal({ date, teachers, students, onSave, onClose,
     return teacherSchedule.slots.filter((slot) => slot.day === dayIndex);
   }, [form.date, teacherSchedule]);
 
-  const validateTeacherAvailability = async (date, startTime, duration) => {
-    if (!form.teacher_id || !date || !startTime) return true;
+  const activeStudents = students.filter((s) => s.status !== "inactive");
+  const activeTeachers = teachers.filter((t) => t.status !== "inactive");
+  const teacherGroups = useMemo(
+    () => groups.filter((g) => !form.teacher_id || g.teacher_id === form.teacher_id),
+    [groups, form.teacher_id],
+  );
+
+  const canSubmit = Boolean(
+    form.teacher_id &&
+    form.date &&
+    form.start_time &&
+    (form.lesson_type === "group" ? form.group_id : form.primary_student_id),
+  );
+
+  const validateTeacherAvailability = async (lessonDate, startTime, duration) => {
+    if (!form.teacher_id || !lessonDate || !startTime) return true;
     const result = await api.schedule.checkTeacherAvailability(form.teacher_id, {
-      date,
+      date: lessonDate,
       start_time: startTime,
       duration,
     });
@@ -88,18 +106,17 @@ export default function LessonModal({ date, teachers, students, onSave, onClose,
     return true;
   };
 
-  const toggleStudent = (id) => {
-    setForm(f => {
-      const ids = f.student_ids.includes(id)
-        ? f.student_ids.filter(s => s !== id)
-        : [...f.student_ids, id];
-      return { ...f, student_ids: ids };
-    });
-  };
-
   const handleSave = async () => {
-    if (!form.teacher_id || form.student_ids.length === 0 || !form.date || !form.start_time) return;
-    if (saving) return;
+    if (!canSubmit || saving) return;
+
+    if (form.lesson_type === "individual" && !form.primary_student_id) {
+      alert("Выберите ученика для индивидуального урока");
+      return;
+    }
+    if (form.lesson_type === "group" && !form.group_id) {
+      alert("Выберите группу для группового урока");
+      return;
+    }
 
     const lessonDateTime = new Date(`${form.date}T${form.start_time}`);
     const now = new Date();
@@ -124,33 +141,28 @@ export default function LessonModal({ date, teachers, students, onSave, onClose,
         if (!ok) return;
       }
 
-      const teacher = teachers.find(t => t.id === form.teacher_id);
-      const selectedStudents = students.filter(s => form.student_ids.includes(s.id));
-      const student_names = selectedStudents.map(s => s.name);
-      await onSave({
-        ...form,
-        teacher_name: teacher?.name || form.teacher_name || "",
-        teacher_first_name: teacher?.first_name || form.teacher_first_name || "",
-        teacher_last_name: teacher?.last_name || form.teacher_last_name || "",
-        student_id: form.student_ids[0],
-        student_name: student_names[0] || "",
-        student_names,
-        student_first_name: selectedStudents[0]?.first_name || "",
-        student_last_name: selectedStudents[0]?.last_name || "",
+      const payload = {
+        teacher_id: form.teacher_id,
+        date: form.date,
+        start_time: form.start_time,
         duration,
-      }, recurring);
+        meeting_link: form.meeting_link,
+        status: form.status,
+        lesson_format: form.lesson_format,
+        notes: form.notes,
+        lesson_type: form.lesson_type,
+        ...(form.lesson_type === "group"
+          ? { group_id: form.group_id }
+          : { primary_student_id: form.primary_student_id }),
+      };
+
+      await onSave(payload, recurring);
     } catch (err) {
       alert(err?.message || "Не удалось создать урок");
     } finally {
       setSaving(false);
     }
   };
-
-  const activeStudents = students.filter(s => s.status !== "inactive");
-  const activeTeachers = teachers.filter(t => t.status !== "inactive");
-  const selectedStudentLabels = activeStudents
-    .filter(s => form.student_ids.includes(s.id))
-    .map(s => s.name);
 
   const modal = (
     <div
@@ -175,13 +187,10 @@ export default function LessonModal({ date, teachers, students, onSave, onClose,
               <Select
                 value={form.teacher_id}
                 onValueChange={(value) => {
-                  const t = activeTeachers.find(x => x.id === value);
-                  setForm(f => ({
+                  setForm((f) => ({
                     ...f,
                     teacher_id: value,
-                    teacher_name: t?.name || "",
-                    teacher_first_name: t?.first_name || "",
-                    teacher_last_name: t?.last_name || "",
+                    group_id: "",
                   }));
                 }}
               >
@@ -189,7 +198,7 @@ export default function LessonModal({ date, teachers, students, onSave, onClose,
                   <SelectValue placeholder="Выбрать преподавателя" />
                 </SelectTrigger>
                 <SelectContent className={DROPDOWN_Z}>
-                  {activeTeachers.map(t => (
+                  {activeTeachers.map((t) => (
                     <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -197,62 +206,85 @@ export default function LessonModal({ date, teachers, students, onSave, onClose,
             </div>
 
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-slate-600 mb-1">
-                Ученики * {form.student_ids.length > 0 && (
-                  <span className="text-indigo-600">({form.student_ids.length} выбрано)</span>
-                )}
-              </label>
-              <Popover open={studentPickerOpen} onOpenChange={setStudentPickerOpen} modal={false}>
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    className="flex h-9 w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
-                  >
-                    <span className={`truncate text-left ${form.student_ids.length === 0 ? "text-slate-400" : ""}`}>
-                      {form.student_ids.length === 0
-                        ? "Выбрать учеников"
-                        : selectedStudentLabels.join(", ")}
-                    </span>
-                    <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className={`${DROPDOWN_Z} w-[var(--radix-popover-trigger-width)] p-0`}
-                  align="start"
-                  sideOffset={4}
-                  onOpenAutoFocus={(e) => e.preventDefault()}
+              <label className="block text-xs font-medium text-slate-600 mb-1">Тип урока *</label>
+              <Select
+                value={form.lesson_type}
+                onValueChange={(value) => {
+                  setForm((f) => ({
+                    ...f,
+                    lesson_type: value,
+                    primary_student_id: value === "individual" ? f.primary_student_id : "",
+                    group_id: value === "group" ? f.group_id : "",
+                  }));
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className={DROPDOWN_Z}>
+                  <SelectItem value="individual">Индивидуальный</SelectItem>
+                  <SelectItem value="group">Групповой</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {form.lesson_type === "individual" ? (
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-slate-600 mb-1">Ученик *</label>
+                <Select
+                  value={form.primary_student_id}
+                  onValueChange={(value) => set("primary_student_id", value)}
                 >
-                  <div className="max-h-48 overflow-y-auto overscroll-contain divide-y divide-slate-50">
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Выбрать ученика" />
+                  </SelectTrigger>
+                  <SelectContent className={DROPDOWN_Z}>
                     {activeStudents.length === 0 ? (
-                      <p className="px-3 py-4 text-sm text-slate-400 text-center">Нет доступных учеников</p>
+                      <SelectItem value="__none" disabled>Нет доступных учеников</SelectItem>
                     ) : (
-                      activeStudents.map(s => (
-                        <label
-                          key={s.id}
-                          className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-slate-50"
-                        >
-                          <Checkbox
-                            checked={form.student_ids.includes(s.id)}
-                            onCheckedChange={() => toggleStudent(s.id)}
-                          />
-                          <span className="text-sm text-slate-700 flex-1 min-w-0 truncate">{s.name}</span>
-                          <span className="text-xs text-slate-400 shrink-0">баланс: {s.lesson_balance || 0}</span>
-                        </label>
+                      activeStudents.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name} · баланс: {s.lesson_balance || 0}
+                        </SelectItem>
                       ))
                     )}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-slate-600 mb-1">Группа *</label>
+                <Select
+                  value={form.group_id}
+                  onValueChange={(value) => set("group_id", value)}
+                  disabled={!form.teacher_id}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={form.teacher_id ? "Выбрать группу" : "Сначала выберите преподавателя"} />
+                  </SelectTrigger>
+                  <SelectContent className={DROPDOWN_Z}>
+                    {teacherGroups.length === 0 ? (
+                      <SelectItem value="__none" disabled>
+                        {form.teacher_id ? "Нет групп у преподавателя" : "Сначала выберите преподавателя"}
+                      </SelectItem>
+                    ) : (
+                      teacherGroups.map((g) => (
+                        <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Дата *</label>
-              <input type="date" value={form.date} onChange={e => set("date", e.target.value)}
+              <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Время начала *</label>
-              <input type="time" value={form.start_time} onChange={e => set("start_time", e.target.value)}
+              <input type="time" value={form.start_time} onChange={(e) => set("start_time", e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
             </div>
             <TeacherAvailabilityPanel
@@ -271,7 +303,7 @@ export default function LessonModal({ date, teachers, students, onSave, onClose,
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className={DROPDOWN_Z}>
-                  {[30, 45, 60, 90, 120].map(d => (
+                  {[30, 45, 60, 90, 120].map((d) => (
                     <SelectItem key={d} value={String(d)}>{d} мин</SelectItem>
                   ))}
                 </SelectContent>
@@ -295,7 +327,7 @@ export default function LessonModal({ date, teachers, students, onSave, onClose,
             {form.lesson_format === "online" && (
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-slate-600 mb-1">Ссылка на встречу</label>
-                <input value={form.meeting_link} onChange={e => set("meeting_link", e.target.value)}
+                <input value={form.meeting_link} onChange={(e) => set("meeting_link", e.target.value)}
                   placeholder="https://zoom.us/j/... or meet.google.com/..."
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
               </div>
@@ -322,7 +354,7 @@ export default function LessonModal({ date, teachers, students, onSave, onClose,
         <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-100 flex-shrink-0">
           <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-lg">Отмена</button>
           <button type="button" onClick={handleSave}
-            disabled={!form.teacher_id || form.student_ids.length === 0 || saving}
+            disabled={!canSubmit || saving}
             className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-40">
             {saving ? "Создание..." : recurring ? "Создать 2 урока" : "Создать урок"}
           </button>

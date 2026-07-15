@@ -13,11 +13,26 @@ export function Toaster() {
 
   return (
     <ToastProvider>
-      {toasts.map(function ({ id, title, description, action, open, onOpenChange, ...props }) {
+      {toasts.map(function ({
+        id,
+        title,
+        description,
+        action,
+        open,
+        onOpenChange,
+        onPause,
+        onResume,
+        ...props
+      }) {
         if (open === false) return null;
 
         return (
-          <Toast key={id} {...props}>
+          <Toast
+            key={id}
+            {...props}
+            onMouseEnter={() => onPause?.()}
+            onMouseLeave={() => onResume?.()}
+          >
             <div className="grid gap-1">
               {title && <ToastTitle>{title}</ToastTitle>}
               {description && (
@@ -35,4 +50,4 @@ export function Toaster() {
       <ToastViewport />
     </ToastProvider>
   );
-} 
+}

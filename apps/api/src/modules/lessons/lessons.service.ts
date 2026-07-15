@@ -1,17 +1,21 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, FindOptionsWhere } from 'typeorm';
 import { LessonAccessService } from '../../common/access/lesson-access.service';
+import { TeacherAccessService } from '../../common/access/teacher-access.service';
+import { normalizeRole } from '../../common/constants/roles';
 import { JwtPayload } from '../auth/auth.service';
 import { EnrollmentProgressService } from '../courses/enrollment-progress.service';
 import { GroupEntity } from '../groups/entities/group.entity';
 import { GroupMemberEntity } from '../groups/entities/group-member.entity';
 import { AvailabilityBookingEntity } from '../schedule/entities/availability-booking.entity';
 import { ScheduleService } from '../schedule/schedule.service';
+import { StudentEntity } from '../students/entities/student.entity';
 import { StudentBalanceService } from '../students/student-balance.service';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { TeacherPaymentsService } from '../teacher-payments/teacher-payments.service';
@@ -29,6 +33,7 @@ export class LessonsService {
     private readonly repository: LessonsRepository,
     private readonly studentBalanceService: StudentBalanceService,
     private readonly lessonAccess: LessonAccessService,
+    private readonly teacherAccess: TeacherAccessService,
     private readonly scheduleService: ScheduleService,
     private readonly teacherPaymentsService: TeacherPaymentsService,
     private readonly enrollmentProgress: EnrollmentProgressService,
@@ -37,60 +42,111 @@ export class LessonsService {
 
   async findAll(actor: JwtPayload): Promise<LessonEntity[]> {
     const where = await this.lessonAccess.scopeLessonFilter(actor, {});
-    return this.repository.filter(where as FindOptionsWhere<LessonEntity>);
+    const rows = await this.repository.filter(where as FindOptionsWhere<LessonEntity>);
+    return this.attachDisplayNames(rows);
   }
 
   async findById(actor: JwtPayload, id: string): Promise<LessonEntity> {
-    return this.lessonAccess.assertCanReadLesson(actor, id);
+    await this.lessonAccess.assertCanReadLesson(actor, id);
+    const row = await this.repository.findById(id);
+    if (!row) {
+      throw new NotFoundException('Lesson not found');
+    }
+    return this.attachDisplayNames([row])[0];
   }
 
-  async create(dto: CreateLessonDto): Promise<LessonEntity> {
-    const duration = dto.duration ?? 60;
+  /**
+   * @param actor Authenticated user for HTTP create. Pass null for trusted internal callers
+   *              (e.g. lesson-series generator already authorized at the series endpoint).
+   */
+  async create(actor: JwtPayload | null, dto: CreateLessonDto): Promise<LessonEntity> {
+    const normalized = this.normalizeCreateLessonDto(dto);
+
+    if (actor) {
+      await this.assertCanCreateLesson(actor, normalized);
+    }
+
+    const duration = normalized.duration ?? 60;
+    const lessonType =
+      normalized.lessonType ?? (normalized.groupId ? 'group' : 'individual');
+
+    if (lessonType === 'group' && !normalized.groupId) {
+      throw new BadRequestException('Выберите группу для группового урока');
+    }
+    if (lessonType === 'individual' && !normalized.primaryStudentId) {
+      throw new BadRequestException('Выберите ученика для индивидуального урока');
+    }
+    if (!normalized.groupId && !normalized.primaryStudentId) {
+      throw new BadRequestException(
+        'Выберите ученика для индивидуального урока или группу для группового',
+      );
+    }
 
     await this.scheduleService.assertAvailableForLesson(
-      dto.teacherId,
-      dto.date,
-      dto.startTime,
+      normalized.teacherId,
+      normalized.date,
+      normalized.startTime,
       duration,
     );
     await this.scheduleService.assertNoScheduleConflicts(
-      dto.teacherId,
-      dto.date,
-      dto.startTime,
+      normalized.teacherId,
+      normalized.date,
+      normalized.startTime,
       duration,
     );
 
-    return this.dataSource.transaction(async (manager) => {
+    const created = await this.dataSource.transaction(async (manager) => {
       const teacher = await manager.getRepository(TeacherEntity).findOne({
-        where: { id: dto.teacherId },
+        where: { id: normalized.teacherId },
       });
       if (!teacher) {
-        throw new NotFoundException('Teacher not found');
+        throw new NotFoundException('Преподаватель не найден');
       }
 
-      if (dto.groupId) {
+      if (normalized.groupId) {
         const group = await manager.getRepository(GroupEntity).findOne({
-          where: { id: dto.groupId },
+          where: { id: normalized.groupId },
         });
         if (!group) {
-          throw new NotFoundException('Group not found');
+          throw new NotFoundException('Группа не найдена');
         }
-        if (group.teacherId !== dto.teacherId) {
-          throw new BadRequestException('Group does not belong to the selected teacher');
+        if (group.teacherId !== normalized.teacherId) {
+          throw new BadRequestException(
+            'Группа не принадлежит выбранному преподавателю',
+          );
+        }
+      }
+
+      if (normalized.primaryStudentId && !normalized.groupId) {
+        const student = await manager.getRepository(StudentEntity).findOne({
+          where: { id: normalized.primaryStudentId },
+        });
+        if (!student) {
+          throw new NotFoundException('Ученик не найден');
         }
       }
 
       const lessonRepo = manager.getRepository(LessonEntity);
       const lesson = await lessonRepo.save(
         lessonRepo.create({
-          ...dto,
+          teacherId: normalized.teacherId,
+          seriesId: normalized.seriesId ?? null,
+          groupId: normalized.groupId ?? null,
+          primaryStudentId: normalized.groupId
+            ? null
+            : (normalized.primaryStudentId ?? null),
+          date: normalized.date,
+          startTime: normalized.startTime,
           duration,
-          status: dto.status ?? 'planned',
-          lessonType: dto.lessonType ?? (dto.groupId ? 'group' : 'individual'),
+          status: normalized.status ?? 'planned',
+          lessonType,
+          lessonFormat: normalized.lessonFormat ?? 'online',
+          meetingLink: normalized.meetingLink ?? null,
+          notes: normalized.notes ?? null,
         }),
       );
 
-      const studentIds = await this.resolveLessonStudentIds(dto, manager);
+      const studentIds = await this.resolveLessonStudentIds(normalized, manager);
       const attendanceRepo = manager.getRepository(AttendanceEntity);
       for (const studentId of studentIds) {
         await attendanceRepo.save(
@@ -102,12 +158,12 @@ export class LessonsService {
         );
       }
 
-      const timeFrom = this.scheduleService.normalizeTime(dto.startTime);
+      const timeFrom = this.scheduleService.normalizeTime(normalized.startTime);
       const timeTo = this.scheduleService.addMinutesToTime(timeFrom, duration);
       await manager.getRepository(AvailabilityBookingEntity).save({
-        teacherId: dto.teacherId,
+        teacherId: normalized.teacherId,
         lessonId: lesson.id,
-        date: dto.date,
+        date: normalized.date,
         timeFrom,
         timeTo,
         status: 'active',
@@ -115,6 +171,38 @@ export class LessonsService {
 
       return lesson;
     });
+
+    const withNames = await this.repository.findById(created.id);
+    return this.attachDisplayNames([withNames ?? created])[0];
+  }
+
+  private normalizeCreateLessonDto(dto: CreateLessonDto): CreateLessonDto {
+    const primaryStudentId = dto.primaryStudentId || dto.studentId || undefined;
+    return {
+      ...dto,
+      primaryStudentId,
+      studentId: undefined,
+      lessonType: dto.lessonType ?? (dto.groupId ? 'group' : primaryStudentId ? 'individual' : undefined),
+    };
+  }
+
+  private async assertCanCreateLesson(
+    actor: JwtPayload,
+    dto: CreateLessonDto,
+  ): Promise<void> {
+    if (normalizeRole(actor.role) === 'admin') {
+      return;
+    }
+
+    if (normalizeRole(actor.role) === 'teacher') {
+      const teacherId = await this.teacherAccess.resolveTeacherId(actor);
+      if (!teacherId || dto.teacherId !== teacherId) {
+        throw new ForbiddenException('Можно создавать уроки только для себя');
+      }
+      return;
+    }
+
+    throw new ForbiddenException('Forbidden');
   }
 
   async update(actor: JwtPayload, id: string, dto: UpdateLessonDto): Promise<LessonEntity> {
@@ -123,10 +211,16 @@ export class LessonsService {
       throw new NotFoundException('Lesson not found');
     }
 
+    const normalizedDto: UpdateLessonDto = {
+      ...dto,
+      primaryStudentId: dto.primaryStudentId || dto.studentId,
+      studentId: undefined,
+    };
+
     const payload = await this.lessonAccess.assertCanWriteLesson(
       actor,
       id,
-      dto as Record<string, unknown>,
+      normalizedDto as Record<string, unknown>,
     );
 
     const completing =
@@ -138,7 +232,8 @@ export class LessonsService {
     if (completing) {
       const completed = await this.finalizeLessonCompletion(id);
       if (completed) {
-        return completed;
+        const withNames = await this.repository.findById(completed.id);
+        return this.attachDisplayNames([withNames ?? completed])[0];
       }
       throw new NotFoundException('Lesson not found');
     }
@@ -196,7 +291,7 @@ export class LessonsService {
     ) {
       await this.studentBalanceService.handleLessonStatusUpdate(id, payload.status);
     }
-    return row;
+    return this.attachDisplayNames([row])[0];
   }
 
   async delete(id: string): Promise<void> {
@@ -208,8 +303,48 @@ export class LessonsService {
   }
 
   async filter(actor: JwtPayload, where: Record<string, unknown>): Promise<LessonEntity[]> {
-    const scoped = await this.lessonAccess.scopeLessonFilter(actor, where);
-    return this.repository.filter(scoped as FindOptionsWhere<LessonEntity>);
+    const normalized = this.normalizeLessonFilterWhere(where);
+    const scoped = await this.lessonAccess.scopeLessonFilter(actor, normalized);
+    const rows = await this.repository.filter(scoped as FindOptionsWhere<LessonEntity>);
+    return this.attachDisplayNames(rows);
+  }
+
+  /** Map legacy student_id filters onto primary_student_id for lessons. */
+  private normalizeLessonFilterWhere(
+    where: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const next = { ...where };
+    if (next.student_id != null && next.primary_student_id == null) {
+      next.primary_student_id = next.student_id;
+      delete next.student_id;
+    }
+    if (next.studentId != null && next.primaryStudentId == null) {
+      next.primaryStudentId = next.studentId;
+      delete next.studentId;
+    }
+    return next;
+  }
+
+  /**
+   * Attach teacher_name / student_name from relations for FE display.
+   * Relations are cleared from the payload to keep the API surface flat.
+   */
+  private attachDisplayNames(lessons: LessonEntity[]): LessonEntity[] {
+    return lessons.map((lesson) => {
+      const teacherName = lesson.teacher?.name?.trim() || null;
+      const studentName =
+        lesson.primaryStudent?.name?.trim() ||
+        lesson.group?.name?.trim() ||
+        null;
+
+      delete lesson.teacher;
+      delete lesson.primaryStudent;
+      delete lesson.group;
+      delete lesson.series;
+
+      Object.assign(lesson, { teacherName, studentName });
+      return lesson;
+    });
   }
 
   async complete(actor: JwtPayload, id: string): Promise<LessonEntity> {
@@ -218,7 +353,8 @@ export class LessonsService {
     if (!completed) {
       throw new NotFoundException('Lesson not found');
     }
-    return completed;
+    const withNames = await this.repository.findById(completed.id);
+    return this.attachDisplayNames([withNames ?? completed])[0];
   }
 
   private async finalizeLessonCompletion(lessonId: string): Promise<LessonEntity | null> {
@@ -373,7 +509,7 @@ export class LessonsService {
         where: { groupId: dto.groupId },
       });
       if (members.length === 0) {
-        throw new BadRequestException('Group has no students');
+        throw new BadRequestException('В группе нет учеников');
       }
       return members.map((member) => member.studentId);
     }
@@ -382,6 +518,8 @@ export class LessonsService {
       return [dto.primaryStudentId];
     }
 
-    throw new BadRequestException('Either groupId or primaryStudentId is required');
+    throw new BadRequestException(
+      'Выберите ученика для индивидуального урока или группу для группового',
+    );
   }
 }

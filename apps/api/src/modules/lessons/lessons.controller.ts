@@ -102,9 +102,9 @@ export class LessonsController {
   }
 
   @Post()
-  @Roles('admin')
-  create(@Body() dto: CreateLessonDto) {
-    return this.lessonsService.create(dto);
+  @Roles('admin', 'teacher')
+  create(@CurrentUser() user: JwtPayload, @Body() dto: CreateLessonDto) {
+    return this.lessonsService.create(user, dto);
   }
 
   @Patch(':id')

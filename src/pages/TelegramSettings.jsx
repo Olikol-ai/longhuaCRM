@@ -342,7 +342,7 @@ export default function TelegramSettings() {
         <div className="space-y-3">
           {[
             { trigger: "Напоминание (~за 24 часа)", msg: "Информационное сообщение без кнопок", active: true },
-            { trigger: "Подтверждение занятия (~за 3 часа)", msg: "Сообщение + кнопки Подтвердить/Отменить", active: true },
+            { trigger: "Подтверждение индивидуального занятия (~за 3 часа)", msg: "Текст + кнопки Подтвердить/Отменить; при ответе уведомляется преподаватель", active: true },
             { trigger: "Привязка в профиле", msg: "Deep-link → /start TOKEN", active: true },
           ].map((item, i) => (
             <div key={i} className="flex items-start gap-3 py-2 border-b border-border last:border-0">

@@ -71,7 +71,11 @@ export default function StudentDetail() {
       setTeacher(null);
     }
 
-    setLessons(allLessons.filter((l) => l.student_id === studentId));
+    setLessons(allLessons.filter((l) =>
+      l.primary_student_id === studentId ||
+      l.student_id === studentId ||
+      (l.student_ids || []).includes(studentId)
+    ));
     setPayments(allPayments.filter((p) => p.student_id === studentId));
 
     const progressRows = await Promise.all(

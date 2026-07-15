@@ -9,6 +9,9 @@ const FIELD_ALIASES = {
   user_id: 'userId',
   teacher_id: 'teacherId',
   student_id: 'studentId',
+  primary_student_id: 'primaryStudentId',
+  group_id: 'groupId',
+  series_id: 'seriesId',
   material_id: 'materialId',
   material_ids: 'materialIds',
   folder_id: 'folderId',
@@ -72,7 +75,25 @@ export function sortRecords(records, sortField) {
 }
 
 export function createDomainClient(basePath, options = {}) {
-  const { listPath = basePath, filterPath = `${basePath}/filter` } = options;
+  const {
+    listPath = basePath,
+    filterPath = `${basePath}/filter`,
+    fieldAliases = {},
+  } = options;
+
+  const aliases = { ...FIELD_ALIASES, ...fieldAliases };
+
+  function toPayload(input) {
+    const payload = {};
+    for (const [key, value] of Object.entries(input || {})) {
+      if (SYSTEM_RECORD_FIELDS.has(key) || value === undefined) {
+        continue;
+      }
+      const mappedKey = aliases[key] ?? snakeToCamel(key);
+      payload[mappedKey] = value;
+    }
+    return payload;
+  }
 
   return {
     list(sortField, limit) {
@@ -96,14 +117,14 @@ export function createDomainClient(basePath, options = {}) {
     create(data) {
       return apiFetch(basePath, {
         method: 'POST',
-        body: JSON.stringify(recordToEntityPayload(data)),
+        body: JSON.stringify(toPayload(data)),
       });
     },
 
     update(id, data) {
       return apiFetch(`${basePath}/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify(recordToEntityPayload(data)),
+        body: JSON.stringify(toPayload(data)),
       });
     },
 

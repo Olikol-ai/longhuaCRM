@@ -499,6 +499,25 @@ describeE2E('Telegram link sync + admin status + confirmations (e2e)', () => {
     expect(
       mockTelegram.sentMessages.some((m) => m.text.includes('✅ Longhua CRM подключён')),
     ).toBe(true);
+    expect(
+      mockTelegram.sentMessages.some(
+        (m) =>
+          m.options?.replyMarkup
+          && 'remove_keyboard' in m.options.replyMarkup
+          && m.options.replyMarkup.remove_keyboard === true,
+      ),
+    ).toBe(true);
+    expect(
+      mockTelegram.sentMessages.some(
+        (m) =>
+          m.text.includes('✅ Longhua CRM подключён')
+          && m.options?.replyMarkup
+          && 'inline_keyboard' in m.options.replyMarkup
+          && m.options.replyMarkup.inline_keyboard.some((row) =>
+            row.some((btn) => btn.text.includes('Мои занятия')),
+          ),
+      ),
+    ).toBe(true);
 
     mockTelegram.clear();
     await telegram.handleUpdate({
@@ -528,7 +547,7 @@ describeE2E('Telegram link sync + admin status + confirmations (e2e)', () => {
     });
     expect(
       mockTelegram.sentMessages.some((m) =>
-        m.text.includes('Настройки уведомлений'),
+        m.text.includes('Уведомления'),
       ),
     ).toBe(true);
   });

@@ -14,13 +14,20 @@ export class CreateCourseTemplateDto {
   @IsRequiredText()
   name!: string;
 
+  /** Optional catalog tier; defaults to basic_beginner when omitted. */
+  @IsOptional()
   @IsEnum(['basic_beginner', 'advanced_beginner', 'advanced'])
-  courseType!: CourseTemplateType;
+  courseType?: CourseTemplateType;
 
   @IsOptional()
   @IsInt()
   @Min(1)
   totalLessons?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
 
   @IsOptional()
   @IsString()

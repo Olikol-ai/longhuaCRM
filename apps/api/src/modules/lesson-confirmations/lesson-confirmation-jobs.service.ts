@@ -130,6 +130,9 @@ export class LessonConfirmationJobsService {
     const windowMax = 3 * 60 + 10;
 
     const windowLessons = planned.filter((lesson) => {
+      if (lesson.lessonType !== 'individual' || lesson.groupId) {
+        return false;
+      }
       const start = this.getLessonStartTime(lesson);
       const diffMin = (start.getTime() - now.getTime()) / 60_000;
       return diffMin >= windowMin && diffMin <= windowMax;

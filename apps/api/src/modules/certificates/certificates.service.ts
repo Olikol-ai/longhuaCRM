@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -22,6 +23,7 @@ import { UpdateCertificateDto } from './dto/update-certificate.dto';
 import { CertificateEntity, CertificateStatus } from './entities/certificate.entity';
 import { CertificateHistoryEntity } from './entities/certificate-history.entity';
 import { CertificatesRepository } from './certificates.repository';
+import { CertificateIssuedNotifier } from './certificate-issued-notifier.service';
 
 const IMMUTABLE_AFTER_ISSUE: Array<keyof CertificateEntity> = [
   'studentId',
@@ -37,6 +39,7 @@ export class CertificatesService {
   constructor(
     private readonly repository: CertificatesRepository,
     private readonly certificateAccess: CertificateAccessService,
+    private readonly issuedNotifier: CertificateIssuedNotifier,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -68,7 +71,7 @@ export class CertificatesService {
     await this.assertUniqueBlank(payload.blankSeries, payload.blankNumber);
 
     if (ACTIVE_CERTIFICATE_STATUSES.has(status)) {
-      await this.assertEnrollmentCompleted(dto.studentId, dto.courseId);
+      await this.assertEnrollmentForIssue(dto.studentId, dto.courseId);
       await this.assertIssueRequirements({
         registrationNumber: dto.registrationNumber.trim(),
         blankSeries: payload.blankSeries ?? null,
@@ -113,6 +116,11 @@ export class CertificatesService {
             : `Certificate ${saved.registrationNumber} created`,
       });
 
+      return saved;
+    }).then((saved) => {
+      if (saved.status === 'issued') {
+        this.issuedNotifier.notifyIssued(saved);
+      }
       return saved;
     });
   }
@@ -160,7 +168,7 @@ export class CertificatesService {
       if (!existing.studentId) {
         throw new BadRequestException('Cannot issue certificate without a linked student');
       }
-      await this.assertEnrollmentCompleted(existing.studentId, existing.courseId);
+      await this.assertEnrollmentForIssue(existing.studentId, existing.courseId);
       await this.assertIssueRequirements({ ...existing, ...payload, status: nextStatus });
       await this.assertNoActiveCertificate(existing.studentId, existing.courseId, id);
     }
@@ -235,6 +243,11 @@ export class CertificatesService {
         });
       }
 
+      return { saved, becomingIssued };
+    }).then(({ saved, becomingIssued }) => {
+      if (becomingIssued) {
+        this.issuedNotifier.notifyIssued(saved);
+      }
       return saved;
     });
   }
@@ -261,7 +274,7 @@ export class CertificatesService {
     if (!original.studentId) {
       throw new BadRequestException('Cannot reissue certificate without a linked student');
     }
-    await this.assertEnrollmentCompleted(original.studentId, original.courseId);
+    await this.assertEnrollmentForIssue(original.studentId, original.courseId);
 
     return this.dataSource.transaction(async (manager) => {
       const certRepo = manager.getRepository(CertificateEntity);
@@ -309,21 +322,43 @@ export class CertificatesService {
       });
 
       return reissued;
+    }).then((reissued) => {
+      this.issuedNotifier.notifyIssued(reissued);
+      return reissued;
     });
   }
 
-  async delete(actor: JwtPayload, id: string): Promise<void> {
-    await this.findById(actor, id);
+  /**
+   * Hard-delete certificate for admin cleanup (drafts, issued, revoked, etc.).
+   * History rows cascade via FK on certificate_history.certificate_id.
+   * Annulment without removal remains available via PATCH status=revoked.
+   */
+  async delete(actor: JwtPayload, id: string): Promise<{ success: true; id: string }> {
+    if (!this.certificateAccess.isAdmin(actor)) {
+      throw new ForbiddenException('Only administrators can delete certificates');
+    }
+
     const row = await this.repository.findById(id);
     if (!row) {
       throw new NotFoundException('Certificate not found');
     }
 
-    if (row.status !== 'draft') {
-      throw new BadRequestException('Only draft certificates can be deleted. Use revoke instead.');
-    }
+    await this.dataSource.transaction(async (manager) => {
+      const certRepo = manager.getRepository(CertificateEntity);
+      const historyRepo = manager.getRepository(CertificateHistoryEntity);
+      const locked = await certRepo.findOne({
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!locked) {
+        throw new NotFoundException('Certificate not found');
+      }
 
-    await this.repository.delete(id);
+      await historyRepo.delete({ certificateId: id });
+      await certRepo.delete({ id });
+    });
+
+    return { success: true, id };
   }
 
   async filter(actor: JwtPayload, where: Record<string, unknown>): Promise<CertificateEntity[]> {
@@ -405,22 +440,9 @@ export class CertificatesService {
     }
   }
 
-  private async assertEnrollmentCompleted(studentId: string, courseId: string): Promise<void> {
-    const enrollment = await this.dataSource.getRepository(EnrollmentEntity).findOne({
-      where: { studentId, courseTemplateId: courseId },
-    });
-
-    if (!enrollment) {
-      throw new BadRequestException('Student is not enrolled in this course');
-    }
-
-    const completed =
-      enrollment.status === 'completed' ||
-      enrollment.completedLessons >= enrollment.totalLessons;
-
-    if (!completed) {
-      throw new BadRequestException('Course must be completed before issuing a certificate');
-    }
+  private async assertEnrollmentForIssue(_studentId: string, _courseId: string): Promise<void> {
+    // Manual admin issuance does not require a completed enrollment.
+    // Auto-draft on course completion still runs via CertificateDraftService.
   }
 
   private assertIssueRequirements(

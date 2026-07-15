@@ -24,8 +24,9 @@ const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 const Groups = lazy(() => import('./pages/Groups'));
 const GroupDetail = lazy(() => import('./pages/GroupDetail'));
 const Certificates = lazy(() => import('./pages/Certificates'));
+const StudentCertificates = lazy(() => import('./pages/StudentCertificates'));
+const CertificateView = lazy(() => import('./pages/CertificateView'));
 const Payments = lazy(() => import('./pages/Payments'));
-const TeacherPayments = lazy(() => import('./pages/TeacherPayments'));
 
 /**
  * Route registration: see docs/frontend-routing.md
@@ -45,6 +46,15 @@ const LayoutWrapper = ({ children, currentPageName }) => {
     <Layout currentPageName={currentPageName}>{children}</Layout>
     : <>{children}</>;
 };
+
+/** Old /TeacherPayments bookmarks → AdminPanel (salary) or TeacherDashboard. */
+function TeacherPaymentsLegacyRedirect() {
+  const { user } = useAuth();
+  if (user?.role === 'admin') {
+    return <Navigate to="/AdminPanel" replace />;
+  }
+  return <Navigate to="/TeacherDashboard" replace />;
+}
 
 const AuthenticatedApp = () => {
   const auth = useAuth();
@@ -103,7 +113,7 @@ const AuthenticatedApp = () => {
             element = <AdminRoute>{element}</AdminRoute>;
           } else if (['TeacherDashboard', 'TeacherSchedule'].includes(path)) {
             element = <TeacherRoute>{element}</TeacherRoute>;
-          } else if (['StudentDashboard', 'StudentLessons'].includes(path)) {
+          } else if (['StudentDashboard', 'StudentLessons', 'StudentCertificates'].includes(path)) {
             element = <StudentRoute>{element}</StudentRoute>;
           }
 
@@ -117,10 +127,12 @@ const AuthenticatedApp = () => {
         <Route path="/Groups/:groupId" element={<AdminRoute><LayoutWrapper currentPageName="Groups"><GroupDetail /></LayoutWrapper></AdminRoute>} />
         <Route path="/Groups" element={<AdminRoute><LayoutWrapper currentPageName="Groups"><Groups /></LayoutWrapper></AdminRoute>} />
         <Route path="/Certificates" element={<AdminRoute><LayoutWrapper currentPageName="Certificates"><Certificates /></LayoutWrapper></AdminRoute>} />
+        <Route path="/StudentCertificates" element={<StudentRoute><LayoutWrapper currentPageName="StudentCertificates"><StudentCertificates /></LayoutWrapper></StudentRoute>} />
+        <Route path="/certificate/:id" element={<CertificateView />} />
         <Route path="/Attendance" element={<Navigate to="/Groups" replace />} />
         <Route path="/Payments" element={<AdminRoute><LayoutWrapper currentPageName="Payments"><Payments /></LayoutWrapper></AdminRoute>} />
         <Route path="/LessonSeriesAdmin" element={<Navigate to="/Groups" replace />} />
-        <Route path="/TeacherPayments" element={<TeacherRoute><LayoutWrapper currentPageName="TeacherPayments"><TeacherPayments /></LayoutWrapper></TeacherRoute>} />
+        <Route path="/TeacherPayments" element={<TeacherPaymentsLegacyRedirect />} />
         <Route path="*" element={<OnboardingFallback />} />
       </Routes>
       </Suspense>
@@ -137,6 +149,7 @@ function App() {
           <Router>
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Login />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path={ONBOARDING_PATH} element={<PendingApproval />} />

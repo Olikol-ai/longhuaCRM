@@ -63,7 +63,7 @@ export class MaterialsController {
   }
 
   @Post('folders')
-  @Roles('admin')
+  @Roles('admin', 'teacher')
   createFolder(@Body() dto: CreateMaterialFolderDto) {
     return this.materialsService.createFolder(dto);
   }
@@ -124,21 +124,25 @@ export class MaterialsController {
   }
 
   @Post()
-  @Roles('admin')
-  createMaterial(@Body() dto: CreateMaterialDto) {
-    return this.materialsService.createMaterial(dto);
+  @Roles('admin', 'teacher')
+  createMaterial(@CurrentUser() user: JwtPayload, @Body() dto: CreateMaterialDto) {
+    return this.materialsService.createMaterial(user, dto);
   }
 
   @Patch(':id')
-  @Roles('admin')
-  updateMaterial(@Param('id') id: string, @Body() dto: UpdateMaterialDto) {
-    return this.materialsService.updateMaterial(id, dto);
+  @Roles('admin', 'teacher')
+  updateMaterial(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateMaterialDto,
+  ) {
+    return this.materialsService.updateMaterial(user, id, dto);
   }
 
   @Delete(':id')
-  @Roles('admin')
-  deleteMaterial(@Param('id') id: string) {
-    return this.materialsService.deleteMaterial(id);
+  @Roles('admin', 'teacher')
+  deleteMaterial(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.materialsService.deleteMaterial(user, id);
   }
 }
 

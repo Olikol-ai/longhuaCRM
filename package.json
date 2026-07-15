@@ -4,9 +4,10 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\" \"npm run tunnel\"",
     "dev:client": "vite",
     "dev:server": "npm run migration:run --prefix apps/api && npm run start:dev --prefix apps/api",
+    "tunnel": "cloudflared tunnel run longhua-dev",
     "build": "npm run build:api && vite build",
     "build:client": "vite build",
     "build:api": "npm run build --prefix apps/api",
@@ -23,7 +24,7 @@
     "db:backup:docker": "bash scripts/backup-db.sh --docker",
     "db:restore": "bash scripts/restore-db.sh",
     "test:e2e": "npm run test:e2e --prefix apps/api",
-    "test:unit": "node --test src/lib/materialMeta.test.js src/lib/forgotPasswordUi.test.js",
+    "test:unit": "node --test src/lib/materialMeta.test.js src/lib/forgotPasswordUi.test.js src/lib/lessonPayload.test.js src/lib/passwordPolicy.test.js src/lib/certificatesPayload.test.js",
     "test:browser": "playwright test",
     "test:browser:report": "node e2e/browser/merge-audit-report.mjs"
   },

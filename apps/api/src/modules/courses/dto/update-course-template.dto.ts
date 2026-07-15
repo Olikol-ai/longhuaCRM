@@ -24,6 +24,11 @@ export class UpdateCourseTemplateDto {
   totalLessons?: number;
 
   @IsOptional()
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
+
+  @IsOptional()
   @IsString()
   description?: string;
 

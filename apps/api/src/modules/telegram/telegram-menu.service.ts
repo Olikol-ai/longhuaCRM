@@ -15,10 +15,15 @@ import {
   buildNotificationSettingsText,
   formatLessonTime,
   mainMenuInlineKeyboard,
+  replyKeyboardRemove,
   settingsInlineKeyboard,
   TELEGRAM_MSG,
 } from './telegram-messages';
-import { TelegramGateway, TelegramSendMessageOptions } from './telegram.gateway';
+import {
+  TelegramApiResult,
+  TelegramGateway,
+  TelegramSendMessageOptions,
+} from './telegram.gateway';
 
 export type TelegramScreenPayload = {
   text: string;
@@ -108,7 +113,7 @@ export class TelegramMenuService {
     };
   }
 
-  async buildStatusScreen(chatId: string): Promise<TelegramScreenPayload> {
+  async buildProfileScreen(chatId: string): Promise<TelegramScreenPayload> {
     const user = await this.resolveUserByChatId(chatId);
     if (!user) {
       return {
@@ -132,6 +137,17 @@ export class TelegramMenuService {
             })
           : null,
       }),
+      options: { replyMarkup: backInlineKeyboard() },
+    };
+  }
+
+  async buildStatusScreen(chatId: string): Promise<TelegramScreenPayload> {
+    return this.buildProfileScreen(chatId);
+  }
+
+  buildHelpScreen(): TelegramScreenPayload {
+    return {
+      text: TELEGRAM_MSG.help,
       options: { replyMarkup: backInlineKeyboard() },
     };
   }
@@ -163,6 +179,44 @@ export class TelegramMenuService {
     await this.gateway.sendMessage(chatId, screen.text, screen.options);
   }
 
+  /**
+   * Sticky ReplyKeyboard from older bot builds stays on the client until
+   * ReplyKeyboardRemove is received. It cannot be combined with inline_keyboard,
+   * and messages sent with remove_keyboard cannot be edited — so we:
+   * 1) pulse remove_keyboard on a throwaway message
+   * 2) delete that message
+   * 3) send the real inline screen
+   */
+  async clearStickyReplyKeyboard(chatId: string): Promise<void> {
+    const sent = await this.gateway.sendMessage(chatId, '·', {
+      replyMarkup: replyKeyboardRemove(),
+    });
+    if (!sent.ok) {
+      this.logger.warn(
+        `remove_keyboard failed for ${chatId}: ${sent.error ?? sent.description}`,
+      );
+      return;
+    }
+    const messageId = this.extractMessageId(sent);
+    if (messageId == null) {
+      return;
+    }
+    const deleted = await this.gateway.deleteMessage(chatId, messageId);
+    if (!deleted.ok) {
+      this.logger.warn(
+        `deleteMessage after remove_keyboard failed for ${chatId}: ${deleted.error ?? deleted.description}`,
+      );
+    }
+  }
+
+  async sendScreenRemovingReplyKeyboard(
+    chatId: string,
+    screen: TelegramScreenPayload,
+  ): Promise<void> {
+    await this.clearStickyReplyKeyboard(chatId);
+    await this.sendScreen(chatId, screen);
+  }
+
   async editOrSendScreen(
     chatId: string,
     messageId: number | null,
@@ -184,6 +238,13 @@ export class TelegramMenuService {
       );
     }
     await this.sendScreen(chatId, screen);
+  }
+
+  private extractMessageId(result: TelegramApiResult): number | null {
+    const raw = result.result;
+    if (!raw || typeof raw !== 'object') return null;
+    const id = (raw as { message_id?: unknown }).message_id;
+    return typeof id === 'number' ? id : null;
   }
 
   private async findNearestLessonForUser(

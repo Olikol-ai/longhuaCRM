@@ -10,10 +10,13 @@ import { GroupEntity } from '../groups/entities/group.entity';
 import { GroupMemberEntity } from '../groups/entities/group-member.entity';
 import { AttendanceEntity } from '../lessons/entities/attendance.entity';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
+import { AvailabilityBookingEntity } from '../schedule/entities/availability-booking.entity';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import {
   build3hConfirmationMessage,
+  buildTeacherLessonCancelledMessage,
+  buildTeacherLessonConfirmedMessage,
   confirmationInlineKeyboard,
   formatLessonTime,
   resolveCourseTitle,
@@ -37,6 +40,8 @@ export class LessonConfirmationService {
     private readonly lessonRepo: Repository<LessonEntity>,
     @InjectRepository(AttendanceEntity)
     private readonly attendanceRepo: Repository<AttendanceEntity>,
+    @InjectRepository(AvailabilityBookingEntity)
+    private readonly bookingRepo: Repository<AvailabilityBookingEntity>,
     @InjectRepository(StudentEntity)
     private readonly studentRepo: Repository<StudentEntity>,
     @InjectRepository(TeacherEntity)
@@ -63,7 +68,18 @@ export class LessonConfirmationService {
     return this.confirmationRepo.findOne({ where: { lessonId, studentId } });
   }
 
+  /**
+   * Confirmation flow is only for individual lessons.
+   */
+  isIndividualLesson(lesson: LessonEntity): boolean {
+    return lesson.lessonType === 'individual' && !lesson.groupId;
+  }
+
   async resolveParticipantStudentIds(lesson: LessonEntity): Promise<string[]> {
+    if (this.isIndividualLesson(lesson) && lesson.primaryStudentId) {
+      return [lesson.primaryStudentId];
+    }
+
     const attendance = await this.attendanceRepo.find({
       where: { lessonId: lesson.id },
       select: ['studentId'],
@@ -122,12 +138,16 @@ export class LessonConfirmationService {
 
   /**
    * Create PENDING confirmation (if missing) and send Telegram request.
-   * Returns null when student has no telegram, or already has a row.
+   * Individual lessons only. Returns null when student has no telegram, group lesson, or already has a row.
    */
   async requestConfirmationForStudent(
     lesson: LessonEntity,
     studentId: string,
   ): Promise<LessonConfirmationEntity | null> {
+    if (!this.isIndividualLesson(lesson)) {
+      return null;
+    }
+
     const existing = await this.findByLessonAndStudent(lesson.id, studentId);
     if (existing) {
       return null;
@@ -194,24 +214,27 @@ export class LessonConfirmationService {
       student ??
       (await this.studentRepo.findOne({ where: { id: confirmation.studentId } }));
 
+    if (!resolvedLesson || !this.isIndividualLesson(resolvedLesson)) {
+      return false;
+    }
+
     const chatId = (
       confirmation.telegramChatId
       || (resolvedStudent ? await this.resolveStudentChatId(resolvedStudent) : null)
       || ''
     ).trim();
-    if (!chatId || !resolvedLesson) {
+    if (!chatId) {
       return false;
     }
 
     const teacher = resolvedLesson.teacherId
       ? await this.teacherRepo.findOne({ where: { id: resolvedLesson.teacherId } })
       : null;
-    const course = await this.resolveLessonCourseTitle(resolvedLesson);
 
     const text = build3hConfirmationMessage({
-      time: formatLessonTime(resolvedLesson.startTime),
-      course,
       teacher: teacher?.name?.trim() || '—',
+      date: resolvedLesson.date || '—',
+      time: formatLessonTime(resolvedLesson.startTime),
     });
 
     const result = await this.gateway.sendMessage(chatId, text, {
@@ -235,7 +258,8 @@ export class LessonConfirmationService {
     confirmation.declineReason = null;
     confirmation.telegramChatId = chatId;
     await this.confirmationRepo.save(confirmation);
-    await this.notifyAdmins(confirmation, 'confirmed');
+    // Lesson stays planned — confirmation is recorded on lesson_confirmations.
+    await this.notifyTeacher(confirmation, 'confirmed');
     return confirmation;
   }
 
@@ -247,7 +271,22 @@ export class LessonConfirmationService {
     confirmation.confirmedAt = null;
     confirmation.telegramChatId = chatId;
     await this.confirmationRepo.save(confirmation);
-    await this.notifyAdmins(confirmation, 'declined');
+
+    const lesson = await this.lessonRepo.findOne({ where: { id: confirmation.lessonId } });
+    if (lesson && lesson.status === 'planned' && this.isIndividualLesson(lesson)) {
+      lesson.status = 'cancelled';
+      await this.lessonRepo.save(lesson);
+      await this.bookingRepo.update(
+        { lessonId: lesson.id },
+        { status: 'cancelled' },
+      );
+      await this.attendanceRepo.update(
+        { lessonId: lesson.id },
+        { attendanceStatus: 'cancelled' },
+      );
+    }
+
+    await this.notifyTeacher(confirmation, 'declined');
     return confirmation;
   }
 
@@ -281,6 +320,12 @@ export class LessonConfirmationService {
     }
 
     await this.assertStudentIsParticipant(lesson.id, studentId);
+
+    if (!this.isIndividualLesson(lesson)) {
+      throw new BadRequestException(
+        'Подтверждение доступно только для индивидуальных занятий',
+      );
+    }
 
     const existing = await this.findByLessonAndStudent(lesson.id, studentId);
     if (existing) {
@@ -373,6 +418,14 @@ export class LessonConfirmationService {
       confirmation.lessonId,
       confirmation.studentId,
     );
+    const lesson = await this.lessonRepo.findOne({
+      where: { id: confirmation.lessonId },
+    });
+    if (!lesson || !this.isIndividualLesson(lesson)) {
+      throw new BadRequestException(
+        'Подтверждение доступно только для индивидуальных занятий',
+      );
+    }
     return confirmation;
   }
 
@@ -432,7 +485,7 @@ export class LessonConfirmationService {
     return profileTg || null;
   }
 
-  private async notifyAdmins(
+  private async notifyTeacher(
     confirmation: LessonConfirmationEntity,
     status: 'confirmed' | 'declined',
   ): Promise<void> {
@@ -440,28 +493,48 @@ export class LessonConfirmationService {
       this.studentRepo.findOne({ where: { id: confirmation.studentId } }),
       this.lessonRepo.findOne({ where: { id: confirmation.lessonId } }),
     ]);
+    if (!lesson?.teacherId) {
+      return;
+    }
 
-    const admins = await this.userRepo.find({
-      where: { role: 'admin', status: 'active' },
-    });
+    const teacherChat = await this.resolveTeacherChatId(lesson.teacherId);
+    if (!teacherChat) {
+      this.logger.warn(
+        `Skip teacher notify: teacher ${lesson.teacherId} has no telegram`,
+      );
+      return;
+    }
 
+    const payload = {
+      student: student?.name?.trim() || 'Ученик',
+      date: lesson.date || '—',
+      time: formatLessonTime(lesson.startTime),
+    };
     const text =
       status === 'confirmed'
-        ? `✅ Ученик подтвердил урок\n` +
-          `${student?.name || 'Ученик'}\n` +
-          `${lesson?.date || '—'} ${formatLessonTime(lesson?.startTime)}`
-        : `❌ Ученик не сможет прийти\n` +
-          `${student?.name || 'Ученик'}\n` +
-          `${lesson?.date || '—'} ${formatLessonTime(lesson?.startTime)}`;
+        ? buildTeacherLessonConfirmedMessage(payload)
+        : buildTeacherLessonCancelledMessage(payload);
 
-    for (const admin of admins) {
-      const adminChat = admin.telegramId?.trim();
-      if (!adminChat) continue;
-      await this.gateway.sendMessage(adminChat, text).catch((error) => {
-        this.logger.warn(
-          `Admin notify failed for ${admin.id}: ${(error as Error).message}`,
-        );
-      });
+    await this.gateway.sendMessage(teacherChat, text).catch((error) => {
+      this.logger.warn(
+        `Teacher notify failed for ${lesson.teacherId}: ${(error as Error).message}`,
+      );
+    });
+  }
+
+  private async resolveTeacherChatId(teacherId: string): Promise<string | null> {
+    const teacher = await this.teacherRepo.findOne({ where: { id: teacherId } });
+    if (!teacher) {
+      return null;
     }
+    const profileTg = (teacher.telegramId ?? '').trim();
+    if (profileTg) {
+      return profileTg;
+    }
+    if (!teacher.userId) {
+      return null;
+    }
+    const user = await this.userRepo.findOne({ where: { id: teacher.userId } });
+    return (user?.telegramId ?? '').trim() || null;
   }
 }

@@ -6,7 +6,7 @@ import { join } from 'path';
 export class SpaController {
   @Get('*path')
   fallback(@Req() req: Request, @Res() res: Response) {
-    if (req.path.startsWith('/api')) {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
       return res.status(404).json({ error: 'Not found' });
     }
     return res.sendFile(join(__dirname, '../../../dist/index.html'));

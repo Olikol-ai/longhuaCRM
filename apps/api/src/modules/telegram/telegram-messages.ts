@@ -1,34 +1,48 @@
 /**
  * Canonical user-facing Telegram copy + keyboards.
  * CRM database remains the only source of truth for user data.
+ *
+ * Navigation uses InlineKeyboardMarkup only (under the message).
+ * ReplyKeyboardMarkup is intentionally not used for menus — sticky bottom
+ * keyboards hide the text input and clutter the chat.
  */
 
 import type { TelegramInlineButton } from './telegram.gateway';
 
 export const TELEGRAM_BTN = {
-  lessons: '📚 Мои ближайшие уроки',
-  settings: '🔔 Настройки уведомлений',
-  status: '⚙️ Статус подключения',
+  lessons: '📚 Мои занятия',
+  settings: '🔔 Уведомления',
+  profile: '👤 Профиль',
+  help: '❓ Помощь',
   back: '← Назад',
+  backToMenu: 'Вернуться в меню',
+  /** Legacy reply-keyboard labels (still handled if a stale keyboard is tapped) */
+  lessonsLegacy: '📚 Мои ближайшие уроки',
+  settingsLegacy: '🔔 Настройки уведомлений',
+  statusLegacy: '⚙️ Статус подключения',
 } as const;
 
 export const TELEGRAM_CB = {
   main: 'menu:main',
   lessons: 'menu:lessons',
   settings: 'menu:settings',
+  profile: 'menu:profile',
+  help: 'menu:help',
+  /** Alias kept for older callback payloads */
   status: 'menu:status',
   toggle24h: 'settings:toggle_24h',
   toggle3h: 'settings:toggle_3h',
 } as const;
 
 export const TELEGRAM_MSG = {
-  startLinked: '✅ Longhua CRM подключён',
+  startLinked:
+    '✅ Longhua CRM подключён\n\nВыберите действие в меню ниже:',
   startNotLinked:
     'Здравствуйте!\n\nTelegram ещё не подключён.\nОткройте профиль в личном кабинете и нажмите «Привязать Telegram».',
   linkFailed:
     'Ссылка больше не действует.\nСоздайте новую в профиле личного кабинета.',
-  confirmed: 'Спасибо! Участие подтверждено.',
-  declined: 'Урок отменён. Информация передана администратору.',
+  confirmed: '✅ Занятие подтверждено',
+  declined: '❌ Занятие отменено',
   callbackConfirmed: 'Подтверждено',
   callbackDeclined: 'Отменено',
   noUpcomingLessons: 'Ближайших уроков пока нет.',
@@ -39,6 +53,15 @@ export const TELEGRAM_MSG = {
   staleButton: 'Эта кнопка больше не действует.',
   saveFailed: 'Не удалось сохранить. Попробуйте ещё раз.',
   unknownAction: 'Действие недоступно.',
+  help: [
+    '❓ Помощь',
+    '',
+    '• Уведомления о занятиях приходят автоматически.',
+    '• За 3 часа до индивидуального урока можно подтвердить или отменить участие.',
+    '• Настройки уведомлений — кнопка «Уведомления» в главном меню.',
+    '',
+    'Если Telegram отвязался — привяжите снова в профиле личного кабинета.',
+  ].join('\n'),
 } as const;
 
 export function formatLessonTime(startTime: string | null | undefined): string {
@@ -76,18 +99,44 @@ export function build24hReminderMessage(input: {
 }
 
 export function build3hConfirmationMessage(input: {
-  time: string;
-  course: string;
   teacher: string;
+  date: string;
+  time: string;
 }): string {
   return [
-    '⏰ Через 3 часа начинается урок',
+    'У вас индивидуальное занятие через 3 часа:',
     '',
-    `Курс: ${input.course}`,
-    `Время: ${input.time}`,
     `Преподаватель: ${input.teacher}`,
+    `Дата: ${input.date}`,
+    `Время: ${input.time}`,
+  ].join('\n');
+}
+
+export function buildTeacherLessonConfirmedMessage(input: {
+  student: string;
+  date: string;
+  time: string;
+}): string {
+  return [
+    'Ученик подтвердил индивидуальное занятие:',
     '',
-    'Подтвердите участие:',
+    `Ученик: ${input.student}`,
+    `Дата: ${input.date}`,
+    `Время: ${input.time}`,
+  ].join('\n');
+}
+
+export function buildTeacherLessonCancelledMessage(input: {
+  student: string;
+  date: string;
+  time: string;
+}): string {
+  return [
+    'Ученик отменил индивидуальное занятие:',
+    '',
+    `Ученик: ${input.student}`,
+    `Дата: ${input.date}`,
+    `Время: ${input.time}`,
   ].join('\n');
 }
 
@@ -109,9 +158,9 @@ export function buildConnectionStatusText(input: {
   connectedAt: string | null;
 }): string {
   if (!input.connected) {
-    return ['⚙️ Статус подключения', '', '⚠️ Не подключён'].join('\n');
+    return ['👤 Профиль', '', '⚠️ Telegram не подключён'].join('\n');
   }
-  const lines = ['⚙️ Статус подключения', '', '✅ Подключён'];
+  const lines = ['👤 Профиль', '', '✅ Telegram подключён'];
   if (input.username) {
     lines.push(`Аккаунт: @${input.username}`);
   }
@@ -126,11 +175,18 @@ export function buildNotificationSettingsText(input: {
   notify3h: boolean;
 }): string {
   return [
-    '🔔 Настройки уведомлений',
+    '🔔 Уведомления',
     '',
     `Напоминание за 24 часа: ${input.notify24h ? 'вкл' : 'выкл'}`,
     `Подтверждение за 3 часа: ${input.notify3h ? 'вкл' : 'выкл'}`,
   ].join('\n');
+}
+
+/** Clears sticky bottom ReplyKeyboard (cannot be combined with inline_keyboard). */
+export function replyKeyboardRemove(): {
+  remove_keyboard: true;
+} {
+  return { remove_keyboard: true };
 }
 
 export function mainMenuInlineKeyboard(): {
@@ -140,7 +196,8 @@ export function mainMenuInlineKeyboard(): {
     inline_keyboard: [
       [{ text: TELEGRAM_BTN.lessons, callback_data: TELEGRAM_CB.lessons }],
       [{ text: TELEGRAM_BTN.settings, callback_data: TELEGRAM_CB.settings }],
-      [{ text: TELEGRAM_BTN.status, callback_data: TELEGRAM_CB.status }],
+      [{ text: TELEGRAM_BTN.profile, callback_data: TELEGRAM_CB.profile }],
+      [{ text: TELEGRAM_BTN.help, callback_data: TELEGRAM_CB.help }],
     ],
   };
 }
@@ -185,11 +242,11 @@ export function confirmationInlineKeyboard(confirmationId: string): {
     inline_keyboard: [
       [
         {
-          text: '✅ Подтверждаю',
+          text: '✅ Подтвердить',
           callback_data: `lesson_confirm:${confirmationId}`,
         },
         {
-          text: '❌ Не смогу прийти',
+          text: '❌ Отменить',
           callback_data: `lesson_decline:${confirmationId}`,
         },
       ],
@@ -197,12 +254,38 @@ export function confirmationInlineKeyboard(confirmationId: string): {
   };
 }
 
+export function resultBackToMenuKeyboard(): {
+  inline_keyboard: TelegramInlineButton[][];
+} {
+  return {
+    inline_keyboard: [
+      [{ text: TELEGRAM_BTN.backToMenu, callback_data: TELEGRAM_CB.main }],
+    ],
+  };
+}
+
 export function matchMainMenuButton(
   text: string,
-): 'lessons' | 'settings' | 'status' | null {
+): 'lessons' | 'settings' | 'profile' | 'help' | null {
   const trimmed = text.trim();
-  if (trimmed === TELEGRAM_BTN.lessons) return 'lessons';
-  if (trimmed === TELEGRAM_BTN.settings) return 'settings';
-  if (trimmed === TELEGRAM_BTN.status) return 'status';
+  if (
+    trimmed === TELEGRAM_BTN.lessons
+    || trimmed === TELEGRAM_BTN.lessonsLegacy
+  ) {
+    return 'lessons';
+  }
+  if (
+    trimmed === TELEGRAM_BTN.settings
+    || trimmed === TELEGRAM_BTN.settingsLegacy
+  ) {
+    return 'settings';
+  }
+  if (
+    trimmed === TELEGRAM_BTN.profile
+    || trimmed === TELEGRAM_BTN.statusLegacy
+  ) {
+    return 'profile';
+  }
+  if (trimmed === TELEGRAM_BTN.help) return 'help';
   return null;
 }

@@ -46,8 +46,6 @@ const ADMIN_SIDEBAR_PAGES = [
 
   { path: '/Payments', heading: 'Платежи' },
 
-  { path: '/TeacherPayments', heading: 'Выплаты преподавателям' },
-
   { path: '/MaterialsHub', heading: 'Материалы уроков' },
 
   { path: '/Settings', heading: 'Настройки' },
@@ -156,7 +154,7 @@ test.describe('Admin navigation restructure', () => {
 
 test.describe('Role access after nav restructure', () => {
 
-  test('admin can open standalone Payments and TeacherPayments', async ({ page }) => {
+  test('admin can open Payments; legacy TeacherPayments redirects to AdminPanel', async ({ page }) => {
 
     const admin = adminCredentials();
 
@@ -172,7 +170,9 @@ test.describe('Role access after nav restructure', () => {
 
     await page.goto('/TeacherPayments');
 
-    await expect(page.getByRole('heading', { name: 'Выплаты преподавателям' })).toBeVisible({
+    await expect(page).toHaveURL(/\/AdminPanel/);
+
+    await expect(page.getByRole('heading', { name: 'Обзор CRM' })).toBeVisible({
 
       timeout: 15_000,
 

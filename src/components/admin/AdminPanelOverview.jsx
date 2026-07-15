@@ -24,10 +24,9 @@ const QUICK_ACTIONS = [
   { label: "Платежи", page: "Payments", icon: CreditCard, color: "emerald" },
   { label: "Группы", page: "Groups", icon: Users, color: "violet" },
   { label: "Сертификаты", page: "Certificates", icon: Award, color: "amber" },
-  { label: "Выплаты", page: "TeacherPayments", icon: DollarSign, color: "emerald" },
 ];
 
-export default function AdminPanelOverview({ onOpenExport }) {
+export default function AdminPanelOverview({ onOpenExport, onOpenSalary }) {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     todayLessons: 0,
@@ -115,6 +114,16 @@ export default function AdminPanelOverview({ onOpenExport }) {
               </Link>
             );
           })}
+          {onOpenSalary && (
+            <button
+              type="button"
+              onClick={onOpenSalary}
+              className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-border hover:bg-muted transition-colors text-sm font-medium text-foreground text-left"
+            >
+              <DollarSign className="w-4 h-4 text-indigo-500 shrink-0" />
+              Зарплата
+            </button>
+          )}
           {onOpenExport && (
             <button
               type="button"

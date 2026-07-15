@@ -137,6 +137,7 @@ export async function setPendingVerificationCode(
   app: INestApplication,
   email: string,
   code: string,
+  options?: { codeExpiresAt?: Date },
 ): Promise<void> {
   const ds = app.get(DataSource);
   const repo = ds.getRepository(PendingRegistrationEntity);
@@ -145,7 +146,8 @@ export async function setPendingVerificationCode(
     throw new Error(`Pending registration not found for ${email}`);
   }
   pending.verificationCodeHash = bcrypt.hashSync(code, 10);
-  pending.codeExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  pending.codeExpiresAt =
+    options?.codeExpiresAt ?? new Date(Date.now() + 15 * 60 * 1000);
   await repo.save(pending);
 }
 

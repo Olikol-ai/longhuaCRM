@@ -20,6 +20,7 @@ export default function Schedule() {
   const [lessons, setLessons] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [students, setStudents] = useState([]);
+  const [groups, setGroups] = useState([]);
   const { user } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
@@ -34,14 +35,16 @@ export default function Schedule() {
     setLoading(true);
     setError('');
     try {
-      const [l, t, s] = await Promise.all([
+      const [l, t, s, g] = await Promise.all([
         api.lessons.list("-date", 500),
         api.teachers.list(),
         api.students.list(),
+        api.groups.list(),
       ]);
       setLessons(l);
       setTeachers(t);
       setStudents(s);
+      setGroups(g);
     } catch (err) {
       setError(err.message || 'Не удалось загрузить расписание');
     } finally {
@@ -215,6 +218,7 @@ export default function Schedule() {
           date={selectedDate}
           teachers={teachers}
           students={students}
+          groups={groups}
           defaultTeacherId={selectedTeacherId}
           onSave={handleSave}
           onClose={() => setShowModal(false)}

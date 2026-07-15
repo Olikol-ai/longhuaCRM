@@ -1,6 +1,11 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CertificatesModule } from '../certificates/certificates.module';
+import { MaterialAccessEntity } from '../materials/entities/material-access.entity';
+import { MaterialCourseGrantEntity } from '../materials/entities/material-course-grant.entity';
+import { MaterialFolderEntity } from '../materials/entities/material-folder.entity';
+import { MaterialGroupGrantEntity } from '../materials/entities/material-group-grant.entity';
+import { MaterialEntity } from '../materials/entities/material.entity';
 import { CourseTemplateEntity } from './entities/course-template.entity';
 import { EnrollmentEntity } from './entities/enrollment.entity';
 import { CoursesController } from './courses.controller';
@@ -10,7 +15,15 @@ import { EnrollmentProgressService } from './enrollment-progress.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CourseTemplateEntity, EnrollmentEntity]),
+    TypeOrmModule.forFeature([
+      CourseTemplateEntity,
+      EnrollmentEntity,
+      MaterialFolderEntity,
+      MaterialEntity,
+      MaterialAccessEntity,
+      MaterialCourseGrantEntity,
+      MaterialGroupGrantEntity,
+    ]),
     forwardRef(() => CertificatesModule),
   ],
   controllers: [CoursesController],

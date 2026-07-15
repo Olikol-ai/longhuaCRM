@@ -1,4 +1,8 @@
+import { apiFetch } from './http';
 import { createDomainClient } from './domain-client';
+import { toLessonWritePayload } from '../lib/lessonPayload';
+
+export { toLessonWritePayload } from '../lib/lessonPayload';
 
 const lessonsClient = createDomainClient('/lessons');
 const attendance = createDomainClient('/lessons/attendance', {
@@ -8,5 +12,17 @@ const attendance = createDomainClient('/lessons/attendance', {
 
 export const lessons = {
   ...lessonsClient,
+  create(data) {
+    return apiFetch('/lessons', {
+      method: 'POST',
+      body: JSON.stringify(toLessonWritePayload(data)),
+    });
+  },
+  update(id, data) {
+    return apiFetch(`/lessons/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(toLessonWritePayload(data)),
+    });
+  },
   attendance,
 };

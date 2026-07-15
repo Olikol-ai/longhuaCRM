@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import {
   IsEnum,
   IsInt,
@@ -7,6 +8,15 @@ import {
   Min,
 } from 'class-validator';
 import { LessonFormat, LessonStatus, LessonType } from '../entities/lesson.entity';
+
+function pickUuid(...candidates: unknown[]): string | undefined {
+  for (const value of candidates) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return undefined;
+}
 
 export class UpdateLessonDto {
   @IsOptional()
@@ -18,12 +28,30 @@ export class UpdateLessonDto {
   seriesId?: string;
 
   @IsOptional()
+  @Transform(({ value, obj }) =>
+    pickUuid(value, (obj as Record<string, unknown>).group_id),
+  )
   @IsUUID()
   groupId?: string;
 
   @IsOptional()
+  @Transform(({ value, obj }) => {
+    const record = obj as Record<string, unknown>;
+    return pickUuid(
+      value,
+      record.primaryStudentId,
+      record.studentId,
+      record.student_id,
+      record.primary_student_id,
+    );
+  })
   @IsUUID()
   primaryStudentId?: string;
+
+  /** Legacy alias for individual lesson student. */
+  @IsOptional()
+  @IsUUID()
+  studentId?: string;
 
   @IsOptional()
   @IsString()

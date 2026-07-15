@@ -46,6 +46,12 @@ export const ROLE_CONFIG = {
 
 export const ALL_ROLE_OPTIONS = ['admin', 'teacher', 'student', 'pending', 'user'];
 
+/** Nested filters inside Аккаунты — only overview + pending queue (not entity directories). */
+export const ACCOUNT_FILTER_TABS = [
+  { value: 'all', label: 'Все' },
+  { value: 'pending', label: 'Ожидают роли' },
+];
+
 export function displayRole(role) {
   if (!role) return 'pending';
   return role;

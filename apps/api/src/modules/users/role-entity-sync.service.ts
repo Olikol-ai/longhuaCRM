@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { filterToEntityWhere } from '../../common/utils/api-record.util';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
@@ -21,24 +21,34 @@ export class RoleEntitySyncService {
     private readonly teacherRepo: Repository<TeacherEntity>,
   ) {}
 
-  async syncAfterRoleChange(user: RoleEntityUserContext, newRole: string): Promise<void> {
+  /**
+   * @param manager Optional transaction manager — when set, all writes participate in that txn.
+   */
+  async syncAfterRoleChange(
+    user: RoleEntityUserContext,
+    newRole: string,
+    manager?: EntityManager,
+    options?: { assignedTeacherId?: string | null },
+  ): Promise<void> {
     const role = newRole.trim().toLowerCase();
+    const studentRepo = manager?.getRepository(StudentEntity) ?? this.studentRepo;
+    const teacherRepo = manager?.getRepository(TeacherEntity) ?? this.teacherRepo;
 
     if (role === 'student') {
-      await this.detachTeachersForUser(user.id);
-      await this.ensureStudentProfile(user);
+      await this.detachTeachersForUser(teacherRepo, user.id);
+      await this.ensureStudentProfile(studentRepo, user, options?.assignedTeacherId);
       return;
     }
 
     if (role === 'teacher') {
-      await this.detachStudentsForUser(user.id);
-      await this.ensureTeacherProfile(user);
+      await this.detachStudentsForUser(studentRepo, user.id);
+      await this.ensureTeacherProfile(teacherRepo, user);
       return;
     }
 
     if (role === 'admin' || role === 'pending' || role === 'user' || role === '') {
-      await this.detachTeachersForUser(user.id);
-      await this.detachStudentsForUser(user.id);
+      await this.detachTeachersForUser(teacherRepo, user.id);
+      await this.detachStudentsForUser(studentRepo, user.id);
     }
   }
 
@@ -50,18 +60,21 @@ export class RoleEntitySyncService {
     if (userId) {
       const existing = await this.studentRepo.findOne({ where: { userId } });
       if (existing) {
-        return this.saveStudent(existing, payload);
+        return this.saveStudent(this.studentRepo, existing, payload);
       }
     }
 
     if (email) {
       const byEmail = await this.studentRepo.findOne({ where: { email } });
       if (byEmail && (!byEmail.userId || byEmail.userId === userId)) {
-        return this.saveStudent(byEmail, { ...payload, userId: userId ?? byEmail.userId });
+        return this.saveStudent(this.studentRepo, byEmail, {
+          ...payload,
+          userId: userId ?? byEmail.userId,
+        });
       }
     }
 
-    return this.insertStudent(payload, input.id);
+    return this.insertStudent(this.studentRepo, payload, input.id);
   }
 
   async upsertTeacherFromCreate(input: Record<string, unknown>): Promise<TeacherEntity> {
@@ -72,32 +85,45 @@ export class RoleEntitySyncService {
     if (userId) {
       const existing = await this.teacherRepo.findOne({ where: { userId } });
       if (existing) {
-        return this.saveTeacher(existing, payload);
+        return this.saveTeacher(this.teacherRepo, existing, payload);
       }
     }
 
     if (email) {
       const byEmail = await this.teacherRepo.findOne({ where: { email } });
       if (byEmail && (!byEmail.userId || byEmail.userId === userId)) {
-        return this.saveTeacher(byEmail, { ...payload, userId: userId ?? byEmail.userId });
+        return this.saveTeacher(this.teacherRepo, byEmail, {
+          ...payload,
+          userId: userId ?? byEmail.userId,
+        });
       }
     }
 
-    return this.insertTeacher(payload, input.id);
+    return this.insertTeacher(this.teacherRepo, payload, input.id);
   }
 
-  private async detachTeachersForUser(userId: string): Promise<void> {
-    await this.teacherRepo.update({ userId }, { userId: null, status: 'inactive' });
+  private async detachTeachersForUser(
+    teacherRepo: Repository<TeacherEntity>,
+    userId: string,
+  ): Promise<void> {
+    await teacherRepo.update({ userId }, { userId: null, status: 'inactive' });
   }
 
-  private async detachStudentsForUser(userId: string): Promise<void> {
-    await this.studentRepo.update({ userId }, { userId: null, status: 'inactive' });
+  private async detachStudentsForUser(
+    studentRepo: Repository<StudentEntity>,
+    userId: string,
+  ): Promise<void> {
+    await studentRepo.update({ userId }, { userId: null, status: 'inactive' });
   }
 
-  private async ensureStudentProfile(user: RoleEntityUserContext): Promise<void> {
+  private async ensureStudentProfile(
+    studentRepo: Repository<StudentEntity>,
+    user: RoleEntityUserContext,
+    assignedTeacherId?: string | null,
+  ): Promise<void> {
     let row =
-      (await this.studentRepo.findOne({ where: { userId: user.id } })) ??
-      (user.email ? await this.studentRepo.findOne({ where: { email: user.email } }) : null);
+      (await studentRepo.findOne({ where: { userId: user.id } })) ??
+      (user.email ? await studentRepo.findOne({ where: { email: user.email } }) : null);
 
     if (row?.userId && row.userId !== user.id) {
       row = null;
@@ -110,12 +136,15 @@ export class RoleEntitySyncService {
       row.name = this.displayName(user);
       row.firstName = user.firstName || row.firstName;
       row.lastName = user.lastName || row.lastName;
-      await this.studentRepo.save(row);
+      if (assignedTeacherId && !row.assignedTeacherId) {
+        row.assignedTeacherId = assignedTeacherId;
+      }
+      await studentRepo.save(row);
       return;
     }
 
-    await this.studentRepo.save(
-      this.studentRepo.create({
+    await studentRepo.save(
+      studentRepo.create({
         id: randomUUID(),
         name: this.displayName(user),
         email: user.email,
@@ -124,14 +153,18 @@ export class RoleEntitySyncService {
         userId: user.id,
         status: 'active',
         lessonBalance: 0,
+        assignedTeacherId: assignedTeacherId ?? null,
       }),
     );
   }
 
-  private async ensureTeacherProfile(user: RoleEntityUserContext): Promise<void> {
+  private async ensureTeacherProfile(
+    teacherRepo: Repository<TeacherEntity>,
+    user: RoleEntityUserContext,
+  ): Promise<void> {
     let row =
-      (await this.teacherRepo.findOne({ where: { userId: user.id } })) ??
-      (user.email ? await this.teacherRepo.findOne({ where: { email: user.email } }) : null);
+      (await teacherRepo.findOne({ where: { userId: user.id } })) ??
+      (user.email ? await teacherRepo.findOne({ where: { email: user.email } }) : null);
 
     if (row?.userId && row.userId !== user.id) {
       row = null;
@@ -144,12 +177,12 @@ export class RoleEntitySyncService {
       row.name = this.displayName(user);
       row.firstName = user.firstName || row.firstName;
       row.lastName = user.lastName || row.lastName;
-      await this.teacherRepo.save(row);
+      await teacherRepo.save(row);
       return;
     }
 
-    await this.teacherRepo.save(
-      this.teacherRepo.create({
+    await teacherRepo.save(
+      teacherRepo.create({
         id: randomUUID(),
         name: this.displayName(user),
         email: user.email,
@@ -162,41 +195,45 @@ export class RoleEntitySyncService {
   }
 
   private async saveStudent(
+    studentRepo: Repository<StudentEntity>,
     row: StudentEntity,
     payload: Partial<StudentEntity>,
   ): Promise<StudentEntity> {
     Object.assign(row, payload);
-    return this.studentRepo.save(row);
+    return studentRepo.save(row);
   }
 
   private async saveTeacher(
+    teacherRepo: Repository<TeacherEntity>,
     row: TeacherEntity,
     payload: Partial<TeacherEntity>,
   ): Promise<TeacherEntity> {
     Object.assign(row, payload);
-    return this.teacherRepo.save(row);
+    return teacherRepo.save(row);
   }
 
   private async insertStudent(
+    studentRepo: Repository<StudentEntity>,
     payload: Partial<StudentEntity>,
     idInput: unknown,
   ): Promise<StudentEntity> {
-    const row = this.studentRepo.create({
+    const row = studentRepo.create({
       id: idInput ? String(idInput) : randomUUID(),
       ...payload,
     });
-    return this.studentRepo.save(row);
+    return studentRepo.save(row);
   }
 
   private async insertTeacher(
+    teacherRepo: Repository<TeacherEntity>,
     payload: Partial<TeacherEntity>,
     idInput: unknown,
   ): Promise<TeacherEntity> {
-    const row = this.teacherRepo.create({
+    const row = teacherRepo.create({
       id: idInput ? String(idInput) : randomUUID(),
       ...payload,
     });
-    return this.teacherRepo.save(row);
+    return teacherRepo.save(row);
   }
 
   private displayName(user: RoleEntityUserContext): string {

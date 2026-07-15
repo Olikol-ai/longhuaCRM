@@ -1,22 +1,39 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
 import { resolveRedirect } from '@/lib/routing';
 import { BookOpen, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { REGISTRATION_PASSWORD_HINT } from '@/lib/passwordPolicy';
+
+const INVITE_REF_KEY = 'longhua_teacher_invite_ref';
 
 export default function Login() {
-  const [mode, setMode] = useState('login');
+  const [searchParams] = useSearchParams();
+  const inviteFromQuery = searchParams.get('ref')?.trim() || '';
+  const [mode, setMode] = useState(inviteFromQuery ? 'register' : 'login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [wantsStudentRole, setWantsStudentRole] = useState(Boolean(inviteFromQuery));
+  const [inviteToken, setInviteToken] = useState(inviteFromQuery);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const { establishSession } = useAuth();
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem(INVITE_REF_KEY) || '';
+    const ref = inviteFromQuery || stored;
+    if (!ref) return;
+    sessionStorage.setItem(INVITE_REF_KEY, ref);
+    setInviteToken(ref);
+    setMode('register');
+    setWantsStudentRole(true);
+  }, [inviteFromQuery]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -33,7 +50,17 @@ export default function Login() {
         }
         navigate(resolveRedirect(sessionUser), { replace: true });
       } else {
-        const result = await api.auth.register(email.trim(), password, firstName.trim(), lastName.trim());
+        const token = inviteToken || sessionStorage.getItem(INVITE_REF_KEY) || undefined;
+        const result = await api.auth.register(
+          email.trim(),
+          password,
+          firstName.trim(),
+          lastName.trim(),
+          {
+            wantsStudentRole: Boolean(token) || wantsStudentRole,
+            inviteToken: token,
+          },
+        );
         if (!result?.email_sent) {
           setError('Не удалось отправить код подтверждения');
           return;
@@ -41,6 +68,7 @@ export default function Login() {
         sessionStorage.setItem('longhua_pending_registration_email', result.email || email.trim());
         sessionStorage.setItem('longhua_verification_email_sent', '1');
         sessionStorage.removeItem('longhua_verification_code');
+        sessionStorage.removeItem(INVITE_REF_KEY);
         navigate('/auth/pending-approval', { replace: true });
       }
     } catch (err) {
@@ -87,6 +115,11 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'register' && (
               <>
+                {inviteToken && (
+                  <p className="text-xs text-indigo-700 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg px-3 py-2">
+                    Регистрация по приглашению преподавателя. После подтверждения email вы будете закреплены за ним.
+                  </p>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Фамилия</label>
                   <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Янчиленко" />
@@ -95,6 +128,23 @@ export default function Login() {
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Имя</label>
                   <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Мария" />
                 </div>
+                {!inviteToken && (
+                  <label
+                    className="flex items-start gap-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-950/30 px-3 py-3 cursor-pointer"
+                    data-testid="register-wants-student-label"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={wantsStudentRole}
+                      onChange={(e) => setWantsStudentRole(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      data-testid="register-wants-student"
+                    />
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 text-left">
+                      Я являюсь учеником
+                    </span>
+                  </label>
+                )}
               </>
             )}
 
@@ -117,8 +167,11 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                minLength={6}
+                autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
               />
+              {mode === 'register' && (
+                <p className="mt-1 text-xs text-slate-500">{REGISTRATION_PASSWORD_HINT}</p>
+              )}
             </div>
 
             {error && (
@@ -146,7 +199,7 @@ export default function Login() {
               <div className="text-center pt-1">
                 <Link
                   to="/forgot-password"
-                  className="text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+                  className="text-sm text-indigo-600 hover:underline"
                   data-testid="forgot-password-link"
                 >
                   Забыли пароль?

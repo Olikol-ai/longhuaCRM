@@ -1,8 +1,30 @@
 import { useState, useEffect, useRef } from "react";
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
-import { Save, CheckCircle2, User, Send, Link2, Loader2, Unlink } from "lucide-react";
+import { Save, CheckCircle2, User, Send, Link2, Loader2, Unlink, Copy, Users } from "lucide-react";
 import { formatBelarusPhone, PHONE_PLACEHOLDER } from "@/utils/phone";
+import { toast } from "@/components/ui/use-toast";
+
+function inviteStorageKey(userId) {
+  return `longhua_teacher_invite_url_${userId}`;
+}
+
+function inviteUrlFromResponse(created) {
+  if (!created) return '';
+  if (created.path) {
+    return `${window.location.origin}${created.path}`;
+  }
+  if (created.token) {
+    return `${window.location.origin}/register?ref=${encodeURIComponent(created.token)}`;
+  }
+  return '';
+}
+
+function isActiveInvite(row) {
+  if (!row || row.revoked_at) return false;
+  const expires = row.expires_at ? new Date(row.expires_at).getTime() : 0;
+  return expires > Date.now();
+}
 
 export default function Profile() {
   const { user, isLoadingAuth, checkAppState } = useAuth();
@@ -13,6 +35,8 @@ export default function Profile() {
   const [unlinking, setUnlinking] = useState(false);
   const [waitingLink, setWaitingLink] = useState(false);
   const [tgStatus, setTgStatus] = useState(null);
+  const [inviteUrl, setInviteUrl] = useState('');
+  const [inviteBusy, setInviteBusy] = useState(false);
   const pollRef = useRef(null);
 
   const loadTelegramStatus = async () => {
@@ -52,8 +76,65 @@ export default function Profile() {
         birthday,
       });
       await loadTelegramStatus();
+
+      if (user.role === "teacher") {
+        try {
+          const cached = sessionStorage.getItem(inviteStorageKey(user.id));
+          if (cached) {
+            setInviteUrl(cached);
+          }
+          const rows = await api.teacherInvites.list();
+          const list = Array.isArray(rows) ? rows : [];
+          const hasActive = list.some(isActiveInvite);
+          if (!hasActive) {
+            const created = await api.teacherInvites.create();
+            const url = inviteUrlFromResponse(created);
+            setInviteUrl(url);
+            if (url) sessionStorage.setItem(inviteStorageKey(user.id), url);
+          }
+        } catch {
+          // Invite block stays empty; teacher can create manually.
+        }
+      }
     })();
   }, [user]);
+
+  const ensureTeacherInvite = async () => {
+    setInviteBusy(true);
+    try {
+      const created = await api.teacherInvites.create();
+      const url = inviteUrlFromResponse(created);
+      setInviteUrl(url);
+      if (url && user?.id) {
+        sessionStorage.setItem(inviteStorageKey(user.id), url);
+      }
+      toast({ title: "Ссылка для регистрации создана" });
+      return url;
+    } catch (err) {
+      toast({
+        title: "Не удалось создать ссылку",
+        description: err?.message,
+        variant: "destructive",
+      });
+      return '';
+    } finally {
+      setInviteBusy(false);
+    }
+  };
+
+  const handleCopyInvite = async () => {
+    let url = inviteUrl;
+    if (!url) {
+      url = await ensureTeacherInvite();
+    }
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({ title: "Ссылка скопирована" });
+    } catch {
+      toast({ title: "Скопируйте ссылку вручную", description: url });
+    }
+  };
 
   const stopPolling = () => {
     if (pollRef.current) {
@@ -232,6 +313,51 @@ export default function Profile() {
           </div>
         )}
       </div>
+
+      {user.role === "teacher" && (
+        <div className="bg-white rounded-2xl border border-slate-100 p-5 space-y-3" data-testid="teacher-invite-profile-block">
+          <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+            <Users className="w-4 h-4 text-indigo-400" /> Ссылка для регистрации учеников
+          </h3>
+          <div className="border-t border-slate-100" />
+          <p className="text-sm text-slate-500">
+            Отправьте ссылку ученику. После регистрации и подтверждения email он автоматически закрепится за вами.
+          </p>
+          {inviteUrl ? (
+            <p className="text-xs break-all text-indigo-700 bg-indigo-50 rounded-lg px-3 py-2" data-testid="teacher-invite-profile-url">
+              {inviteUrl}
+            </p>
+          ) : (
+            <p className="text-xs text-slate-400">
+              Ссылка ещё не готова. Нажмите «Создать ссылку», затем «Скопировать».
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {!inviteUrl && (
+              <button
+                type="button"
+                onClick={ensureTeacherInvite}
+                disabled={inviteBusy}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                data-testid="teacher-invite-profile-create"
+              >
+                {inviteBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+                Создать ссылку
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleCopyInvite}
+              disabled={inviteBusy}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 text-sm font-medium rounded-xl hover:bg-slate-200 transition-colors disabled:opacity-50"
+              data-testid="teacher-invite-profile-copy"
+            >
+              {inviteBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
+              Скопировать
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="flex justify-end">
         <button onClick={handleSave} disabled={saving}

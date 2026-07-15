@@ -6,7 +6,8 @@ import { X, Users, Lock, Save, Loader2, BookOpen, FolderKanban, Trash2 } from "l
 import { Button } from "@/components/ui/button";
 import { getMaterialTypeInfo } from "@/lib/materialIcons";
 import { publicMaterialDescription, unpackMaterialDescription } from "@/lib/materialMeta";
-import { getMaterialUrl } from "@/lib/materialUrl";
+import { openMaterial } from "@/lib/materialUrl";
+import { toast } from "@/components/ui/use-toast";
 import AccessSourceBadges from "./AccessSourceBadges";
 
 export default function AccessControlModal({ material, course, folders = [], onClose, onSave }) {
@@ -41,15 +42,8 @@ export default function AccessControlModal({ material, course, folders = [], onC
 
       setStudents(visibleStudents);
       setGrants(grantPayload);
-
-      const grantedUserIds = new Set(
-        Array.isArray(grantPayload?.user_ids) ? grantPayload.user_ids : [],
-      );
-      setSelectedStudentIds(
-        visibleStudents
-          .filter((s) => s.user_id && grantedUserIds.has(s.user_id))
-          .map((s) => s.id),
-      );
+      // Checkbox list is only for NEW grants; already granted students live in «Текущие права».
+      setSelectedStudentIds([]);
     } catch (err) {
       console.error(err);
       setError(err.message || "Не удалось загрузить доступы");
@@ -120,30 +114,32 @@ export default function AccessControlModal({ material, course, folders = [], onC
   };
 
   const handleSavePersonal = async () => {
+    if (selectedStudentIds.length === 0) {
+      setError("Выберите хотя бы одного ученика");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
       const grantRole = user?.role === "admin" ? "ADMIN" : "TEACHER";
       const currentGranted = new Set(grants?.user_ids || []);
-      const selectedUserIds = new Set(
-        selectedStudentIds
-          .map((id) => students.find((s) => s.id === id)?.user_id)
-          .filter(Boolean),
-      );
+      const toGrant = selectedStudentIds
+        .map((id) => students.find((s) => s.id === id))
+        .filter((s) => s?.user_id && !currentGranted.has(s.user_id));
 
-      for (const student of students) {
-        if (!student.user_id) continue;
-        const wasGranted = currentGranted.has(student.user_id);
-        const shouldGrant = selectedUserIds.has(student.user_id);
-        if (shouldGrant && !wasGranted) {
-          await grantAccess(student.user_id, material.id, grantRole);
-        } else if (!shouldGrant && wasGranted) {
-          await revokeAccess(student.user_id, material.id);
-        }
+      for (const student of toGrant) {
+        await grantAccess(student.user_id, material.id, grantRole);
       }
 
+      toast({
+        title: "Доступ выдан",
+        description:
+          toGrant.length === 1
+            ? `${toGrant[0].name || toGrant[0].email} добавлен в текущие права`
+            : `Выдано ученикам: ${toGrant.length}`,
+      });
       await load();
-      onSave?.();
+      await onSave?.();
     } catch (err) {
       console.error("Save error:", err);
       setError(err.message || "Ошибка сохранения доступа");
@@ -168,6 +164,12 @@ export default function AccessControlModal({ material, course, folders = [], onC
   const folderCourse = grants?.folder_course;
   const hasAnyCurrent =
     personal.length > 0 || groupGrants.length > 0 || courseGrants.length > 0 || Boolean(folderCourse);
+  const grantedUserIds = new Set(Array.isArray(grants?.user_ids) ? grants.user_ids : []);
+  // Already granted → only in «Текущие права»; checkbox list is for new grants only.
+  const studentsWithoutAccess = students.filter(
+    (s) => s.user_id && !grantedUserIds.has(s.user_id),
+  );
+  const studentsWithoutAccount = students.filter((s) => !s.user_id);
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
@@ -222,7 +224,7 @@ export default function AccessControlModal({ material, course, folders = [], onC
                 <div className="rounded-xl border border-border p-4 space-y-2">
                   <p><span className="text-muted-foreground">Название:</span> {material.title}</p>
                   <p><span className="text-muted-foreground">Тип:</span> {typeInfo.label}</p>
-                  <p><span className="text-muted-foreground">Курс:</span> {course?.course_name || course?.name || "—"}</p>
+                  <p><span className="text-muted-foreground">Курс:</span> {course?.name || course?.course_name || "—"}</p>
                   <p><span className="text-muted-foreground">Папка:</span> {folder?.name || "Корень"}</p>
                   {meta.blockName && (
                     <p><span className="text-muted-foreground">Блок:</span> {meta.blockName}</p>
@@ -231,14 +233,23 @@ export default function AccessControlModal({ material, course, folders = [], onC
                   {meta.notes && (
                     <p><span className="text-muted-foreground">Заметки:</span> {meta.notes}</p>
                   )}
-                  <a
-                    href={getMaterialUrl(material)}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await openMaterial(material);
+                      } catch (err) {
+                        toast({
+                          title: "Не удалось открыть материал",
+                          description: err?.message || "Попробуйте ещё раз",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
                     className="inline-flex text-indigo-600 hover:underline"
                   >
                     Открыть материал
-                  </a>
+                  </button>
                 </div>
               </section>
             );
@@ -249,8 +260,8 @@ export default function AccessControlModal({ material, course, folders = [], onC
           <div className="p-4 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-300 flex items-start gap-2">
             <Lock className="h-4 w-4 mt-0.5 shrink-0" />
             <p>
-              Пользователи, группы и курсы. Персональный доступ меняется галочками;
-              гранты группе и курсу отзываются отдельно.
+              Отметьте учеников ниже и нажмите «Выдать доступ» — они появятся в «Текущих правах».
+              Отозвать персональный доступ можно кнопкой «Отозвать» в списке выше.
             </p>
           </div>
 
@@ -384,33 +395,42 @@ export default function AccessControlModal({ material, course, folders = [], onC
 
           <section className="space-y-3">
             <p className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Users className="h-4 w-4" /> Персональный доступ ученикам
+              <Users className="h-4 w-4" /> Выдать доступ ученикам
             </p>
             <div className="border border-border rounded-xl divide-y divide-border max-h-64 overflow-y-auto">
-              {students.length === 0 ? (
-                <div className="p-4 text-center text-sm text-muted-foreground">Нет учеников</div>
+              {studentsWithoutAccess.length === 0 ? (
+                <div className="p-4 text-center text-sm text-muted-foreground">
+                  {students.length === 0
+                    ? "Нет учеников"
+                    : "Всем доступным ученикам уже выдан персональный доступ"}
+                </div>
               ) : (
-                students.map((s) => (
+                studentsWithoutAccess.map((s) => (
                   <label key={s.id} className="flex items-center gap-3 p-3 hover:bg-muted/50 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={selectedStudentIds.includes(s.id)}
                       onChange={() => toggleStudent(s.id)}
-                      disabled={!s.user_id}
                       className="rounded accent-indigo-600"
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-foreground">{s.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {s.user_id ? s.email : "Нет привязанного аккаунта"}
-                      </p>
+                      <p className="text-sm text-foreground">{s.name || s.email || "Ученик"}</p>
+                      <p className="text-xs text-muted-foreground">{s.email}</p>
                     </div>
                   </label>
                 ))
               )}
             </div>
+            {studentsWithoutAccount.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Без аккаунта (нельзя выдать доступ): {studentsWithoutAccount.length}
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
-              Выбрано: {selectedStudentIds.length} из {students.length}
+              Выбрано: {selectedStudentIds.length}
+              {studentsWithoutAccess.length > 0
+                ? ` из ${studentsWithoutAccess.length}`
+                : ""}
             </p>
           </section>
           </>
@@ -422,12 +442,12 @@ export default function AccessControlModal({ material, course, folders = [], onC
           {tab === "access" && (
             <Button
               onClick={handleSavePersonal}
-              disabled={saving}
+              disabled={saving || selectedStudentIds.length === 0}
               className="bg-indigo-600 hover:bg-indigo-700 gap-2"
               data-testid="access-save-personal"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Сохранить персональный доступ
+              Выдать доступ
             </Button>
           )}
         </div>

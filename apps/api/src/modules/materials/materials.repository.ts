@@ -99,7 +99,10 @@ export class MaterialsRepository {
   }
 
   filterFolders(where: FindOptionsWhere<MaterialFolderEntity>): Promise<MaterialFolderEntity[]> {
-    return this.folderRepo.find({ where });
+    return this.folderRepo.find({
+      where,
+      order: { sortOrder: 'ASC', name: 'ASC' },
+    });
   }
 
   findAccessByUserId(userId: string): Promise<MaterialAccessEntity[]> {

@@ -58,6 +58,14 @@ export class MockTelegramGateway extends TelegramGateway {
     return { ok: true, result: { message_id: messageId } };
   }
 
+  async deleteMessage(
+    chatId: string | number,
+    messageId: number,
+  ): Promise<TelegramApiResult> {
+    this.logger.log(`[mock] deleteMessage → ${chatId}#${messageId}`);
+    return { ok: true, result: true };
+  }
+
   async answerCallbackQuery(
     callbackQueryId: string,
     text?: string,

@@ -139,7 +139,9 @@ export default function AdminDashboard({ user }) {
             ) : (
               todayLessons
                 .sort((a, b) => a.start_time?.localeCompare(b.start_time))
-                .map(l => <LessonRow key={l.id} lesson={l} />)
+                .map(l => (
+                  <LessonRow key={l.id} lesson={l} students={students} teachers={teachers} />
+                ))
             )}
           </div>
         </DashboardSection>
@@ -151,7 +153,9 @@ export default function AdminDashboard({ user }) {
             ) : (
               tomorrowLessons
                 .sort((a, b) => a.start_time?.localeCompare(b.start_time))
-                .map(l => <LessonRow key={l.id} lesson={l} />)
+                .map(l => (
+                  <LessonRow key={l.id} lesson={l} students={students} teachers={teachers} />
+                ))
             )}
           </div>
         </DashboardSection>

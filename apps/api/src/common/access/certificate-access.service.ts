@@ -58,6 +58,9 @@ export class CertificateAccessService {
       }
       const scoped = filterToEntityWhere(where);
       if (scoped.studentId) {
+        if (!studentIds.includes(String(scoped.studentId))) {
+          throw new ForbiddenException('Forbidden');
+        }
         return scoped;
       }
       return { ...scoped, studentId: In(studentIds) };

@@ -519,6 +519,17 @@ export class MaterialAccessService {
     return this.revokeFromUser(student.userId, materialIds);
   }
 
+  /**
+   * Grant personal material_access rows (used on material create for the creator).
+   */
+  async grantPersonalAccess(
+    userId: string,
+    materialIds: string[],
+    role: GrantedByRole,
+  ): Promise<MaterialAccessMutationResult> {
+    return this.grantToUser(userId, materialIds, role);
+  }
+
   private async grantToUser(
     userId: string,
     materialIds: string[],
@@ -633,6 +644,9 @@ export class MaterialAccessService {
     const course = await this.courseRepo.findOne({ where: { id: courseTemplateId } });
     if (!course) {
       throw new NotFoundException('Курс не найден');
+    }
+    if (!course.isActive) {
+      throw new BadRequestException('Курс архивирован — доступ выдать нельзя');
     }
 
     let grantedCount = 0;

@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
-import { getMaterialUrl } from '@/lib/materialUrl';
+import { openMaterial, downloadMaterialFile } from '@/lib/materialUrl';
+import { toast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  FolderPlus,
   Loader2,
   Lock,
   Plus,
@@ -25,6 +25,7 @@ export default function MaterialManager() {
   const [courses, setCourses] = useState([]);
   const [folders, setFolders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [selectedCourseId, setSelectedCourseId] = useState(null);
@@ -34,32 +35,41 @@ export default function MaterialManager() {
   const [dialog, setDialog] = useState(null); // { mode, material?, courseId?, folderId? }
   const [accessMaterial, setAccessMaterial] = useState(null);
   const [showGrant, setShowGrant] = useState(false);
-  const [showCourseForm, setShowCourseForm] = useState(false);
-  const [courseForm, setCourseForm] = useState({
-    course_name: '',
-    course_type: 'basic_beginner',
-    total_lessons: 35,
-  });
   const [deletingId, setDeletingId] = useState(null);
 
   const isAdmin = user?.role === 'admin';
   const isTeacher = user?.role === 'teacher' || Boolean(user?.has_teacher_profile);
-  const canManage = isAdmin;
+  const canCreateMaterials = isAdmin || isTeacher;
+  const canManageCourses = isAdmin;
   const canAccess = isAdmin || isTeacher;
+  const canEditMaterial = (mat) =>
+    isAdmin || (Boolean(user?.id) && mat?.created_by_user_id === user.id);
 
   const loadData = useCallback(async () => {
     if (!user) return;
+    setLoadError(null);
     try {
       const [mats, crs, flds] = await Promise.all([
         api.materials.list('-created_date'),
         api.courses.list(),
         api.materials.folders.list(),
       ]);
+      const courseList = Array.isArray(crs) ? crs : [];
+      const activeCourseIds = new Set(courseList.map((c) => c.id).filter(Boolean));
       setMaterials(Array.isArray(mats) ? mats.filter((m) => m.status !== 'deleted') : []);
-      setCourses(Array.isArray(crs) ? crs : []);
-      setFolders(Array.isArray(flds) ? flds : []);
+      setCourses(courseList);
+      // Hide folders of archived/deleted courses from the Materials tree
+      setFolders(
+        Array.isArray(flds)
+          ? flds.filter((f) => !f.course_id || activeCourseIds.has(f.course_id))
+          : [],
+      );
     } catch (err) {
       console.error(err);
+      setMaterials([]);
+      setCourses([]);
+      setFolders([]);
+      setLoadError(err?.message || 'Не удалось загрузить материалы');
     } finally {
       setLoading(false);
     }
@@ -96,8 +106,7 @@ export default function MaterialManager() {
   const openCreate = () => {
     const courseId = selectedCourseId || courses[0]?.id;
     if (!courseId) {
-      alert('Сначала создайте курс');
-      setShowCourseForm(true);
+      alert('Сначала создайте курс в меню слева («Создать курс»).');
       return;
     }
     setDialog({
@@ -126,25 +135,24 @@ export default function MaterialManager() {
     }
   };
 
-  const handleSaveCourse = async () => {
-    if (!courseForm.course_name.trim()) {
-      alert('Введите название курса');
-      return;
-    }
-    try {
-      await api.courses.create(courseForm);
-      setShowCourseForm(false);
-      setCourseForm({ course_name: '', course_type: 'basic_beginner', total_lessons: 35 });
-      await loadData();
-    } catch (err) {
-      alert(err.message || 'Ошибка при создании курса');
-    }
-  };
-
   if (loading || isLoadingAuth) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
+        <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-6 text-center space-y-3">
+          <h1 className="text-xl font-semibold text-foreground">Не удалось открыть материалы</h1>
+          <p className="text-sm text-muted-foreground">{loadError}</p>
+          <Button onClick={() => { setLoading(true); loadData(); }} className="bg-indigo-600 hover:bg-indigo-700">
+            Повторить
+          </Button>
+        </div>
       </div>
     );
   }
@@ -167,54 +175,14 @@ export default function MaterialManager() {
               Доступ пользователей
             </Button>
           )}
-          {canManage && (
-            <>
-              <Button variant="outline" onClick={() => setShowCourseForm(true)} className="gap-2">
-                <FolderPlus className="h-4 w-4" />
-                Курс
-              </Button>
-              <Button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
-                <Plus className="h-4 w-4" />
-                Добавить материал
-              </Button>
-            </>
+          {canCreateMaterials && (
+            <Button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
+              <Plus className="h-4 w-4" />
+              Добавить материал
+            </Button>
           )}
         </div>
       </div>
-
-      {showCourseForm && canManage && (
-        <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/40 dark:bg-indigo-950/20 p-4 space-y-3">
-          <p className="text-sm font-semibold">Новый курс</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Input
-              placeholder="Название *"
-              value={courseForm.course_name}
-              onChange={(e) => setCourseForm((p) => ({ ...p, course_name: e.target.value }))}
-            />
-            <select
-              value={courseForm.course_type}
-              onChange={(e) => setCourseForm((p) => ({ ...p, course_type: e.target.value }))}
-              className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="basic_beginner">Базовый</option>
-              <option value="advanced_beginner">Продвинутый начинающий</option>
-              <option value="advanced">Продвинутый</option>
-            </select>
-            <Input
-              type="number"
-              min={1}
-              value={courseForm.total_lessons}
-              onChange={(e) =>
-                setCourseForm((p) => ({ ...p, total_lessons: parseInt(e.target.value, 10) || 35 }))
-              }
-            />
-          </div>
-          <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => setShowCourseForm(false)}>Отмена</Button>
-            <Button onClick={handleSaveCourse} className="bg-indigo-600 hover:bg-indigo-700">Создать</Button>
-          </div>
-        </div>
-      )}
 
       {view === 'users-access' ? (
         <AccessManagementPanel isAdmin={isAdmin} />
@@ -241,7 +209,7 @@ export default function MaterialManager() {
             >
               <option value="">Все курсы</option>
               {courses.map((c) => (
-                <option key={c.id} value={c.id}>{c.course_name || c.course_type}</option>
+                <option key={c.id} value={c.id}>{c.name || c.course_name || 'Курс'}</option>
               ))}
             </select>
             <select
@@ -271,7 +239,7 @@ export default function MaterialManager() {
             </select>
           </div>
 
-          {selectedIds.size > 0 && canManage && (
+          {selectedIds.size > 0 && canAccess && (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/30 px-4 py-3">
               <span className="text-sm text-indigo-800 dark:text-indigo-200">
                 Выбрано: {selectedIds.size}
@@ -303,7 +271,7 @@ export default function MaterialManager() {
                 setSelectedFolderId(folderId);
               }}
               onRefresh={loadData}
-              canManage={canManage}
+              canManage={canManageCourses}
             />
             <div className="flex-1 min-w-0 w-full">
               <MaterialTable
@@ -322,11 +290,19 @@ export default function MaterialManager() {
                 onSelectAll={(checked) => {
                   setSelectedIds(checked ? new Set(filtered.map((m) => m.id)) : new Set());
                 }}
-                canManage={canManage}
+                canManage={canCreateMaterials}
+                canEditMaterial={canEditMaterial}
                 canAccess={canAccess}
-                onOpen={(mat) => {
-                  const url = getMaterialUrl(mat);
-                  if (url && url !== '#') window.open(url, '_blank', 'noopener,noreferrer');
+                onOpen={async (mat) => {
+                  try {
+                    await openMaterial(mat);
+                  } catch (err) {
+                    toast({
+                      title: 'Не удалось открыть материал',
+                      description: err?.message || 'Попробуйте ещё раз',
+                      variant: 'destructive',
+                    });
+                  }
                 }}
                 onEdit={(mat) => setDialog({ mode: 'edit', material: mat })}
                 onAccess={(mat) => setAccessMaterial(mat)}

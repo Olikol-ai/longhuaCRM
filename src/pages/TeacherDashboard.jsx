@@ -5,12 +5,13 @@ import { useAuth } from '@/lib/AuthContext';
 import { getGreetingName } from '@/lib/display-name';
 import { resolveLessonStudentLabel } from '@/lib/studentLabels';
 import { format } from "date-fns";
-import { Calendar, CheckCircle2, XCircle, Clock, Loader2, Sun, Moon } from "lucide-react";
+import { Calendar, CheckCircle2, XCircle, Clock, Loader2, Sun, Moon, DollarSign, Link2, Copy } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import StatCard from "@/components/dashboard/StatCard";
+import { toast } from "@/components/ui/use-toast";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +28,10 @@ export default function TeacherDashboard() {
   const [teacher, setTeacher] = useState(null);
   const [lessons, setLessons] = useState([]);
   const [students, setStudents] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [invites, setInvites] = useState([]);
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [latestInviteUrl, setLatestInviteUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [confirmAction, setConfirmAction] = useState(null);
   const [showMaterialPicker, setShowMaterialPicker] = useState(false);
@@ -34,10 +39,12 @@ export default function TeacherDashboard() {
 
   const loadData = async () => {
     if (!user) return;
-    const [allTeachers, allLessons, allStudents] = await Promise.all([
+    const [allTeachers, allLessons, allStudents, myPayments, myInvites] = await Promise.all([
       api.teachers.list(),
       api.lessons.list("-date", 200),
       api.students.list(),
+      api.teacherPayments.my().catch(() => []),
+      api.teacherInvites.list().catch(() => []),
     ]);
     const t = allTeachers.find((x) => x.user_id === user.id || x.email === user.email);
     setTeacher(t);
@@ -48,12 +55,57 @@ export default function TeacherDashboard() {
       setLessons([]);
       setStudents([]);
     }
+    setPayments(Array.isArray(myPayments) ? myPayments : []);
+    setInvites(Array.isArray(myInvites) ? myInvites : []);
     setLoading(false);
   };
 
   useEffect(() => {
     if (user) loadData();
   }, [user]);
+
+  const handleCreateInvite = async () => {
+    setInviteBusy(true);
+    try {
+      const created = await api.teacherInvites.create();
+      const url = `${window.location.origin}${created.path || `/register?ref=${created.token}`}`;
+      setLatestInviteUrl(url);
+      toast({ title: "Ссылка приглашения создана" });
+      await loadData();
+    } catch (err) {
+      toast({
+        title: "Не удалось создать ссылку",
+        description: err?.message,
+        variant: "destructive",
+      });
+    } finally {
+      setInviteBusy(false);
+    }
+  };
+
+  const handleCopyInvite = async () => {
+    if (!latestInviteUrl) return;
+    try {
+      await navigator.clipboard.writeText(latestInviteUrl);
+      toast({ title: "Ссылка скопирована" });
+    } catch {
+      toast({ title: "Скопируйте ссылку вручную", description: latestInviteUrl });
+    }
+  };
+
+  const handleRevokeInvite = async (id) => {
+    try {
+      await api.teacherInvites.revoke(id);
+      toast({ title: "Ссылка отозвана" });
+      await loadData();
+    } catch (err) {
+      toast({
+        title: "Не удалось отозвать ссылку",
+        description: err?.message,
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleMarkComplete = async (lesson, materialIds = []) => {
     await api.lessons.update(lesson.id, { status: "completed", material_ids: materialIds });
@@ -110,6 +162,83 @@ export default function TeacherDashboard() {
         <StatCard title="Предстоящие" value={upcomingLessons.length} icon={Clock} color="sky" />
         <StatCard title="Завершено" value={completedCount} icon={CheckCircle2} color="emerald" />
       </div>
+
+      <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Приглашение учеников</h2>
+      <Card className="p-4 mb-8 space-y-3">
+        <p className="text-sm text-slate-500">
+          Создайте ссылку. После регистрации и подтверждения email ученик автоматически закрепится за вами.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={handleCreateInvite}
+            disabled={inviteBusy}
+            className="bg-indigo-600 hover:bg-indigo-700 gap-2"
+            data-testid="teacher-invite-create"
+          >
+            {inviteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+            Создать ссылку
+          </Button>
+          {latestInviteUrl && (
+            <Button type="button" variant="outline" onClick={handleCopyInvite} className="gap-2">
+              <Copy className="h-4 w-4" />
+              Копировать
+            </Button>
+          )}
+        </div>
+        {latestInviteUrl && (
+          <p className="text-xs break-all text-indigo-700 dark:text-indigo-300" data-testid="teacher-invite-url">
+            {latestInviteUrl}
+          </p>
+        )}
+        {invites.length > 0 && (
+          <div className="space-y-2 pt-2 border-t border-border">
+            {invites.slice(0, 5).map((row) => {
+              const active = !row.revoked_at && new Date(row.expires_at).getTime() > Date.now();
+              return (
+                <div key={row.id} className="flex items-center justify-between gap-2 text-sm">
+                  <div>
+                    <Badge variant={active ? "default" : "secondary"}>
+                      {active ? "Активна" : "Недействительна"}
+                    </Badge>
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      до {format(new Date(row.expires_at), "dd.MM.yyyy")} · использований: {row.use_count ?? 0}
+                    </span>
+                  </div>
+                  {active && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => handleRevokeInvite(row.id)}>
+                      Отозвать
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Мои выплаты</h2>
+      {payments.length === 0 ? (
+        <Card className="p-6 text-center border-dashed mb-8">
+          <DollarSign className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+          <p className="text-sm text-slate-500">Начислений пока нет</p>
+        </Card>
+      ) : (
+        <div className="space-y-2 mb-8">
+          {payments.slice(0, 10).map((row) => (
+            <Card key={row.id} className="p-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <DollarSign className="w-4 h-4" /> {Number(row.amount).toFixed(2)} BYN
+                </p>
+                <p className="text-xs text-slate-500">{row.status}</p>
+              </div>
+              <Badge variant={row.status === "paid" ? "default" : "secondary"}>
+                {row.status === "paid" ? "Оплачено" : "Ожидает"}
+              </Badge>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Предстоящие уроки</h2>
       {upcomingLessons.length === 0 ? (

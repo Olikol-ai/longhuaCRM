@@ -16,8 +16,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { getMaterialTypeInfo } from '@/lib/materialIcons';
-import { getMaterialUrl } from '@/lib/materialUrl';
+import { downloadMaterialFile, openMaterial } from '@/lib/materialUrl';
 import { unpackMaterialDescription } from '@/lib/materialMeta';
+import { toast } from '@/components/ui/use-toast';
 import AccessSourceBadges from './AccessSourceBadges';
 
 function formatDate(value) {
@@ -37,6 +38,7 @@ export default function MaterialTable({
   onToggleSelect,
   onSelectAll,
   canManage,
+  canEditMaterial,
   canAccess,
   onOpen,
   onEdit,
@@ -45,15 +47,45 @@ export default function MaterialTable({
   deletingId,
 }) {
   const allSelected = materials.length > 0 && materials.every((m) => selectedIds.has(m.id));
+  const mayEdit = (mat) =>
+    typeof canEditMaterial === 'function' ? canEditMaterial(mat) : Boolean(canManage);
 
   const courseName = (courseId) => {
     const course = courses.find((c) => c.id === courseId);
-    return course?.course_name || course?.course_type || '—';
+    return course?.name || course?.course_name || '—';
   };
 
   const folderName = (folderId) => {
     const folder = folders.find((f) => f.id === folderId);
     return folder?.name || 'Без папки';
+  };
+
+  const handleOpen = async (mat) => {
+    try {
+      if (onOpen) {
+        await onOpen(mat);
+        return;
+      }
+      await openMaterial(mat);
+    } catch (err) {
+      toast({
+        title: 'Не удалось открыть материал',
+        description: err?.message || 'Попробуйте ещё раз',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDownload = async (mat) => {
+    try {
+      await downloadMaterialFile(mat, mat.title);
+    } catch (err) {
+      toast({
+        title: 'Не удалось скачать',
+        description: err?.message || 'Попробуйте ещё раз',
+        variant: 'destructive',
+      });
+    }
   };
 
   if (materials.length === 0) {
@@ -98,7 +130,6 @@ export default function MaterialTable({
               const Icon = typeInfo.icon;
               const meta = unpackMaterialDescription(mat.description);
               const selected = selectedIds.has(mat.id);
-              const url = getMaterialUrl(mat);
 
               return (
                 <tr
@@ -123,7 +154,13 @@ export default function MaterialTable({
                         <Icon className={`h-4 w-4 ${typeInfo.color}`} />
                       </div>
                       <div className="min-w-0">
-                        <p className="font-medium text-foreground truncate">{mat.title}</p>
+                        <button
+                          type="button"
+                          className="font-medium text-foreground truncate text-left hover:text-indigo-600 hover:underline"
+                          onClick={() => handleOpen(mat)}
+                        >
+                          {mat.title}
+                        </button>
                         {meta.blockName && (
                           <p className="text-xs text-muted-foreground mt-0.5">{meta.blockName}</p>
                         )}
@@ -153,28 +190,20 @@ export default function MaterialTable({
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem onClick={() => onOpen(mat)}>
+                        <DropdownMenuItem onClick={() => handleOpen(mat)}>
                           <Eye className="h-4 w-4 mr-2" />
                           Открыть
                         </DropdownMenuItem>
-                        {url && url !== '#' && (
-                          <DropdownMenuItem asChild>
-                            <a href={url} download target="_blank" rel="noopener noreferrer">
-                              <Download className="h-4 w-4 mr-2" />
-                              Скачать
-                            </a>
-                          </DropdownMenuItem>
-                        )}
-                        {url && url !== '#' && (
-                          <DropdownMenuItem asChild>
-                            <a href={url} target="_blank" rel="noopener noreferrer">
-                              <ExternalLink className="h-4 w-4 mr-2" />
-                              В новой вкладке
-                            </a>
-                          </DropdownMenuItem>
-                        )}
-                        {(canManage || canAccess) && <DropdownMenuSeparator />}
-                        {canManage && (
+                        <DropdownMenuItem onClick={() => handleDownload(mat)}>
+                          <Download className="h-4 w-4 mr-2" />
+                          Скачать
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleOpen(mat)}>
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          В новой вкладке
+                        </DropdownMenuItem>
+                        {(mayEdit(mat) || canAccess) && <DropdownMenuSeparator />}
+                        {mayEdit(mat) && (
                           <DropdownMenuItem onClick={() => onEdit(mat)}>
                             <Pencil className="h-4 w-4 mr-2" />
                             Редактировать
@@ -189,7 +218,7 @@ export default function MaterialTable({
                             <span title="Управление доступом">Настроить доступ</span>
                           </DropdownMenuItem>
                         )}
-                        {canManage && (
+                        {mayEdit(mat) && (
                           <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
@@ -205,7 +234,6 @@ export default function MaterialTable({
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>
-                    {/* Playwright: stable title selectors outside menu */}
                     {canAccess && (
                       <button
                         type="button"
@@ -216,7 +244,7 @@ export default function MaterialTable({
                         Управление доступом
                       </button>
                     )}
-                    {canManage && (
+                    {mayEdit(mat) && (
                       <button
                         type="button"
                         className="sr-only"

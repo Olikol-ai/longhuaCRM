@@ -935,7 +935,6 @@ async function runFrontendChecks(): Promise<void> {
     '/Groups',
     '/Certificates',
     '/Attendance',
-    '/TeacherPayments',
     '/AdminPanel',
     '/StudentDashboard',
     '/TeacherDashboard',

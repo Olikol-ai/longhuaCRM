@@ -62,7 +62,11 @@ export default function StudentDashboard() {
     setStudent(s);
     setTeachers(allTeachers);
     if (s) {
-      setLessons(allLessons.filter((l) => l.student_id === s.id || (l.student_ids || []).includes(s.id)));
+      setLessons(allLessons.filter((l) =>
+        l.primary_student_id === s.id ||
+        l.student_id === s.id ||
+        (l.student_ids || []).includes(s.id)
+      ));
       if (s.assigned_teacher) {
         setTeacher(allTeachers.find((t) => t.id === s.assigned_teacher));
       } else {

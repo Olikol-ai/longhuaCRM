@@ -1,10 +1,12 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { FindOptionsWhere } from 'typeorm';
 import { MaterialsDomainAccessService } from '../../common/access/materials-domain-access.service';
+import { normalizeRole } from '../../common/constants/roles';
 import { JwtPayload } from '../auth/auth.service';
 import { MaterialEntity } from './entities/material.entity';
 import { MaterialFolderEntity } from './entities/material-folder.entity';
@@ -12,6 +14,7 @@ import { CreateMaterialDto } from './dto/create-material.dto';
 import { CreateMaterialFolderDto } from './dto/create-material-folder.dto';
 import { UpdateMaterialDto } from './dto/update-material.dto';
 import { UpdateMaterialFolderDto } from './dto/update-material-folder.dto';
+import { MaterialAccessService } from './material-access.service';
 import { MaterialsRepository } from './materials.repository';
 
 export type MaterialDeleteResult = {
@@ -25,6 +28,7 @@ export class MaterialsService {
   constructor(
     private readonly repository: MaterialsRepository,
     private readonly materialsAccess: MaterialsDomainAccessService,
+    private readonly materialAccessService: MaterialAccessService,
   ) {}
 
   async findAllMaterials(actor: JwtPayload): Promise<MaterialEntity[]> {
@@ -47,15 +51,30 @@ export class MaterialsService {
     return enriched;
   }
 
-  createMaterial(dto: CreateMaterialDto): Promise<MaterialEntity> {
-    return this.repository.saveMaterial(dto);
+  async createMaterial(actor: JwtPayload, dto: CreateMaterialDto): Promise<MaterialEntity> {
+    const created = await this.repository.saveMaterial({
+      ...dto,
+      createdByUserId: actor.sub,
+    });
+    const grantedByRole = normalizeRole(actor.role) === 'admin' ? 'ADMIN' : 'TEACHER';
+    await this.materialAccessService.grantPersonalAccess(
+      actor.sub,
+      [created.id],
+      grantedByRole,
+    );
+    return created;
   }
 
-  async updateMaterial(id: string, dto: UpdateMaterialDto): Promise<MaterialEntity> {
+  async updateMaterial(
+    actor: JwtPayload,
+    id: string,
+    dto: UpdateMaterialDto,
+  ): Promise<MaterialEntity> {
     const existing = await this.repository.findMaterialById(id);
     if (!existing || existing.status === 'deleted') {
       throw new NotFoundException('Material not found');
     }
+    this.assertCanManageMaterial(actor, existing);
     const row = await this.repository.updateMaterial(id, dto);
     if (!row) {
       throw new NotFoundException('Material not found');
@@ -68,11 +87,12 @@ export class MaterialsService {
    * - with lesson links / access grants → soft-delete (status=deleted), keep links, revoke access
    * - unused material → hard delete after clearing access
    */
-  async deleteMaterial(id: string): Promise<MaterialDeleteResult> {
+  async deleteMaterial(actor: JwtPayload, id: string): Promise<MaterialDeleteResult> {
     const row = await this.repository.findMaterialById(id);
     if (!row) {
       throw new NotFoundException('Материал не найден');
     }
+    this.assertCanManageMaterial(actor, row);
     if (row.status === 'deleted') {
       return {
         success: true,
@@ -153,12 +173,25 @@ export class MaterialsService {
         fileType: material.fileType,
         description: material.description,
         status: material.status,
+        createdByUserId: material.createdByUserId ?? null,
         createdAt: material.createdAt,
         updatedAt: material.updatedAt,
         courseId: courseByFolder.get(material.folderId) ?? null,
       };
       return plain as unknown as MaterialEntity;
     });
+  }
+
+  private assertCanManageMaterial(actor: JwtPayload, material: MaterialEntity): void {
+    if (this.materialsAccess.isAdmin(actor)) {
+      return;
+    }
+    if (normalizeRole(actor.role) !== 'teacher') {
+      throw new ForbiddenException('Недостаточно прав для изменения материала');
+    }
+    if (material.createdByUserId !== actor.sub) {
+      throw new ForbiddenException('Можно изменять только свои материалы');
+    }
   }
 
   private async attachAccessSources(

@@ -56,7 +56,7 @@ describeE2E('Lesson confirmation 3h flow (e2e)', () => {
     mockTelegram.clear();
   });
 
-  async function seedStudentTeacher(chatId: string) {
+  async function seedStudentTeacher(chatId: string, teacherChatId?: string) {
     const studentRes = await api(app)
       .post('/api/students')
       .set(authHeader(adminToken))
@@ -73,6 +73,7 @@ describeE2E('Lesson confirmation 3h flow (e2e)', () => {
       .send({
         name: 'Confirm 3h Teacher',
         email: `c3h-t-${randomUUID().slice(0, 8)}@test.local`,
+        ...(teacherChatId ? { telegramId: teacherChatId } : {}),
       })
       .expect(201);
 
@@ -113,7 +114,7 @@ describeE2E('Lesson confirmation 3h flow (e2e)', () => {
       mockTelegram.sentMessages.some(
         (m) =>
           m.chatId === chatId
-          && m.text.includes('⏰ Через 3 часа начинается урок'),
+          && m.text.includes('У вас индивидуальное занятие через 3 часа'),
       ),
     ).toBe(true);
 
@@ -157,7 +158,7 @@ describeE2E('Lesson confirmation 3h flow (e2e)', () => {
         id: 'cb-confirm',
         data: `lesson_confirm:${pending.id}`,
         from: { id: Number(chatId) },
-        message: { chat: { id: Number(chatId) } },
+        message: { chat: { id: Number(chatId) }, message_id: 101 },
       },
     });
 
@@ -167,13 +168,14 @@ describeE2E('Lesson confirmation 3h flow (e2e)', () => {
     expect(row.status).toBe(LessonConfirmationStatus.CONFIRMED);
     expect(row.confirmedAt).toBeTruthy();
     expect(
-      mockTelegram.sentMessages.some((m) => m.text.includes('Участие подтверждено')),
+      mockTelegram.sentMessages.some((m) => m.text.includes('Занятие подтверждено')),
     ).toBe(true);
   });
 
-  it('callback decline sets DECLINED immediately', async () => {
+  it('callback decline sets DECLINED and cancels lesson', async () => {
     const chatId = String(952000000 + Math.floor(Math.random() * 99999));
-    const { studentId, teacherId } = await seedStudentTeacher(chatId);
+    const teacherChatId = String(962000000 + Math.floor(Math.random() * 99999));
+    const { studentId, teacherId } = await seedStudentTeacher(chatId, teacherChatId);
     const slot = lessonSlotInHours(2.95);
 
     const lessonRes = await api(app)
@@ -203,7 +205,7 @@ describeE2E('Lesson confirmation 3h flow (e2e)', () => {
         id: 'cb-decline',
         data: `lesson_decline:${pending.id}`,
         from: { id: Number(chatId) },
-        message: { chat: { id: Number(chatId) } },
+        message: { chat: { id: Number(chatId) }, message_id: 102 },
       },
     });
 
@@ -212,9 +214,23 @@ describeE2E('Lesson confirmation 3h flow (e2e)', () => {
     });
     expect(row.status).toBe(LessonConfirmationStatus.DECLINED);
     expect(row.declinedAt).toBeTruthy();
+
+    const lesson = await api(app)
+      .get(`/api/lessons/${lessonRes.body.id}`)
+      .set(authHeader(adminToken))
+      .expect(200);
+    expect(lesson.body.status).toBe('cancelled');
+
     expect(
       mockTelegram.sentMessages.some((m) =>
-        m.text.includes('Урок отменён. Информация передана администратору.'),
+        m.text.includes('Занятие отменено'),
+      ),
+    ).toBe(true);
+    expect(
+      mockTelegram.sentMessages.some(
+        (m) =>
+          m.chatId === teacherChatId
+          && m.text.includes('Ученик отменил индивидуальное занятие'),
       ),
     ).toBe(true);
   });

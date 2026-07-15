@@ -48,10 +48,18 @@ export function entityToApiRecord(
     if (key === 'passwordHash' || key === 'verificationCodeHash') continue;
     if (key === 'assignedTeacher') continue;
     if (key === 'folder' || key === 'material' || key === 'lesson') continue;
+    if (key === 'teacher' || key === 'primaryStudent' || key === 'group' || key === 'series') {
+      continue;
+    }
     if (key.startsWith('__')) continue;
     const mapped = entityToApiRecord(val, seen);
-    if (mapped !== undefined) {
-      out[entityFieldToApiKey(key)] = mapped;
+    if (mapped === undefined) {
+      continue;
+    }
+    out[entityFieldToApiKey(key)] = mapped;
+    // Legacy FE contract: individual lessons were exposed as student_id.
+    if (key === 'primaryStudentId') {
+      out.student_id = mapped;
     }
   }
   return out;

@@ -54,9 +54,11 @@ export class CertificatesController {
     const certificate = await this.certificatesService.findById(user, id);
     this.certificatesService.assertPdfAllowed(certificate);
     const { buffer, filename } = await this.certificatePdfService.generatePdf(id);
+    // inline — браузер открывает/показывает PDF (печать = лист A4), скачивание с фронта через blob
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Disposition': `inline; filename="${filename}"`,
+      'Content-Length': String(buffer.length),
     });
     res.send(buffer);
   }

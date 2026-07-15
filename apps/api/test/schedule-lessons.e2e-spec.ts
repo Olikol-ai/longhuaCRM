@@ -143,4 +143,149 @@ describeE2E('Schedule/Lessons consistency (e2e)', () => {
 
     expect(ownCheck.body.available).toBe(true);
   });
+
+  it('creates individual lesson from legacy studentId alias and rejects missing target', async () => {
+    const teacher = await createTeacherUser(app, adminToken, {
+      email: `lesson-target-${randomUUID()}@test.local`,
+      password: 'TestTeacher123!',
+      name: 'Lesson Target Teacher',
+    });
+
+    const studentRes = await api(app)
+      .post('/api/students')
+      .set(authHeader(adminToken))
+      .send({ name: `Lesson Target Student ${randomUUID().slice(0, 8)}` })
+      .expect(201);
+
+    const lessonDate = futureLessonDate(21);
+    await api(app)
+      .post('/api/schedule')
+      .set(authHeader(adminToken))
+      .send({
+        teacherId: teacher.teacherId,
+        dayOfWeek: dayOfWeekForDate(lessonDate),
+        timeFrom: '09:00',
+        timeTo: '18:00',
+      })
+      .expect(201);
+
+    const missingTarget = await api(app)
+      .post('/api/lessons')
+      .set(authHeader(adminToken))
+      .send({
+        teacherId: teacher.teacherId,
+        date: lessonDate,
+        startTime: '09:00',
+        duration: 60,
+      });
+
+    expect(missingTarget.status).toBe(400);
+    const missingMessage = Array.isArray(missingTarget.body.message)
+      ? missingTarget.body.message.join(' ')
+      : String(missingTarget.body.message ?? '');
+    expect(missingMessage).toMatch(/ученика|группу/i);
+
+    const created = await api(app)
+      .post('/api/lessons')
+      .set(authHeader(adminToken))
+      .send({
+        teacherId: teacher.teacherId,
+        studentId: studentRes.body.id,
+        date: lessonDate,
+        startTime: '10:00',
+        duration: 60,
+      })
+      .expect(201);
+
+    expect(created.body.primary_student_id).toBe(studentRes.body.id);
+    expect(created.body.student_id).toBe(studentRes.body.id);
+    expect(created.body.lesson_type).toBe('individual');
+    expect(created.body.teacher_id).toBe(teacher.teacherId);
+
+    const groupRes = await api(app)
+      .post('/api/groups')
+      .set(authHeader(adminToken))
+      .send({
+        name: `Lesson Group ${randomUUID().slice(0, 8)}`,
+        teacherId: teacher.teacherId,
+      })
+      .expect(201);
+
+    await api(app)
+      .post(`/api/groups/${groupRes.body.id}/members`)
+      .set(authHeader(adminToken))
+      .send({ studentId: studentRes.body.id })
+      .expect(201);
+
+    const groupLesson = await api(app)
+      .post('/api/lessons')
+      .set(authHeader(adminToken))
+      .send({
+        teacherId: teacher.teacherId,
+        groupId: groupRes.body.id,
+        date: lessonDate,
+        startTime: '14:00',
+        duration: 60,
+        lessonType: 'group',
+      })
+      .expect(201);
+
+    expect(groupLesson.body.group_id).toBe(groupRes.body.id);
+    expect(groupLesson.body.lesson_type).toBe('group');
+    expect(groupLesson.body.primary_student_id ?? null).toBeNull();
+
+    const attendance = await api(app)
+      .post('/api/lessons/attendance/filter')
+      .set(authHeader(adminToken))
+      .send({ where: { lesson_id: groupLesson.body.id } })
+      .expect(201);
+
+    expect(attendance.body.some((row: { student_id?: string }) => row.student_id === studentRes.body.id)).toBe(
+      true,
+    );
+  });
+
+  it('allows a teacher to create a lesson for themselves', async () => {
+    const teacher = await createTeacherUser(app, adminToken, {
+      email: `lesson-teacher-create-${randomUUID()}@test.local`,
+      password: 'TestTeacher123!',
+      name: 'Teacher Create Lesson',
+    });
+
+    const studentRes = await api(app)
+      .post('/api/students')
+      .set(authHeader(adminToken))
+      .send({
+        name: `Teacher Create Student ${randomUUID().slice(0, 8)}`,
+        assignedTeacherId: teacher.teacherId,
+      })
+      .expect(201);
+
+    const lessonDate = futureLessonDate(22);
+    await api(app)
+      .post('/api/schedule')
+      .set(authHeader(adminToken))
+      .send({
+        teacherId: teacher.teacherId,
+        dayOfWeek: dayOfWeekForDate(lessonDate),
+        timeFrom: '09:00',
+        timeTo: '18:00',
+      })
+      .expect(201);
+
+    const created = await api(app)
+      .post('/api/lessons')
+      .set(authHeader(teacher.token))
+      .send({
+        teacherId: teacher.teacherId,
+        primaryStudentId: studentRes.body.id,
+        date: lessonDate,
+        startTime: '11:00',
+        duration: 60,
+      })
+      .expect(201);
+
+    expect(created.body.teacher_id).toBe(teacher.teacherId);
+    expect(created.body.primary_student_id).toBe(studentRes.body.id);
+  });
 });

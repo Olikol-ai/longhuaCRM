@@ -163,7 +163,7 @@ export default function UserAccessEditor({ targetUser, onClose, onSaved }) {
                         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                       )}
                       <span className="text-amber-500">📁</span>
-                      <span className="text-sm font-semibold text-foreground">{course.course_name}</span>
+                      <span className="text-sm font-semibold text-foreground">{course.name || course.course_name}</span>
                       <span className="text-xs text-muted-foreground ml-auto">
                         {selectedCount}/{materialIds.length}
                       </span>

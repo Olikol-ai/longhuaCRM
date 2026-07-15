@@ -11,6 +11,9 @@ export const courses = {
   ...templates,
   templates,
   enrollments,
+  get(id) {
+    return apiFetch(`/courses/${id}`);
+  },
   enrollmentProgress(enrollmentId) {
     return apiFetch(`/courses/enrollments/${enrollmentId}/progress`);
   },

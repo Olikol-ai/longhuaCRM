@@ -51,6 +51,7 @@ export default function TeacherSchedule() {
   const [teacher, setTeacher] = useState(null);
   const [allTeachers, setAllTeachers] = useState([]);
   const [students, setStudents] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState("week"); // "month" | "week" | "list"
@@ -67,10 +68,11 @@ export default function TeacherSchedule() {
   }, [user]);
 
   const loadData = async () => {
-    const [teachers, allLessons, allStudents] = await Promise.all([
+    const [teachers, allLessons, allStudents, allGroups] = await Promise.all([
       api.teachers.list(),
       api.lessons.list("-date", 500),
       api.students.list(),
+      api.groups.list(),
     ]);
     const t = teachers.find((row) => row.user_id === user.id || row.email === user.email);
     setAllTeachers(teachers);
@@ -78,10 +80,12 @@ export default function TeacherSchedule() {
       setTeacher(t);
       setLessons(allLessons.filter((l) => l.teacher_id === t.id));
       setStudents(allStudents.filter((s) => s.assigned_teacher === t.id));
+      setGroups(allGroups.filter((g) => g.teacher_id === t.id));
     } else {
       setTeacher(null);
       setLessons([]);
       setStudents([]);
+      setGroups([]);
     }
     setLoading(false);
   };
@@ -113,14 +117,14 @@ export default function TeacherSchedule() {
 
   const handleSaveLesson = async (data, recurring) => {
     if (!teacher) return;
-    const lessonData = { ...data, teacher_id: teacher.id, teacher_name: teacher.name };
+    const lessonData = { ...data, teacher_id: teacher.id };
     await createWeeklyLessonSeries(
       (payload) => api.lessons.create(payload),
       lessonData,
       recurring,
     );
     setShowModal(false);
-    loadData();
+    await loadData();
   };
 
   const openNewLesson = (dateStr) => {
@@ -391,6 +395,7 @@ export default function TeacherSchedule() {
           date={selectedDate}
           teachers={[teacher]}
           students={students}
+          groups={groups}
           defaultTeacherId={teacher.id}
           onSave={handleSaveLesson}
           onClose={() => setShowModal(false)}

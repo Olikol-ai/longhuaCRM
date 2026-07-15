@@ -269,7 +269,7 @@ export default function MaterialDialog({
               >
                 {courses.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.course_name || c.course_type}
+                    {c.name || c.course_name || 'Курс'}
                   </option>
                 ))}
               </select>

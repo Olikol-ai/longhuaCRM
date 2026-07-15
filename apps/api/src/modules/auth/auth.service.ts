@@ -62,6 +62,8 @@ import { PendingRegistrationService } from './pending-registration.service';
 
 import { VerificationEmailService } from './verification-email.service';
 
+import { TeacherInvitesService } from '../teachers/teacher-invites.service';
+
 
 
 export interface JwtPayload {
@@ -153,6 +155,8 @@ export class AuthService {
     private readonly pendingRepository: PendingRegistrationRepository,
 
     private readonly mail: MailService,
+
+    private readonly teacherInvites: TeacherInvitesService,
 
   ) {}
 
@@ -312,6 +316,8 @@ export class AuthService {
 
       phone,
 
+      await this.teacherInvites.resolveValidInvite(dto.inviteToken),
+
     );
 
 
@@ -370,30 +376,24 @@ export class AuthService {
 
     const row = await this.pendingRegistration.verifyAndCreateUser(normalizedEmail, code);
 
-
-
     await this.audit.log({
-
       actorUserId: row.id,
-
       action: 'verify_registration',
-
       entityType: 'User',
-
       entityId: row.id,
-
-      summary: 'Registration email verified, user created',
-
+      summary:
+        row.role === 'student'
+          ? 'Registration verified; student role assigned'
+          : 'Registration email verified, user created (awaiting role)',
     });
 
-
-
-    const saved = await this.usersRepository.findById(row.id);
-
-    const response = authResponse(saved, (u) => this.signToken(u));
-
-    return this.attachProfileFields(response, row.id);
-
+    // No JWT: user must sign in on the login page after verification.
+    return {
+      success: true,
+      email: row.email,
+      role: row.role || '',
+      message: 'Регистрация успешно подтверждена',
+    };
   }
 
 

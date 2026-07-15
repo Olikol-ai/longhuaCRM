@@ -83,6 +83,16 @@ export class HttpTelegramGateway extends TelegramGateway {
     return this.call('editMessageText', payload);
   }
 
+  deleteMessage(
+    chatId: string | number,
+    messageId: number,
+  ): Promise<TelegramApiResult> {
+    return this.call('deleteMessage', {
+      chat_id: chatId,
+      message_id: messageId,
+    });
+  }
+
   answerCallbackQuery(
     callbackQueryId: string,
     text?: string,

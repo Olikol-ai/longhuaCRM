@@ -4,6 +4,7 @@ import { In, Repository } from 'typeorm';
 import { normalizeRole } from '../constants/roles';
 import { filterToEntityWhere } from '../utils/api-record.util';
 import { EnrollmentEntity } from '../../modules/courses/entities/enrollment.entity';
+import { CourseTemplateEntity } from '../../modules/courses/entities/course-template.entity';
 import { MaterialAccessEntity } from '../../modules/materials/entities/material-access.entity';
 import { MaterialCourseGrantEntity } from '../../modules/materials/entities/material-course-grant.entity';
 import { MaterialFolderEntity } from '../../modules/materials/entities/material-folder.entity';
@@ -40,6 +41,8 @@ export class MaterialsDomainAccessService {
     private readonly groupGrantRepo: Repository<MaterialGroupGrantEntity>,
     @InjectRepository(EnrollmentEntity)
     private readonly enrollmentRepo: Repository<EnrollmentEntity>,
+    @InjectRepository(CourseTemplateEntity)
+    private readonly courseTemplateRepo: Repository<CourseTemplateEntity>,
     @InjectRepository(StudentEntity)
     private readonly studentRepo: Repository<StudentEntity>,
     @InjectRepository(TeacherEntity)
@@ -215,6 +218,17 @@ export class MaterialsDomainAccessService {
     }
 
     const role = normalizeRole(actor.role);
+    if (role === 'teacher') {
+      // Authors always see materials they created (even if a personal grant row is missing).
+      const owned = await this.materialRepo.find({
+        where: { createdByUserId: actor.sub, status: 'active' },
+        select: ['id'],
+      });
+      for (const row of owned) {
+        personal.add(row.id);
+      }
+    }
+
     if (role === 'student') {
       await this.fillStudentBuckets(actor.sub, course, group);
     } else if (role === 'teacher') {
@@ -322,12 +336,13 @@ export class MaterialsDomainAccessService {
     courseIds: string[],
     ids: Set<string>,
   ): Promise<void> {
-    if (courseIds.length === 0) {
+    const activeIds = await this.filterActiveCourseIds(courseIds);
+    if (activeIds.length === 0) {
       return;
     }
 
     const grants = await this.courseGrantRepo.find({
-      where: { courseTemplateId: In(courseIds) },
+      where: { courseTemplateId: In(activeIds) },
       select: ['materialId'],
     });
     for (const row of grants) {
@@ -335,7 +350,7 @@ export class MaterialsDomainAccessService {
     }
 
     const folders = await this.folderRepo.find({
-      where: { courseTemplateId: In(courseIds) },
+      where: { courseTemplateId: In(activeIds) },
       select: ['id'],
     });
     const folderIds = folders.map((folder) => folder.id);
@@ -352,6 +367,18 @@ export class MaterialsDomainAccessService {
     }
   }
 
+  private async filterActiveCourseIds(courseIds: string[]): Promise<string[]> {
+    const unique = [...new Set(courseIds.filter(Boolean))];
+    if (unique.length === 0) {
+      return [];
+    }
+    const rows = await this.courseTemplateRepo.find({
+      where: { id: In(unique), isActive: true },
+      select: ['id'],
+    });
+    return rows.map((row) => row.id);
+  }
+
   private async resolveAccessibleCourseTemplateIds(actor: DomainAccessActor): Promise<string[]> {
     const role = normalizeRole(actor.role);
 
@@ -364,52 +391,74 @@ export class MaterialsDomainAccessService {
         where: { studentId: student.id },
         select: ['courseTemplateId'],
       });
-      return [
-        ...new Set(
-          enrollments.map((row) => row.courseTemplateId).filter((id): id is string => Boolean(id)),
-        ),
-      ];
+      return this.filterActiveCourseIds(
+        enrollments.map((row) => row.courseTemplateId).filter((id): id is string => Boolean(id)),
+      );
     }
 
     if (role === 'teacher') {
+      const courseIds = new Set<string>();
+
       const teacher = await this.teacherRepo.findOne({ where: { userId: actor.sub } });
-      if (!teacher) {
-        return [];
-      }
-
-      const studentIds: string[] = [];
-      const assigned = await this.studentRepo.find({
-        where: { assignedTeacherId: teacher.id },
-        select: ['id'],
-      });
-      studentIds.push(...assigned.map((row) => row.id));
-
-      const groups = await this.groupRepo.find({
-        where: { teacherId: teacher.id },
-        select: ['id'],
-      });
-      if (groups.length > 0) {
-        const members = await this.groupMemberRepo.find({
-          where: { groupId: In(groups.map((row) => row.id)) },
-          select: ['studentId'],
+      if (teacher) {
+        const studentIds: string[] = [];
+        const assigned = await this.studentRepo.find({
+          where: { assignedTeacherId: teacher.id },
+          select: ['id'],
         });
-        studentIds.push(...members.map((row) => row.studentId));
+        studentIds.push(...assigned.map((row) => row.id));
+
+        const groups = await this.groupRepo.find({
+          where: { teacherId: teacher.id },
+          select: ['id'],
+        });
+        if (groups.length > 0) {
+          const members = await this.groupMemberRepo.find({
+            where: { groupId: In(groups.map((row) => row.id)) },
+            select: ['studentId'],
+          });
+          studentIds.push(...members.map((row) => row.studentId));
+        }
+
+        const uniqueStudentIds = [...new Set(studentIds)];
+        if (uniqueStudentIds.length > 0) {
+          const enrollments = await this.enrollmentRepo.find({
+            where: { studentId: In(uniqueStudentIds) },
+            select: ['courseTemplateId'],
+          });
+          for (const row of enrollments) {
+            if (row.courseTemplateId) {
+              courseIds.add(row.courseTemplateId);
+            }
+          }
+        }
       }
 
-      const uniqueStudentIds = [...new Set(studentIds)];
-      if (uniqueStudentIds.length === 0) {
-        return [];
+      // Also include courses of materials the teacher can already see (own/granted).
+      // Otherwise teachers see materials but an empty folder tree (white/broken UX).
+      const accessibleMaterialIds = await this.resolveAccessibleMaterialIds(actor);
+      if (accessibleMaterialIds.length > 0) {
+        const materials = await this.materialRepo.find({
+          where: { id: In(accessibleMaterialIds), status: 'active' },
+          select: ['folderId'],
+        });
+        const folderIds = [
+          ...new Set(materials.map((row) => row.folderId).filter((id): id is string => Boolean(id))),
+        ];
+        if (folderIds.length > 0) {
+          const folders = await this.folderRepo.find({
+            where: { id: In(folderIds) },
+            select: ['courseTemplateId'],
+          });
+          for (const folder of folders) {
+            if (folder.courseTemplateId) {
+              courseIds.add(folder.courseTemplateId);
+            }
+          }
+        }
       }
 
-      const enrollments = await this.enrollmentRepo.find({
-        where: { studentId: In(uniqueStudentIds) },
-        select: ['courseTemplateId'],
-      });
-      return [
-        ...new Set(
-          enrollments.map((row) => row.courseTemplateId).filter((id): id is string => Boolean(id)),
-        ),
-      ];
+      return this.filterActiveCourseIds([...courseIds]);
     }
 
     return [];

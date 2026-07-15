@@ -31,6 +31,17 @@ export class PendingRegistrationEntity {
   @Column({ default: '' })
   phone: string;
 
+  /** Intent flagged at registration; applied only by server on verify (role=student). */
+  @Column({ name: 'wants_student_role', type: 'boolean', default: false })
+  wantsStudentRole: boolean;
+
+  /** Teacher resolved from invite token at register time (never from client teacherId). */
+  @Column({ name: 'invite_teacher_id', type: 'uuid', nullable: true })
+  inviteTeacherId: string | null;
+
+  @Column({ name: 'invite_link_id', type: 'uuid', nullable: true })
+  inviteLinkId: string | null;
+
   @Column({ name: 'verification_code_hash', type: 'text', nullable: true })
   verificationCodeHash: string | null;
 

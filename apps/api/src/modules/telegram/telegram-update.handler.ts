@@ -6,18 +6,28 @@ import {
   matchMainMenuButton,
   TELEGRAM_CB,
   TELEGRAM_MSG,
-  mainMenuInlineKeyboard,
+  resultBackToMenuKeyboard,
 } from './telegram-messages';
 import { TelegramGateway } from './telegram.gateway';
 import { TelegramLinkService } from './telegram-link.service';
 
+type MenuAction =
+  | 'lessons'
+  | 'settings'
+  | 'profile'
+  | 'help'
+  | 'main';
+
 /**
  * Single entry point for Telegram updates (polling + webhook).
- * Button-first UX: menu + lesson confirm/decline. Deep-link for binding only.
+ * Button-first UX: inline menu + lesson confirm/decline. Deep-link for binding only.
+ * Navigation uses InlineKeyboardMarkup; sticky ReplyKeyboard is cleared on contact.
  */
 @Injectable()
 export class TelegramUpdateHandler {
   private readonly logger = new Logger(TelegramUpdateHandler.name);
+  /** Chats where we already pulsed ReplyKeyboardRemove in this process. */
+  private readonly stickyKeyboardCleared = new Set<string>();
 
   constructor(
     private readonly gateway: TelegramGateway,
@@ -62,6 +72,9 @@ export class TelegramUpdateHandler {
         return await this.handleStart(chatId);
       }
 
+      // Other messages / legacy reply-keyboard taps
+      await this.ensureStickyKeyboardCleared(chatId, false);
+
       const menuAction = matchMainMenuButton(text);
       if (menuAction) {
         return await this.handleMenuAction(chatId, menuAction, null);
@@ -97,6 +110,7 @@ export class TelegramUpdateHandler {
       this.logger.warn(
         `Deep-link failed for chatId=${chatId} (invalid/expired/used token)`,
       );
+      await this.ensureStickyKeyboardCleared(chatId, true);
       await this.reply(chatId, TELEGRAM_MSG.linkFailed);
     }
     return { ok: true };
@@ -107,6 +121,7 @@ export class TelegramUpdateHandler {
     const linked = await this.linkService.isChatLinked(chatId);
     if (!linked) {
       this.logger.warn(`/start for unlinked chatId=${chatId}`);
+      await this.ensureStickyKeyboardCleared(chatId, true);
       await this.reply(chatId, TELEGRAM_MSG.startNotLinked);
       return { ok: true };
     }
@@ -114,16 +129,28 @@ export class TelegramUpdateHandler {
     return { ok: true };
   }
 
+  /** Always clears sticky keyboard, then shows inline main menu. */
   private async sendMainMenu(chatId: string) {
-    await this.gateway.sendMessage(chatId, TELEGRAM_MSG.startLinked, {
-      replyMarkup: mainMenuInlineKeyboard(),
-    });
-    this.diagnostics.recordOutbound(chatId, TELEGRAM_MSG.startLinked);
+    await this.ensureStickyKeyboardCleared(chatId, true);
+    const screen = this.menu.buildMainMenuInlineScreen();
+    await this.menu.sendScreen(chatId, screen);
+    this.diagnostics.recordOutbound(chatId, screen.text);
+  }
+
+  private async ensureStickyKeyboardCleared(
+    chatId: string,
+    force: boolean,
+  ): Promise<void> {
+    if (!force && this.stickyKeyboardCleared.has(chatId)) {
+      return;
+    }
+    await this.menu.clearStickyReplyKeyboard(chatId);
+    this.stickyKeyboardCleared.add(chatId);
   }
 
   private async handleMenuAction(
     chatId: string,
-    action: 'lessons' | 'settings' | 'status' | 'main',
+    action: MenuAction,
     messageId: number | null,
   ) {
     const linked = await this.linkService.isChatLinked(chatId);
@@ -140,8 +167,10 @@ export class TelegramUpdateHandler {
       screen = await this.menu.buildLessonsScreen(chatId);
     } else if (action === 'settings') {
       screen = await this.menu.buildSettingsScreen(chatId);
+    } else if (action === 'help') {
+      screen = this.menu.buildHelpScreen();
     } else {
-      screen = await this.menu.buildStatusScreen(chatId);
+      screen = await this.menu.buildProfileScreen(chatId);
     }
 
     await this.menu.editOrSendScreen(chatId, messageId, screen);
@@ -165,12 +194,14 @@ export class TelegramUpdateHandler {
     }
 
     this.diagnostics.recordCallback(chatId, data);
+    await this.ensureStickyKeyboardCleared(chatId, false);
 
     const confirmMatch = data.match(/^lesson_confirm:(.+)$/);
     if (confirmMatch) {
       return this.handleLessonCallback(
         callbackId,
         chatId,
+        messageId,
         'confirm',
         confirmMatch[1],
       );
@@ -181,6 +212,7 @@ export class TelegramUpdateHandler {
       return this.handleLessonCallback(
         callbackId,
         chatId,
+        messageId,
         'decline',
         declineMatch[1],
       );
@@ -198,9 +230,13 @@ export class TelegramUpdateHandler {
       await this.gateway.answerCallbackQuery(callbackId);
       return this.handleMenuAction(chatId, 'settings', messageId);
     }
-    if (data === TELEGRAM_CB.status) {
+    if (data === TELEGRAM_CB.profile || data === TELEGRAM_CB.status) {
       await this.gateway.answerCallbackQuery(callbackId);
-      return this.handleMenuAction(chatId, 'status', messageId);
+      return this.handleMenuAction(chatId, 'profile', messageId);
+    }
+    if (data === TELEGRAM_CB.help) {
+      await this.gateway.answerCallbackQuery(callbackId);
+      return this.handleMenuAction(chatId, 'help', messageId);
     }
     if (data === TELEGRAM_CB.toggle24h || data === TELEGRAM_CB.toggle3h) {
       try {
@@ -233,25 +269,32 @@ export class TelegramUpdateHandler {
   private async handleLessonCallback(
     callbackId: string,
     chatId: string,
+    messageId: number | null,
     action: 'confirm' | 'decline',
     confirmationId: string,
   ) {
     try {
+      const resultText =
+        action === 'confirm' ? TELEGRAM_MSG.confirmed : TELEGRAM_MSG.declined;
       if (action === 'confirm') {
         await this.lessonConfirmations.confirm(confirmationId, chatId);
         await this.gateway.answerCallbackQuery(
           callbackId,
           TELEGRAM_MSG.callbackConfirmed,
         );
-        await this.reply(chatId, TELEGRAM_MSG.confirmed);
       } else {
         await this.lessonConfirmations.decline(confirmationId, chatId);
         await this.gateway.answerCallbackQuery(
           callbackId,
           TELEGRAM_MSG.callbackDeclined,
         );
-        await this.reply(chatId, TELEGRAM_MSG.declined);
       }
+
+      await this.menu.editOrSendScreen(chatId, messageId, {
+        text: resultText,
+        options: { replyMarkup: resultBackToMenuKeyboard() },
+      });
+      this.diagnostics.recordOutbound(chatId, resultText);
     } catch (error) {
       this.logger.warn(
         `Lesson ${action} failed confirmationId=${confirmationId} chatId=${chatId}: ${(error as Error).message}`,
@@ -263,7 +306,10 @@ export class TelegramUpdateHandler {
           : 'Не удалось отменить урок.',
       );
       await this.gateway.answerCallbackQuery(callbackId, 'Ошибка');
-      await this.reply(chatId, userText);
+      await this.menu.editOrSendScreen(chatId, messageId, {
+        text: userText,
+        options: { replyMarkup: resultBackToMenuKeyboard() },
+      });
     }
     return { ok: true };
   }

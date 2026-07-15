@@ -44,7 +44,7 @@ describeE2E('Secure files upload (e2e)', () => {
     expect(res.status).toBe(400);
   });
 
-  it('rejects upload from non-admin users', async () => {
+  it('allows teacher to upload a material file', async () => {
     const teacher = await createTeacherUser(app, adminToken, {
       email: `files-upload-teacher-${Date.now()}@test.local`,
       password: 'TestTeacher123!',
@@ -57,7 +57,8 @@ describeE2E('Secure files upload (e2e)', () => {
       .set(authHeader(teacher.token))
       .attach('file', buffer, 'teacher.pdf');
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
+    expect(res.body.url).toMatch(/^\/uploads\/.+\.pdf$/);
   });
 
   it('rejects disallowed file extensions', async () => {

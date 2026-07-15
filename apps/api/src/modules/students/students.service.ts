@@ -55,7 +55,23 @@ export class StudentsService {
       id,
       dto as Record<string, unknown>,
     );
-    const row = await this.repository.update(id, payload as UpdateStudentDto);
+
+    const normalized: Record<string, unknown> = { ...payload };
+    if (
+      Object.prototype.hasOwnProperty.call(normalized, 'assignedTeacherId')
+      && (normalized.assignedTeacherId === '' || normalized.assignedTeacherId === undefined)
+    ) {
+      normalized.assignedTeacherId = null;
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(normalized, 'email')
+      && typeof normalized.email === 'string'
+      && normalized.email.trim() === ''
+    ) {
+      normalized.email = null;
+    }
+
+    const row = await this.repository.update(id, normalized as UpdateStudentDto);
     if (!row) {
       throw new NotFoundException('Student not found');
     }

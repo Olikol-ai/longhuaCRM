@@ -48,6 +48,11 @@ export class MaterialEntity {
   @Column({ type: 'varchar', length: 32, default: 'active' })
   status: MaterialStatus;
 
+  /** User who created the material (admin or teacher). Used for teacher-owned CRUD. */
+  @Index('IDX_MATERIALS_CREATED_BY_USER')
+  @Column({ name: 'created_by_user_id', type: 'uuid', nullable: true })
+  createdByUserId: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

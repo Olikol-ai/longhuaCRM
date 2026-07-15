@@ -59,6 +59,8 @@ export function getPostAuthRedirect(user) {
 export function getRequiredRoleForPath(pathname) {
   if (SHARED_PATHS.has(pathname)) return null;
   if (pathname === '/' || pathname === '/Welcome') return null;
+  // Electron certificate view — access enforced by API (owner/admin).
+  if (pathname.startsWith('/certificate/')) return null;
 
   if (
     pathname === '/admin'
@@ -81,7 +83,6 @@ export function getRequiredRoleForPath(pathname) {
     pathname === '/teacher'
     || pathname === '/TeacherDashboard'
     || pathname === '/TeacherSchedule'
-    || pathname === '/TeacherPayments'
   ) {
     return 'teacher';
   }
@@ -91,6 +92,7 @@ export function getRequiredRoleForPath(pathname) {
     || pathname === '/StudentDashboard'
     || pathname === '/StudentLessons'
     || pathname === '/StudentLessonMaterials'
+    || pathname === '/StudentCertificates'
   ) {
     return 'student';
   }
@@ -104,9 +106,6 @@ export function isPathAllowedForUser(user, pathname) {
   if (!isValidDashboardRole(user?.role)) return false;
   if (user.role === requiredRole) return true;
   if (requiredRole === 'teacher' && user.role === 'admin' && pathname === '/MaterialsHub') {
-    return true;
-  }
-  if (requiredRole === 'teacher' && user.role === 'admin' && pathname === '/TeacherPayments') {
     return true;
   }
   return false;

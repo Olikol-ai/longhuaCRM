@@ -47,14 +47,32 @@ export async function apiFetch(path, options = {}) {
   }
 
   if (!res.ok) {
-    const payload = typeof data.message === 'object' && data.message !== null ? data.message : data;
-    const err = new Error(payload.message || data.error || 'Request failed');
+    const err = new Error(extractApiErrorMessage(data));
     err.status = res.status;
-    err.data = payload;
-    err.retryAfter = payload.retryAfter ?? data.retryAfter;
+    err.data = data;
+    err.retryAfter = data.retryAfter;
     throw err;
   }
   return data;
+}
+
+function extractApiErrorMessage(data) {
+  const msg = data?.message;
+  if (Array.isArray(msg)) {
+    return msg.filter(Boolean).join(', ') || 'Request failed';
+  }
+  if (typeof msg === 'string' && msg.trim()) {
+    return msg;
+  }
+  if (msg && typeof msg === 'object') {
+    if (typeof msg.message === 'string' && msg.message.trim()) {
+      return msg.message;
+    }
+  }
+  if (typeof data?.error === 'string' && data.error.trim()) {
+    return data.error;
+  }
+  return 'Request failed';
 }
 
 export async function apiUpload(file) {

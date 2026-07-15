@@ -9,7 +9,10 @@ import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherPaymentEntity } from '../teacher-payments/entities/teacher-payment.entity';
 import { UserEntity } from '../users/entities/user.entity';
 import { TeacherEntity } from './entities/teacher.entity';
+import { TeacherInviteLinkEntity } from './entities/teacher-invite-link.entity';
 import { TeacherDeletionService } from './teacher-deletion.service';
+import { TeacherInvitesController } from './teacher-invites.controller';
+import { TeacherInvitesService } from './teacher-invites.service';
 import { TeachersController } from './teachers.controller';
 import { TeachersRepository } from './teachers.repository';
 import { TeachersService } from './teachers.service';
@@ -18,6 +21,7 @@ import { TeachersService } from './teachers.service';
   imports: [
     TypeOrmModule.forFeature([
       TeacherEntity,
+      TeacherInviteLinkEntity,
       UserEntity,
       LessonEntity,
       GroupEntity,
@@ -28,8 +32,19 @@ import { TeachersService } from './teachers.service';
       AvailabilityBookingEntity,
     ]),
   ],
-  controllers: [TeachersController],
-  providers: [TeachersRepository, TeachersService, TeacherDeletionService],
-  exports: [TeachersRepository, TeachersService, TeacherDeletionService, TypeOrmModule],
+  controllers: [TeachersController, TeacherInvitesController],
+  providers: [
+    TeachersRepository,
+    TeachersService,
+    TeacherDeletionService,
+    TeacherInvitesService,
+  ],
+  exports: [
+    TeachersRepository,
+    TeachersService,
+    TeacherDeletionService,
+    TeacherInvitesService,
+    TypeOrmModule,
+  ],
 })
 export class TeachersModule {}

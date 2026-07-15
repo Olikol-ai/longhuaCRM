@@ -17,7 +17,6 @@ import {
   Layers,
   Award,
   CreditCard,
-  DollarSign,
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import { useAuth } from "@/lib/AuthContext";
@@ -37,7 +36,6 @@ const adminNav = [
   { name: "Группы", icon: Users, page: "Groups" },
   { name: "Сертификаты", icon: Award, page: "Certificates" },
   { name: "Платежи", icon: CreditCard, page: "Payments" },
-  { name: "Выплаты", icon: DollarSign, page: "TeacherPayments" },
   { name: "Материалы", icon: BookOpen, page: "MaterialsHub" },
   { name: "Настройки", icon: Settings, page: "Settings" },
 ];
@@ -45,7 +43,6 @@ const adminNav = [
 const teacherNav = [
   { name: "Главная", icon: LayoutDashboard, page: "TeacherDashboard" },
   { name: "Моё расписание", icon: Calendar, page: "TeacherSchedule" },
-  { name: "Мои выплаты", icon: DollarSign, page: "TeacherPayments" },
   { name: "Материалы", icon: BookOpen, page: "MaterialsHub" },
   { name: "Профиль", icon: UserCircle, page: "Profile" },
   { name: "Настройки", icon: Settings, page: "Settings" },
@@ -55,6 +52,7 @@ const studentNav = [
   { name: "Главная", icon: LayoutDashboard, page: "StudentDashboard" },
   { name: "Мои уроки", icon: Calendar, page: "StudentLessons" },
   { name: "Мои материалы", icon: BookOpen, page: "StudentLessonMaterials" },
+  { name: "Мои сертификаты", icon: Award, page: "StudentCertificates" },
   { name: "Профиль", icon: UserCircle, page: "Profile" },
   { name: "Настройки", icon: Settings, page: "Settings" },
 ];

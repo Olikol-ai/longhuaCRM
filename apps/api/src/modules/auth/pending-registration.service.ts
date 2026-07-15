@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConflictException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -18,6 +17,8 @@ import { PendingRegistrationEntity } from './entities/pending-registration.entit
 import { UserEntity } from '../users/entities/user.entity';
 import { MailService } from '../mail/mail.service';
 import { UsersRepository } from '../users/users.repository';
+import { RoleEntitySyncService } from '../users/role-entity-sync.service';
+import { TeacherInviteLinkEntity } from '../teachers/entities/teacher-invite-link.entity';
 import { RegisterDto } from './dto/register.dto';
 import { PendingRegistrationRepository } from './pending-registration.repository';
 
@@ -50,6 +51,7 @@ export class PendingRegistrationService {
     private readonly rateLimit: RateLimitService,
     private readonly dataSource: DataSource,
     private readonly config: ConfigService,
+    private readonly roleEntitySync: RoleEntitySyncService,
   ) {}
 
   generateCode(): string {
@@ -64,9 +66,11 @@ export class PendingRegistrationService {
     dto: RegisterDto,
     normalizedEmail: string,
     phone: string,
+    invite?: { teacherId: string; inviteLinkId: string } | null,
   ): Promise<{ pending: PendingRegistrationEntity; emailDelivery: PendingRegistrationSendResult }> {
     const passwordHash = bcrypt.hashSync(dto.password, 10);
     const now = new Date();
+    const wantsStudentRole = dto.wantsStudentRole === true || Boolean(invite?.teacherId);
     let pending = await this.pendingRepository.findByEmail(normalizedEmail);
 
     if (pending?.status === 'blocked') {
@@ -79,6 +83,9 @@ export class PendingRegistrationService {
       pending.firstName = dto.first_name ?? '';
       pending.lastName = dto.last_name ?? '';
       pending.phone = phone;
+      pending.wantsStudentRole = wantsStudentRole;
+      pending.inviteTeacherId = invite?.teacherId ?? null;
+      pending.inviteLinkId = invite?.inviteLinkId ?? null;
       pending.status = 'pending';
       pending.verificationAttempts = 0;
       pending.expiresAt = new Date(now.getTime() + this.getRegistrationTtlMs());
@@ -91,6 +98,9 @@ export class PendingRegistrationService {
         firstName: dto.first_name ?? '',
         lastName: dto.last_name ?? '',
         phone,
+        wantsStudentRole,
+        inviteTeacherId: invite?.teacherId ?? null,
+        inviteLinkId: invite?.inviteLinkId ?? null,
         verificationCodeHash: null,
         codeExpiresAt: null,
         lastSentAt: null,
@@ -142,7 +152,21 @@ export class PendingRegistrationService {
         lock: { mode: 'pessimistic_write' },
       });
 
+      // Idempotent completion: concurrent/double verify after success.
       if (!pending || pending.status !== 'pending') {
+        const existing = await usersRepo.findOne({
+          where: { email: normalizedEmail },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (existing?.emailVerified) {
+          if (existing.role === 'student') {
+            await this.roleEntitySync.syncAfterRoleChange(existing, 'student', manager);
+          }
+          this.logger.log(
+            `Registration verify idempotent hit for ${normalizedEmail} (user=${existing.id})`,
+          );
+          return existing;
+        }
         throw new NotFoundException({
           success: false,
           message: 'Регистрация не найдена. Начните регистрацию заново.',
@@ -202,45 +226,98 @@ export class PendingRegistrationService {
         });
       }
 
-      const existingUser = await usersRepo.findOne({ where: { email: normalizedEmail } });
-      if (existingUser) {
+      // Server-side only: never accept role from client. Soft intent / invite → student role.
+      const inviteTeacherId = pending.inviteTeacherId;
+      const inviteLinkId = pending.inviteLinkId;
+      const assignedRole =
+        pending.wantsStudentRole === true || Boolean(inviteTeacherId) ? 'student' : '';
+
+      let user = await usersRepo.findOne({
+        where: { email: normalizedEmail },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (user) {
+        // Race / retry while pending still exists: finish identity flags + role sync, then drop pending.
+        let dirty = false;
+        if (!user.emailVerified) {
+          user.emailVerified = true;
+          dirty = true;
+        }
+        if (user.status !== 'active') {
+          user.status = 'active';
+          dirty = true;
+        }
+        if (assignedRole === 'student' && user.role !== 'student') {
+          user.role = 'student';
+          dirty = true;
+        }
+        if (dirty) {
+          user.updatedDate = new Date();
+          user = await usersRepo.save(user);
+        }
+        if (user.role === 'student') {
+          await this.roleEntitySync.syncAfterRoleChange(user, 'student', manager, {
+            assignedTeacherId: inviteTeacherId,
+          });
+        }
+        if (inviteLinkId) {
+          await manager.getRepository(TeacherInviteLinkEntity).increment({ id: inviteLinkId }, 'useCount', 1);
+        }
         await pendingRepo.delete({ id: pending.id });
-        throw new ConflictException('Email already registered');
+        this.logger.log(
+          `Registration verify raced existing user for ${normalizedEmail} (role=${user.role || 'none'})`,
+        );
+        return user;
       }
 
       const now = new Date();
-      const user = usersRepo.create({
-        id: randomUUID(),
-        email: normalizedEmail,
-        passwordHash: pending.passwordHash,
-        role: '',
-        status: 'active',
-        emailVerified: true,
-        verificationCode: null,
-        verificationCodeExpiresAt: null,
-        verificationCodeSentAt: null,
-        verificationAttempts: 0,
-        firstName: pending.firstName,
-        lastName: pending.lastName,
-        phone: pending.phone,
-        telegramId: '',
-        telegramUsername: '',
-        telegramConnectedAt: null,
-        telegramLinkToken: null,
-        telegramLinkExpires: null,
-        passwordResetToken: null,
-        passwordResetExpiresAt: null,
-        telegramNotify24h: true,
-        telegramNotify3h: true,
-        createdDate: now,
-        updatedDate: now,
-      });
+      const created = await usersRepo.save(
+        usersRepo.create({
+          id: randomUUID(),
+          email: normalizedEmail,
+          passwordHash: pending.passwordHash,
+          role: assignedRole,
+          status: 'active',
+          emailVerified: true,
+          verificationCode: null,
+          verificationCodeExpiresAt: null,
+          verificationCodeSentAt: null,
+          verificationAttempts: 0,
+          firstName: pending.firstName,
+          lastName: pending.lastName,
+          phone: pending.phone,
+          telegramId: '',
+          telegramUsername: '',
+          telegramConnectedAt: null,
+          telegramLinkToken: null,
+          telegramLinkExpires: null,
+          passwordResetToken: null,
+          passwordResetExpiresAt: null,
+          telegramNotify24h: true,
+          telegramNotify3h: true,
+          createdDate: now,
+          updatedDate: now,
+        }),
+      );
 
-      const saved = await usersRepo.save(user);
+      // Profile sync BEFORE deleting pending — all-or-nothing with user insert.
+      if (assignedRole === 'student') {
+        await this.roleEntitySync.syncAfterRoleChange(created, 'student', manager, {
+          assignedTeacherId: inviteTeacherId,
+        });
+      }
+
+      if (inviteLinkId) {
+        await manager.getRepository(TeacherInviteLinkEntity).increment({ id: inviteLinkId }, 'useCount', 1);
+      }
+
       await pendingRepo.delete({ id: pending.id });
 
-      this.logger.log(`Registration completed for ${normalizedEmail}`);
-      return saved;
+      this.logger.log(
+        `Registration completed for ${normalizedEmail} (role=${assignedRole || 'none'})`,
+      );
+      return created;
     });
   }
 

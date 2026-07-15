@@ -3,7 +3,8 @@ import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Loader2, BookOpen, ExternalLink } from 'lucide-react';
-import { getMaterialUrl } from '@/lib/materialUrl';
+import { openMaterial } from '@/lib/materialUrl';
+import { toast } from '@/components/ui/use-toast';
 import { getMaterialTypeInfo } from '@/lib/materialIcons';
 import { publicMaterialDescription, unpackMaterialDescription } from '@/lib/materialMeta';
 import AccessSourceBadges from '@/components/materials/AccessSourceBadges';
@@ -63,7 +64,7 @@ export default function StudentLessonMaterials() {
     );
   }
 
-  const courseNameById = new Map(courses.map((c) => [c.id, c.course_name || c.course_type || 'Курс']));
+  const courseNameById = new Map(courses.map((c) => [c.id, c.name || c.course_name || 'Курс']));
 
   const filtered = materials.filter((m) => {
     if (m.status === 'deleted') return false;
@@ -130,12 +131,22 @@ export default function StudentLessonMaterials() {
                   const meta = unpackMaterialDescription(mat.description);
                   const description = publicMaterialDescription(mat.description);
                   return (
-                    <a
+                    <button
                       key={mat.id}
-                      href={getMaterialUrl(mat)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      type="button"
+                      className="text-left w-full"
                       data-testid={`student-material-${mat.id}`}
+                      onClick={async () => {
+                        try {
+                          await openMaterial(mat);
+                        } catch (err) {
+                          toast({
+                            title: 'Не удалось открыть материал',
+                            description: err?.message || 'Попробуйте ещё раз',
+                            variant: 'destructive',
+                          });
+                        }
+                      }}
                     >
                       <Card className="p-4 hover:shadow-lg transition-all cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-700 h-full flex flex-col">
                         <div className="flex items-start justify-between mb-3">
@@ -153,7 +164,7 @@ export default function StudentLessonMaterials() {
                         )}
                         <AccessSourceBadges sources={mat.access_sources} className="mt-auto pt-2" />
                       </Card>
-                    </a>
+                    </button>
                   );
                 })}
               </div>

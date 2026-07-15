@@ -7,10 +7,13 @@ import {
   adminLogin,
   api,
   authHeader,
+  createTeacherUser,
   createTestApp,
   ensureDatabaseReady,
   login,
 } from './e2e-helpers';
+import { CertificateHistoryEntity } from '../src/modules/certificates/entities/certificate-history.entity';
+import { CertificateEntity } from '../src/modules/certificates/entities/certificate.entity';
 
 const hasDatabase = Boolean(process.env.DATABASE_URL || process.env.DB_PASSWORD);
 const describeE2E = hasDatabase ? describe : describe.skip;
@@ -304,6 +307,62 @@ describeE2E('Certificates validation (e2e)', () => {
     expect(newHistory.body.some((row) => row.action === 'reissue_created')).toBe(true);
   });
 
+  it('sends in-app celebration notification when certificate is issued', async () => {
+    const student = await createStudentUser(app, adminToken, 'notify');
+    const { courseId } = await seedCompletedEnrollment(app, adminToken, student.studentId);
+
+    const draft = await api(app)
+      .post('/api/certificates')
+      .set(authHeader(adminToken))
+      .send({
+        studentId: student.studentId,
+        courseId,
+        registrationNumber: `NTF-${randomUUID().slice(0, 8)}`,
+        blankSeries: 'LH',
+        blankNumber: uniqueBlankNumber(),
+        status: 'draft',
+      })
+      .expect(201);
+
+    await api(app)
+      .patch(`/api/certificates/${draft.body.id}`)
+      .set(authHeader(adminToken))
+      .send({
+        status: 'issued',
+        issueDate: new Date().toISOString().split('T')[0],
+      })
+      .expect(200);
+
+    // Notifier is async fire-and-forget — poll briefly
+    type NoteRow = {
+      type?: string;
+      reference_id?: string;
+      channel?: string;
+      title?: string;
+      body?: string;
+    };
+    let notes: NoteRow[] = [];
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const res = await api(app)
+        .get('/api/notifications')
+        .set(authHeader(student.token))
+        .expect(200);
+      notes = ((res.body || []) as NoteRow[]).filter(
+        (n) =>
+          n.type === 'certificate_issued' &&
+          n.channel === 'in_app' &&
+          n.reference_id === draft.body.id,
+      );
+      if (notes.length > 0) break;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+
+    expect(notes.length).toBeGreaterThan(0);
+    expect(notes[0].title).toContain('достижение');
+    expect(notes[0].body).toMatch(/серия|Серия/i);
+    expect(notes[0].body).toMatch(/номер|Номер/i);
+  });
+
   it('denies PDF download for another student certificate', async () => {
     const studentA = await createStudentUser(app, adminToken, 'pdf-a');
     const studentB = await createStudentUser(app, adminToken, 'pdf-b');
@@ -361,5 +420,65 @@ describeE2E('Certificates validation (e2e)', () => {
       .send({ status: 'sent' });
 
     expect(blocked.status).toBe(400);
+  });
+
+  it('admin hard-deletes certificate including history; teacher cannot delete', async () => {
+    const student = await createStudentUser(app, adminToken, 'del-cert');
+    const { courseId } = await seedCompletedEnrollment(app, adminToken, student.studentId);
+
+    const draft = await api(app)
+      .post('/api/certificates')
+      .set(authHeader(adminToken))
+      .send({
+        studentId: student.studentId,
+        courseId,
+        registrationNumber: `DEL-${randomUUID().slice(0, 8)}`,
+        blankSeries: 'LH',
+        blankNumber: uniqueBlankNumber(),
+        status: 'draft',
+      })
+      .expect(201);
+
+    await api(app)
+      .patch(`/api/certificates/${draft.body.id}`)
+      .set(authHeader(adminToken))
+      .send({
+        status: 'issued',
+        issueDate: new Date().toISOString().split('T')[0],
+      })
+      .expect(200);
+
+    const teacher = await createTeacherUser(app, adminToken, {
+      email: `cert-del-t-${randomUUID().slice(0, 8)}@test.local`,
+      password: 'TeacherPass123!',
+      name: `Cert Del Teacher ${randomUUID().slice(0, 8)}`,
+    });
+
+    await api(app)
+      .delete(`/api/certificates/${draft.body.id}`)
+      .set(authHeader(teacher.token))
+      .expect(403);
+
+    const deleted = await api(app)
+      .delete(`/api/certificates/${draft.body.id}`)
+      .set(authHeader(adminToken))
+      .expect(200);
+    expect(deleted.body.success).toBe(true);
+
+    await api(app)
+      .get(`/api/certificates/${draft.body.id}`)
+      .set(authHeader(adminToken))
+      .expect(404);
+
+    const ds = app.get(DataSource);
+    const cert = await ds.getRepository(CertificateEntity).findOne({
+      where: { id: draft.body.id },
+    });
+    expect(cert).toBeNull();
+
+    const history = await ds.getRepository(CertificateHistoryEntity).find({
+      where: { certificateId: draft.body.id },
+    });
+    expect(history).toHaveLength(0);
   });
 });

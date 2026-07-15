@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  LayoutDashboard,
   TrendingUp,
   DollarSign,
   Download,
@@ -9,11 +8,9 @@ import {
 import Analytics from "./Analytics";
 import Salary from "./Salary";
 import ExportData from "./ExportData";
-import AdminPanelOverview from "@/components/admin/AdminPanelOverview";
 import AdminPanelSystem from "@/components/admin/AdminPanelSystem";
 
 const TABS = [
-  { id: "overview", label: "Обзор", icon: LayoutDashboard },
   { id: "analytics", label: "Аналитика", icon: TrendingUp },
   { id: "salary", label: "Зарплата", icon: DollarSign },
   { id: "export", label: "Экспорт", icon: Download },
@@ -21,7 +18,7 @@ const TABS = [
 ];
 
 export default function AdminPanel() {
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("analytics");
 
   return (
     <div className="flex flex-col h-full min-h-screen bg-background">
@@ -50,9 +47,6 @@ export default function AdminPanel() {
       </div>
 
       <div className="flex-1 overflow-auto">
-        {activeTab === "overview" && (
-          <AdminPanelOverview onOpenExport={() => setActiveTab("export")} />
-        )}
         {activeTab === "analytics" && <Analytics />}
         {activeTab === "salary" && <Salary />}
         {activeTab === "export" && <ExportData />}

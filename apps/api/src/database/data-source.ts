@@ -21,6 +21,10 @@ import { TelegramDeepLinkAnd24hReminder1739700000000 } from './migrations/173970
 import { PasswordResetTokens1739800000000 } from './migrations/1739800000000-PasswordResetTokens';
 import { DropTelegramPendingInput1739900000000 } from './migrations/1739900000000-DropTelegramPendingInput';
 import { TelegramNotifyPreferences1740000000000 } from './migrations/1740000000000-TelegramNotifyPreferences';
+import { PendingRegistrationWantsStudent1740100000000 } from './migrations/1740100000000-PendingRegistrationWantsStudent';
+import { MaterialCreatedByUser1740200000000 } from './migrations/1740200000000-MaterialCreatedByUser';
+import { TeacherInviteLinks1740300000000 } from './migrations/1740300000000-TeacherInviteLinks';
+import { CourseTemplateSortOrder1740400000000 } from './migrations/1740400000000-CourseTemplateSortOrder';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -45,6 +49,10 @@ export default new DataSource({
     PasswordResetTokens1739800000000,
     DropTelegramPendingInput1739900000000,
     TelegramNotifyPreferences1740000000000,
+    PendingRegistrationWantsStudent1740100000000,
+    MaterialCreatedByUser1740200000000,
+    TeacherInviteLinks1740300000000,
+    CourseTemplateSortOrder1740400000000,
   ],
   synchronize: false,
 });

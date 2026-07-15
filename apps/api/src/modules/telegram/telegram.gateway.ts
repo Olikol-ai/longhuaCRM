@@ -1,6 +1,8 @@
 export type TelegramInlineButton = {
   text: string;
-  callback_data: string;
+  callback_data?: string;
+  /** Open HTTPS URL (e.g. certificate page). Mutually exclusive with callback_data. */
+  url?: string;
 };
 
 export type TelegramReplyMarkup =
@@ -11,6 +13,11 @@ export type TelegramReplyMarkup =
       keyboard: Array<Array<{ text: string }>>;
       resize_keyboard?: boolean;
       one_time_keyboard?: boolean;
+    }
+  | {
+      /** Clears a sticky ReplyKeyboard left from older bot versions */
+      remove_keyboard: true;
+      selective?: boolean;
     };
 
 export type TelegramSendMessageOptions = {
@@ -46,6 +53,11 @@ export abstract class TelegramGateway {
     messageId: number,
     text: string,
     options?: TelegramSendMessageOptions,
+  ): Promise<TelegramApiResult>;
+
+  abstract deleteMessage(
+    chatId: string | number,
+    messageId: number,
   ): Promise<TelegramApiResult>;
 
   abstract answerCallbackQuery(
