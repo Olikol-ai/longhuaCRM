@@ -49,7 +49,7 @@ export class UsersService {
 
   async list(): Promise<Record<string, unknown>[]> {
     const users = await this.usersRepository.findAll();
-    return users.map(userToRecord);
+    return users.filter((user) => user.status !== 'blocked').map(userToRecord);
   }
 
   async listDirectory(): Promise<Record<string, unknown>[]> {
@@ -59,6 +59,8 @@ export class UsersService {
       this.teacherRepo.find({ where: { status: Not('inactive') } }),
     ]);
 
+    const activeUsers = users.filter((user) => user.status !== 'blocked');
+
     const studentByUserId = new Map(
       students.filter((row) => row.userId).map((row) => [row.userId as string, row]),
     );
@@ -66,7 +68,7 @@ export class UsersService {
       teachers.filter((row) => row.userId).map((row) => [row.userId as string, row]),
     );
 
-    const entries: Record<string, unknown>[] = users.map((user) =>
+    const entries: Record<string, unknown>[] = activeUsers.map((user) =>
       userToDirectoryEntry(
         user,
         studentByUserId.get(user.id) ?? null,

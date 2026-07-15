@@ -3,6 +3,7 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { api } from '@/api';
 import { toast } from '@/components/ui/use-toast';
 import { getCourseDisplayName } from '@/lib/courseLabels';
+import { isMaterialDrag, readMaterialDragIds } from '@/lib/materialDrag';
 import {
   BookOpen,
   ChevronDown,
@@ -28,6 +29,48 @@ function sortFolders(list) {
   });
 }
 
+function useMaterialDropTarget({ enabled, onDropMaterials, target }) {
+  const [over, setOver] = useState(false);
+
+  if (!enabled) {
+    return {
+      isOver: false,
+      dropProps: {},
+    };
+  }
+
+  return {
+    isOver: over,
+    dropProps: {
+      onDragEnter: (e) => {
+        if (!isMaterialDrag(e.dataTransfer)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setOver(true);
+      },
+      onDragOver: (e) => {
+        if (!isMaterialDrag(e.dataTransfer)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'move';
+        setOver(true);
+      },
+      onDragLeave: (e) => {
+        if (e.currentTarget.contains(e.relatedTarget)) return;
+        setOver(false);
+      },
+      onDrop: (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setOver(false);
+        const ids = readMaterialDragIds(e.dataTransfer);
+        if (ids.length === 0) return;
+        onDropMaterials?.(ids, target);
+      },
+    },
+  };
+}
+
 function FolderRow({
   folder,
   childrenCount,
@@ -41,15 +84,21 @@ function FolderRow({
   onStartAdd,
   onDelete,
   dragHandleProps,
+  dropProps,
+  isDropOver,
 }) {
   return (
     <div
-      className={`group flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm ${
-        selected
-          ? 'bg-indigo-50 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200'
-          : 'hover:bg-muted/70 text-foreground'
+      {...(dropProps || {})}
+      className={`group flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm transition-colors ${
+        isDropOver
+          ? 'bg-emerald-100 text-emerald-900 ring-2 ring-emerald-400 dark:bg-emerald-950/50 dark:text-emerald-100'
+          : selected
+            ? 'bg-indigo-50 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200'
+            : 'hover:bg-muted/70 text-foreground'
       }`}
       style={{ paddingLeft: `${8 + depth * 12}px` }}
+      title={dropProps ? 'Отпустите, чтобы переместить материал сюда' : undefined}
     >
       {canManage && (
         <span
@@ -115,6 +164,8 @@ function FolderNode({
   onRefresh,
   canManage,
   enableDrag,
+  canReceiveMaterials = false,
+  onDropMaterials,
   depth = 0,
   index,
 }) {
@@ -122,6 +173,11 @@ function FolderNode({
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
+  const { isOver, dropProps } = useMaterialDropTarget({
+    enabled: canReceiveMaterials,
+    onDropMaterials,
+    target: { courseId: folder.course_id, folderId: folder.id },
+  });
 
   const children = sortFolders(
     folders.filter((f) => parentKey(f) === folder.id),
@@ -171,6 +227,11 @@ function FolderNode({
     }
   };
 
+  const passDrop = {
+    canReceiveMaterials,
+    onDropMaterials,
+  };
+
   const childrenList = expanded && (
     enableDrag ? (
       <Droppable droppableId={droppableId} type={`FOLDER:${folder.id}`}>
@@ -188,6 +249,7 @@ function FolderNode({
                 enableDrag={enableDrag}
                 depth={depth + 1}
                 index={childIndex}
+                {...passDrop}
               />
             ))}
             {provided.placeholder}
@@ -208,6 +270,7 @@ function FolderNode({
             enableDrag={enableDrag}
             depth={depth + 1}
             index={childIndex}
+            {...passDrop}
           />
         ))}
       </div>
@@ -251,6 +314,8 @@ function FolderNode({
         onStartAdd={() => setAdding(true)}
         onDelete={deleteFolder}
         dragHandleProps={dragHandleProps}
+        dropProps={dropProps}
+        isDropOver={isOver}
       />
       {addForm}
       {childrenList}
@@ -280,6 +345,212 @@ function FolderNode({
   );
 }
 
+function CourseBody({
+  course,
+  dragHandleProps,
+  snapshotDragging,
+  folders,
+  countByCourse,
+  selectedCourseId,
+  selectedFolderId,
+  expanded,
+  isDeleting,
+  addingFolderFor,
+  folderName,
+  setFolderName,
+  busy,
+  canManage,
+  enableDrag,
+  canReceiveMaterials,
+  onDropMaterials,
+  onSelectFolder,
+  onRefresh,
+  toggleCourse,
+  setExpandedCourses,
+  setAddingFolderFor,
+  createRootFolder,
+  deleteCourse,
+}) {
+  const courseFolders = folders.filter((f) => f.course_id === course.id);
+  const roots = sortFolders(courseFolders.filter((f) => !parentKey(f)));
+  const courseSelected = selectedCourseId === course.id && !selectedFolderId;
+  const label = getCourseDisplayName(course);
+  const { isOver, dropProps } = useMaterialDropTarget({
+    enabled: canReceiveMaterials,
+    onDropMaterials,
+    target: { courseId: course.id, folderId: null },
+  });
+
+  const passDrop = {
+    canReceiveMaterials,
+    onDropMaterials,
+  };
+
+  return (
+    <div
+      className={`rounded-lg border border-transparent hover:border-border/60 ${
+        snapshotDragging ? 'bg-card shadow-md border-border' : ''
+      }`}
+    >
+      <div
+        {...(dropProps || {})}
+        className={`flex flex-col gap-1 rounded-lg px-2 py-1.5 text-sm transition-colors ${
+          isOver
+            ? 'bg-emerald-100 text-emerald-900 ring-2 ring-emerald-400 dark:bg-emerald-950/50 dark:text-emerald-100'
+            : courseSelected
+              ? 'bg-indigo-50 text-indigo-800 dark:bg-indigo-950/50'
+              : ''
+        }`}
+        title={canReceiveMaterials ? 'Отпустите, чтобы переместить материал в корень курса' : undefined}
+      >
+        <div className="flex items-center gap-1 min-w-0">
+          {canManage && (
+            <span
+              {...(dragHandleProps || {})}
+              className="p-0.5 text-muted-foreground cursor-grab active:cursor-grabbing shrink-0"
+              title="Перетащить курс"
+            >
+              <GripVertical className="h-3.5 w-3.5" />
+            </span>
+          )}
+          <button
+            type="button"
+            className="p-0.5 shrink-0"
+            onClick={() => toggleCourse(course.id)}
+          >
+            {expanded ? (
+              <ChevronDown className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5" />
+            )}
+          </button>
+          <button
+            type="button"
+            className="flex flex-1 items-center gap-2 min-w-0 text-left"
+            onClick={() => onSelectFolder({ courseId: course.id, folderId: null })}
+          >
+            <BookOpen className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+            <span className="truncate font-medium">{label}</span>
+            <span className="text-[10px] text-muted-foreground shrink-0">
+              {countByCourse[course.id] || 0}
+            </span>
+          </button>
+        </div>
+
+        {canManage && (
+          <div className="flex flex-wrap items-center gap-1 pl-6">
+            <button
+              type="button"
+              title="Новая папка"
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-indigo-700 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950"
+              onClick={() => {
+                setExpandedCourses((prev) => new Set(prev).add(course.id));
+                setAddingFolderFor(course.id);
+              }}
+            >
+              <Plus className="h-3 w-3" />
+              Папка
+            </button>
+            <button
+              type="button"
+              title="Удалить курс"
+              aria-label={`Удалить курс ${label}`}
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950 disabled:opacity-50"
+              disabled={busy}
+              onClick={() => deleteCourse(course)}
+              data-testid={`delete-course-${course.id}`}
+            >
+              {isDeleting ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Trash2 className="h-3 w-3" />
+              )}
+              Удалить
+            </button>
+          </div>
+        )}
+      </div>
+
+      {addingFolderFor === course.id && (
+        <div className="ml-6 mt-1 mb-2 flex gap-1">
+          <input
+            value={folderName}
+            onChange={(e) => setFolderName(e.target.value)}
+            placeholder="Папка"
+            className="flex-1 px-2 py-1 text-xs border border-border rounded bg-background"
+          />
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => createRootFolder(course.id)}
+            className="px-2 py-1 text-xs bg-indigo-600 text-white rounded"
+          >
+            OK
+          </button>
+          <button
+            type="button"
+            onClick={() => setAddingFolderFor(null)}
+            className="px-2 py-1 text-xs border rounded"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {expanded && (
+        enableDrag ? (
+          <Droppable
+            droppableId={`course-roots:${course.id}`}
+            type={`FOLDER:root:${course.id}`}
+          >
+            {(folderProvided) => (
+              <div
+                ref={folderProvided.innerRef}
+                {...folderProvided.droppableProps}
+              >
+                {roots.map((folder, folderIndex) => (
+                  <FolderNode
+                    key={folder.id}
+                    folder={folder}
+                    folders={courseFolders}
+                    selectedFolderId={selectedFolderId}
+                    onSelectFolder={onSelectFolder}
+                    onRefresh={onRefresh}
+                    canManage={canManage}
+                    enableDrag={enableDrag}
+                    depth={1}
+                    index={folderIndex}
+                    {...passDrop}
+                  />
+                ))}
+                {folderProvided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        ) : (
+          <div>
+            {roots.map((folder, folderIndex) => (
+              <FolderNode
+                key={folder.id}
+                folder={folder}
+                folders={courseFolders}
+                selectedFolderId={selectedFolderId}
+                onSelectFolder={onSelectFolder}
+                onRefresh={onRefresh}
+                canManage={canManage}
+                enableDrag={enableDrag}
+                depth={1}
+                index={folderIndex}
+                {...passDrop}
+              />
+            ))}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
 export default function FolderTree({
   courses,
   folders,
@@ -289,6 +560,8 @@ export default function FolderTree({
   onSelectFolder,
   onRefresh,
   canManage = false,
+  canReceiveMaterials = false,
+  onDropMaterials,
 }) {
   // Teachers/students must not use DnD: missing drag handles crash @hello-pangea/dnd
   // ("Unable to find drag handle") when Draggable is enabled without a handle element.
@@ -496,170 +769,35 @@ export default function FolderTree({
     void draggableId;
   };
 
-  const renderCourseBody = (course, courseIndex, dragHandleProps, snapshotDragging) => {
-    const courseFolders = folders.filter((f) => f.course_id === course.id);
-    const roots = sortFolders(courseFolders.filter((f) => !parentKey(f)));
-    const expanded = expandedCourses.has(course.id);
-    const courseSelected = selectedCourseId === course.id && !selectedFolderId;
-    const isDeleting = deletingCourseId === course.id;
-    const label = getCourseDisplayName(course);
-
-    return (
-      <div
-        className={`rounded-lg border border-transparent hover:border-border/60 ${
-          snapshotDragging ? 'bg-card shadow-md border-border' : ''
-        }`}
-      >
-        <div
-          className={`flex flex-col gap-1 rounded-lg px-2 py-1.5 text-sm ${
-            courseSelected ? 'bg-indigo-50 text-indigo-800 dark:bg-indigo-950/50' : ''
-          }`}
-        >
-          <div className="flex items-center gap-1 min-w-0">
-            {canManage && (
-              <span
-                {...(dragHandleProps || {})}
-                className="p-0.5 text-muted-foreground cursor-grab active:cursor-grabbing shrink-0"
-                title="Перетащить курс"
-              >
-                <GripVertical className="h-3.5 w-3.5" />
-              </span>
-            )}
-            <button
-              type="button"
-              className="p-0.5 shrink-0"
-              onClick={() => toggleCourse(course.id)}
-            >
-              {expanded ? (
-                <ChevronDown className="h-3.5 w-3.5" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5" />
-              )}
-            </button>
-            <button
-              type="button"
-              className="flex flex-1 items-center gap-2 min-w-0 text-left"
-              onClick={() => onSelectFolder({ courseId: course.id, folderId: null })}
-            >
-              <BookOpen className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
-              <span className="truncate font-medium">{label}</span>
-              <span className="text-[10px] text-muted-foreground shrink-0">
-                {countByCourse[course.id] || 0}
-              </span>
-            </button>
-          </div>
-
-          {canManage && (
-            <div className="flex flex-wrap items-center gap-1 pl-6">
-              <button
-                type="button"
-                title="Новая папка"
-                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-indigo-700 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950"
-                onClick={() => {
-                  setExpandedCourses((prev) => new Set(prev).add(course.id));
-                  setAddingFolderFor(course.id);
-                }}
-              >
-                <Plus className="h-3 w-3" />
-                Папка
-              </button>
-              <button
-                type="button"
-                title="Удалить курс"
-                aria-label={`Удалить курс ${label}`}
-                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950 disabled:opacity-50"
-                disabled={busy}
-                onClick={() => deleteCourse(course)}
-                data-testid={`delete-course-${course.id}`}
-              >
-                {isDeleting ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Trash2 className="h-3 w-3" />
-                )}
-                Удалить
-              </button>
-            </div>
-          )}
-        </div>
-
-        {addingFolderFor === course.id && (
-          <div className="ml-6 mt-1 mb-2 flex gap-1">
-            <input
-              value={folderName}
-              onChange={(e) => setFolderName(e.target.value)}
-              placeholder="Папка"
-              className="flex-1 px-2 py-1 text-xs border border-border rounded bg-background"
-            />
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => createRootFolder(course.id)}
-              className="px-2 py-1 text-xs bg-indigo-600 text-white rounded"
-            >
-              OK
-            </button>
-            <button
-              type="button"
-              onClick={() => setAddingFolderFor(null)}
-              className="px-2 py-1 text-xs border rounded"
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
-        {expanded && (
-          enableDrag ? (
-            <Droppable
-              droppableId={`course-roots:${course.id}`}
-              type={`FOLDER:root:${course.id}`}
-            >
-              {(folderProvided) => (
-                <div
-                  ref={folderProvided.innerRef}
-                  {...folderProvided.droppableProps}
-                >
-                  {roots.map((folder, folderIndex) => (
-                    <FolderNode
-                      key={folder.id}
-                      folder={folder}
-                      folders={courseFolders}
-                      selectedFolderId={selectedFolderId}
-                      onSelectFolder={onSelectFolder}
-                      onRefresh={onRefresh}
-                      canManage={canManage}
-                      enableDrag={enableDrag}
-                      depth={1}
-                      index={folderIndex}
-                    />
-                  ))}
-                  {folderProvided.placeholder}
-                </div>
-              )}
-            </Droppable>
-          ) : (
-            <div>
-              {roots.map((folder, folderIndex) => (
-                <FolderNode
-                  key={folder.id}
-                  folder={folder}
-                  folders={courseFolders}
-                  selectedFolderId={selectedFolderId}
-                  onSelectFolder={onSelectFolder}
-                  onRefresh={onRefresh}
-                  canManage={canManage}
-                  enableDrag={enableDrag}
-                  depth={1}
-                  index={folderIndex}
-                />
-              ))}
-            </div>
-          )
-        )}
-      </div>
-    );
-  };
+  const renderCourseBody = (course, courseIndex, dragHandleProps, snapshotDragging) => (
+    <CourseBody
+      course={course}
+      courseIndex={courseIndex}
+      dragHandleProps={dragHandleProps}
+      snapshotDragging={snapshotDragging}
+      folders={folders}
+      countByCourse={countByCourse}
+      selectedCourseId={selectedCourseId}
+      selectedFolderId={selectedFolderId}
+      expanded={expandedCourses.has(course.id)}
+      isDeleting={deletingCourseId === course.id}
+      addingFolderFor={addingFolderFor}
+      folderName={folderName}
+      setFolderName={setFolderName}
+      busy={busy}
+      canManage={canManage}
+      enableDrag={enableDrag}
+      canReceiveMaterials={canReceiveMaterials}
+      onDropMaterials={onDropMaterials}
+      onSelectFolder={onSelectFolder}
+      onRefresh={onRefresh}
+      toggleCourse={toggleCourse}
+      setExpandedCourses={setExpandedCourses}
+      setAddingFolderFor={setAddingFolderFor}
+      createRootFolder={createRootFolder}
+      deleteCourse={deleteCourse}
+    />
+  );
 
   const courseList = sortedCourses.map((course, courseIndex) => {
     if (!enableDrag) {
@@ -719,6 +857,11 @@ export default function FolderTree({
         {canManage && (
           <p className="text-[10px] text-muted-foreground">
             Перетаскивайте курсы и папки за иконку ⋮⋮ чтобы менять порядок
+          </p>
+        )}
+        {canReceiveMaterials && (
+          <p className="text-[10px] text-muted-foreground">
+            Перетащите материалы из таблицы на курс или папку, чтобы переместить
           </p>
         )}
 

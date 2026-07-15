@@ -42,7 +42,8 @@ export class CoursesService {
         totalLessons: dto.totalLessons ?? 35,
         sortOrder: dto.sortOrder ?? sortOrder,
         description: dto.description ?? null,
-        price: dto.price ?? null,
+        // DB column price is NOT NULL — materials UI creates courses by name only.
+        price: dto.price ?? 0,
         isActive: dto.isActive ?? true,
       }),
     );

@@ -32,8 +32,8 @@ export class CourseTemplateEntity {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
-  @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true })
-  price: number | null;
+  @Column({ type: 'numeric', precision: 10, scale: 2, default: 0 })
+  price: number;
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;

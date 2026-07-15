@@ -3,7 +3,8 @@
     "argv": [
       "C:\\Program Files\\nodejs\\node.exe",
       "D:\\Program\\LongHuaCRM\\node_modules\\@playwright\\test\\cli.js",
-      "test"
+      "test",
+      "e2e/browser/forgot-password.spec.ts"
     ],
     "configFile": "D:\\Program\\LongHuaCRM\\playwright.config.ts",
     "rootDir": "D:/Program/LongHuaCRM/e2e/browser",
@@ -65,20 +66,20 @@
   },
   "suites": [
     {
-      "title": "admin.spec.ts",
-      "file": "admin.spec.ts",
+      "title": "forgot-password.spec.ts",
+      "file": "forgot-password.spec.ts",
       "column": 0,
       "line": 0,
       "specs": [],
       "suites": [
         {
-          "title": "Admin flow",
-          "file": "admin.spec.ts",
-          "line": 6,
+          "title": "Forgot password UX",
+          "file": "forgot-password.spec.ts",
+          "line": 7,
           "column": 6,
           "specs": [
             {
-              "title": "login → course → group → student → lesson → certificate",
+              "title": "login page shows \"Забыли пароль?\" and navigates to /forgot-password",
               "ok": true,
               "tags": [],
               "tests": [
@@ -93,12 +94,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 3025,
+                      "duration": 393,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-07-13T06:50:53.533Z",
+                      "startTime": "2026-07-14T20:46:34.367Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -106,64 +107,13 @@
                   "status": "expected"
                 }
               ],
-              "id": "d4043a9dd1ab94463227-a51088684c1b87d1f8db",
-              "file": "admin.spec.ts",
-              "line": 7,
-              "column": 3
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "title": "audit-deep.spec.ts",
-      "file": "audit-deep.spec.ts",
-      "column": 0,
-      "line": 0,
-      "specs": [],
-      "suites": [
-        {
-          "title": "Guest deep flow",
-          "file": "audit-deep.spec.ts",
-          "line": 4,
-          "column": 6,
-          "specs": [
-            {
-              "title": "wrong verification code shows error",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 120000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 965,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-07-13T06:50:56.657Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "830cafa55e02ccfeb7c7-c3e23ca7e1ccca54cc0a",
-              "file": "audit-deep.spec.ts",
-              "line": 5,
+              "id": "852acb1e2419f9f859ad-af61e387b4554464c02b",
+              "file": "forgot-password.spec.ts",
+              "line": 8,
               "column": 3
             },
             {
-              "title": "login before verification stays on pending page",
+              "title": "forgot-password form submits email and shows generic success",
               "ok": true,
               "tags": [],
               "tests": [
@@ -178,12 +128,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1023,
+                      "duration": 375,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-07-13T06:50:57.628Z",
+                      "startTime": "2026-07-14T20:46:35.682Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -191,21 +141,13 @@
                   "status": "expected"
                 }
               ],
-              "id": "830cafa55e02ccfeb7c7-1d205292ee8c5a2cc97f",
-              "file": "audit-deep.spec.ts",
-              "line": 25,
+              "id": "852acb1e2419f9f859ad-448a5da4b086dab43a84",
+              "file": "forgot-password.spec.ts",
+              "line": 20,
               "column": 3
-            }
-          ]
-        },
-        {
-          "title": "Users directory UI (DATA-001)",
-          "file": "audit-deep.spec.ts",
-          "line": 48,
-          "column": 6,
-          "specs": [
+            },
             {
-              "title": "unlinked student appears in accounts tab",
+              "title": "reset-password handles missing token",
               "ok": true,
               "tags": [],
               "tests": [
@@ -220,12 +162,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1149,
+                      "duration": 273,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-07-13T06:50:58.656Z",
+                      "startTime": "2026-07-14T20:46:36.063Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -233,204 +175,43 @@
                   "status": "expected"
                 }
               ],
-              "id": "830cafa55e02ccfeb7c7-62313caecfcba659d82a",
-              "file": "audit-deep.spec.ts",
+              "id": "852acb1e2419f9f859ad-321d80db01732a5874f7",
+              "file": "forgot-password.spec.ts",
+              "line": 41,
+              "column": 3
+            },
+            {
+              "title": "reset-password form accepts token from query string",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 370,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-14T20:46:36.341Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "852acb1e2419f9f859ad-5ae009290cc1177779a2",
+              "file": "forgot-password.spec.ts",
               "line": 49,
-              "column": 3
-            }
-          ]
-        },
-        {
-          "title": "Admin panel UI (UI-001)",
-          "file": "audit-deep.spec.ts",
-          "line": 79,
-          "column": 6,
-          "specs": [
-            {
-              "title": "analytics subtab is compact and switches content",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 120000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 1176,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-07-13T06:50:59.811Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "830cafa55e02ccfeb7c7-527658247ee61fe0bc37",
-              "file": "audit-deep.spec.ts",
-              "line": 80,
-              "column": 3
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "title": "guest.spec.ts",
-      "file": "guest.spec.ts",
-      "column": 0,
-      "line": 0,
-      "specs": [],
-      "suites": [
-        {
-          "title": "Guest flow",
-          "file": "guest.spec.ts",
-          "line": 5,
-          "column": 6,
-          "specs": [
-            {
-              "title": "registration → verification page → login form",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 120000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 1078,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-07-13T06:51:01.009Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "a7ce7f8ccaa30f427d5e-d1ecc07b43353db232e0",
-              "file": "guest.spec.ts",
-              "line": 6,
-              "column": 3
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "title": "student.spec.ts",
-      "file": "student.spec.ts",
-      "column": 0,
-      "line": 0,
-      "specs": [],
-      "suites": [
-        {
-          "title": "Student flow",
-          "file": "student.spec.ts",
-          "line": 6,
-          "column": 6,
-          "specs": [
-            {
-              "title": "login → dashboard → courses visibility",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 120000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 3193,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-07-13T06:51:02.094Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "28673771c95032e93b6d-4dab1f03869d6c328ca1",
-              "file": "student.spec.ts",
-              "line": 44,
-              "column": 3
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "title": "teacher.spec.ts",
-      "file": "teacher.spec.ts",
-      "column": 0,
-      "line": 0,
-      "specs": [],
-      "suites": [
-        {
-          "title": "Teacher flow",
-          "file": "teacher.spec.ts",
-          "line": 6,
-          "column": 6,
-          "specs": [
-            {
-              "title": "login → schedule → attendance",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 120000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 2405,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-07-13T06:51:05.381Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "1c42086bd650f90bc7b5-395501d5583a61e63e37",
-              "file": "teacher.spec.ts",
-              "line": 31,
               "column": 3
             }
           ]
@@ -440,9 +221,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-07-13T06:50:48.676Z",
-    "duration": 19470.358,
-    "expected": 8,
+    "startTime": "2026-07-14T20:46:34.023Z",
+    "duration": 2760.8140000000003,
+    "expected": 4,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

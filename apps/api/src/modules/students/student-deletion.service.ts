@@ -9,6 +9,7 @@ import { AttendanceEntity } from '../lessons/entities/attendance.entity';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
 import { PaymentEntity } from '../payments/entities/payment.entity';
 import { SeriesStudentEntity } from '../schedule/entities/series-student.entity';
+import { UserEntity } from '../users/entities/user.entity';
 import { StudentEntity } from './entities/student.entity';
 
 export interface StudentDeleteResult {
@@ -27,6 +28,8 @@ export class StudentDeletionService {
       if (!student) {
         throw new NotFoundException('Student not found');
       }
+
+      const linkedUserId = student.userId;
 
       await manager.update(PaymentEntity, { studentId }, { studentId: null });
       await manager.update(CertificateEntity, { studentId }, { studentId: null });
@@ -52,6 +55,19 @@ export class StudentDeletionService {
       await manager.delete(GroupMemberEntity, { studentId });
       await manager.delete(SeriesStudentEntity, { studentId });
       await manager.delete(StudentEntity, { id: studentId });
+
+      // Same rule as teacher deletion: hide the linked account from active directories.
+      if (linkedUserId) {
+        await manager.update(
+          UserEntity,
+          { id: linkedUserId },
+          {
+            status: 'blocked',
+            role: '',
+            updatedDate: new Date(),
+          },
+        );
+      }
     });
 
     return { success: true };

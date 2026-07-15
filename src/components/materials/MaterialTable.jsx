@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Download,
   ExternalLink,
+  GripVertical,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -18,6 +19,7 @@ import {
 import { getMaterialTypeInfo } from '@/lib/materialIcons';
 import { downloadMaterialFile, openMaterial } from '@/lib/materialUrl';
 import { unpackMaterialDescription } from '@/lib/materialMeta';
+import { setMaterialDragData } from '@/lib/materialDrag';
 import { toast } from '@/components/ui/use-toast';
 import AccessSourceBadges from './AccessSourceBadges';
 
@@ -40,6 +42,7 @@ export default function MaterialTable({
   canManage,
   canEditMaterial,
   canAccess,
+  canDragMaterials = false,
   onOpen,
   onEdit,
   onAccess,
@@ -58,6 +61,15 @@ export default function MaterialTable({
   const folderName = (folderId) => {
     const folder = folders.find((f) => f.id === folderId);
     return folder?.name || 'Без папки';
+  };
+
+  const resolveDragIds = (mat) => {
+    if (selectedIds.has(mat.id) && selectedIds.size > 1) {
+      return materials
+        .filter((row) => selectedIds.has(row.id) && mayEdit(row))
+        .map((row) => row.id);
+    }
+    return mayEdit(mat) ? [mat.id] : [];
   };
 
   const handleOpen = async (mat) => {
@@ -130,26 +142,52 @@ export default function MaterialTable({
               const Icon = typeInfo.icon;
               const meta = unpackMaterialDescription(mat.description);
               const selected = selectedIds.has(mat.id);
+              const draggable = Boolean(canDragMaterials && mayEdit(mat));
 
               return (
                 <tr
                   key={mat.id}
+                  draggable={draggable}
+                  onDragStart={(e) => {
+                    if (!draggable) return;
+                    const ids = resolveDragIds(mat);
+                    if (ids.length === 0) {
+                      e.preventDefault();
+                      return;
+                    }
+                    setMaterialDragData(e.dataTransfer, ids);
+                    e.dataTransfer.setDragImage?.(e.currentTarget, 24, 24);
+                  }}
                   className={`group border-b border-border last:border-0 hover:bg-muted/30 ${
                     selected ? 'bg-indigo-50/60 dark:bg-indigo-950/20' : ''
-                  }`}
+                  } ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                  title={draggable ? 'Перетащите в курс или папку слева' : undefined}
                 >
                   {canManage && (
                     <td className="px-3 py-2.5">
-                      <input
-                        type="checkbox"
-                        checked={selected}
-                        onChange={() => onToggleSelect(mat.id)}
-                        className="rounded border-border accent-indigo-600"
-                      />
+                      <div className="flex items-center gap-1.5">
+                        {draggable && (
+                          <span className="text-muted-foreground" aria-hidden>
+                            <GripVertical className="h-3.5 w-3.5" />
+                          </span>
+                        )}
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => onToggleSelect(mat.id)}
+                          className="rounded border-border accent-indigo-600"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
                     </td>
                   )}
                   <td className="px-3 py-2.5">
                     <div className="flex items-start gap-2.5 min-w-0">
+                      {!canManage && draggable && (
+                        <span className="mt-2 text-muted-foreground shrink-0" aria-hidden>
+                          <GripVertical className="h-3.5 w-3.5" />
+                        </span>
+                      )}
                       <div className={`h-9 w-9 rounded-lg ${typeInfo.bg} flex items-center justify-center shrink-0`}>
                         <Icon className={`h-4 w-4 ${typeInfo.color}`} />
                       </div>
@@ -158,6 +196,7 @@ export default function MaterialTable({
                           type="button"
                           className="font-medium text-foreground truncate text-left hover:text-indigo-600 hover:underline"
                           onClick={() => handleOpen(mat)}
+                          onMouseDown={(e) => e.stopPropagation()}
                         >
                           {mat.title}
                         </button>

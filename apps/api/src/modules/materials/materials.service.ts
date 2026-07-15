@@ -75,11 +75,21 @@ export class MaterialsService {
       throw new NotFoundException('Material not found');
     }
     this.assertCanManageMaterial(actor, existing);
+
+    if (dto.folderId) {
+      const folder = await this.repository.findFolderById(dto.folderId);
+      if (!folder) {
+        throw new NotFoundException('Material folder not found');
+      }
+    }
+
     const row = await this.repository.updateMaterial(id, dto);
     if (!row) {
       throw new NotFoundException('Material not found');
     }
-    return row;
+    return this.attachAccessSources(actor, await this.attachCourseIds([row])).then(
+      (list) => list[0],
+    );
   }
 
   /**

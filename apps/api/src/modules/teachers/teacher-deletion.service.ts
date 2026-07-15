@@ -8,6 +8,7 @@ import { AvailabilityBookingEntity } from '../schedule/entities/availability-boo
 import { AvailabilitySlotEntity } from '../schedule/entities/availability-slot.entity';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherPaymentEntity } from '../teacher-payments/entities/teacher-payment.entity';
+import { UserEntity } from '../users/entities/user.entity';
 import { TeacherEntity } from './entities/teacher.entity';
 
 export interface OrphanStudentRecord {
@@ -33,6 +34,8 @@ export class TeacherDeletionService {
         throw new NotFoundException('Teacher not found');
       }
 
+      const linkedUserId = teacher.userId;
+
       await manager.update(LessonEntity, { teacherId }, { teacherId: null });
       await manager.update(LessonSeriesEntity, { teacherId }, { teacherId: null });
       await manager.update(GroupEntity, { teacherId }, { teacherId: null });
@@ -45,6 +48,20 @@ export class TeacherDeletionService {
       await manager.delete(AvailabilitySlotEntity, { teacherId });
       await manager.delete(AvailabilityBookingEntity, { teacherId });
       await manager.delete(TeacherEntity, { id: teacherId });
+
+      // Keep the login row for audit/history FKs, but remove it from active user lists
+      // and prevent further sign-in (Users directory filters status !== 'blocked').
+      if (linkedUserId) {
+        await manager.update(
+          UserEntity,
+          { id: linkedUserId },
+          {
+            status: 'blocked',
+            role: '',
+            updatedDate: new Date(),
+          },
+        );
+      }
     });
 
     return { orphanStudents: await this.findOrphanStudents() };

@@ -44,6 +44,8 @@ export default function MaterialManager() {
   const canAccess = isAdmin || isTeacher;
   const canEditMaterial = (mat) =>
     isAdmin || (Boolean(user?.id) && mat?.created_by_user_id === user.id);
+  const canDragMaterials = canCreateMaterials;
+  const canReceiveMaterials = canCreateMaterials;
 
   const loadData = useCallback(async () => {
     if (!user) return;
@@ -132,6 +134,64 @@ export default function MaterialManager() {
       alert(err.message || 'Не удалось удалить материал');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const resolveFolderIdForMove = async (courseId, preferredFolderId) => {
+    if (preferredFolderId) return preferredFolderId;
+    if (!courseId) {
+      throw new Error('Не выбран курс для переноса');
+    }
+    const rows = folders.filter((f) => f.course_id === courseId);
+    const root = rows.find((f) => !(f.parent_id || f.parent_folder_id)) ?? rows[0];
+    if (root?.id) return root.id;
+    const created = await api.materials.folders.create({
+      course_id: courseId,
+      name: 'Корень',
+      sort_order: 0,
+    });
+    return created.id;
+  };
+
+  const moveMaterials = async (ids, target) => {
+    const idSet = new Set((ids || []).map(String));
+    const movable = materials.filter((m) => idSet.has(String(m.id)) && canEditMaterial(m));
+    if (movable.length === 0) {
+      toast({
+        title: 'Нечего перемещать',
+        description: 'Можно переносить только материалы, которые вам разрешено редактировать.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const folderId = await resolveFolderIdForMove(target?.courseId, target?.folderId || null);
+      const toMove = movable.filter((m) => String(m.folder_id) !== String(folderId));
+      if (toMove.length === 0) {
+        toast({ title: 'Материалы уже в этой папке' });
+        return;
+      }
+
+      await Promise.all(
+        toMove.map((m) => api.materials.update(m.id, { folder_id: folderId })),
+      );
+
+      toast({
+        title: toMove.length === 1 ? 'Материал перемещён' : `Перемещено материалов: ${toMove.length}`,
+      });
+      setSelectedIds(new Set());
+      if (target?.courseId) {
+        setSelectedCourseId(target.courseId);
+        setSelectedFolderId(target.folderId || null);
+      }
+      await loadData();
+    } catch (err) {
+      toast({
+        title: 'Не удалось переместить материалы',
+        description: err?.message || 'Попробуйте ещё раз',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -272,6 +332,8 @@ export default function MaterialManager() {
               }}
               onRefresh={loadData}
               canManage={canManageCourses}
+              canReceiveMaterials={canReceiveMaterials}
+              onDropMaterials={moveMaterials}
             />
             <div className="flex-1 min-w-0 w-full">
               <MaterialTable
@@ -293,6 +355,7 @@ export default function MaterialManager() {
                 canManage={canCreateMaterials}
                 canEditMaterial={canEditMaterial}
                 canAccess={canAccess}
+                canDragMaterials={canDragMaterials}
                 onOpen={async (mat) => {
                   try {
                     await openMaterial(mat);

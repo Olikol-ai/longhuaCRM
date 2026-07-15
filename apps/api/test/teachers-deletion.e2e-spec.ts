@@ -1,5 +1,7 @@
 import { INestApplication } from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
+import { DataSource } from 'typeorm';
 import {
   adminLogin,
   api,
@@ -9,6 +11,7 @@ import {
   ensureDatabaseReady,
   futureLessonDate,
 } from './e2e-helpers';
+import { UserEntity } from '../src/modules/users/entities/user.entity';
 
 const hasDatabase = Boolean(process.env.DATABASE_URL || process.env.DB_PASSWORD);
 const describeE2E = hasDatabase ? describe : describe.skip;
@@ -75,6 +78,98 @@ describeE2E('Teacher deletion (e2e)', () => {
         ?? studentCheck.body.assignedTeacherId
         ?? studentCheck.body.assigned_teacher_id,
     ).toBeFalsy();
+  });
+
+  it('removes linked account from users directory after teacher delete', async () => {
+    const suffix = randomUUID().slice(0, 8);
+    const email = `deleted-teacher-${suffix}@example.com`;
+    const userId = randomUUID();
+    const now = new Date();
+    const ds = app.get(DataSource);
+
+    await ds.getRepository(UserEntity).save({
+      id: userId,
+      email,
+      passwordHash: bcrypt.hashSync('TestPass123!', 10),
+      role: 'teacher',
+      status: 'active',
+      emailVerified: true,
+      verificationCode: null,
+      verificationCodeExpiresAt: null,
+      verificationCodeSentAt: null,
+      verificationAttempts: 0,
+      firstName: 'Gone',
+      lastName: `Teacher${suffix}`,
+      phone: '',
+      telegramId: '',
+      telegramUsername: '',
+      telegramConnectedAt: null,
+      telegramLinkToken: null,
+      telegramLinkExpires: null,
+      passwordResetToken: null,
+      passwordResetExpiresAt: null,
+      telegramNotify24h: true,
+      telegramNotify3h: true,
+      createdDate: now,
+      updatedDate: now,
+    });
+
+    const teacherRes = await api(app)
+      .post('/api/teachers')
+      .set(authHeader(adminToken))
+      .send({
+        name: `Linked Teacher ${suffix}`,
+        email,
+        status: 'active',
+        userId,
+      })
+      .expect(201);
+    const teacherId = teacherRes.body.id as string;
+
+    const beforeDir = await api(app)
+      .get('/api/users/directory')
+      .set(authHeader(adminToken))
+      .expect(200);
+    expect(
+      beforeDir.body.find((row: { id: string }) => row.id === userId),
+    ).toBeDefined();
+
+    await api(app)
+      .delete(`/api/teachers/${teacherId}`)
+      .set(authHeader(adminToken))
+      .expect(200);
+
+    await api(app)
+      .get(`/api/teachers/${teacherId}`)
+      .set(authHeader(adminToken))
+      .expect(404);
+
+    const afterDir = await api(app)
+      .get('/api/users/directory')
+      .set(authHeader(adminToken))
+      .expect(200);
+    expect(
+      afterDir.body.find((row: { id: string }) => row.id === userId),
+    ).toBeUndefined();
+    expect(
+      afterDir.body.find(
+        (row: { email?: string; teacher_profile_id?: string }) =>
+          row.email === email || row.teacher_profile_id === teacherId,
+      ),
+    ).toBeUndefined();
+
+    const usersList = await api(app)
+      .get('/api/users')
+      .set(authHeader(adminToken))
+      .expect(200);
+    expect(
+      usersList.body.find((row: { id: string }) => row.id === userId),
+    ).toBeUndefined();
+
+    const blockedUser = await ds.getRepository(UserEntity).findOne({ where: { id: userId } });
+    expect(blockedUser).toBeTruthy();
+    expect(blockedUser?.status).toBe('blocked');
+    expect(blockedUser?.role).toBe('');
   });
 
   it('force-deletes teacher while preserving lessons, groups, series, and payments', async () => {
