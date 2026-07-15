@@ -12,6 +12,14 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { ApiSerializeInterceptor } from './common/interceptors/api-serialize.interceptor';
 
 async function bootstrap() {
+  process.on('unhandledRejection', (reason) => {
+    const message = reason instanceof Error ? reason.message : String(reason);
+    Logger.error(`Unhandled promise rejection: ${message}`, 'Bootstrap');
+  });
+  process.on('uncaughtException', (error) => {
+    Logger.error(`Uncaught exception: ${error.message}`, error.stack, 'Bootstrap');
+  });
+
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log'],
     rawBody: false,

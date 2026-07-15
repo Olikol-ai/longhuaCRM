@@ -26,6 +26,7 @@ const GroupDetail = lazy(() => import('./pages/GroupDetail'));
 const Certificates = lazy(() => import('./pages/Certificates'));
 const StudentCertificates = lazy(() => import('./pages/StudentCertificates'));
 const CertificateView = lazy(() => import('./pages/CertificateView'));
+const CertificateVerify = lazy(() => import('./pages/CertificateVerify'));
 const Payments = lazy(() => import('./pages/Payments'));
 
 /**
@@ -153,6 +154,14 @@ function App() {
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path={ONBOARDING_PATH} element={<PendingApproval />} />
+              <Route
+                path="/verify/certificate/:id"
+                element={(
+                  <Suspense fallback={<AuthLoadingScreen />}>
+                    <CertificateVerify />
+                  </Suspense>
+                )}
+              />
               <Route path="*" element={<AuthenticatedApp />} />
             </Routes>
           </Router>

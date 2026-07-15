@@ -81,6 +81,19 @@ describe('TelegramWebhookLifecycleService', () => {
     expect(telegramService.registerWebhook).toHaveBeenCalledWith(url, 'secret');
   });
 
+  it('does not delete webhook on graceful shutdown (survives restart)', async () => {
+    const { service, telegramService } = createLifecycle({
+      'telegram.enabled': true,
+      'telegram.mock': false,
+      'telegram.mode': 'webhook',
+      'telegram.webhookUrl': 'https://crm.example.com/api/telegram/webhook',
+    });
+
+    await service.beforeApplicationShutdown();
+
+    expect(telegramService.deleteWebhook).not.toHaveBeenCalled();
+  });
+
   it('does not register webhook when TELEGRAM_WEBHOOK_URL is missing or not HTTPS', async () => {
     const { service, telegramService } = createLifecycle({
       'telegram.enabled': true,
@@ -157,6 +170,34 @@ describe('TelegramPollingService', () => {
     expect(logs).toContain('Telegram polling started');
 
     await service.beforeApplicationShutdown();
+  });
+
+  it('does not start polling when TELEGRAM_MODE=webhook', async () => {
+    const deleteWebhook = jest.fn();
+    const getUpdates = jest.fn();
+    const config = {
+      get: jest.fn((key: string) => {
+        if (key === 'telegram.enabled') return true;
+        if (key === 'telegram.mode') return 'webhook';
+        if (key === 'telegram.mock') return false;
+        if (key === 'telegram.botToken') return '123:ABC';
+        return undefined;
+      }),
+    } as unknown as ConfigService;
+
+    const service = new TelegramPollingService(
+      config,
+      { getUpdates, deleteWebhook: jest.fn() } as unknown as TelegramGateway,
+      { deleteWebhook, handleUpdate: jest.fn() } as unknown as TelegramService,
+      {
+        setPollingRunning: jest.fn(),
+        markUpdateReceived: jest.fn(),
+      } as never,
+    );
+
+    await service.onApplicationBootstrap();
+    expect(deleteWebhook).not.toHaveBeenCalled();
+    expect(getUpdates).not.toHaveBeenCalled();
   });
 
   it('skips polling when TELEGRAM_MOCK=true', async () => {

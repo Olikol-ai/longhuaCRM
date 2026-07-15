@@ -481,4 +481,43 @@ describeE2E('Certificates validation (e2e)', () => {
     });
     expect(history).toHaveLength(0);
   });
+
+  it('public verify endpoint confirms issued certificate without auth', async () => {
+    const student = await createStudentUser(app, adminToken, 'verify');
+    const { courseId } = await seedCompletedEnrollment(app, adminToken, student.studentId);
+    const registrationNumber = `VR-${randomUUID().slice(0, 8)}`;
+    const issueDate = new Date().toISOString().split('T')[0];
+
+    const created = await api(app)
+      .post('/api/certificates')
+      .set(authHeader(adminToken))
+      .send({
+        studentId: student.studentId,
+        courseId,
+        registrationNumber,
+        blankSeries: 'LH',
+        blankNumber: uniqueBlankNumber(),
+        status: 'draft',
+      })
+      .expect(201);
+
+    await api(app)
+      .patch(`/api/certificates/${created.body.id}`)
+      .set(authHeader(adminToken))
+      .send({ status: 'issued', issueDate })
+      .expect(200);
+
+    const verifyRes = await api(app)
+      .get(`/api/certificates/${created.body.id}/verify`)
+      .expect(200);
+
+    expect(verifyRes.body.valid).toBe(true);
+    expect(verifyRes.body.registration_number).toBe(registrationNumber);
+    expect(verifyRes.body.issuer?.director).toBe('Янчиленко И.А.');
+    expect(verifyRes.body.issuer?.organization).toContain('ДатаВэйв');
+
+    await api(app)
+      .get(`/api/certificates/${randomUUID()}/verify`)
+      .expect(404);
+  });
 });

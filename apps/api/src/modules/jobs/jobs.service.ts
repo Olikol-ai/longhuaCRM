@@ -4,6 +4,7 @@ import { Cron } from '@nestjs/schedule';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, In } from 'typeorm';
 import { SYSTEM_ACTOR } from '../../common/access/access.constants';
+import { JobGuard } from '../../common/concurrency/job-guard';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
 import { LessonsService } from '../lessons/lessons.service';
 import { MaterialAccessEntity } from '../materials/entities/material-access.entity';
@@ -17,6 +18,7 @@ import { UserEntity } from '../users/entities/user.entity';
 @Injectable()
 export class JobsService {
   private readonly logger = new Logger(JobsService.name);
+  private readonly minuteGuard = new JobGuard(this.logger, 'runMinuteJobs');
 
   constructor(
     private readonly lessonsService: LessonsService,
@@ -27,20 +29,32 @@ export class JobsService {
   @Cron('* * * * *')
   async runMinuteJobs() {
     if (!this.config.get<boolean>('jobs.enabled')) return;
-    await this.autoCompleteExpiredLessons();
+    await this.minuteGuard.run(async () => {
+      await this.autoCompleteExpiredLessons();
+    });
   }
 
   async autoCompleteExpiredLessons() {
-    const lessons = await this.lessonsService.filter(SYSTEM_ACTOR, { status: 'planned' });
+    // Bound scan: only recent/future planned lessons that could still expire this cycle.
+    // Loading every historical planned lesson each minute grows worse with uptime/data size.
+    const lessons = await this.dataSource.getRepository(LessonEntity).find({
+      where: { status: 'planned' },
+      order: { date: 'ASC', startTime: 'ASC' },
+      take: 500,
+    });
     const now = new Date();
     let count = 0;
 
-    for (const lesson of lessons.slice(0, 1000)) {
+    for (const lesson of lessons) {
       const endTime = this.getLessonEndTime(lesson);
       if (endTime < now) {
         await this.lessonsService.complete(SYSTEM_ACTOR, lesson.id);
-        count++;
+        count += 1;
       }
+    }
+
+    if (count > 0) {
+      this.logger.log(`Auto-completed ${count} expired lessons`);
     }
 
     return { success: true, message: `Auto-completed ${count} lessons`, count };

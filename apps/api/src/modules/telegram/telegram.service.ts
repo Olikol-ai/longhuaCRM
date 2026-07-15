@@ -3,12 +3,16 @@ import { TelegramDiagnosticsService } from './telegram-diagnostics.service';
 import { TelegramGateway, TelegramSendMessageOptions } from './telegram.gateway';
 import { TelegramUpdateHandler } from './telegram-update.handler';
 
+/** Bounded set of recently processed update_id values (webhook dedupe). */
+const RECENT_UPDATE_MAX = 2_000;
+
 /**
  * Facade for Bot API ops + shared update pipeline (polling/webhook).
  */
 @Injectable()
 export class TelegramService {
   private readonly logger = new Logger(TelegramService.name);
+  private readonly recentUpdateIds = new Map<number, true>();
 
   constructor(
     private readonly gateway: TelegramGateway,
@@ -30,6 +34,14 @@ export class TelegramService {
   }
 
   async handleUpdate(update: Record<string, unknown>) {
+    const updateId = Number(update.update_id ?? 0);
+    if (Number.isFinite(updateId) && updateId > 0) {
+      if (this.recentUpdateIds.has(updateId)) {
+        this.logger.debug(`Skipping duplicate Telegram update_id=${updateId}`);
+        return { ok: true, duplicate: true };
+      }
+      this.rememberUpdateId(updateId);
+    }
     return this.updateHandler.handleUpdate(update);
   }
 
@@ -45,14 +57,33 @@ export class TelegramService {
     return { bot, webhook, token_last5: botToken.slice(-5) };
   }
 
+  /**
+   * Idempotent webhook registration:
+   * - if Telegram already has the same URL → refresh setWebhook without drop_pending
+   * - if URL differs → drop pending updates, then setWebhook
+   */
   async registerWebhook(webhookUrl: string, secretToken?: string) {
     const botToken = await this.getBotToken();
     if (!botToken) throw new Error('TELEGRAM_BOT_TOKEN not set');
 
-    this.logger.log(`Registering Telegram webhook: ${webhookUrl}`);
+    const current = await this.gateway.getWebhookInfo();
+    const currentUrl =
+      (current.result as { url?: string } | undefined)?.url?.trim() || '';
 
-    const deleteResult = await this.gateway.deleteWebhook(true);
-    this.logger.log(`deleteWebhook result: ${JSON.stringify(deleteResult)}`);
+    let deleteResult: unknown = null;
+    if (currentUrl && currentUrl !== webhookUrl) {
+      this.logger.log(
+        `Replacing Telegram webhook ${currentUrl} → ${webhookUrl} (drop pending updates)`,
+      );
+      deleteResult = await this.gateway.deleteWebhook(true);
+      this.logger.log(`deleteWebhook result: ${JSON.stringify(deleteResult)}`);
+    } else if (currentUrl === webhookUrl) {
+      this.logger.log(
+        `Telegram webhook already registered at ${webhookUrl} — refreshing setWebhook (idempotent)`,
+      );
+    } else {
+      this.logger.log(`Registering Telegram webhook: ${webhookUrl}`);
+    }
 
     const setResult = await this.gateway.setWebhook(
       webhookUrl,
@@ -63,7 +94,13 @@ export class TelegramService {
 
     await this.clearBotCommands();
     const webhook = await this.gateway.getWebhookInfo();
-    return { delete: deleteResult, set: setResult, webhook, target_url: webhookUrl };
+    return {
+      delete: deleteResult,
+      set: setResult,
+      webhook,
+      target_url: webhookUrl,
+      skipped_delete: !deleteResult,
+    };
   }
 
   async deleteWebhook() {
@@ -74,7 +111,7 @@ export class TelegramService {
     }
     this.logger.log('Deleting Telegram webhook');
     const result = await this.gateway.deleteWebhook(false);
-    this.logger.log(`deleteWebhook on shutdown: ${JSON.stringify(result)}`);
+    this.logger.log(`deleteWebhook result: ${JSON.stringify(result)}`);
     return result;
   }
 
@@ -91,5 +128,17 @@ export class TelegramService {
     const botToken = await this.getBotToken();
     if (!botToken) return null;
     return this.gateway.getWebhookInfo();
+  }
+
+  private rememberUpdateId(updateId: number): void {
+    this.recentUpdateIds.delete(updateId);
+    this.recentUpdateIds.set(updateId, true);
+    while (this.recentUpdateIds.size > RECENT_UPDATE_MAX) {
+      const oldest = this.recentUpdateIds.keys().next().value;
+      if (oldest === undefined) {
+        break;
+      }
+      this.recentUpdateIds.delete(oldest);
+    }
   }
 }

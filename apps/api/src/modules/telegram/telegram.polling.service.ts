@@ -9,6 +9,12 @@ import { TelegramDiagnosticsService } from './telegram-diagnostics.service';
 import { TelegramGateway } from './telegram.gateway';
 import { TelegramService } from './telegram.service';
 
+/** Per-update budget so one hung handler cannot freeze the whole poller. */
+const UPDATE_HANDLER_TIMEOUT_MS = 45_000;
+const CONFLICT_BACKOFF_MS = 15_000;
+const ERROR_BACKOFF_MS = 2_000;
+const SHUTDOWN_WAIT_MS = 5_000;
+
 @Injectable()
 export class TelegramPollingService
   implements OnApplicationBootstrap, BeforeApplicationShutdown
@@ -21,6 +27,7 @@ export class TelegramPollingService
   private sleepWake: (() => void) | null = null;
   private sleepTimer: ReturnType<typeof setTimeout> | null = null;
   private pollAbort: AbortController | null = null;
+  private consecutiveConflicts = 0;
 
   constructor(
     private readonly config: ConfigService,
@@ -68,7 +75,12 @@ export class TelegramPollingService
     this.pollAbort = null;
     this.interruptSleep();
     if (this.loopPromise) {
-      await this.loopPromise;
+      await Promise.race([
+        this.loopPromise,
+        new Promise<void>((resolve) => {
+          setTimeout(resolve, SHUTDOWN_WAIT_MS);
+        }),
+      ]);
       this.loopPromise = null;
     }
   }
@@ -86,13 +98,33 @@ export class TelegramPollingService
           break;
         }
         if (!result.ok) {
-          if (result.error === 'aborted') {
+          if (result.error === 'aborted' && !this.running) {
             break;
           }
+
+          const detail = `${result.error ?? ''} ${result.description ?? ''}`.toLowerCase();
+          const isConflict =
+            detail.includes('409')
+            || detail.includes('conflict')
+            || detail.includes('terminated by other getupdates');
+
+          if (isConflict) {
+            this.consecutiveConflicts += 1;
+            this.logger.warn(
+              `getUpdates conflict (another poller may be using this bot token). `
+              + `Backoff ${CONFLICT_BACKOFF_MS}ms (streak=${this.consecutiveConflicts}).`,
+            );
+            await this.sleep(CONFLICT_BACKOFF_MS);
+            continue;
+          }
+
+          this.consecutiveConflicts = 0;
           this.logger.warn(`getUpdates failed: ${result.error ?? result.description}`);
-          await this.sleep(2000);
+          await this.sleep(ERROR_BACKOFF_MS);
           continue;
         }
+
+        this.consecutiveConflicts = 0;
         const updates = Array.isArray(result.result)
           ? (result.result as Array<Record<string, unknown>>)
           : [];
@@ -105,14 +137,39 @@ export class TelegramPollingService
             this.offset = updateId + 1;
           }
           this.logger.debug(`Telegram update received: update_id=${updateId}`);
-          await this.telegramService.handleUpdate(update);
+          await this.handleUpdateWithTimeout(update, updateId);
         }
       } catch (error) {
         if (!this.running) {
           break;
         }
         this.logger.error(`Polling error: ${(error as Error).message}`);
-        await this.sleep(2000);
+        await this.sleep(ERROR_BACKOFF_MS);
+      }
+    }
+  }
+
+  private async handleUpdateWithTimeout(
+    update: Record<string, unknown>,
+    updateId: number,
+  ): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+      await Promise.race([
+        this.telegramService.handleUpdate(update),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            reject(new Error(`update handler timeout update_id=${updateId}`));
+          }, UPDATE_HANDLER_TIMEOUT_MS);
+        }),
+      ]);
+    } catch (error) {
+      this.logger.error(
+        `Failed to process update_id=${updateId}: ${(error as Error).message}`,
+      );
+    } finally {
+      if (timer) {
+        clearTimeout(timer);
       }
     }
   }

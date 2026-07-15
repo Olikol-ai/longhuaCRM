@@ -15,6 +15,7 @@ import {
 import { toast } from "@/components/ui/use-toast";
 import { resolveAssignedTeacherLabel } from "@/lib/teacherLabels";
 import { resolveStudentLabel } from "@/lib/studentLabels";
+import { formatTime } from "@/lib/time-slots";
 import LessonDetailModal from "@/components/schedule/LessonDetailModal";
 import LessonAttendancePanel from "@/components/groups/LessonAttendancePanel";
 
@@ -37,7 +38,7 @@ const WEEKDAYS = [
 
 function formatSlot(slot) {
   const day = WEEKDAYS.find((d) => d.value === (slot.day_of_week ?? slot.dayOfWeek));
-  const time = (slot.start_time ?? slot.startTime ?? "").slice(0, 5);
+  const time = formatTime(slot.start_time ?? slot.startTime);
   return `${day?.label ?? "День"} ${time}`;
 }
 
@@ -91,7 +92,7 @@ export default function GroupDetail() {
           slots: (active.slots ?? []).length
             ? active.slots.map((slot) => ({
                 day_of_week: slot.day_of_week ?? slot.dayOfWeek,
-                start_time: (slot.start_time ?? slot.startTime ?? "10:00").slice(0, 5),
+                start_time: formatTime(slot.start_time ?? slot.startTime ?? "10:00") || "10:00",
               }))
             : prev.slots,
         }));
@@ -455,7 +456,7 @@ export default function GroupDetail() {
                     onClick={() => setExpandedLessonId(expandedLessonId === lesson.id ? null : lesson.id)}
                     className="text-sm font-medium text-left hover:text-indigo-700"
                   >
-                    {lesson.date} · {(lesson.start_time ?? "").slice(0, 5)} · {lesson.status}
+                    {lesson.date} · {formatTime(lesson.start_time)} · {lesson.status}
                   </button>
                   <button
                     type="button"

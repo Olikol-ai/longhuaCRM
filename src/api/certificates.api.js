@@ -78,6 +78,11 @@ export const certificates = {
     return apiFetch(`/certificates/${id}`);
   },
 
+  /** Public authenticity check (no login required — used by QR landing page). */
+  verify(id) {
+    return apiFetch(`/certificates/${id}/verify`);
+  },
+
   pdfUrl(id) {
     return `/api/certificates/${id}/pdf`;
   },

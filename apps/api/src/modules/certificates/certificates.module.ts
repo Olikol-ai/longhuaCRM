@@ -11,6 +11,7 @@ import { CertificatePdfService } from './certificate-pdf.service';
 import { CertificateEntity } from './entities/certificate.entity';
 import { CertificateHistoryEntity } from './entities/certificate-history.entity';
 import { CertificatesController } from './certificates.controller';
+import { CertificateVerificationController } from './certificate-verification.controller';
 import { CertificatesRepository } from './certificates.repository';
 import { CertificatesService } from './certificates.service';
 
@@ -26,7 +27,7 @@ import { CertificatesService } from './certificates.service';
     NotificationsModule,
     TelegramModule,
   ],
-  controllers: [CertificatesController],
+  controllers: [CertificatesController, CertificateVerificationController],
   providers: [
     CertificatesRepository,
     CertificatesService,

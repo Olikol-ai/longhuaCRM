@@ -24,23 +24,29 @@ export type CertificatePdfPayload = {
 const DISCLAIMER =
   'Данный сертификат не является сертификатом государственного образца и не предоставляет преимуществ, предусмотренных законодательством.';
 
-/** Modern ink palette — cool paper, deep slate, single crimson accent. */
+/** Palette tuned to the Longhua Chinese parchment template. */
 const COLORS = {
-  paper: '#f7f8fa',
-  paperEdge: '#eef1f5',
-  ink: '#0f172a',
-  muted: '#64748b',
-  soft: '#94a3b8',
-  line: '#cbd5e1',
-  accent: '#9f1239',
-  frame: '#1e293b',
-  card: '#ffffff',
+  ink: '#2a1710',
+  muted: '#6b4a3a',
+  soft: '#8a6a58',
+  accent: '#9b1c1c',
+  seal: '#b91c1c',
+  paperTint: '#f7efe3',
+  qrLight: '#fffdf8',
 };
 
 type FontPair = { regular: string; bold: string };
 
 function resolveCyrillicFonts(): FontPair {
   const candidates: FontPair[] = [
+    {
+      regular: 'C:\\Windows\\Fonts\\times.ttf',
+      bold: 'C:\\Windows\\Fonts\\timesbd.ttf',
+    },
+    {
+      regular: 'C:\\Windows\\Fonts\\georgia.ttf',
+      bold: 'C:\\Windows\\Fonts\\georgiab.ttf',
+    },
     {
       regular: 'C:\\Windows\\Fonts\\arial.ttf',
       bold: 'C:\\Windows\\Fonts\\arialbd.ttf',
@@ -50,8 +56,8 @@ function resolveCyrillicFonts(): FontPair {
       bold: 'C:\\Windows\\Fonts\\segoeuib.ttf',
     },
     {
-      regular: '/usr/share/fonts/ttf-dejavu/DejaVuSans.ttf',
-      bold: '/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf',
+      regular: '/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf',
+      bold: '/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf',
     },
     {
       regular: '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
@@ -74,9 +80,29 @@ function resolveCyrillicFonts(): FontPair {
   );
 }
 
+function resolveCertificateBackground(): string {
+  const candidates = [
+    // Compiled Nest output: dist/modules/certificates → dist/assets/...
+    join(__dirname, '../../assets/certificates/certificate-bg.png'),
+    // Source tree while developing / tests
+    join(__dirname, '../../../src/assets/certificates/certificate-bg.png'),
+    join(process.cwd(), 'src/assets/certificates/certificate-bg.png'),
+    join(process.cwd(), 'apps/api/src/assets/certificates/certificate-bg.png'),
+    join(process.cwd(), 'assets/certificates/certificate-bg.png'),
+    join(process.cwd(), 'apps/api/assets/certificates/certificate-bg.png'),
+  ];
+
+  for (const path of candidates) {
+    if (existsSync(path)) {
+      return path;
+    }
+  }
+
+  throw new BadRequestException('Не найден файл основы сертификата (certificate-bg.png)');
+}
+
 function formatIssueDate(value: string | null | undefined): string {
   if (!value) return '—';
-  // Prefer YYYY-MM-DD as-is; avoid timezone shifts for date-only strings.
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     const [y, m, d] = value.split('-');
     return `${d}.${m}.${y}`;
@@ -125,11 +151,13 @@ export class CertificatePdfService {
     const verificationUrl = this.buildVerificationUrl(certificate.id);
     const qrDataUrl = await QRCode.toDataURL(verificationUrl, {
       margin: 1,
-      width: 160,
-      color: { dark: COLORS.ink, light: '#ffffff' },
+      width: 180,
+      color: { dark: COLORS.ink, light: COLORS.qrLight },
+      errorCorrectionLevel: 'M',
     });
     const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, '');
     const fonts = resolveCyrillicFonts();
+    const backgroundPath = resolveCertificateBackground();
 
     const buffer = await new Promise<Buffer>((resolve, reject) => {
       const doc = new PDFDocument({
@@ -150,169 +178,201 @@ export class CertificatePdfService {
 
       const pageWidth = doc.page.width;
       const pageHeight = doc.page.height;
-      const margin = 42;
-      const contentLeft = margin + 28;
+
+      // Template already has border, seal and landscape — use full page as canvas.
+      doc.image(backgroundPath, 0, 0, {
+        width: pageWidth,
+        height: pageHeight,
+      });
+
+      const contentLeft = 72;
       const contentWidth = pageWidth - contentLeft * 2;
 
-      this.paintBackground(doc, pageWidth, pageHeight);
-      this.paintFrame(doc, pageWidth, pageHeight, margin);
-      this.paintCornerMarks(doc, pageWidth, pageHeight, margin + 14);
-
-      // Brand
-      let y = 88;
+      // School name under the red seal (seal itself is in the artwork).
+      let y = 168;
       doc
         .fillColor(COLORS.accent)
         .font('CertBold')
-        .fontSize(11)
-        .text('LONGHUA', contentLeft, y, {
-          width: contentWidth,
-          align: 'center',
-          characterSpacing: 6,
-        });
-      y += 20;
-      doc
-        .fillColor(COLORS.muted)
-        .font('CertRegular')
-        .fontSize(9)
-        .text('CHINESE LANGUAGE SCHOOL', contentLeft, y, {
-          width: contentWidth,
-          align: 'center',
-          characterSpacing: 3,
-        });
-
-      y += 28;
-      this.drawAccentRule(doc, pageWidth / 2, y, 64);
-
-      // Title
-      y += 36;
-      doc
-        .fillColor(COLORS.ink)
-        .font('CertBold')
-        .fontSize(34)
-        .text('СЕРТИФИКАТ', contentLeft, y, {
+        .fontSize(12)
+        .text('LONGHUA CHINESE', contentLeft, y, {
           width: contentWidth,
           align: 'center',
           characterSpacing: 4,
         });
 
+      y += 22;
+      doc
+        .fillColor(COLORS.soft)
+        .font('CertRegular')
+        .fontSize(9)
+        .text('Школа китайского языка', contentLeft, y, {
+          width: contentWidth,
+          align: 'center',
+          characterSpacing: 1.2,
+        });
+
+      y += 46;
+      doc
+        .fillColor(COLORS.ink)
+        .font('CertBold')
+        .fontSize(36)
+        .text('СЕРТИФИКАТ', contentLeft, y, {
+          width: contentWidth,
+          align: 'center',
+          characterSpacing: 5,
+        });
+
       y += 52;
+      this.drawOrnament(doc, pageWidth / 2, y);
+
+      y += 28;
       doc
         .fillColor(COLORS.muted)
         .font('CertRegular')
-        .fontSize(11)
+        .fontSize(12)
         .text('настоящим подтверждается, что', contentLeft, y, {
           width: contentWidth,
           align: 'center',
         });
 
-      // Student name card
-      y += 36;
-      const nameBoxTop = y;
-      const nameBoxHeight = 56;
-      doc
-        .roundedRect(contentLeft + 24, nameBoxTop, contentWidth - 48, nameBoxHeight, 8)
-        .fill(COLORS.card);
-      doc
-        .roundedRect(contentLeft + 24, nameBoxTop, contentWidth - 48, nameBoxHeight, 8)
-        .lineWidth(1)
-        .strokeColor(COLORS.line)
-        .stroke();
-
+      y += 34;
       doc
         .fillColor(COLORS.ink)
         .font('CertBold')
-        .fontSize(20)
-        .text(studentName, contentLeft + 36, nameBoxTop + 18, {
-          width: contentWidth - 72,
+        .fontSize(studentName.length > 28 ? 20 : 24)
+        .text(studentName, contentLeft + 8, y, {
+          width: contentWidth - 16,
           align: 'center',
         });
 
-      y = nameBoxTop + nameBoxHeight + 28;
+      // Soft underline under the name
+      const nameBottom = doc.y + 6;
+      doc
+        .moveTo(pageWidth / 2 - 110, nameBottom)
+        .lineTo(pageWidth / 2 + 110, nameBottom)
+        .lineWidth(0.8)
+        .strokeColor(COLORS.accent)
+        .stroke();
+
+      y = nameBottom + 22;
       doc
         .fillColor(COLORS.muted)
         .font('CertRegular')
-        .fontSize(11)
+        .fontSize(12)
         .text('успешно завершил(а) курс', contentLeft, y, {
           width: contentWidth,
           align: 'center',
         });
 
-      y += 26;
+      y += 28;
       doc
         .fillColor(COLORS.ink)
         .font('CertBold')
-        .fontSize(15)
-        .text(courseName, contentLeft + 16, y, {
-          width: contentWidth - 32,
+        .fontSize(courseName.length > 42 ? 13 : 15)
+        .text(`«${courseName}»`, contentLeft + 12, y, {
+          width: contentWidth - 24,
           align: 'center',
         });
 
       y += 40;
-      this.drawAccentRule(doc, pageWidth / 2, y, 40);
+      this.drawOrnament(doc, pageWidth / 2, y);
 
-      // Meta + QR row
-      const metaTop = Math.max(y + 36, pageHeight - 290);
-      const qrSize = 92;
-      const qrX = contentLeft;
-      const qrY = metaTop;
+      const issueDate = formatIssueDate(certificate.issueDate);
+      const metaBlockTop = Math.min(y + 34, 470);
+      const metaLines = [
+        `Серия бланка: ${certificate.blankSeries || '—'}    ·    № бланка: ${certificate.blankNumber || '—'}`,
+        `Дата выдачи: ${issueDate}`,
+        `Регистрационный номер: ${certificate.registrationNumber || '—'}`,
+      ];
+
+      let metaY = metaBlockTop;
+      for (const line of metaLines) {
+        doc
+          .fillColor(COLORS.muted)
+          .font('CertRegular')
+          .fontSize(10)
+          .text(line, contentLeft, metaY, {
+            width: contentWidth,
+            align: 'center',
+          });
+        metaY += 18;
+      }
+
+      // QR + authenticity note + director signature — kept above the landscape art.
+      const footerTop = 575;
+      const qrSize = 78;
+      const qrX = contentLeft + 6;
+      const qrY = footerTop;
 
       doc
-        .roundedRect(qrX - 8, qrY - 8, qrSize + 16, qrSize + 16, 10)
-        .fill(COLORS.card);
+        .roundedRect(qrX - 6, qrY - 6, qrSize + 12, qrSize + 12, 6)
+        .fill(COLORS.qrLight);
       doc
-        .roundedRect(qrX - 8, qrY - 8, qrSize + 16, qrSize + 16, 10)
-        .lineWidth(1)
-        .strokeColor(COLORS.line)
+        .roundedRect(qrX - 6, qrY - 6, qrSize + 12, qrSize + 12, 6)
+        .lineWidth(0.8)
+        .strokeColor(COLORS.accent)
         .stroke();
       doc.image(Buffer.from(qrBase64, 'base64'), qrX, qrY, { width: qrSize });
 
-      const metaLeft = qrX + qrSize + 36;
-      const metaWidth = contentLeft + contentWidth - metaLeft;
-      const issueDate = formatIssueDate(certificate.issueDate);
-
-      const metaRows: Array<[string, string]> = [
-        ['Серия бланка', certificate.blankSeries || '—'],
-        ['Номер бланка', certificate.blankNumber || '—'],
-        ['Дата выдачи', issueDate],
-        ['Рег. номер', certificate.registrationNumber || '—'],
-      ];
-
-      let metaY = qrY;
-      for (const [label, value] of metaRows) {
-        doc
-          .fillColor(COLORS.soft)
-          .font('CertRegular')
-          .fontSize(8)
-          .text(label.toUpperCase(), metaLeft, metaY, {
-            width: metaWidth,
-            characterSpacing: 1,
-          });
-        doc
-          .fillColor(COLORS.ink)
-          .font('CertBold')
-          .fontSize(11)
-          .text(value, metaLeft, metaY + 12, { width: metaWidth });
-        metaY += 34;
-      }
-
-      doc
-        .fillColor(COLORS.soft)
-        .font('CertRegular')
-        .fontSize(8)
-        .text('Проверка подлинности по QR-коду', qrX - 8, qrY + qrSize + 14, {
-          width: qrSize + 16,
-          align: 'center',
-        });
-
-      // Footer disclaimer
       doc
         .fillColor(COLORS.soft)
         .font('CertRegular')
         .fontSize(7.5)
-        .text(DISCLAIMER, contentLeft, pageHeight - 64, {
-          width: contentWidth,
+        .text('Проверка по QR-коду', qrX - 8, qrY + qrSize + 10, {
+          width: qrSize + 16,
           align: 'center',
-          lineGap: 2,
+        });
+
+      const signX = qrX + qrSize + 36;
+      const signWidth = contentLeft + contentWidth - signX;
+      doc
+        .fillColor(COLORS.soft)
+        .font('CertRegular')
+        .fontSize(8)
+        .text('ДИРЕКТОР', signX, qrY + 4, {
+          width: signWidth,
+          align: 'center',
+          characterSpacing: 1.5,
+        });
+      doc
+        .fillColor(COLORS.ink)
+        .font('CertBold')
+        .fontSize(11)
+        .text('ЧУП «ДатаВэйв Солюшнс»', signX, qrY + 22, {
+          width: signWidth,
+          align: 'center',
+        });
+      doc
+        .fillColor(COLORS.accent)
+        .font('CertBold')
+        .fontSize(14)
+        .text('Янчиленко И.А.', signX, qrY + 46, {
+          width: signWidth,
+          align: 'center',
+        });
+      doc
+        .moveTo(signX + 28, qrY + 68)
+        .lineTo(signX + signWidth - 28, qrY + 68)
+        .lineWidth(0.7)
+        .strokeColor(COLORS.soft)
+        .stroke();
+
+      // Soft translucent bar for the disclaimer over the landscape.
+      const disclaimerTop = pageHeight - 52;
+      doc.save();
+      doc
+        .rect(48, disclaimerTop - 6, pageWidth - 96, 34)
+        .fillOpacity(0.72)
+        .fill(COLORS.paperTint);
+      doc.restore();
+      doc
+        .fillColor(COLORS.soft)
+        .font('CertRegular')
+        .fontSize(7)
+        .text(DISCLAIMER, 58, disclaimerTop, {
+          width: pageWidth - 116,
+          align: 'center',
+          lineGap: 1.5,
         });
 
       doc.end();
@@ -325,105 +385,38 @@ export class CertificatePdfService {
     };
   }
 
-  private paintBackground(
-    doc: InstanceType<typeof PDFDocument>,
-    pageWidth: number,
-    pageHeight: number,
-  ): void {
-    doc.rect(0, 0, pageWidth, pageHeight).fill(COLORS.paper);
-    // Soft top wash
-    doc.rect(0, 0, pageWidth, 120).fill(COLORS.paperEdge);
-    // Soft bottom wash
-    doc.rect(0, pageHeight - 100, pageWidth, 100).fill(COLORS.paperEdge);
-  }
-
-  private paintFrame(
-    doc: InstanceType<typeof PDFDocument>,
-    pageWidth: number,
-    pageHeight: number,
-    margin: number,
-  ): void {
-    const w = pageWidth - margin * 2;
-    const h = pageHeight - margin * 2;
-
-    doc
-      .lineWidth(1.5)
-      .strokeColor(COLORS.frame)
-      .roundedRect(margin, margin, w, h, 6)
-      .stroke();
-
-    doc
-      .lineWidth(0.6)
-      .strokeColor(COLORS.line)
-      .roundedRect(margin + 8, margin + 8, w - 16, h - 16, 4)
-      .stroke();
-
-    // Thin crimson top accent line inside frame
-    const accentY = margin + 22;
-    doc
-      .moveTo(margin + 48, accentY)
-      .lineTo(pageWidth - margin - 48, accentY)
-      .lineWidth(1.2)
-      .strokeColor(COLORS.accent)
-      .stroke();
-  }
-
-  private paintCornerMarks(
-    doc: InstanceType<typeof PDFDocument>,
-    pageWidth: number,
-    pageHeight: number,
-    inset: number,
-  ): void {
-    const len = 18;
-    doc.lineWidth(1.1).strokeColor(COLORS.accent);
-
-    // Top-left
-    doc.moveTo(inset, inset + len).lineTo(inset, inset).lineTo(inset + len, inset).stroke();
-    // Top-right
-    doc
-      .moveTo(pageWidth - inset - len, inset)
-      .lineTo(pageWidth - inset, inset)
-      .lineTo(pageWidth - inset, inset + len)
-      .stroke();
-    // Bottom-left
-    doc
-      .moveTo(inset, pageHeight - inset - len)
-      .lineTo(inset, pageHeight - inset)
-      .lineTo(inset + len, pageHeight - inset)
-      .stroke();
-    // Bottom-right
-    doc
-      .moveTo(pageWidth - inset - len, pageHeight - inset)
-      .lineTo(pageWidth - inset, pageHeight - inset)
-      .lineTo(pageWidth - inset, pageHeight - inset - len)
-      .stroke();
-  }
-
-  private drawAccentRule(
+  private drawOrnament(
     doc: InstanceType<typeof PDFDocument>,
     centerX: number,
     y: number,
-    halfWidth: number,
   ): void {
+    const half = 54;
     doc
-      .moveTo(centerX - halfWidth, y)
-      .lineTo(centerX - 8, y)
-      .lineWidth(1)
-      .strokeColor(COLORS.line)
+      .moveTo(centerX - half, y)
+      .lineTo(centerX - 10, y)
+      .lineWidth(0.9)
+      .strokeColor(COLORS.accent)
       .stroke();
-    doc.circle(centerX, y, 2.2).fill(COLORS.accent);
     doc
-      .moveTo(centerX + 8, y)
-      .lineTo(centerX + halfWidth, y)
-      .lineWidth(1)
-      .strokeColor(COLORS.line)
+      .moveTo(centerX + 10, y)
+      .lineTo(centerX + half, y)
+      .lineWidth(0.9)
+      .strokeColor(COLORS.accent)
       .stroke();
+    // Small diamond / knot mark in the middle
+    doc
+      .save()
+      .translate(centerX, y)
+      .rotate(45)
+      .rect(-3.2, -3.2, 6.4, 6.4)
+      .fill(COLORS.seal)
+      .restore();
   }
 
   private buildVerificationUrl(certificateId: string): string {
     const base =
-      this.config.get<string>('appPublicUrl')?.replace(/\/$/, '') ??
-      `http://localhost:${this.config.get<number>('port') ?? 3001}`;
-    return `${base}/api/certificates/${certificateId}/verify`;
+      this.config.get<string>('appPublicUrl')?.replace(/\/$/, '')
+      ?? `http://localhost:${this.config.get<number>('port') ?? 3001}`;
+    return `${base}/verify/certificate/${certificateId}`;
   }
 }

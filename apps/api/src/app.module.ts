@@ -86,6 +86,15 @@ function resolveEnvFilePaths(): string[] {
         migrations: [join(__dirname, 'database/migrations/*{.ts,.js}')],
         migrationsRun: process.env.E2E_SYNC_SCHEMA !== 'true',
         logging: config.get<string>('nodeEnv') === 'development',
+        // Prevent unbounded pool waits under load / stuck clients after long uptime.
+        maxQueryExecutionTime: 15_000,
+        extra: {
+          max: 20,
+          idleTimeoutMillis: 30_000,
+          connectionTimeoutMillis: 10_000,
+          // Cap individual statements so a blocked query cannot hog pool slots forever.
+          options: '-c statement_timeout=30000 -c lock_timeout=15000',
+        },
       }),
     }),
     ScheduleModule.forRoot(),

@@ -20,6 +20,7 @@ import { TelegramPollingService } from './telegram.polling.service';
 import { TelegramService } from './telegram.service';
 import { TelegramStartupLogger } from './telegram-startup.logger';
 import { TelegramUpdateHandler } from './telegram-update.handler';
+import { TelegramWebhookIntake } from './telegram-webhook.intake';
 import { TelegramWebhookLifecycleService } from './telegram-webhook.lifecycle';
 
 @Module({
@@ -48,12 +49,14 @@ import { TelegramWebhookLifecycleService } from './telegram-webhook.lifecycle';
     TelegramMenuService,
     TelegramUpdateHandler,
     TelegramService,
+    TelegramWebhookIntake,
     TelegramStartupLogger,
     TelegramWebhookLifecycleService,
     TelegramPollingService,
   ],
   exports: [
     TelegramService,
+    TelegramWebhookIntake,
     TelegramLinkService,
     TelegramGatewayModule,
     LessonConfirmationsModule,

@@ -85,7 +85,8 @@ export class FunctionsController {
     user: JwtPayload | null,
   ) {
     const origin = `${req.protocol}://${req.get('host')}`;
-    const webhookUrl = `${origin}/api/webhooks/telegram`;
+    const configuredWebhook = (this.config.get<string>('telegram.webhookUrl') ?? '').trim();
+    const webhookUrl = configuredWebhook || `${origin}/api/telegram/webhook`;
 
     switch (name) {
       case 'sendTelegramMessage':

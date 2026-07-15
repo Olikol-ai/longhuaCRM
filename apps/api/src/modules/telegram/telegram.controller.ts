@@ -1,48 +1,31 @@
 import {
   Body,
   Controller,
-  ForbiddenException,
   Headers,
-  Logger,
+  HttpCode,
+  HttpStatus,
   Post,
-  UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { SkipThrottle } from '@nestjs/throttler';
-import { TelegramService } from './telegram.service';
+import { TelegramWebhookIntake } from './telegram-webhook.intake';
 
+/**
+ * Canonical Telegram webhook endpoint.
+ * URL: POST /api/telegram/webhook
+ *
+ * Telegram requires a timely 2xx; we force HTTP 200 (Nest defaults POST → 201).
+ */
 @SkipThrottle()
 @Controller('telegram')
 export class TelegramController {
-  private readonly logger = new Logger(TelegramController.name);
-
-  constructor(
-    private readonly telegramService: TelegramService,
-    private readonly config: ConfigService,
-  ) {}
+  constructor(private readonly intake: TelegramWebhookIntake) {}
 
   @Post('webhook')
-  async webhook(
+  @HttpCode(HttpStatus.OK)
+  webhook(
     @Body() body: Record<string, unknown>,
     @Headers('x-telegram-bot-api-secret-token') secretToken?: string,
   ) {
-    const expectedSecret = this.config.get<string>('telegram.webhookSecret');
-    const isProduction = this.config.get<string>('nodeEnv') === 'production';
-
-    if (isProduction && !expectedSecret) {
-      throw new ForbiddenException('TELEGRAM_WEBHOOK_SECRET is required in production');
-    }
-
-    if (expectedSecret && secretToken !== expectedSecret) {
-      throw new UnauthorizedException('Invalid Telegram webhook secret');
-    }
-
-    try {
-      await this.telegramService.handleUpdate(body);
-      return { ok: true };
-    } catch (error) {
-      this.logger.error(`Telegram webhook error: ${(error as Error).message}`);
-      return { ok: true };
-    }
+    return this.intake.handle(body, secretToken, 'telegram.controller');
   }
 }

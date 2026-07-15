@@ -24,6 +24,31 @@ const FILTER_FIELD_ALIASES: Record<string, string> = {
   shop_item_id: 'shopItemId',
 };
 
+/** PostgreSQL `time` often serializes as HH:MM:SS — UI only needs HH:MM. */
+const CLOCK_TIME_RE = /^(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/;
+
+const CLOCK_TIME_KEYS = new Set([
+  'startTime',
+  'endTime',
+  'timeFrom',
+  'timeTo',
+  'start_time',
+  'end_time',
+  'time_from',
+  'time_to',
+  'from',
+  'to',
+]);
+
+export function formatClockTime(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const match = CLOCK_TIME_RE.exec(value.trim());
+  if (!match) return value;
+  const hours = String(Number(match[1])).padStart(2, '0');
+  const minutes = match[2];
+  return `${hours}:${minutes}`;
+}
+
 function entityFieldToApiKey(key: string): string {
   return API_FIELD_ALIASES[key] ?? camelToSnake(key);
 }
@@ -52,9 +77,12 @@ export function entityToApiRecord(
       continue;
     }
     if (key.startsWith('__')) continue;
-    const mapped = entityToApiRecord(val, seen);
+    let mapped = entityToApiRecord(val, seen);
     if (mapped === undefined) {
       continue;
+    }
+    if (CLOCK_TIME_KEYS.has(key)) {
+      mapped = formatClockTime(mapped);
     }
     out[entityFieldToApiKey(key)] = mapped;
     // Legacy FE contract: individual lessons were exposed as student_id.

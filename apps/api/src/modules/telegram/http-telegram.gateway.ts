@@ -1,10 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { createTimeoutSignal } from '../../common/http/fetch-with-timeout';
 import { SettingsService } from '../settings/settings.service';
 import {
   TelegramApiResult,
   TelegramGateway,
   TelegramSendMessageOptions,
 } from './telegram.gateway';
+
+/** Default HTTP budget for most Bot API methods. */
+const TELEGRAM_DEFAULT_TIMEOUT_MS = 15_000;
+/** Extra cushion beyond Telegram long-poll `timeout` seconds. */
+const TELEGRAM_LONG_POLL_GRACE_MS = 15_000;
 
 @Injectable()
 export class HttpTelegramGateway extends TelegramGateway {
@@ -21,12 +27,15 @@ export class HttpTelegramGateway extends TelegramGateway {
   private async call(
     method: string,
     body?: Record<string, unknown>,
-    signal?: AbortSignal,
+    options?: { signal?: AbortSignal; timeoutMs?: number },
   ): Promise<TelegramApiResult> {
     const botToken = await this.getBotToken();
     if (!botToken) {
       return { ok: false, error: 'TELEGRAM_BOT_TOKEN not set' };
     }
+
+    const timeoutMs = options?.timeoutMs ?? TELEGRAM_DEFAULT_TIMEOUT_MS;
+    const signal = createTimeoutSignal(timeoutMs, options?.signal);
 
     try {
       const res = await fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
@@ -37,11 +46,13 @@ export class HttpTelegramGateway extends TelegramGateway {
       });
       return (await res.json()) as TelegramApiResult;
     } catch (error) {
-      if (signal?.aborted) {
+      const message = (error as Error).message || 'Telegram request failed';
+      if (signal.aborted || /aborted|AbortError|TimeoutError/i.test(message)) {
+        this.logger.warn(`Telegram ${method} aborted/timeout after ${timeoutMs}ms`);
         return { ok: false, error: 'aborted' };
       }
-      this.logger.error(`Telegram ${method} failed: ${(error as Error).message}`);
-      return { ok: false, error: (error as Error).message };
+      this.logger.error(`Telegram ${method} failed: ${message}`);
+      return { ok: false, error: message };
     }
   }
 
@@ -118,7 +129,10 @@ export class HttpTelegramGateway extends TelegramGateway {
     if (offset !== undefined) {
       payload.offset = offset;
     }
-    return this.call('getUpdates', payload, signal);
+    return this.call('getUpdates', payload, {
+      signal,
+      timeoutMs: timeoutSeconds * 1000 + TELEGRAM_LONG_POLL_GRACE_MS,
+    });
   }
 
   getMe(): Promise<TelegramApiResult> {

@@ -138,6 +138,7 @@ export class AlfaBankService {
             Object.entries(alfaPayload).map(([key, value]) => [key, String(value)]),
           ),
         ).toString(),
+        signal: AbortSignal.timeout(15_000),
       });
 
       const alfaData = await alfaRes.json();
@@ -434,6 +435,7 @@ export class AlfaBankService {
         password: alfaToken,
         orderId,
       }).toString(),
+      signal: AbortSignal.timeout(15_000),
     });
 
     const data = await res.json();

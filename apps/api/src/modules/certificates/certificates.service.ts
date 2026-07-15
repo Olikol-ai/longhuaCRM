@@ -380,6 +380,53 @@ export class CertificatesService {
     }
   }
 
+  /**
+   * Public authenticity check for QR scans (no auth).
+   * Drafts are treated as not found so unpublished numbers cannot be probed.
+   */
+  async verifyPublic(id: string): Promise<Record<string, unknown>> {
+    const certificate = await this.repository.findById(id);
+    if (!certificate || certificate.status === 'draft') {
+      throw new NotFoundException('Сертификат не найден в реестре');
+    }
+
+    const [student, course] = await Promise.all([
+      certificate.studentId
+        ? this.dataSource.getRepository(StudentEntity).findOne({
+            where: { id: certificate.studentId },
+          })
+        : Promise.resolve(null),
+      this.dataSource.getRepository(CourseTemplateEntity).findOne({
+        where: { id: certificate.courseId },
+      }),
+    ]);
+
+    const valid =
+      certificate.status === 'issued'
+      || certificate.status === 'sent'
+      || certificate.status === 'duplicate';
+
+    let message = 'Сертификат действителен и подтверждён в реестре Longhua Chinese.';
+    if (certificate.status === 'revoked') {
+      message = 'Сертификат отозван и больше не является действительным.';
+    }
+
+    return {
+      valid,
+      status: certificate.status,
+      message,
+      registrationNumber: certificate.registrationNumber,
+      issueDate: certificate.issueDate,
+      studentName: student?.name?.trim() || '—',
+      courseName: course?.name?.trim() || '—',
+      issuer: {
+        title: 'Директор',
+        organization: 'ЧУП «ДатаВэйв Солюшнс»',
+        director: 'Янчиленко И.А.',
+      },
+    };
+  }
+
   private normalizeCertificateInput(
     dto: CreateCertificateDto | UpdateCertificateDto,
     existing?: CertificateEntity,

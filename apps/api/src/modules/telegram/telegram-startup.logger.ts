@@ -16,10 +16,22 @@ export class TelegramStartupLogger implements OnApplicationBootstrap {
     const mode = this.config.get<string>('telegram.mode') ?? 'webhook';
     const mock = this.config.get<boolean>('telegram.mock') === true;
     const botToken = (this.config.get<string>('telegram.botToken') ?? '').trim();
+    const webhookUrl = (this.config.get<string>('telegram.webhookUrl') ?? '').trim();
+    const secretConfigured = Boolean(
+      (this.config.get<string>('telegram.webhookSecret') ?? '').trim(),
+    );
 
     this.logger.log(`Telegram enabled: ${enabled ? 'YES' : 'NO'}`);
     this.logger.log(`Mode: ${mode}`);
     this.logger.log(`Mock: ${mock ? 'YES' : 'NO'}`);
     this.logger.log(`Bot token configured: ${botToken ? 'YES' : 'NO'}`);
+    if (mode === 'webhook') {
+      this.logger.log(`Webhook URL: ${webhookUrl || '(missing TELEGRAM_WEBHOOK_URL)'}`);
+      this.logger.log(`Webhook secret configured: ${secretConfigured ? 'YES' : 'NO'}`);
+      this.logger.log('Polling lifecycle: OFF (webhook mode)');
+    } else {
+      this.logger.log('Webhook registration: OFF (polling mode)');
+      this.logger.log('Polling lifecycle: ON when token is present');
+    }
   }
 }

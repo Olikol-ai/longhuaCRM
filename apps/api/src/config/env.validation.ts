@@ -1,6 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Min, validateSync } from 'class-validator';
 import { getEmailDomain, TEST_EMAIL_DOMAIN } from '../common/security/email-validation';
+import { resolveTelegramMode } from '../modules/telegram/telegram-mode.util';
 import { parseEnvBoolean } from './env-boolean';
 
 function assertProductionEmail(value: string | undefined, field: string): void {
@@ -247,6 +248,23 @@ export function validateEnv(config: Record<string, unknown>) {
     assertProductionEmail(parsed.MAIL_FROM, 'MAIL_FROM');
     if ((parsed.CORS_ORIGINS ?? '').includes('localhost')) {
       throw new Error('CORS_ORIGINS must not include localhost in production');
+    }
+
+    const telegramEnabled = parsed.TELEGRAM_ENABLED !== false;
+    const telegramMode = resolveTelegramMode(parsed.TELEGRAM_MODE, parsed.NODE_ENV);
+    if (telegramEnabled && telegramMode === 'webhook') {
+      if (!parsed.TELEGRAM_WEBHOOK_URL?.trim()) {
+        throw new Error(
+          'TELEGRAM_WEBHOOK_URL must be set in production webhook mode '
+          + '(example: https://lk.longhuachinese.online/api/telegram/webhook)',
+        );
+      }
+      if (!/^https:\/\//i.test(parsed.TELEGRAM_WEBHOOK_URL.trim())) {
+        throw new Error('TELEGRAM_WEBHOOK_URL must be HTTPS in production');
+      }
+      if (!parsed.TELEGRAM_WEBHOOK_SECRET?.trim()) {
+        throw new Error('TELEGRAM_WEBHOOK_SECRET must be set in production webhook mode');
+      }
     }
   }
 

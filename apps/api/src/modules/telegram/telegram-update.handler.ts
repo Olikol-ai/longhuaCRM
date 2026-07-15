@@ -23,11 +23,13 @@ type MenuAction =
  * Button-first UX: inline menu + lesson confirm/decline. Deep-link for binding only.
  * Navigation uses InlineKeyboardMarkup; sticky ReplyKeyboard is cleared on contact.
  */
+const STICKY_KEYBOARD_CACHE_MAX = 2_000;
+
 @Injectable()
 export class TelegramUpdateHandler {
   private readonly logger = new Logger(TelegramUpdateHandler.name);
-  /** Chats where we already pulsed ReplyKeyboardRemove in this process. */
-  private readonly stickyKeyboardCleared = new Set<string>();
+  /** Chats where we already pulsed ReplyKeyboardRemove in this process (bounded LRU). */
+  private readonly stickyKeyboardCleared = new Map<string, true>();
 
   constructor(
     private readonly gateway: TelegramGateway,
@@ -142,10 +144,21 @@ export class TelegramUpdateHandler {
     force: boolean,
   ): Promise<void> {
     if (!force && this.stickyKeyboardCleared.has(chatId)) {
+      // Touch for LRU ordering.
+      this.stickyKeyboardCleared.delete(chatId);
+      this.stickyKeyboardCleared.set(chatId, true);
       return;
     }
     await this.menu.clearStickyReplyKeyboard(chatId);
-    this.stickyKeyboardCleared.add(chatId);
+    this.stickyKeyboardCleared.delete(chatId);
+    this.stickyKeyboardCleared.set(chatId, true);
+    while (this.stickyKeyboardCleared.size > STICKY_KEYBOARD_CACHE_MAX) {
+      const oldest = this.stickyKeyboardCleared.keys().next().value;
+      if (oldest === undefined) {
+        break;
+      }
+      this.stickyKeyboardCleared.delete(oldest);
+    }
   }
 
   private async handleMenuAction(

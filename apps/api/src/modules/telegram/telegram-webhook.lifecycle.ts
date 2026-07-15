@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
+import { JobGuard } from '../../common/concurrency/job-guard';
 import { assertHttpsTelegramWebhookUrl } from './telegram-mode.util';
 import { TelegramService } from './telegram.service';
 
@@ -14,6 +15,7 @@ export class TelegramWebhookLifecycleService
   implements OnApplicationBootstrap, BeforeApplicationShutdown
 {
   private readonly logger = new Logger(TelegramWebhookLifecycleService.name);
+  private readonly healthGuard = new JobGuard(this.logger, 'verifyWebhookHealth');
 
   constructor(
     private readonly telegramService: TelegramService,
@@ -42,11 +44,16 @@ export class TelegramWebhookLifecycleService
   }
 
   async beforeApplicationShutdown() {
-    if (!this.config.get<boolean>('telegram.enabled')) return;
-    if (this.config.get<boolean>('telegram.mock') === true) return;
-    const mode = this.config.get<string>('telegram.mode') ?? 'webhook';
-    if (mode === 'polling') return;
-    await this.telegramService.deleteWebhook();
+    // Intentionally leave Telegram webhook registered across restarts/deploys.
+    // Clearing it here created a delivery blackout until the next bootstrap
+    // (and raced with local reloads). Re-registration on startup is idempotent;
+    // health cron repairs mismatches. Use TELEGRAM_MODE=polling (or admin delete)
+    // when the webhook must be removed.
+    if ((this.config.get<string>('telegram.mode') ?? 'webhook') === 'webhook') {
+      this.logger.log(
+        'Graceful shutdown: leaving Telegram webhook registered for continuity',
+      );
+    }
   }
 
   @Cron('*/5 * * * *')
@@ -58,30 +65,32 @@ export class TelegramWebhookLifecycleService
       return;
     }
 
-    let expectedUrl: string;
-    try {
-      expectedUrl = this.resolveWebhookUrl();
-    } catch (error) {
-      this.logger.error((error as Error).message);
-      return;
-    }
-
-    try {
-      const info = await this.telegramService.getWebhookInfo();
-      const currentUrl = (info as { result?: { url?: string; last_error_date?: number } })
-        ?.result?.url;
-      const lastErrorDate = (info as { result?: { last_error_date?: number } })?.result
-        ?.last_error_date;
-
-      if (currentUrl !== expectedUrl || lastErrorDate) {
-        this.logger.warn(
-          `Webhook mismatch or error detected (url=${currentUrl}, last_error_date=${lastErrorDate}). Re-registering...`,
-        );
-        await this.ensureWebhook();
+    await this.healthGuard.run(async () => {
+      let expectedUrl: string;
+      try {
+        expectedUrl = this.resolveWebhookUrl();
+      } catch (error) {
+        this.logger.error((error as Error).message);
+        return;
       }
-    } catch (error) {
-      this.logger.error(`Webhook health check failed: ${(error as Error).message}`);
-    }
+
+      try {
+        const info = await this.telegramService.getWebhookInfo();
+        const currentUrl = (info as { result?: { url?: string; last_error_date?: number } })
+          ?.result?.url;
+        const lastErrorDate = (info as { result?: { last_error_date?: number } })?.result
+          ?.last_error_date;
+
+        if (currentUrl !== expectedUrl || lastErrorDate) {
+          this.logger.warn(
+            `Webhook mismatch or error detected (url=${currentUrl}, last_error_date=${lastErrorDate}). Re-registering...`,
+          );
+          await this.ensureWebhook();
+        }
+      } catch (error) {
+        this.logger.error(`Webhook health check failed: ${(error as Error).message}`);
+      }
+    });
   }
 
   private async ensureWebhook() {

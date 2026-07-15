@@ -194,6 +194,9 @@ export class MailService implements OnModuleInit {
         port: mail.port,
         secure: mail.secure,
         auth: { user: mail.user, pass: mail.pass },
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 20_000,
       });
     }
 

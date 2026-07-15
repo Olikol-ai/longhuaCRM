@@ -4,16 +4,16 @@ import {
   ForbiddenException,
   Header,
   Headers,
+  HttpCode,
+  HttpStatus,
   Logger,
   Post,
   Req,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
-import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { AlfaBankService } from '../alfabank/alfabank.service';
-import { TelegramService } from '../telegram/telegram.service';
+import { TelegramWebhookIntake } from '../telegram/telegram-webhook.intake';
 
 @SkipThrottle()
 @Controller('webhooks')
@@ -21,34 +21,21 @@ export class WebhooksController {
   private readonly logger = new Logger(WebhooksController.name);
 
   constructor(
-    private readonly telegramService: TelegramService,
+    private readonly telegramWebhookIntake: TelegramWebhookIntake,
     private readonly alfaBankService: AlfaBankService,
-    private readonly config: ConfigService,
   ) {}
 
+  /**
+   * Legacy compatibility route. Canonical endpoint is POST /api/telegram/webhook.
+   * Kept so older Cloudflare tunnel paths keep working while logging a deprecation warning.
+   */
   @Post('telegram')
-  async telegramWebhook(
+  @HttpCode(HttpStatus.OK)
+  telegramWebhook(
     @Body() body: Record<string, unknown>,
     @Headers('x-telegram-bot-api-secret-token') secretToken?: string,
   ) {
-    const expectedSecret = this.config.get<string>('telegram.webhookSecret');
-    const isProduction = this.config.get<string>('nodeEnv') === 'production';
-
-    if (isProduction && !expectedSecret) {
-      throw new ForbiddenException('TELEGRAM_WEBHOOK_SECRET is required in production');
-    }
-
-    if (expectedSecret && secretToken !== expectedSecret) {
-      throw new UnauthorizedException('Invalid Telegram webhook secret');
-    }
-
-    try {
-      await this.telegramService.handleUpdate(body);
-      return { ok: true };
-    } catch (error) {
-      this.logger.error(`Telegram webhook error: ${(error as Error).message}`);
-      return { ok: true };
-    }
+    return this.telegramWebhookIntake.handle(body, secretToken, 'webhooks.legacy');
   }
 
   @Post('alfabank')

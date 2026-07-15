@@ -48,14 +48,42 @@ export function configureCors(app: INestApplication, config: ConfigService): voi
   app.enableCors({ origin: true, credentials: true });
 }
 
+const SHUTDOWN_TIMEOUT_MS = 12_000;
+
 export function registerGracefulShutdown(app: INestApplication): void {
   app.enableShutdownHooks();
 
+  let shuttingDown = false;
   const signals: NodeJS.Signals[] = ['SIGTERM', 'SIGINT'];
   for (const signal of signals) {
     process.on(signal, () => {
+      if (shuttingDown) {
+        return;
+      }
+      shuttingDown = true;
       Logger.log(`Received ${signal}, shutting down gracefully…`, 'Bootstrap');
-      void app.close().finally(() => process.exit(0));
+
+      const forceExit = setTimeout(() => {
+        Logger.error(
+          `Graceful shutdown exceeded ${SHUTDOWN_TIMEOUT_MS}ms — forcing exit`,
+          'Bootstrap',
+        );
+        process.exit(1);
+      }, SHUTDOWN_TIMEOUT_MS);
+      forceExit.unref?.();
+
+      void app
+        .close()
+        .catch((error: unknown) => {
+          Logger.error(
+            `Shutdown error: ${error instanceof Error ? error.message : String(error)}`,
+            'Bootstrap',
+          );
+        })
+        .finally(() => {
+          clearTimeout(forceExit);
+          process.exit(0);
+        });
     });
   }
 }

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { JobGuard } from '../../common/concurrency/job-guard';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import {
@@ -20,6 +21,8 @@ import { LessonConfirmationService } from './lesson-confirmation.service';
 @Injectable()
 export class LessonConfirmationJobsService {
   private readonly logger = new Logger(LessonConfirmationJobsService.name);
+  private readonly remind24hGuard = new JobGuard(this.logger, 'sendLessonReminders24h');
+  private readonly confirm3hGuard = new JobGuard(this.logger, 'sendLessonConfirmations3h');
 
   constructor(
     private readonly config: ConfigService,
@@ -36,10 +39,12 @@ export class LessonConfirmationJobsService {
     if (!this.config.get<boolean>('jobs.enabled')) return;
     if (!this.config.get<boolean>('telegram.enabled')) return;
 
-    const result = await this.runSendLessonReminders24h();
-    this.logger.log(
-      `send-lesson-reminders-24h: lessons=${result.lessons} sent=${result.sent}`,
-    );
+    await this.remind24hGuard.run(async () => {
+      const result = await this.runSendLessonReminders24h();
+      this.logger.log(
+        `send-lesson-reminders-24h: lessons=${result.lessons} sent=${result.sent}`,
+      );
+    });
   }
 
   @Cron('*/5 * * * *')
@@ -47,10 +52,12 @@ export class LessonConfirmationJobsService {
     if (!this.config.get<boolean>('jobs.enabled')) return;
     if (!this.config.get<boolean>('telegram.enabled')) return;
 
-    const result = await this.runSendPendingLessonConfirmations();
-    this.logger.log(
-      `send-lesson-confirmations-3h: lessons=${result.lessons} sent=${result.sent} skipped=${result.skipped}`,
-    );
+    await this.confirm3hGuard.run(async () => {
+      const result = await this.runSendPendingLessonConfirmations();
+      this.logger.log(
+        `send-lesson-confirmations-3h: lessons=${result.lessons} sent=${result.sent} skipped=${result.skipped}`,
+      );
+    });
   }
 
   async runSendLessonReminders24h(): Promise<{ lessons: number; sent: number }> {
