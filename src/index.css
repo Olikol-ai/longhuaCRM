@@ -82,10 +82,16 @@
     @apply border-border outline-ring/50;
   }
 
+  html {
+    overflow-x: hidden;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-size: 15px;
     transition: background-color 0.2s, color 0.2s;
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
   }
 
   .dark body {

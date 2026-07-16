@@ -140,7 +140,7 @@ export default function StudentLessons() {
   const selectedDayLessons = selectedDayStr ? getLessonsForDay(selectedDayStr) : [];
 
   return (
-    <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
         <h1 className="text-2xl font-bold text-slate-900">Мои уроки</h1>
@@ -178,7 +178,7 @@ export default function StudentLessons() {
             <Button variant="outline" size="icon" onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="h-9 w-9">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <h2 className="text-base font-semibold text-slate-900 min-w-[180px] text-center capitalize">
+            <h2 className="text-base font-semibold text-slate-900 flex-1 sm:flex-none sm:min-w-[180px] text-center capitalize truncate">
               {format(currentDate, "LLLL yyyy", { locale: ru })}
             </h2>
             <Button variant="outline" size="icon" onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="h-9 w-9">
@@ -189,9 +189,9 @@ export default function StudentLessons() {
             </Button>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto shadow-sm">
             {/* Weekday headers */}
-            <div className="grid grid-cols-7 border-b border-slate-100">
+            <div className="grid grid-cols-7 border-b border-slate-100 min-w-[520px]">
               {WEEK_DAYS_RU.map((d) => (
                 <div key={d} className="py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wide">
                   {d}
@@ -200,7 +200,7 @@ export default function StudentLessons() {
             </div>
 
             {/* Day cells */}
-            <div className="grid grid-cols-7">
+            <div className="grid grid-cols-7 min-w-[520px]">
               {monthDays.map((day, i) => {
                 const dayStr = format(day, "yyyy-MM-dd");
                 const dayLessons = getLessonsForDay(dayStr);
@@ -268,7 +268,7 @@ export default function StudentLessons() {
             <Button variant="outline" size="icon" onClick={() => setCurrentDate(subWeeks(currentDate, 1))} className="h-9 w-9">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <h2 className="text-base font-semibold text-slate-900 min-w-[220px] text-center">
+            <h2 className="text-base font-semibold text-slate-900 flex-1 sm:flex-none sm:min-w-[220px] text-center truncate">
               {format(weekDays[0], "d MMM", { locale: ru })} — {format(weekDays[6], "d MMM yyyy", { locale: ru })}
             </h2>
             <Button variant="outline" size="icon" onClick={() => setCurrentDate(addWeeks(currentDate, 1))} className="h-9 w-9">

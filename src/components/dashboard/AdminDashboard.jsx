@@ -106,13 +106,13 @@ export default function AdminDashboard({ user }) {
   const userName = getGreetingName(user) || "Администратор";
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-6 space-y-6 max-w-6xl mx-auto w-full min-w-0">
       <div>
         <h2 className="text-xl font-bold text-foreground">{getGreeting()}, {userName}</h2>
         <p className="text-sm text-muted-foreground mt-0.5">Вот что происходит сегодня</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard label="Уроков сегодня" value={todayLessons.length} icon={CalendarDays} color="indigo" />
         <StatCard label="Уроков завтра" value={tomorrowLessons.length} icon={Clock} color="violet" />
         <StatCard label="Всего учеников" value={activeStudents.length} icon={GraduationCap} color="sky" />

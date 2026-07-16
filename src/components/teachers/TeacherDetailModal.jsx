@@ -51,7 +51,7 @@ export default function TeacherDetailModal({ teacher, students, onEdit, onDelete
 
         {tab === "info" && (
         <div className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
               ["Email", teacher.email],
               ["Ставка", teacher.hourly_rate ? `${teacher.hourly_rate} BYN/ч` : null],

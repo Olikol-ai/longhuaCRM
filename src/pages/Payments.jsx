@@ -73,39 +73,40 @@ export default function Payments() {
   );
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto w-full min-w-0">
       {error && (
         <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 text-sm px-4 py-3">{error}</div>
       )}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h2 className="text-xl font-bold text-foreground">Платежи</h2>
           <p className="text-sm text-muted-foreground">{payments.length} записей всего</p>
         </div>
         <button
+          type="button"
           onClick={() => { setEditingPayment(null); setShowModal(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 w-full sm:w-auto"
         >
           <Plus className="w-4 h-4" /> Добавить платёж
         </button>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        <Card className="p-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6">
+        <Card className="p-4 sm:p-5">
           <div className="w-8 h-8 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg flex items-center justify-center mb-3">
             <CreditCard className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           </div>
           <p className="text-2xl font-bold text-foreground">{formatMoneyByn(totalRevenue)}</p>
           <p className="text-xs text-muted-foreground mt-0.5">Общая выручка</p>
         </Card>
-        <Card className="p-5">
+        <Card className="p-4 sm:p-5">
           <div className="w-8 h-8 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg flex items-center justify-center mb-3">
             <TrendingUp className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
           </div>
           <p className="text-2xl font-bold text-foreground">{formatMoneyByn(monthRevenue)}</p>
           <p className="text-xs text-muted-foreground mt-0.5">В этом месяце</p>
         </Card>
-        <Card className="p-5">
+        <Card className="p-4 sm:p-5 sm:col-span-2 lg:col-span-1">
           <div className="w-8 h-8 bg-violet-50 dark:bg-violet-950/40 rounded-lg flex items-center justify-center mb-3">
             <CreditCard className="w-4 h-4 text-violet-600 dark:text-violet-400" />
           </div>
@@ -114,7 +115,7 @@ export default function Payments() {
         </Card>
       </div>
 
-      <div className="relative max-w-xs mb-4">
+      <div className="relative max-w-full sm:max-w-xs mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Поиск по ученику..."
@@ -133,13 +134,13 @@ export default function Payments() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[560px]">
               <thead>
                 <tr className="border-b border-border">
                   <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Ученик</th>
                   <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Сумма (BYN)</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Уроков добавлено</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Дата</th>
+                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3 hidden sm:table-cell">Уроков добавлено</th>
+                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3 hidden sm:table-cell">Дата</th>
                   <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3 hidden md:table-cell">Комментарий</th>
                   <th className="px-4 py-3"></th>
                 </tr>
@@ -162,12 +163,12 @@ export default function Payments() {
                     <td className="px-4 py-3">
                       <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{payment.amount} BYN</span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden sm:table-cell">
                       <span className="text-xs font-semibold bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded-full">
                         +{payment.lessons_added} уроков
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden sm:table-cell">
                       <span className="text-sm text-muted-foreground">{payment.payment_date}</span>
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">

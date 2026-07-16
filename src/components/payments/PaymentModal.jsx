@@ -46,7 +46,7 @@ export default function PaymentModal({ students, onSave, onClose, initialData })
               ))}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1">Сумма (BYN) *</label>
               <input type="number" min="0" value={form.amount} onChange={e => set("amount", e.target.value)}

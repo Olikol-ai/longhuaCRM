@@ -128,7 +128,7 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
           <DialogTitle>{student ? "Редактировать ученика" : "Добавить ученика"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Имя *</Label>
               <Input
@@ -157,7 +157,7 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Преподаватель (только администратор)</Label>
               <Select
@@ -186,7 +186,7 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Баланс уроков</Label>
               <Input

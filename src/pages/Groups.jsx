@@ -90,7 +90,7 @@ export default function Groups() {
   const teacherName = (id) => resolveAssignedTeacherLabel(id, teachers);
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6 w-full min-w-0">
       <div>
         <h2 className="text-xl font-bold">Группы</h2>
         <p className="text-sm text-muted-foreground">

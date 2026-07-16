@@ -234,67 +234,124 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
           <p className="text-slate-500 font-medium">Пользователи не найдены</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100">
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Пользователь</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide hidden md:table-cell">Email</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Роль</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide hidden lg:table-cell">Дата</th>
-                <th className="px-5 py-3.5 w-40"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((u) => {
-                const role = displayRole(u.role);
-                const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.user;
-                const displayName = getFullName(u);
-                const initials = displayName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
-                const isUpd = updating === u.id;
-                const hasAccount = u.has_account !== false;
-                const rowKey = hasAccount ? u.id : `${u.entry_type}:${u.id}`;
-                return (
-                  <tr key={rowKey} className={`border-b border-slate-50 last:border-0 ${isUpd ? "opacity-60" : "hover:bg-slate-50/50"} transition-colors`}>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${cfg.bg} ${cfg.text}`}>
-                          {initials}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-medium text-slate-800 truncate">{displayName}</p>
-                          <p className="text-xs text-slate-400 md:hidden truncate">{u.email || "—"}</p>
-                          {!hasAccount && (
-                            <p className="text-[11px] text-amber-600 font-medium mt-0.5">Профиль без аккаунта</p>
-                          )}
-                        </div>
-                        {isUpd && <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500 flex-shrink-0" />}
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-slate-500 hidden md:table-cell text-xs">{u.email || "—"}</td>
-                    <td className="px-5 py-3.5"><RoleBadge role={role} /></td>
-                    <td className="px-5 py-3.5 text-slate-400 text-xs hidden lg:table-cell">
-                      {u.created_date ? new Date(u.created_date).toLocaleDateString("ru-RU") : "—"}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      {hasAccount ? (
-                        <div className="flex items-center justify-end gap-2">
-                          <RoleDropdown userId={u.id} currentRole={role} onChangeRole={changeRole} disabled={isUpd} />
-                          <button onClick={() => setDeleteConfirm(u)} disabled={isUpd}
-                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-slate-400">Назначьте роль через регистрацию</span>
+        <>
+          {/* Mobile cards */}
+          <div className="md:hidden space-y-3">
+            {filtered.map((u) => {
+              const role = displayRole(u.role);
+              const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.user;
+              const displayName = getFullName(u);
+              const initials = displayName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
+              const isUpd = updating === u.id;
+              const hasAccount = u.has_account !== false;
+              const rowKey = hasAccount ? u.id : `${u.entry_type}:${u.id}`;
+              return (
+                <div key={rowKey} className={`bg-white rounded-2xl border border-slate-100 p-4 ${isUpd ? "opacity-60" : ""}`}>
+                  <div className="flex items-start gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${cfg.bg} ${cfg.text}`}>
+                      {initials}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-slate-800 truncate">{displayName}</p>
+                      <p className="text-xs text-slate-400 truncate mt-0.5">{u.email || "—"}</p>
+                      {!hasAccount && (
+                        <p className="text-[11px] text-amber-600 font-medium mt-0.5">Профиль без аккаунта</p>
                       )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <RoleBadge role={role} />
+                        {u.created_date && (
+                          <span className="text-[11px] text-slate-400">
+                            {new Date(u.created_date).toLocaleDateString("ru-RU")}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {isUpd && <Loader2 className="w-4 h-4 animate-spin text-indigo-500 flex-shrink-0" />}
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-slate-50 flex flex-wrap items-center gap-2">
+                    {hasAccount ? (
+                      <>
+                        <RoleDropdown userId={u.id} currentRole={role} onChangeRole={changeRole} disabled={isUpd} />
+                        <button
+                          type="button"
+                          onClick={() => setDeleteConfirm(u)}
+                          disabled={isUpd}
+                          className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 disabled:opacity-40"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Удалить
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-xs text-slate-400">Назначьте роль через регистрацию</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block bg-white rounded-2xl border border-slate-100 overflow-x-auto">
+            <table className="w-full text-sm min-w-[640px]">
+              <thead>
+                <tr className="border-b border-slate-100">
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Пользователь</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Email</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Роль</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide hidden lg:table-cell">Дата</th>
+                  <th className="px-5 py-3.5 w-40"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((u) => {
+                  const role = displayRole(u.role);
+                  const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.user;
+                  const displayName = getFullName(u);
+                  const initials = displayName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
+                  const isUpd = updating === u.id;
+                  const hasAccount = u.has_account !== false;
+                  const rowKey = hasAccount ? u.id : `${u.entry_type}:${u.id}`;
+                  return (
+                    <tr key={rowKey} className={`border-b border-slate-50 last:border-0 ${isUpd ? "opacity-60" : "hover:bg-slate-50/50"} transition-colors`}>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${cfg.bg} ${cfg.text}`}>
+                            {initials}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium text-slate-800 truncate">{displayName}</p>
+                            {!hasAccount && (
+                              <p className="text-[11px] text-amber-600 font-medium mt-0.5">Профиль без аккаунта</p>
+                            )}
+                          </div>
+                          {isUpd && <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500 flex-shrink-0" />}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 text-slate-500 text-xs">{u.email || "—"}</td>
+                      <td className="px-5 py-3.5"><RoleBadge role={role} /></td>
+                      <td className="px-5 py-3.5 text-slate-400 text-xs hidden lg:table-cell">
+                        {u.created_date ? new Date(u.created_date).toLocaleDateString("ru-RU") : "—"}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        {hasAccount ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <RoleDropdown userId={u.id} currentRole={role} onChangeRole={changeRole} disabled={isUpd} />
+                            <button type="button" onClick={() => setDeleteConfirm(u)} disabled={isUpd}
+                              className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400">Назначьте роль через регистрацию</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {deleteConfirm && (
@@ -344,18 +401,20 @@ function StudentsTab({ students, teachers, loading, onReload }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1 max-w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Поиск учеников..."
             className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
         </div>
-        <span className="text-sm text-slate-400 ml-auto">{students.length} учеников</span>
-        <button onClick={() => { setEditStudent(null); setShowForm(true); }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors flex-shrink-0">
-          <Plus className="w-4 h-4" /> Добавить
-        </button>
+        <div className="flex items-center gap-3 justify-between sm:justify-end sm:ml-auto">
+          <span className="text-sm text-slate-400">{students.length} учеников</span>
+          <button type="button" onClick={() => { setEditStudent(null); setShowForm(true); }}
+            className="flex items-center gap-2 px-4 py-2.5 min-h-[44px] bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors flex-shrink-0">
+            <Plus className="w-4 h-4" /> Добавить
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -363,66 +422,110 @@ function StudentsTab({ students, teachers, loading, onReload }) {
           <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100">
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Имя</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide hidden sm:table-cell">Email</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide hidden md:table-cell">Преподаватель</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Баланс</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide hidden sm:table-cell">Статус</th>
-                <th className="px-5 py-3.5 w-28"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(s => (
-                <tr key={s.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors">
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
-                        <span className="text-xs font-bold text-blue-600">{(s.name || "?")[0].toUpperCase()}</span>
-                      </div>
-                      <span className="font-medium text-slate-800">{s.name}</span>
+        <>
+          <div className="md:hidden space-y-3">
+            {filtered.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 bg-white rounded-2xl border border-slate-100">Ученики не найдены</div>
+            ) : filtered.map(s => (
+              <div key={s.id} className="bg-white rounded-2xl border border-slate-100 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs font-bold text-blue-600">{(s.name || "?")[0].toUpperCase()}</span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-slate-800 truncate">{s.name}</p>
+                    <p className="text-xs text-slate-400 truncate mt-0.5">{s.email || "—"}</p>
+                    <p className="text-xs text-slate-500 mt-1 truncate">Преподаватель: {getTeacherName(s.assigned_teacher)}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className={`inline-flex items-center gap-1 text-sm font-bold ${(s.lesson_balance || 0) <= 0 ? "text-red-600" : (s.lesson_balance || 0) <= 2 ? "text-amber-600" : "text-slate-800"}`}>
+                        Баланс: {(s.lesson_balance || 0) <= 0 && "⚠️ "}{s.lesson_balance || 0}
+                      </span>
+                      <span className={`inline-flex px-2 py-0.5 rounded-md text-xs font-semibold border ${STATUS_STYLE[s.status] || STATUS_STYLE.active}`}>
+                        {STATUS_LABEL[s.status] || "Активен"}
+                      </span>
                     </div>
-                  </td>
-                  <td className="px-5 py-3.5 text-slate-500 text-xs hidden sm:table-cell">{s.email || "—"}</td>
-                  <td className="px-5 py-3.5 text-slate-500 text-xs hidden md:table-cell">{getTeacherName(s.assigned_teacher)}</td>
-                  <td className="px-5 py-3.5">
-                    <span className={`inline-flex items-center gap-1 text-sm font-bold ${(s.lesson_balance || 0) <= 0 ? "text-red-600" : (s.lesson_balance || 0) <= 2 ? "text-amber-600" : "text-slate-800"}`}>
-                      {(s.lesson_balance || 0) <= 0 && "⚠️ "}{s.lesson_balance || 0}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 hidden sm:table-cell">
-                    <span className={`inline-flex px-2 py-0.5 rounded-md text-xs font-semibold border ${STATUS_STYLE[s.status] || STATUS_STYLE.active}`}>
-                      {STATUS_LABEL[s.status] || "Активен"}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center justify-end gap-1">
-                      <Link to={createPageUrl("StudentDetail") + `?id=${s.id}`}>
-                        <button className="p-1.5 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Просмотр">
-                          <Eye className="w-4 h-4" />
-                        </button>
-                      </Link>
-                      <button onClick={() => { setEditStudent(s); setShowForm(true); }}
-                        className="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" title="Редактировать">
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => setDeleteTarget(s)}
-                        className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Удалить">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+                  </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-slate-50 flex flex-wrap gap-2">
+                  <Link to={createPageUrl("StudentDetail") + `?id=${s.id}`} className="flex-1 min-w-[7rem]">
+                    <button type="button" className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-indigo-700 bg-indigo-50 rounded-lg hover:bg-indigo-100">
+                      <Eye className="w-3.5 h-3.5" /> Просмотр
+                    </button>
+                  </Link>
+                  <button type="button" onClick={() => { setEditStudent(s); setShowForm(true); }}
+                    className="flex-1 min-w-[7rem] inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-slate-700 bg-slate-50 rounded-lg hover:bg-slate-100">
+                    <Pencil className="w-3.5 h-3.5" /> Изменить
+                  </button>
+                  <button type="button" onClick={() => setDeleteTarget(s)}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden md:block bg-white rounded-2xl border border-slate-100 overflow-x-auto">
+            <table className="w-full text-sm min-w-[720px]">
+              <thead>
+                <tr className="border-b border-slate-100">
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Имя</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Email</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Преподаватель</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Баланс</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Статус</th>
+                  <th className="px-5 py-3.5 w-28"></th>
                 </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr><td colSpan={6} className="text-center py-12 text-slate-400">Ученики не найдены</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filtered.map(s => (
+                  <tr key={s.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors">
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                          <span className="text-xs font-bold text-blue-600">{(s.name || "?")[0].toUpperCase()}</span>
+                        </div>
+                        <span className="font-medium text-slate-800">{s.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-slate-500 text-xs">{s.email || "—"}</td>
+                    <td className="px-5 py-3.5 text-slate-500 text-xs">{getTeacherName(s.assigned_teacher)}</td>
+                    <td className="px-5 py-3.5">
+                      <span className={`inline-flex items-center gap-1 text-sm font-bold ${(s.lesson_balance || 0) <= 0 ? "text-red-600" : (s.lesson_balance || 0) <= 2 ? "text-amber-600" : "text-slate-800"}`}>
+                        {(s.lesson_balance || 0) <= 0 && "⚠️ "}{s.lesson_balance || 0}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className={`inline-flex px-2 py-0.5 rounded-md text-xs font-semibold border ${STATUS_STYLE[s.status] || STATUS_STYLE.active}`}>
+                        {STATUS_LABEL[s.status] || "Активен"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center justify-end gap-1">
+                        <Link to={createPageUrl("StudentDetail") + `?id=${s.id}`}>
+                          <button type="button" className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Просмотр">
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </Link>
+                        <button type="button" onClick={() => { setEditStudent(s); setShowForm(true); }}
+                          className="p-2 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" title="Редактировать">
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button type="button" onClick={() => setDeleteTarget(s)}
+                          className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Удалить">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filtered.length === 0 && (
+                  <tr><td colSpan={6} className="text-center py-12 text-slate-400">Ученики не найдены</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {deleteTarget && (
@@ -476,18 +579,20 @@ function TeachersTab({ teachers, students, loading, onReload }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1 max-w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Поиск преподавателей..."
             className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
         </div>
-        <span className="text-sm text-slate-400 ml-auto">{teachers.length} преподавателей</span>
-        <button onClick={() => { setEditTeacher(null); setShowForm(true); }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors flex-shrink-0">
-          <Plus className="w-4 h-4" /> Добавить
-        </button>
+        <div className="flex items-center gap-3 justify-between sm:justify-end sm:ml-auto">
+          <span className="text-sm text-slate-400">{teachers.length} преподавателей</span>
+          <button type="button" onClick={() => { setEditTeacher(null); setShowForm(true); }}
+            className="flex items-center gap-2 px-4 py-2.5 min-h-[44px] bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors flex-shrink-0">
+            <Plus className="w-4 h-4" /> Добавить
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -495,60 +600,104 @@ function TeachersTab({ teachers, students, loading, onReload }) {
           <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100">
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Имя</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide hidden sm:table-cell">Специализация</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Ставка</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Ученики</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Статус</th>
-                <th className="px-5 py-3.5 w-24"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(t => (
-                <tr key={t.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => setViewTeacher(t)}>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                        <span className="text-xs font-bold text-emerald-600">{(t.name || "?")[0].toUpperCase()}</span>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-medium text-slate-800">{t.name}</p>
-                        <p className="text-xs text-slate-400 truncate">{t.email}</p>
+        <>
+          <div className="md:hidden space-y-3">
+            {filtered.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 bg-white rounded-2xl border border-slate-100">Преподаватели не найдены</div>
+            ) : filtered.map(t => (
+              <div key={t.id} className="bg-white rounded-2xl border border-slate-100 p-4">
+                <button type="button" className="w-full text-left" onClick={() => setViewTeacher(t)}>
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-bold text-emerald-600">{(t.name || "?")[0].toUpperCase()}</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-slate-800 truncate">{t.name}</p>
+                      <p className="text-xs text-slate-400 truncate mt-0.5">{t.email}</p>
+                      <p className="text-xs text-slate-500 mt-1 truncate">{t.specializations || "—"}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                        <span className="font-medium text-slate-700">{t.hourly_rate || 0} BYN/ч</span>
+                        <span className="text-slate-500">Ученики: {getStudentCount(t.id)}</span>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border ${t.status === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-50 text-slate-500 border-slate-200"}`}>
+                          {t.status === "active" ? <><CheckCircle2 className="w-3 h-3" /> Активен</> : "Неактивен"}
+                        </span>
                       </div>
                     </div>
-                  </td>
-                  <td className="px-5 py-3.5 text-slate-500 text-xs hidden sm:table-cell">{t.specializations || "—"}</td>
-                  <td className="px-5 py-3.5 text-slate-700 font-medium">{t.hourly_rate || 0} BYN/ч</td>
-                  <td className="px-5 py-3.5 text-slate-700">{getStudentCount(t.id)}</td>
-                  <td className="px-5 py-3.5">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border ${t.status === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-50 text-slate-500 border-slate-200"}`}>
-                      {t.status === "active" ? <><CheckCircle2 className="w-3 h-3" /> Активен</> : "Неактивен"}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center justify-end gap-1">
-                      <button onClick={(e) => { e.stopPropagation(); setEditTeacher(t); setShowForm(true); }}
-                        className="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" title="Редактировать">
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(t); }}
-                        className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Удалить">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+                  </div>
+                </button>
+                <div className="mt-3 pt-3 border-t border-slate-50 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => setViewTeacher(t)}
+                    className="flex-1 min-w-[7rem] inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-indigo-700 bg-indigo-50 rounded-lg hover:bg-indigo-100">
+                    <Eye className="w-3.5 h-3.5" /> Просмотр
+                  </button>
+                  <button type="button" onClick={() => { setEditTeacher(t); setShowForm(true); }}
+                    className="flex-1 min-w-[7rem] inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-slate-700 bg-slate-50 rounded-lg hover:bg-slate-100">
+                    <Pencil className="w-3.5 h-3.5" /> Изменить
+                  </button>
+                  <button type="button" onClick={() => setDeleteTarget(t)}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden md:block bg-white rounded-2xl border border-slate-100 overflow-x-auto">
+            <table className="w-full text-sm min-w-[720px]">
+              <thead>
+                <tr className="border-b border-slate-100">
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Имя</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Специализация</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Ставка</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Ученики</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Статус</th>
+                  <th className="px-5 py-3.5 w-24"></th>
                 </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr><td colSpan={6} className="text-center py-12 text-slate-400">Преподаватели не найдены</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filtered.map(t => (
+                  <tr key={t.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => setViewTeacher(t)}>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                          <span className="text-xs font-bold text-emerald-600">{(t.name || "?")[0].toUpperCase()}</span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-slate-800">{t.name}</p>
+                          <p className="text-xs text-slate-400 truncate">{t.email}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-slate-500 text-xs">{t.specializations || "—"}</td>
+                    <td className="px-5 py-3.5 text-slate-700 font-medium">{t.hourly_rate || 0} BYN/ч</td>
+                    <td className="px-5 py-3.5 text-slate-700">{getStudentCount(t.id)}</td>
+                    <td className="px-5 py-3.5">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border ${t.status === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-50 text-slate-500 border-slate-200"}`}>
+                        {t.status === "active" ? <><CheckCircle2 className="w-3 h-3" /> Активен</> : "Неактивен"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center justify-end gap-1">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setEditTeacher(t); setShowForm(true); }}
+                          className="p-2 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" title="Редактировать">
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setDeleteTarget(t); }}
+                          className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Удалить">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filtered.length === 0 && (
+                  <tr><td colSpan={6} className="text-center py-12 text-slate-400">Преподаватели не найдены</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {deleteTarget && (
@@ -651,27 +800,29 @@ export default function UserManagement() {
   const displayTeachers = visibleTeachers(teachers, accountUsers);
 
   return (
-    <div className="p-6 lg:p-8 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto w-full min-w-0">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Пользователи</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Пользователи</h1>
         <p className="text-sm text-slate-500 mt-1">Управление аккаунтами, учениками и преподавателями</p>
         {loadError && (
           <p className="mt-2 text-sm text-red-600">{loadError}</p>
         )}
       </div>
 
-      <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit mb-6">
-        {TABS.map(tab => {
-          const Icon = tab.icon;
-          return (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                activeTab === tab.id ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700"
-              }`}>
-              <Icon className="w-4 h-4" /> {tab.label}
-            </button>
-          );
-        })}
+      <div className="mb-6 -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
+        <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-max min-w-full sm:min-w-0 sm:w-fit">
+          {TABS.map(tab => {
+            const Icon = tab.icon;
+            return (
+              <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
+                  activeTab === tab.id ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700"
+                }`}>
+                <Icon className="w-4 h-4 shrink-0" /> {tab.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {activeTab === "accounts" && (

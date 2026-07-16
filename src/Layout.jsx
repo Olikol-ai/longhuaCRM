@@ -69,6 +69,15 @@ export default function Layout({ children, currentPageName }) {
   const auth = useAuth();
   const { user, isAuthenticated, logout } = auth;
 
+  React.useEffect(() => {
+    if (!sidebarOpen) return undefined;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [sidebarOpen]);
+
   if (shouldBlockProtectedUI(auth)) {
     return <AuthLoadingScreen />;
   }
@@ -103,42 +112,52 @@ export default function Layout({ children, currentPageName }) {
     .slice(0, 2);
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex">
+    <div className="min-h-screen bg-background text-foreground flex overflow-x-hidden">
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/30 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/40 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
         />
       )}
 
-      <aside className={`
-       fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-700
-       transform transition-transform duration-200 ease-in-out
-       ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0
-       flex flex-col
-      `}>
-        <div className="h-16 flex items-center justify-between px-5 border-b border-slate-200 dark:border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg flex items-center justify-center bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
+      <aside
+        className={`
+          fixed lg:sticky top-0 left-0 z-50 h-dvh max-h-screen w-[min(16rem,85vw)] max-w-[16rem]
+          bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-700
+          transform transition-transform duration-200 ease-in-out
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0
+          flex flex-col shadow-xl lg:shadow-none
+        `}
+      >
+        <div className="h-14 sm:h-16 flex items-center justify-between px-4 sm:px-5 border-b border-slate-200 dark:border-slate-800 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
               <BookOpen className="h-5 w-5" />
             </div>
-            <span className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">Longhua</span>
+            <span className="text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate">Longhua</span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             <button
+              type="button"
               onClick={toggleTheme}
-              className="hidden lg:flex p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="hidden lg:flex p-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               title="Переключить тему"
             >
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
-            <button className="lg:hidden text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-white" onClick={() => setSidebarOpen(false)}>
+            <button
+              type="button"
+              className="lg:hidden p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg"
+              onClick={() => setSidebarOpen(false)}
+              aria-label="Закрыть меню"
+            >
               <X className="h-5 w-5" />
             </button>
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto overscroll-contain">
           {navItems.map((item) => {
             const isActive = currentPageName === item.page;
             return (
@@ -147,7 +166,7 @@ export default function Layout({ children, currentPageName }) {
                 to={createPageUrl(item.page)}
                 onClick={() => setSidebarOpen(false)}
                 className={`
-                  flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
+                  flex items-center gap-3 px-3 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-all
                   ${isActive
                     ? "bg-indigo-600 text-white"
                     : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
@@ -155,47 +174,62 @@ export default function Layout({ children, currentPageName }) {
                 `}
               >
                 <item.icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-white" : "text-slate-600 dark:text-slate-400"}`} />
-                <span className="text-[13px]">{item.name}</span>
-                {isActive && <ChevronRight className="h-4 w-4 ml-auto text-white" />}
+                <span className="text-[13px] truncate">{item.name}</span>
+                {isActive && <ChevronRight className="h-4 w-4 ml-auto shrink-0 text-white" />}
               </Link>
             );
           })}
         </nav>
 
-        <div className="border-t border-slate-200 dark:border-slate-800 p-3">
-          <div className="flex items-center gap-3 px-3 py-2">
-            <Avatar className="h-8 w-8">
+        <div className="border-t border-slate-200 dark:border-slate-800 p-3 shrink-0">
+          <div className="flex items-center gap-3 px-2 sm:px-3 py-2">
+            <Avatar className="h-8 w-8 shrink-0">
               <AvatarFallback className="bg-indigo-100 text-indigo-700 text-xs font-semibold">
                 {initials}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{fullName}</p>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
+              <p className="text-xs text-slate-600 dark:text-slate-400 truncate">
                 {role === "admin" ? "Администратор" : role === "teacher" ? "Преподаватель" : role === "student" ? "Ученик" : "Ожидает роли"}
               </p>
             </div>
-            <button onClick={logout} className="text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
+            <button
+              type="button"
+              onClick={logout}
+              className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors shrink-0"
+              aria-label="Выйти"
+            >
               <LogOut className="h-4 w-4" />
             </button>
           </div>
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="lg:hidden h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 sticky top-0 z-30">
-          <div className="flex items-center gap-2">
-            <button onClick={() => setSidebarOpen(true)} className="text-slate-600 dark:text-slate-400">
+      <div className="flex-1 flex flex-col min-w-0 w-full max-w-full">
+        <header className="lg:hidden h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-3 sm:px-4 sticky top-0 z-30 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="p-2 -ml-1 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+              aria-label="Открыть меню"
+            >
               <Menu className="h-5 w-5" />
             </button>
-            <span className="font-semibold text-slate-900 dark:text-white">Longhua</span>
+            <span className="font-semibold text-slate-900 dark:text-white truncate">Longhua</span>
           </div>
-          <button onClick={toggleTheme} className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors rounded-lg"
+            aria-label="Переключить тему"
+          >
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
         </header>
 
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto min-w-0">
           {children}
         </main>
       </div>

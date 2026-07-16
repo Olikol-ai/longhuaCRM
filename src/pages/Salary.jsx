@@ -102,7 +102,7 @@ export default function Salary() {
   );
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6 w-full min-w-0">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold text-foreground">Зарплата преподавателей</h2>
@@ -188,12 +188,12 @@ export default function Salary() {
           <p className="text-sm text-muted-foreground">Начислений пока нет</p>
         ) : (
           paymentRows.map((row) => (
-            <div key={row.id} className="border rounded-xl p-4 bg-card flex items-center justify-between gap-4">
-              <div>
+            <div key={row.id} className="border rounded-xl p-4 bg-card flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="min-w-0">
                 <p className="font-semibold flex items-center gap-2">
-                  <DollarSign className="w-4 h-4" /> {Number(row.amount).toFixed(2)} BYN
+                  <DollarSign className="w-4 h-4 shrink-0" /> {Number(row.amount).toFixed(2)} BYN
                 </p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground break-words">
                   {teacherName(row.teacher_id)} · Урок {lessonLabel(row.lesson_id)} · {row.status}
                 </p>
               </div>
@@ -201,7 +201,7 @@ export default function Salary() {
                 <button
                   type="button"
                   onClick={() => markPaid(row)}
-                  className="px-3 py-1.5 text-xs bg-emerald-600 text-white rounded-lg flex items-center gap-1"
+                  className="px-3 py-2.5 text-xs bg-emerald-600 text-white rounded-lg flex items-center justify-center gap-1 w-full sm:w-auto min-h-[40px] shrink-0"
                 >
                   <CheckCircle2 className="w-3 h-3" /> Оплачено
                 </button>

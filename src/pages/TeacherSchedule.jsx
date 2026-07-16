@@ -143,7 +143,7 @@ export default function TeacherSchedule() {
   const listLessons = [...lessons].sort((a, b) => `${a.date}${a.start_time}`.localeCompare(`${b.date}${b.start_time}`));
 
   return (
-    <div className="p-6 lg:p-8 max-w-7xl mx-auto dark:bg-slate-950 min-h-screen">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto dark:bg-slate-950 min-h-screen">
       {/* Main tabs */}
       <div className="flex items-center justify-between gap-2 mb-6 flex-wrap">
         <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
@@ -211,7 +211,7 @@ export default function TeacherSchedule() {
             <Button variant="outline" size="icon" onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="h-9 w-9">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <h2 className="text-base font-semibold text-slate-900 min-w-[180px] text-center capitalize">
+            <h2 className="text-base font-semibold text-slate-900 flex-1 sm:flex-none sm:min-w-[180px] text-center capitalize truncate">
               {format(currentDate, "LLLL yyyy", { locale: ru })}
             </h2>
             <Button variant="outline" size="icon" onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="h-9 w-9">
@@ -222,13 +222,13 @@ export default function TeacherSchedule() {
             </Button>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
-            <div className="grid grid-cols-7 border-b border-slate-100 dark:border-slate-700">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-x-auto shadow-sm">
+            <div className="grid grid-cols-7 border-b border-slate-100 dark:border-slate-700 min-w-[520px]">
               {WEEK_DAYS_RU.map((d) => (
                 <div key={d} className="py-3 text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">{d}</div>
               ))}
             </div>
-            <div className="grid grid-cols-7">
+            <div className="grid grid-cols-7 min-w-[520px]">
               {monthDays.map((day, i) => {
                 const dayStr = format(day, "yyyy-MM-dd");
                 const dayLessons = getLessonsForDay(dayStr);
@@ -294,7 +294,7 @@ export default function TeacherSchedule() {
             <Button variant="outline" size="icon" onClick={() => setCurrentDate(subWeeks(currentDate, 1))} className="h-9 w-9">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <h2 className="text-base font-semibold text-slate-900 min-w-[220px] text-center">
+            <h2 className="text-base font-semibold text-slate-900 flex-1 sm:flex-none sm:min-w-[220px] text-center truncate">
               {format(weekDays[0], "d MMM", { locale: ru })} — {format(weekDays[6], "d MMM yyyy", { locale: ru })}
             </h2>
             <Button variant="outline" size="icon" onClick={() => setCurrentDate(addWeeks(currentDate, 1))} className="h-9 w-9">

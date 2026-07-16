@@ -129,7 +129,7 @@ export default function TeacherDashboard() {
 
   if (!teacher) {
     return (
-      <div className="p-6 lg:p-8 text-center py-20">
+      <div className="p-4 sm:p-6 lg:p-8 text-center py-20">
         <p className="text-slate-500">Профиль преподавателя не найден для вашего аккаунта.</p>
         <p className="text-xs text-slate-400 mt-2">Обратитесь к администратору.</p>
       </div>
@@ -144,7 +144,7 @@ export default function TeacherDashboard() {
   const completedCount = lessons.filter((l) => l.status === "completed").length;
 
   return (
-    <div className="p-6 lg:p-8 max-w-5xl mx-auto dark:bg-slate-950 min-h-screen">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto dark:bg-slate-950 min-h-screen">
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Добро пожаловать, {getGreetingName(teacher) || getGreetingName(user) || "Преподаватель"}</h1>

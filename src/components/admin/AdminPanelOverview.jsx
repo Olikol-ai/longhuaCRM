@@ -73,7 +73,7 @@ export default function AdminPanelOverview({ onOpenExport, onOpenSalary }) {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard label="Уроков сегодня" value={stats.todayLessons} icon={CalendarDays} color="indigo" />
         <StatCard label="Активных учеников" value={stats.activeStudents} icon={GraduationCap} color="sky" />
         <StatCard label="Активных преподавателей" value={stats.activeTeachers} icon={Users} color="emerald" />

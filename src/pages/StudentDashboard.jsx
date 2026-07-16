@@ -86,7 +86,7 @@ export default function StudentDashboard() {
 
   if (!student) {
     return (
-      <div className="p-6 lg:p-8 text-center py-20">
+      <div className="p-4 sm:p-6 lg:p-8 text-center py-20">
         <p className="text-slate-500">Профиль ученика не найден для вашего аккаунта.</p>
         <p className="text-xs text-slate-400 mt-2">Обратитесь к администратору.</p>
       </div>
@@ -114,7 +114,7 @@ export default function StudentDashboard() {
   })();
 
   return (
-    <div className="p-6 lg:p-8 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
       {/* Header */}
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>

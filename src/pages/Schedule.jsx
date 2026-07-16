@@ -139,27 +139,28 @@ export default function Schedule() {
   return (
     <div className="flex flex-col h-full dark:bg-slate-950">
       {/* Header */}
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 flex-shrink-0">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3 px-3 sm:px-6 py-3 sm:py-4 border-b border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 flex-shrink-0">
         <button
+          type="button"
           onClick={() => setCurrent(new Date())}
-          className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600"
+          className="px-3 py-2 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 min-h-[40px]"
         >
           Сегодня
         </button>
         <div className="flex items-center gap-1">
-          <button onClick={() => navigate("prev")} className="p-1.5 hover:bg-slate-100 rounded-lg">
+          <button type="button" onClick={() => navigate("prev")} className="p-2 hover:bg-slate-100 rounded-lg min-h-[40px] min-w-[40px]">
             <ChevronLeft className="w-4 h-4 text-slate-500" />
           </button>
-          <button onClick={() => navigate("next")} className="p-1.5 hover:bg-slate-100 rounded-lg">
+          <button type="button" onClick={() => navigate("next")} className="p-2 hover:bg-slate-100 rounded-lg min-h-[40px] min-w-[40px]">
             <ChevronRight className="w-4 h-4 text-slate-500" />
           </button>
         </div>
-        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex-1">{title()}</h2>
+        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 w-full sm:w-auto sm:flex-1 order-last sm:order-none truncate">{title()}</h2>
         {isAdmin && (
           <select
             value={selectedTeacherId}
             onChange={(e) => setSelectedTeacherId(e.target.value)}
-            className="text-xs border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 max-w-[180px]"
+            className="text-xs border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 w-full sm:w-auto sm:max-w-[180px] min-h-[40px]"
           >
             <option value="">Все преподаватели</option>
             {teachers.filter(t => t.status !== 'inactive').map(t => (
@@ -167,10 +168,10 @@ export default function Schedule() {
             ))}
           </select>
         )}
-        <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+        <div className="flex gap-1 bg-slate-100 rounded-lg p-1 overflow-x-auto max-w-full">
           {[["day", "День"], ["week", "Неделя"], ["month", "Месяц"]].map(([v, label]) => (
-            <button key={v} onClick={() => setView(v)}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+            <button key={v} type="button" onClick={() => setView(v)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
                 view === v ? "bg-white shadow-sm text-slate-700" : "text-slate-500 hover:text-slate-700"
               }`}>
               {label}
@@ -179,8 +180,9 @@ export default function Schedule() {
         </div>
         {isAdmin && (
           <button
+            type="button"
             onClick={() => { setSelectedDate(format(current, "yyyy-MM-dd")); setShowModal(true); }}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700"
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 w-full sm:w-auto min-h-[40px]"
           >
             <Plus className="w-4 h-4" /> Новый урок
           </button>
@@ -362,6 +364,7 @@ function WeekView({ current, teachers, students, hours, getLessonsForDay, onSlot
   const showAvailability = Boolean(selectedTeacherId);
 
   return (
+    <div className="overflow-x-auto">
     <div className="flex flex-col min-w-[640px]">
       {showAvailability && (
         <div className="flex items-center gap-4 px-4 py-2 border-b border-slate-100 dark:border-slate-700 text-[11px] text-slate-500">
@@ -429,6 +432,7 @@ function WeekView({ current, teachers, students, hours, getLessonsForDay, onSlot
           );
         })}
       </div>
+    </div>
     </div>
   );
 }

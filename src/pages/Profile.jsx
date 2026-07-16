@@ -230,7 +230,7 @@ export default function Profile() {
   const connected = Boolean(tgStatus?.connected);
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-6">
       <div>
         <h2 className="text-xl font-bold text-slate-800">Профиль</h2>
         <p className="text-sm text-slate-400">Ваши личные данные</p>

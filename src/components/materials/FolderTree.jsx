@@ -834,7 +834,7 @@ export default function FolderTree({
 
   return (
     <aside
-      className="w-full lg:w-80 shrink-0 border border-border rounded-xl bg-card overflow-hidden flex flex-col max-h-[70vh]"
+      className="w-full lg:w-80 shrink-0 border border-border rounded-xl bg-card overflow-hidden flex flex-col max-h-[50vh] lg:max-h-[70vh]"
       data-testid="materials-course-tree"
     >
       <div className="px-3 py-2.5 border-b border-border bg-muted/40 space-y-2">

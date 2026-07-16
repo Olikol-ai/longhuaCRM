@@ -91,7 +91,7 @@ export default function TeacherFormDialog({ open, onOpenChange, teacher, onSave 
               placeholder="email@example.com"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Ставка в час ($)</Label>
               <Input

@@ -71,7 +71,7 @@ export default function LessonDetailModal({ lesson, teachers, students, isAdmin,
             </button>
           </div>
           <div className="p-6 space-y-4 overflow-y-auto flex-1">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-slate-600 mb-1">Преподаватель</label>
                 <select value={form.teacher_id} onChange={e => set("teacher_id", e.target.value)}
@@ -226,7 +226,7 @@ export default function LessonDetailModal({ lesson, teachers, students, isAdmin,
         </div>
 
         {((isAdmin || isTeacher) && lesson.status === "planned") && (
-          <div className="grid grid-cols-2 gap-2 px-5 pb-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 px-5 pb-5">
             <button
               onClick={() => onUpdate(lesson.id, { status: "completed" })}
               className="flex items-center justify-center gap-1.5 py-2 text-sm font-medium bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-xl transition-colors"
