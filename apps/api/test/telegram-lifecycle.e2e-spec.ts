@@ -107,6 +107,86 @@ describe('TelegramWebhookLifecycleService', () => {
 
     expect(telegramService.registerWebhook).not.toHaveBeenCalled();
   });
+
+  it('does not re-register when URL matches and only historical last_error_date is set', async () => {
+    const url = 'https://crm.example.com/api/telegram/webhook';
+    const { service, telegramService } = createLifecycle({
+      'telegram.enabled': true,
+      'telegram.mock': false,
+      'telegram.mode': 'webhook',
+      'jobs.enabled': true,
+      'telegram.webhookUrl': url,
+    });
+
+    telegramService.getWebhookInfo.mockResolvedValue({
+      result: {
+        url,
+        last_error_date: Math.floor(Date.now() / 1000) - 3600,
+        last_error_message: 'Connection timed out',
+      },
+    });
+
+    const logs: string[] = [];
+    Object.defineProperty(service, 'logger', {
+      value: {
+        log: (message: string) => logs.push(message),
+        warn: jest.fn(),
+        error: jest.fn(),
+        debug: jest.fn(),
+      },
+    });
+
+    await service.verifyWebhookHealth();
+
+    expect(telegramService.registerWebhook).not.toHaveBeenCalled();
+    expect(logs.some((line) => line.includes('Skipping setWebhook'))).toBe(true);
+  });
+
+  it('re-registers when URL matches but last_error_message is recent', async () => {
+    const url = 'https://crm.example.com/api/telegram/webhook';
+    const { service, telegramService } = createLifecycle({
+      'telegram.enabled': true,
+      'telegram.mock': false,
+      'telegram.mode': 'webhook',
+      'jobs.enabled': true,
+      'telegram.webhookUrl': url,
+      'telegram.webhookSecret': 'secret',
+    });
+
+    telegramService.getWebhookInfo.mockResolvedValue({
+      result: {
+        url,
+        last_error_date: Math.floor(Date.now() / 1000) - 60,
+        last_error_message: 'Wrong response from the webhook: 502 Bad Gateway',
+      },
+    });
+
+    await service.verifyWebhookHealth();
+
+    expect(telegramService.registerWebhook).toHaveBeenCalledWith(url, 'secret');
+  });
+
+  it('re-registers when webhook URL mismatches expected URL', async () => {
+    const url = 'https://crm.example.com/api/telegram/webhook';
+    const { service, telegramService } = createLifecycle({
+      'telegram.enabled': true,
+      'telegram.mock': false,
+      'telegram.mode': 'webhook',
+      'jobs.enabled': true,
+      'telegram.webhookUrl': url,
+      'telegram.webhookSecret': 'secret',
+    });
+
+    telegramService.getWebhookInfo.mockResolvedValue({
+      result: {
+        url: 'https://old.example.com/api/telegram/webhook',
+      },
+    });
+
+    await service.verifyWebhookHealth();
+
+    expect(telegramService.registerWebhook).toHaveBeenCalledWith(url, 'secret');
+  });
 });
 
 describe('TelegramPollingService', () => {

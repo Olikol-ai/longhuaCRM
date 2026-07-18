@@ -39,8 +39,8 @@ export default function Attendance() {
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-4">
       <div>
-        <h2 className="text-xl font-bold">Посещаемость</h2>
-        <p className="text-sm text-muted-foreground">Отметка present / absent по урокам</p>
+        <h2 className="text-xl font-bold text-foreground">Посещаемость</h2>
+        <p className="text-sm text-muted-foreground">Отметка присутствия на уроках</p>
       </div>
 
       <div className="space-y-2">
@@ -51,8 +51,8 @@ export default function Attendance() {
               <p className="text-xs text-muted-foreground">Урок: {lessonLabel(row.lesson_id)} · {row.attendance_status}</p>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => mark(row.id, true)} className="px-3 py-1.5 text-xs border rounded-lg flex items-center gap-1"><Check className="w-3 h-3" /> Present</button>
-              <button onClick={() => mark(row.id, false)} className="px-3 py-1.5 text-xs border rounded-lg flex items-center gap-1"><X className="w-3 h-3" /> Absent</button>
+              <button onClick={() => mark(row.id, true)} className="px-3 py-1.5 text-xs border border-border rounded-lg flex items-center gap-1 hover:bg-muted"><Check className="w-3 h-3" /> Присутствовал</button>
+              <button onClick={() => mark(row.id, false)} className="px-3 py-1.5 text-xs border border-border rounded-lg flex items-center gap-1 hover:bg-muted"><X className="w-3 h-3" /> Отсутствовал</button>
             </div>
           </div>
         ))}

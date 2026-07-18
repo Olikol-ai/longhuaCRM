@@ -25,6 +25,9 @@ import { PendingRegistrationWantsStudent1740100000000 } from './migrations/17401
 import { MaterialCreatedByUser1740200000000 } from './migrations/1740200000000-MaterialCreatedByUser';
 import { TeacherInviteLinks1740300000000 } from './migrations/1740300000000-TeacherInviteLinks';
 import { CourseTemplateSortOrder1740400000000 } from './migrations/1740400000000-CourseTemplateSortOrder';
+import { AssessmentSchema1740500000000 } from './migrations/1740500000000-AssessmentSchema';
+import { CertificateAssessmentSource1740600000000 } from './migrations/1740600000000-CertificateAssessmentSource';
+import { AssessmentAnswerReviewMeta1740700000000 } from './migrations/1740700000000-AssessmentAnswerReviewMeta';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -53,6 +56,9 @@ export default new DataSource({
     MaterialCreatedByUser1740200000000,
     TeacherInviteLinks1740300000000,
     CourseTemplateSortOrder1740400000000,
+    AssessmentSchema1740500000000,
+    CertificateAssessmentSource1740600000000,
+    AssessmentAnswerReviewMeta1740700000000,
   ],
   synchronize: false,
 });

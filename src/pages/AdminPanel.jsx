@@ -38,7 +38,7 @@ export default function AdminPanel() {
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 shrink-0 lg:w-4 lg:h-4 ${active ? "text-white" : "text-slate-400"}`} />
+                <Icon className={`w-3.5 h-3.5 shrink-0 lg:w-4 lg:h-4 ${active ? "text-white" : "text-slate-400 dark:text-slate-500"}`} />
                 {tab.label}
               </button>
             );

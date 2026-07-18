@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -13,6 +14,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { JwtPayload } from '../auth/auth.service';
+import { AvailableTeachersQueryDto } from './dto/available-teachers-query.dto';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
 import { FilterQueryDto } from './dto/filter-query.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
@@ -26,6 +28,20 @@ export class TeachersController {
   @Get()
   findAll(@CurrentUser() user: JwtPayload) {
     return this.teachersService.findAll(user);
+  }
+
+  /**
+   * Advisory: active teachers free for date + startTime + duration.
+   * Must be declared before @Get(':id') so "available" is not parsed as an id.
+   */
+  @Get('available')
+  @Roles('admin')
+  findAvailable(@Query() query: AvailableTeachersQueryDto) {
+    return this.teachersService.findAvailableForSlot({
+      date: query.date,
+      startTime: query.startTime,
+      duration: query.duration,
+    });
   }
 
   @Get(':id')

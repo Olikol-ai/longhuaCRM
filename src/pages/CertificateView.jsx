@@ -166,7 +166,7 @@ export default function CertificateView() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100 dark:bg-slate-950">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-700" />
+        <Loader2 className="h-8 w-8 animate-spin text-slate-700 dark:text-slate-300" />
       </div>
     );
   }
@@ -174,7 +174,7 @@ export default function CertificateView() {
   if ((error && !cert) || !cert) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-100 p-6 dark:bg-slate-950">
-        <p className="text-slate-600">{error || 'Сертификат не найден'}</p>
+        <p className="text-slate-600 dark:text-slate-400">{error || 'Сертификат не найден'}</p>
         <Button asChild variant="outline">
           <Link to={backPath}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Назад
@@ -187,7 +187,7 @@ export default function CertificateView() {
   return (
     <div className="min-h-screen bg-slate-100 p-4 dark:bg-slate-950 sm:p-8">
       <div className="mx-auto mb-5 flex max-w-5xl flex-wrap items-center gap-2 print:hidden">
-        <Button asChild variant="outline" size="sm" className="bg-white/80">
+        <Button asChild variant="outline" size="sm" className="bg-white/80 dark:bg-slate-900/80">
           <Link to={backPath}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Назад
           </Link>
@@ -208,7 +208,7 @@ export default function CertificateView() {
               variant="secondary"
               onClick={handlePrint}
               disabled={!pdfUrl || pdfLoading}
-              className="gap-2 bg-white/90"
+              className="gap-2 bg-white/90 dark:bg-slate-900/90"
             >
               <Printer className="h-4 w-4" />
               Печать
@@ -221,14 +221,14 @@ export default function CertificateView() {
         <div className="mx-auto max-w-5xl">
           {pdfLoading && (
             <div className="flex justify-center py-24">
-              <Loader2 className="h-8 w-8 animate-spin text-slate-700" />
+              <Loader2 className="h-8 w-8 animate-spin text-slate-700 dark:text-slate-300" />
             </div>
           )}
           {error && !pdfUrl && !pdfLoading && (
             <p className="py-12 text-center text-red-600">{error}</p>
           )}
           {pdfUrl && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-2 shadow-xl sm:p-3">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white p-2 shadow-xl sm:p-3">
               <iframe
                 ref={iframeRef}
                 title={`Сертификат ${cert.registration_number}`}
@@ -239,14 +239,14 @@ export default function CertificateView() {
               />
             </div>
           )}
-          <p className="mx-auto mt-5 max-w-2xl text-center text-[11px] leading-relaxed text-slate-500 print:hidden">
+          <p className="mx-auto mt-5 max-w-2xl text-center text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 print:hidden">
             Данный сертификат не является сертификатом государственного образца и не
             предоставляет преимуществ, предусмотренных законодательством.
           </p>
         </div>
       ) : (
         <article
-          className="relative mx-auto max-w-3xl overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-xl"
+          className="relative mx-auto max-w-3xl overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 shadow-xl"
           data-testid="certificate-view"
         >
           <div className="absolute inset-x-10 top-6 h-px bg-rose-800" />
@@ -254,23 +254,23 @@ export default function CertificateView() {
             <p className="mb-1 text-[11px] font-semibold tracking-[0.35em] text-rose-800">
               LONGHUA
             </p>
-            <p className="mb-8 text-[10px] tracking-[0.28em] text-slate-500">
+            <p className="mb-8 text-[10px] tracking-[0.28em] text-slate-500 dark:text-slate-400">
               CHINESE LANGUAGE SCHOOL
             </p>
-            <h1 className="mb-3 text-3xl font-semibold tracking-[0.12em] text-slate-900 sm:text-4xl">
+            <h1 className="mb-3 text-3xl font-semibold tracking-[0.12em] text-slate-900 dark:text-slate-100 sm:text-4xl">
               СЕРТИФИКАТ
             </h1>
-            <p className="mb-8 text-sm text-slate-500">
+            <p className="mb-8 text-sm text-slate-500 dark:text-slate-400">
               PDF будет доступен после выдачи — {STATUS_LABEL[cert.status] || cert.status}
             </p>
-            <div className="mb-6 w-full max-w-md rounded-xl border border-slate-200 bg-white px-6 py-5">
-              <p className="text-xl font-semibold text-slate-900">
+            <div className="mb-6 w-full max-w-md rounded-xl border border-slate-200 dark:border-slate-700 bg-white px-6 py-5">
+              <p className="text-xl font-semibold text-slate-900 dark:text-slate-100">
                 {studentName || '—'}
               </p>
             </div>
-            <p className="mb-2 text-sm text-slate-500">курс</p>
-            <p className="mb-8 text-lg font-semibold text-slate-900">{courseName}</p>
-            <p className="text-xs tracking-wide text-slate-400">
+            <p className="mb-2 text-sm text-slate-500 dark:text-slate-400">курс</p>
+            <p className="mb-8 text-lg font-semibold text-slate-900 dark:text-slate-100">{courseName}</p>
+            <p className="text-xs tracking-wide text-slate-400 dark:text-slate-500">
               Рег. № {cert.registration_number}
             </p>
           </div>

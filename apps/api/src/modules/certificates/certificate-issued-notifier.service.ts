@@ -6,6 +6,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { CourseTemplateEntity } from '../courses/entities/course-template.entity';
 import { StudentEntity } from '../students/entities/student.entity';
+import { UserEntity } from '../users/entities/user.entity';
 import { CertificateEntity } from './entities/certificate.entity';
 
 @Injectable()
@@ -20,6 +21,8 @@ export class CertificateIssuedNotifier {
     private readonly studentRepo: Repository<StudentEntity>,
     @InjectRepository(CourseTemplateEntity)
     private readonly courseRepo: Repository<CourseTemplateEntity>,
+    @InjectRepository(UserEntity)
+    private readonly userRepo: Repository<UserEntity>,
   ) {}
 
   /**
@@ -27,10 +30,24 @@ export class CertificateIssuedNotifier {
    * Never throws to the caller — issuing must succeed even if notify fails.
    */
   notifyIssued(certificate: CertificateEntity): void {
-    void this.notifyIssuedSafe(certificate);
+    void this.notifyIssuedSafe(certificate, 'course');
   }
 
-  private async notifyIssuedSafe(certificate: CertificateEntity): Promise<void> {
+  /**
+   * Congratulation after Assessment Result → Certificate.
+   */
+  notifyAssessmentIssued(
+    certificate: CertificateEntity,
+    meta: { examName?: string | null } = {},
+  ): void {
+    void this.notifyIssuedSafe(certificate, 'assessment', meta);
+  }
+
+  private async notifyIssuedSafe(
+    certificate: CertificateEntity,
+    kind: 'course' | 'assessment',
+    meta: { examName?: string | null } = {},
+  ): Promise<void> {
     try {
       if (!certificate.studentId) {
         return;
@@ -48,6 +65,10 @@ export class CertificateIssuedNotifier {
         return;
       }
 
+      const linkedUser = await this.userRepo.findOne({ where: { id: student.userId } });
+      const telegramId =
+        linkedUser?.telegramId?.trim() || student.telegramId?.trim() || '';
+
       const studentName =
         student.name?.trim() ||
         [student.lastName, student.firstName].filter(Boolean).join(' ').trim() ||
@@ -58,22 +79,45 @@ export class CertificateIssuedNotifier {
       const issueDate = certificate.issueDate || '—';
       const viewUrl = this.buildCertificateUrl(certificate.id);
 
-      const title = '🎉 Новое достижение разблокировано!';
-      const body = [
-        `Поздравляем, ${studentName}! 🏆`,
-        '',
-        'Ты успешно завершил курс:',
-        `📚 ${courseName}`,
-        '',
-        'и получил сертификат школы Longhua Chinese.',
-        '',
-        'Твой результат подтвержден.',
-        `Серия: ${series}`,
-        `Номер: ${number}`,
-        `Дата выдачи: ${issueDate}`,
-        '',
-        'Продолжай развиваться и открывай новые уровни китайского языка! 🐉',
-      ].join('\n');
+      let title: string;
+      let body: string;
+      let buttonText: string;
+
+      if (kind === 'assessment') {
+        title = '🎉 Поздравляем!';
+        body = [
+          'Вы успешно завершили экзамен.',
+          meta.examName ? `Экзамен: ${meta.examName}` : null,
+          '',
+          'Ваш сертификат Longhua готов.',
+          '',
+          `Курс: ${courseName}`,
+          `Серия: ${series}`,
+          `Номер: ${number}`,
+          `Дата выдачи: ${issueDate}`,
+        ]
+          .filter((line) => line !== null)
+          .join('\n');
+        buttonText = 'Открыть сертификат';
+      } else {
+        title = '🎉 Новое достижение разблокировано!';
+        body = [
+          `Поздравляем, ${studentName}! 🏆`,
+          '',
+          'Ты успешно завершил курс:',
+          `📚 ${courseName}`,
+          '',
+          'и получил сертификат школы Longhua Chinese.',
+          '',
+          'Твой результат подтвержден.',
+          `Серия: ${series}`,
+          `Номер: ${number}`,
+          `Дата выдачи: ${issueDate}`,
+          '',
+          'Продолжай развиваться и открывай новые уровни китайского языка! 🐉',
+        ].join('\n');
+        buttonText = 'Посмотреть сертификат';
+      }
 
       await this.notifications.create({
         userId: student.userId,
@@ -86,12 +130,11 @@ export class CertificateIssuedNotifier {
         referenceId: certificate.id,
       });
 
-      const telegramId = student.telegramId?.trim();
       if (telegramId) {
         const tgBody = `${title}\n\n${body}`;
         const sent = await this.telegram.sendMessage(telegramId, tgBody, {
           replyMarkup: {
-            inline_keyboard: [[{ text: 'Посмотреть сертификат', url: viewUrl }]],
+            inline_keyboard: [[{ text: buttonText, url: viewUrl }]],
           },
         });
         await this.notifications.create({

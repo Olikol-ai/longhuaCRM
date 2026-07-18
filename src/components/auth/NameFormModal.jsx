@@ -32,18 +32,18 @@ export default function NameFormModal({ user, onSave }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-900">Введите ваше имя</h2>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Введите ваше имя</h2>
         </div>
 
         <div className="p-6 space-y-4">
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             Пожалуйста, заполните ваше имя для продолжения работы в системе.
           </p>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
               Фамилия *
             </label>
             <Input
@@ -58,7 +58,7 @@ export default function NameFormModal({ user, onSave }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
               Имя *
             </label>
             <Input
@@ -73,13 +73,13 @@ export default function NameFormModal({ user, onSave }) {
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">
+            <p className="text-sm text-red-600 bg-red-50 dark:bg-red-950/30 p-3 rounded-lg">
               {error}
             </p>
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-slate-200 flex gap-3">
+        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex gap-3">
           <Button
             onClick={handleSave}
             disabled={saving}

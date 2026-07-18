@@ -32,7 +32,6 @@ export default function AccessManagementPanel({ isAdmin }) {
             (Array.isArray(stsResult.value) ? stsResult.value : []).filter((s) => s.user_id),
           );
         } else {
-          console.error("Failed to load students:", stsResult.reason);
           setStudents([]);
         }
 
@@ -41,7 +40,6 @@ export default function AccessManagementPanel({ isAdmin }) {
             (Array.isArray(trsResult.value) ? trsResult.value : []).filter((t) => t.user_id),
           );
         } else {
-          console.error("Failed to load teachers:", trsResult.reason);
           setTeachers([]);
         }
       } else {
@@ -60,13 +58,11 @@ export default function AccessManagementPanel({ isAdmin }) {
               : [],
           );
         } else {
-          console.error("Failed to load students:", stsResult[0].reason);
           setStudents([]);
         }
         setTeachers([]);
       }
-    } catch (err) {
-      console.error("AccessManagementPanel loadUsers error:", err);
+    } catch {
       setStudents([]);
       setTeachers([]);
     } finally {

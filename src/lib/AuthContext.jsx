@@ -32,7 +32,7 @@ export const AuthProvider = ({ children }) => {
       setNeedsNameSetup(false);
       setAuthError({
         type: 'blocked',
-        message: 'Account is blocked',
+        message: 'Аккаунт заблокирован. Обратитесь к администратору.',
       });
       return;
     }
@@ -45,7 +45,7 @@ export const AuthProvider = ({ children }) => {
       setNeedsNameSetup(false);
       setAuthError({
         type: 'auth_required',
-        message: 'Invalid session role',
+        message: 'Сессия недействительна. Войдите снова.',
       });
       return;
     }
@@ -109,7 +109,7 @@ export const AuthProvider = ({ children }) => {
         const currentUser = normalizeSessionUser(raw);
 
         if (isActiveSessionWithInvalidRole(currentUser)) {
-          throw Object.assign(new Error('Invalid session role'), { status: 401 });
+          throw Object.assign(new Error('Сессия недействительна. Войдите снова.'), { status: 401 });
         }
 
         applyUserSession(currentUser);
@@ -117,18 +117,17 @@ export const AuthProvider = ({ children }) => {
         setIsLoadingAuth(false);
         return currentUser;
       } catch (error) {
-        console.error('User auth check failed:', error);
         clearSessionCache();
         setUser(null);
         setIsAuthenticated(false);
         setNeedsNameSetup(false);
         setIsLoadingAuth(false);
 
-        if (error.status === 401 || error.status === 403) {
+        if (error?.status === 401 || error?.status === 403) {
           setToken(null);
           setAuthError({
             type: 'auth_required',
-            message: 'Authentication required',
+            message: 'Требуется вход в систему.',
           });
         }
         return null;

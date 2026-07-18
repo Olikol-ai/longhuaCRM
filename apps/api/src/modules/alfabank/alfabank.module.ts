@@ -5,10 +5,11 @@ import { TelegramModule } from '../telegram/telegram.module';
 import { AuditModule } from '../audit/audit.module';
 import { AlfaBankController } from './alfabank.controller';
 import { AlfaBankService } from './alfabank.service';
+import { PaymentsAlfaController } from './payments-alfa.controller';
 
 @Module({
   imports: [PaymentsModule, SettingsModule, TelegramModule, AuditModule],
-  controllers: [AlfaBankController],
+  controllers: [AlfaBankController, PaymentsAlfaController],
   providers: [AlfaBankService],
   exports: [AlfaBankService],
 })

@@ -7,4 +7,15 @@ export const alfabank = {
       body: JSON.stringify(payload),
     });
   },
+
+  initCardPayment(payload) {
+    return apiFetch('/payments/alfa/init', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  getPaymentStatus(paymentId) {
+    return apiFetch(`/payments/alfa/status/${paymentId}`);
+  },
 };

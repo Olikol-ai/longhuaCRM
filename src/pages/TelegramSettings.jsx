@@ -154,8 +154,8 @@ export default function TelegramSettings() {
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-          <Send className="w-5 h-5 text-blue-600" />
+        <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-950/50 flex items-center justify-center">
+          <Send className="w-5 h-5 text-blue-600 dark:text-blue-400" />
         </div>
         <div>
           <h2 className="text-xl font-bold text-foreground">Telegram Bot</h2>
@@ -223,7 +223,7 @@ export default function TelegramSettings() {
               <div>
                 <p className="font-semibold">✅ Вебхук активен!</p>
                 <p className="font-mono text-xs mt-1 break-all">{webhookStatus.url}</p>
-                <p className="text-xs mt-1 text-emerald-600">Ожидающих обновлений: {webhookStatus.pending}</p>
+                <p className="text-xs mt-1 text-emerald-600 dark:text-emerald-400">Ожидающих обновлений: {webhookStatus.pending}</p>
               </div>
             ) : (
               <p>❌ Ошибка: {webhookStatus.error}</p>

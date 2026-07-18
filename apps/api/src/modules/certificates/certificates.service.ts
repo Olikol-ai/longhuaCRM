@@ -290,7 +290,7 @@ export class CertificatesService {
 
       const previousStatus = locked.status;
 
-      await certRepo.update({ id: locked.id }, { status: 'duplicate' });
+      await certRepo.update({ id: locked.id }, { status: 'duplicate', assessmentResultId: null });
 
       await historyRepo.save({
         certificateId: locked.id,
@@ -310,6 +310,8 @@ export class CertificatesService {
           blankNumber,
           issueDate,
           status: 'issued',
+          source: locked.source,
+          assessmentResultId: locked.assessmentResultId,
         }),
       );
 

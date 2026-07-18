@@ -45,7 +45,6 @@ export default function AccessControlModal({ material, course, folders = [], onC
       // Checkbox list is only for NEW grants; already granted students live in «Текущие права».
       setSelectedStudentIds([]);
     } catch (err) {
-      console.error(err);
       setError(err.message || "Не удалось загрузить доступы");
     } finally {
       setLoading(false);
@@ -141,7 +140,6 @@ export default function AccessControlModal({ material, course, folders = [], onC
       await load();
       await onSave?.();
     } catch (err) {
-      console.error("Save error:", err);
       setError(err.message || "Ошибка сохранения доступа");
     } finally {
       setSaving(false);
@@ -192,7 +190,7 @@ export default function AccessControlModal({ material, course, folders = [], onC
             type="button"
             onClick={() => setTab("info")}
             className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-              tab === "info" ? "border-indigo-600 text-indigo-700" : "border-transparent text-muted-foreground"
+              tab === "info" ? "border-indigo-600 text-indigo-700 dark:text-indigo-400" : "border-transparent text-muted-foreground"
             }`}
           >
             Информация
@@ -201,7 +199,7 @@ export default function AccessControlModal({ material, course, folders = [], onC
             type="button"
             onClick={() => setTab("access")}
             className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-              tab === "access" ? "border-indigo-600 text-indigo-700" : "border-transparent text-muted-foreground"
+              tab === "access" ? "border-indigo-600 text-indigo-700 dark:text-indigo-400" : "border-transparent text-muted-foreground"
             }`}
           >
             Доступ
@@ -246,7 +244,7 @@ export default function AccessControlModal({ material, course, folders = [], onC
                         });
                       }
                     }}
-                    className="inline-flex text-indigo-600 hover:underline"
+                    className="inline-flex text-indigo-600 dark:text-indigo-400 hover:underline"
                   >
                     Открыть материал
                   </button>
@@ -304,7 +302,7 @@ export default function AccessControlModal({ material, course, folders = [], onC
                     <Button
                       variant="outline"
                       size="sm"
-                      className="shrink-0 text-red-600 border-red-200 hover:bg-red-50"
+                      className="shrink-0 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-950/50"
                       disabled={revokingKey === `user:${row.user_id}`}
                       onClick={() => handleRevokePersonal(row.user_id)}
                     >
@@ -339,7 +337,7 @@ export default function AccessControlModal({ material, course, folders = [], onC
                     <Button
                       variant="outline"
                       size="sm"
-                      className="shrink-0 text-red-600 border-red-200 hover:bg-red-50"
+                      className="shrink-0 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-950/50"
                       disabled={revokingKey === `group:${row.group_id}`}
                       onClick={() => handleRevokeGroup(row.group_id)}
                     >
@@ -374,7 +372,7 @@ export default function AccessControlModal({ material, course, folders = [], onC
                     <Button
                       variant="outline"
                       size="sm"
-                      className="shrink-0 text-red-600 border-red-200 hover:bg-red-50"
+                      className="shrink-0 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-950/50"
                       disabled={revokingKey === `course:${row.course_template_id}`}
                       onClick={() => handleRevokeCourse(row.course_template_id)}
                     >

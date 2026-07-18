@@ -83,8 +83,8 @@ export default function TeacherAvailabilityTab({ teacher }) {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-lg font-bold text-slate-800">Мой свободный график</h2>
-          <p className="text-sm text-slate-400 mt-0.5">Укажите, в какое время вы готовы принимать учеников</p>
+          <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Мой свободный график</h2>
+          <p className="text-sm text-slate-400 dark:text-slate-500 mt-0.5">Укажите, в какое время вы готовы принимать учеников</p>
         </div>
         <Button
           onClick={handleSave}
@@ -107,7 +107,7 @@ export default function TeacherAvailabilityTab({ teacher }) {
         <div className="flex flex-wrap gap-2">
           {slots.map((daySlots, i) =>
             daySlots.length > 0 ? (
-              <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-full">
+              <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-400 text-xs font-semibold rounded-full">
                 {DAYS_SHORT[i]}
                 {daySlots.map((s, j) => (
                   <span key={j} className="text-indigo-500">{s.from}–{s.to}{j < daySlots.length - 1 ? "," : ""}</span>
@@ -126,41 +126,41 @@ export default function TeacherAvailabilityTab({ teacher }) {
           return (
             <div
               key={dayIndex}
-              className={`bg-white rounded-2xl border transition-colors ${hasSlots ? "border-indigo-200" : "border-slate-200"}`}
+              className={`bg-white dark:bg-slate-900 rounded-2xl border transition-colors ${hasSlots ? "border-indigo-200 dark:border-indigo-800" : "border-slate-200 dark:border-slate-700"}`}
             >
               <div className="flex items-center gap-4 px-5 py-4">
                 {/* Day label */}
                 <div className="w-32 flex-shrink-0">
-                  <p className={`text-sm font-semibold ${hasSlots ? "text-slate-900" : "text-slate-400"}`}>{dayName}</p>
-                  <p className="text-xs text-slate-300">{DAYS_SHORT[dayIndex]}</p>
+                  <p className={`text-sm font-semibold ${hasSlots ? "text-slate-900 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}`}>{dayName}</p>
+                  <p className="text-xs text-slate-300 dark:text-slate-600">{DAYS_SHORT[dayIndex]}</p>
                 </div>
 
                 {/* Slots */}
                 <div className="flex-1 flex flex-wrap items-center gap-3">
                   {daySlots.length === 0 ? (
-                    <span className="text-sm text-slate-300 italic">Не указано</span>
+                    <span className="text-sm text-slate-300 dark:text-slate-600 italic">Не указано</span>
                   ) : (
                     daySlots.map((slot, slotIndex) => (
-                      <div key={slotIndex} className="flex items-center gap-2 bg-indigo-50 rounded-xl px-3 py-2">
-                        <span className="text-xs text-slate-500 font-medium">с</span>
+                      <div key={slotIndex} className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl px-3 py-2">
+                        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">с</span>
                         <select
                           value={slot.from}
                           onChange={e => updateSlot(dayIndex, slotIndex, "from", e.target.value)}
-                          className="text-sm font-semibold text-slate-800 bg-transparent border-none outline-none cursor-pointer"
+                          className="text-sm font-semibold text-slate-800 dark:text-slate-100 bg-transparent border-none outline-none cursor-pointer"
                         >
                           {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
-                        <span className="text-xs text-slate-500 font-medium">до</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">до</span>
                         <select
                           value={slot.to}
                           onChange={e => updateSlot(dayIndex, slotIndex, "to", e.target.value)}
-                          className="text-sm font-semibold text-slate-800 bg-transparent border-none outline-none cursor-pointer"
+                          className="text-sm font-semibold text-slate-800 dark:text-slate-100 bg-transparent border-none outline-none cursor-pointer"
                         >
                           {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                         <button
                           onClick={() => removeSlot(dayIndex, slotIndex)}
-                          className="text-slate-300 hover:text-red-400 transition-colors ml-1"
+                          className="text-slate-300 dark:text-slate-600 hover:text-red-400 transition-colors ml-1"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>

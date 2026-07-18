@@ -109,7 +109,8 @@ function formatIssueDate(value: string | null | undefined): string {
   }
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString('ru-RU');
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(parsed.getDate())}.${pad(parsed.getMonth() + 1)}.${parsed.getFullYear()}`;
 }
 
 @Injectable()

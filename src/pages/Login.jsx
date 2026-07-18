@@ -7,6 +7,7 @@ import { BookOpen, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { REGISTRATION_PASSWORD_HINT } from '@/lib/passwordPolicy';
+import { userFacingError } from '@/lib/userFacingError';
 
 const INVITE_REF_KEY = 'longhua_teacher_invite_ref';
 
@@ -72,7 +73,10 @@ export default function Login() {
         navigate('/auth/pending-approval', { replace: true });
       }
     } catch (err) {
-      const message = err.message || (mode === 'register' ? 'Не удалось отправить код подтверждения' : 'Ошибка входа');
+      const message = userFacingError(
+        err,
+        mode === 'register' ? 'Не удалось отправить код подтверждения' : 'Не удалось войти. Проверьте email и пароль.',
+      );
       setError(message);
     } finally {
       setLoading(false);
@@ -96,7 +100,7 @@ export default function Login() {
               type="button"
               onClick={() => setMode('login')}
               className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                mode === 'login' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'
+                mode === 'login' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'
               }`}
             >
               Вход
@@ -105,7 +109,7 @@ export default function Login() {
               type="button"
               onClick={() => setMode('register')}
               className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                mode === 'register' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'
+                mode === 'register' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'
               }`}
             >
               Регистрация
@@ -137,7 +141,7 @@ export default function Login() {
                       type="checkbox"
                       checked={wantsStudentRole}
                       onChange={(e) => setWantsStudentRole(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500"
                       data-testid="register-wants-student"
                     />
                     <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 text-left">
@@ -170,12 +174,12 @@ export default function Login() {
                 autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
               />
               {mode === 'register' && (
-                <p className="mt-1 text-xs text-slate-500">{REGISTRATION_PASSWORD_HINT}</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{REGISTRATION_PASSWORD_HINT}</p>
               )}
             </div>
 
             {error && (
-              <p className="text-sm text-red-600 bg-red-50 dark:bg-red-950/30 p-3 rounded-lg">{error}</p>
+              <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 p-3 rounded-lg">{error}</p>
             )}
 
             <Button

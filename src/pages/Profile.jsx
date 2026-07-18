@@ -232,16 +232,16 @@ export default function Profile() {
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-slate-800">Профиль</h2>
+        <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Профиль</h2>
         <p className="text-sm text-slate-400">Ваши личные данные</p>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-100 p-5 flex items-center gap-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 flex items-center gap-4">
         <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center flex-shrink-0">
           <span className="text-2xl font-bold text-white">{(user.full_name || user.email || "U")[0].toUpperCase()}</span>
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-slate-800">{user.full_name || "—"}</h3>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">{user.full_name || "—"}</h3>
           <p className="text-sm text-slate-400">{form.email || user.email}</p>
           <span className={`text-xs font-bold uppercase px-2.5 py-1 rounded-full mt-1.5 inline-block ${roleColor[user.role] || roleColor.pending}`}>
             {roleLabel[user.role] || user.role}
@@ -249,47 +249,47 @@ export default function Profile() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-100 p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 space-y-4">
+        <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
           <User className="w-4 h-4 text-slate-400" /> Контактные данные
         </h3>
 
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">ФИО</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">ФИО</label>
           <input value={form.full_name} disabled
-            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 text-slate-400 cursor-not-allowed" />
+            className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/60 text-slate-400 cursor-not-allowed" />
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Email</label>
           <input type="email" value={form.email}
             onChange={e => set("email", e.target.value)}
             disabled={user.role === 'admin'}
-            className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 ${user.role === 'admin' ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : ''}`} />
+            className={`w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 ${user.role === 'admin' ? 'bg-slate-50 dark:bg-slate-800/60 text-slate-400 cursor-not-allowed' : ''}`} />
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Телефон</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Телефон</label>
           <input type="tel" value={form.phone}
             onChange={e => set("phone", formatBelarusPhone(e.target.value))}
             placeholder={PHONE_PLACEHOLDER}
-            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+            className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
         </div>
 
         {user.has_student_profile && (
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Дата рождения</label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Дата рождения</label>
             <input type="date" value={form.birthday} onChange={e => set("birthday", e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
           </div>
         )}
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-100 p-5 space-y-3">
-        <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 space-y-3">
+        <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
           <Send className="w-4 h-4 text-blue-400" /> Telegram
         </h3>
-        <div className="border-t border-slate-100" />
+        <div className="border-t border-slate-100 dark:border-slate-800" />
 
         {connected ? (
           <div className="space-y-3">
@@ -315,16 +315,16 @@ export default function Profile() {
       </div>
 
       {user.role === "teacher" && (
-        <div className="bg-white rounded-2xl border border-slate-100 p-5 space-y-3" data-testid="teacher-invite-profile-block">
-          <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 space-y-3" data-testid="teacher-invite-profile-block">
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
             <Users className="w-4 h-4 text-indigo-400" /> Ссылка для регистрации учеников
           </h3>
-          <div className="border-t border-slate-100" />
-          <p className="text-sm text-slate-500">
+          <div className="border-t border-slate-100 dark:border-slate-800" />
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Отправьте ссылку ученику. После регистрации и подтверждения email он автоматически закрепится за вами.
           </p>
           {inviteUrl ? (
-            <p className="text-xs break-all text-indigo-700 bg-indigo-50 rounded-lg px-3 py-2" data-testid="teacher-invite-profile-url">
+            <p className="text-xs break-all text-indigo-700 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg px-3 py-2" data-testid="teacher-invite-profile-url">
               {inviteUrl}
             </p>
           ) : (
@@ -349,7 +349,7 @@ export default function Profile() {
               type="button"
               onClick={handleCopyInvite}
               disabled={inviteBusy}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 text-sm font-medium rounded-xl hover:bg-slate-200 transition-colors disabled:opacity-50"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-sm font-medium rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
               data-testid="teacher-invite-profile-copy"
             >
               {inviteBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}

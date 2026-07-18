@@ -98,6 +98,11 @@
     background-color: hsl(222 47% 8%);
     color: hsl(210 40% 95%);
   }
+
+  /* Native form controls follow app theme */
+  input, textarea, select {
+    color-scheme: inherit;
+  }
   
   @media (min-width: 1024px) {
     body {

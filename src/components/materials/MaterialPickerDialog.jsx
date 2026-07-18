@@ -44,7 +44,7 @@ export default function MaterialPickerDialog({ onConfirm, onSkip, onCancel, less
 
         <div className="px-6 pt-4 shrink-0">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
             <Input placeholder="Поиск материалов..." className="pl-10" value={search} onChange={e => setSearch(e.target.value)} />
           </div>
         </div>
@@ -55,7 +55,7 @@ export default function MaterialPickerDialog({ onConfirm, onSkip, onCancel, less
               <Loader2 className="h-5 w-5 animate-spin text-indigo-600" />
             </div>
           ) : filtered.length === 0 ? (
-            <p className="text-center text-sm text-slate-400 py-8">Материалы не найдены</p>
+            <p className="text-center text-sm text-slate-400 dark:text-slate-500 py-8">Материалы не найдены</p>
           ) : (
             filtered.map((mat) => {
               const typeInfo = getMaterialTypeInfo(mat.file_type);
@@ -67,13 +67,13 @@ export default function MaterialPickerDialog({ onConfirm, onSkip, onCancel, less
                   key={mat.id}
                   onClick={() => toggle(mat.id)}
                   className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
-                    isSelected ? "border-indigo-300 bg-indigo-50" : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                    isSelected ? "border-indigo-300 bg-indigo-50 dark:bg-indigo-950/30" : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800"
                   }`}
                 >
                   <IconComp className={`h-4 w-4 shrink-0 ${typeInfo.color}`} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-800 truncate">{mat.title}</p>
-                    {block && <p className="text-xs text-slate-400">{block}</p>}
+                    <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{mat.title}</p>
+                    {block && <p className="text-xs text-slate-400 dark:text-slate-500">{block}</p>}
                   </div>
                   {isSelected && <CheckCircle2 className="h-4 w-4 text-indigo-600 shrink-0" />}
                 </button>
@@ -82,8 +82,8 @@ export default function MaterialPickerDialog({ onConfirm, onSkip, onCancel, less
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-2 px-6 py-4 border-t border-slate-100 shrink-0">
-          <button onClick={onSkip} className="text-sm text-slate-400 hover:text-slate-600">
+        <div className="flex items-center justify-between gap-2 px-6 py-4 border-t border-slate-100 dark:border-slate-800 shrink-0">
+          <button onClick={onSkip} className="text-sm text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
             Пропустить
           </button>
           <div className="flex gap-2">

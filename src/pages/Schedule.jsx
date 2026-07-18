@@ -6,6 +6,7 @@ import {
   eachDayOfInterval, addWeeks, subWeeks, addMonths, subMonths,
   addDays, isSameDay, parseISO, isToday
 } from "date-fns";
+import { ru } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Plus, CalendarDays } from "lucide-react";
 import LessonModal from "../components/schedule/LessonModal";
 import LessonDetailModal from "../components/schedule/LessonDetailModal";
@@ -87,9 +88,9 @@ export default function Schedule() {
   };
 
   const title = () => {
-    if (view === "week") return `${format(startOfWeek(current, { weekStartsOn: 1 }), "MMM d")} – ${format(endOfWeek(current, { weekStartsOn: 1 }), "MMM d, yyyy")}`;
-    if (view === "month") return format(current, "MMMM yyyy");
-    return format(current, "EEEE, MMMM d, yyyy");
+    if (view === "week") return `${format(startOfWeek(current, { weekStartsOn: 1 }), "d MMM", { locale: ru })} – ${format(endOfWeek(current, { weekStartsOn: 1 }), "d MMM yyyy", { locale: ru })}`;
+    if (view === "month") return format(current, "LLLL yyyy", { locale: ru });
+    return format(current, "EEEE, d MMMM yyyy", { locale: ru });
   };
 
   const handleSave = async (data, recurring) => {
@@ -143,16 +144,16 @@ export default function Schedule() {
         <button
           type="button"
           onClick={() => setCurrent(new Date())}
-          className="px-3 py-2 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 min-h-[40px]"
+          className="px-3 py-2 text-xs font-medium border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 min-h-[40px]"
         >
           Сегодня
         </button>
         <div className="flex items-center gap-1">
-          <button type="button" onClick={() => navigate("prev")} className="p-2 hover:bg-slate-100 rounded-lg min-h-[40px] min-w-[40px]">
-            <ChevronLeft className="w-4 h-4 text-slate-500" />
+          <button type="button" onClick={() => navigate("prev")} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg min-h-[40px] min-w-[40px]">
+            <ChevronLeft className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           </button>
-          <button type="button" onClick={() => navigate("next")} className="p-2 hover:bg-slate-100 rounded-lg min-h-[40px] min-w-[40px]">
-            <ChevronRight className="w-4 h-4 text-slate-500" />
+          <button type="button" onClick={() => navigate("next")} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg min-h-[40px] min-w-[40px]">
+            <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           </button>
         </div>
         <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 w-full sm:w-auto sm:flex-1 order-last sm:order-none truncate">{title()}</h2>
@@ -168,11 +169,11 @@ export default function Schedule() {
             ))}
           </select>
         )}
-        <div className="flex gap-1 bg-slate-100 rounded-lg p-1 overflow-x-auto max-w-full">
+        <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1 overflow-x-auto max-w-full">
           {[["day", "День"], ["week", "Неделя"], ["month", "Месяц"]].map(([v, label]) => (
             <button key={v} type="button" onClick={() => setView(v)}
               className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
-                view === v ? "bg-white shadow-sm text-slate-700" : "text-slate-500 hover:text-slate-700"
+                view === v ? "bg-white dark:bg-slate-900 shadow-sm text-slate-700 dark:text-slate-200" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
               }`}>
               {label}
             </button>
@@ -192,7 +193,7 @@ export default function Schedule() {
       {/* Calendar body */}
       <div className="flex-1 overflow-auto bg-white dark:bg-slate-900">
         {error && (
-          <div className="mx-6 mt-4 rounded-lg bg-red-50 text-red-700 text-sm px-4 py-3">{error}</div>
+          <div className="mx-6 mt-4 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 text-sm px-4 py-3">{error}</div>
         )}
         {loading ? (
           <div className="flex items-center justify-center h-64">
@@ -290,7 +291,7 @@ function MonthView({ current, teachers, students, getLessonsForDay, onDayClick, 
           <div key={d} className="text-center text-xs font-semibold text-slate-400 py-2">{d}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-px bg-slate-100 border border-slate-100 rounded-xl overflow-hidden">
+      <div className="grid grid-cols-7 gap-px bg-slate-100 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden">
         {days.map(day => {
           const dayLessons = getLessonsForDay(day);
           const inMonth = day.getMonth() === current.getMonth();
@@ -299,11 +300,11 @@ function MonthView({ current, teachers, students, getLessonsForDay, onDayClick, 
               key={day.toISOString()}
               onClick={() => onDayClick(day)}
               className={`min-h-[90px] p-2 cursor-pointer transition-colors ${
-                inMonth ? "bg-white hover:bg-slate-50" : "bg-slate-50/50"
+                inMonth ? "bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800" : "bg-slate-50/50 dark:bg-slate-800/40"
               }`}
             >
               <span className={`text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full mb-1 ${
-                isToday(day) ? "bg-indigo-600 text-white" : inMonth ? "text-slate-700" : "text-slate-300"
+                isToday(day) ? "bg-indigo-600 text-white" : inMonth ? "text-slate-700 dark:text-slate-300" : "text-slate-300 dark:text-slate-600"
               }`}>
                 {format(day, "d")}
               </span>
@@ -312,7 +313,7 @@ function MonthView({ current, teachers, students, getLessonsForDay, onDayClick, 
                   <LessonChip key={l.id} lesson={l} teachers={teachers} students={students} onClick={onLessonClick} />
                 ))}
                 {dayLessons.length > 3 && (
-                  <span className="text-[9px] text-slate-400">+{dayLessons.length - 3} more</span>
+                  <span className="text-[9px] text-slate-400 dark:text-slate-500">+{dayLessons.length - 3} more</span>
                 )}
               </div>
             </div>
@@ -367,7 +368,7 @@ function WeekView({ current, teachers, students, hours, getLessonsForDay, onSlot
     <div className="overflow-x-auto">
     <div className="flex flex-col min-w-[640px]">
       {showAvailability && (
-        <div className="flex items-center gap-4 px-4 py-2 border-b border-slate-100 dark:border-slate-700 text-[11px] text-slate-500">
+        <div className="flex items-center gap-4 px-4 py-2 border-b border-slate-100 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400">
           <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-300" /> Свободно</span>
           <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-100 border border-red-300" /> Занято</span>
           <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-slate-100 border border-slate-200" /> Недоступно</span>
@@ -378,7 +379,7 @@ function WeekView({ current, teachers, students, hours, getLessonsForDay, onSlot
         <div className="py-3" />
         {days.map(day => (
           <div key={day.toISOString()} className={`text-center py-3 ${isToday(day) ? "text-indigo-600" : ""}`}>
-            <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">{format(day, "EEE")}</p>
+            <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">{format(day, "EEEEEE", { locale: ru })}</p>
             <span className={`text-sm font-bold mt-0.5 w-7 h-7 inline-flex items-center justify-center rounded-full ${
               isToday(day) ? "bg-indigo-600 text-white" : "text-slate-700 dark:text-slate-300"
             }`}>{format(day, "d")}</span>

@@ -245,7 +245,7 @@ export default function GroupDetail() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 border-b border-slate-100 pb-2">
+      <div className="flex flex-wrap gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -254,7 +254,7 @@ export default function GroupDetail() {
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               activeTab === tab.id
                 ? "bg-indigo-600 text-white"
-                : "text-slate-600 hover:bg-slate-100"
+                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
             }`}
           >
             {tab.label}
@@ -299,7 +299,7 @@ export default function GroupDetail() {
           <h3 className="font-semibold flex items-center gap-2"><Users className="h-4 w-4" /> Ученики группы</h3>
           <div className="flex gap-2">
             <select
-              className="border rounded-lg px-3 py-2 text-sm flex-1"
+              className="border rounded-lg px-3 py-2 text-sm flex-1 bg-background border-input"
               value={memberStudentId}
               onChange={(e) => setMemberStudentId(e.target.value)}
             >
@@ -316,7 +316,7 @@ export default function GroupDetail() {
               <UserPlus className="h-4 w-4" /> Добавить
             </button>
           </div>
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
             {members.map((member) => (
               <li key={member.id} className="flex items-center justify-between py-2">
                 <span className="text-sm font-medium">
@@ -325,7 +325,7 @@ export default function GroupDetail() {
                 <button
                   type="button"
                   onClick={() => handleRemoveMember(member.id)}
-                  className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
+                  className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -341,7 +341,7 @@ export default function GroupDetail() {
             <div className="border rounded-xl p-4 bg-card space-y-2">
               <h3 className="font-semibold">Текущие серии</h3>
               {seriesList.map((series) => (
-                <div key={series.id} className="text-sm border border-slate-100 rounded-lg p-3">
+                <div key={series.id} className="text-sm border border-slate-100 dark:border-slate-800 rounded-lg p-3">
                   <p className="font-medium">
                     {series.start_date ?? series.startDate} · {series.total_lessons ?? series.totalLessons} уроков · {series.status}
                   </p>
@@ -359,7 +359,7 @@ export default function GroupDetail() {
             <h3 className="font-semibold">Создать расписание курса</h3>
             <div className="grid md:grid-cols-2 gap-3">
               <select
-                className="border rounded-lg px-3 py-2 text-sm"
+                className="border rounded-lg px-3 py-2 text-sm bg-background border-input"
                 value={seriesForm.course_id}
                 onChange={(e) => setSeriesForm({ ...seriesForm, course_id: e.target.value })}
               >
@@ -368,14 +368,14 @@ export default function GroupDetail() {
               </select>
               <input
                 type="date"
-                className="border rounded-lg px-3 py-2 text-sm"
+                className="border rounded-lg px-3 py-2 text-sm bg-background border-input"
                 value={seriesForm.start_date}
                 onChange={(e) => setSeriesForm({ ...seriesForm, start_date: e.target.value })}
               />
               <input
                 type="number"
                 min={1}
-                className="border rounded-lg px-3 py-2 text-sm"
+                className="border rounded-lg px-3 py-2 text-sm bg-background border-input"
                 placeholder="Всего занятий"
                 value={seriesForm.total_lessons}
                 onChange={(e) => setSeriesForm({ ...seriesForm, total_lessons: Number(e.target.value) })}
@@ -384,7 +384,7 @@ export default function GroupDetail() {
                 type="number"
                 min={15}
                 step={15}
-                className="border rounded-lg px-3 py-2 text-sm"
+                className="border rounded-lg px-3 py-2 text-sm bg-background border-input"
                 placeholder="Длительность (мин)"
                 value={seriesForm.duration}
                 onChange={(e) => setSeriesForm({ ...seriesForm, duration: Number(e.target.value) })}
@@ -396,7 +396,7 @@ export default function GroupDetail() {
               {seriesForm.slots.map((slot, index) => (
                 <div key={index} className="flex flex-wrap gap-2 items-center">
                   <select
-                    className="border rounded-lg px-3 py-2 text-sm"
+                    className="border rounded-lg px-3 py-2 text-sm bg-background border-input"
                     value={slot.day_of_week}
                     onChange={(e) => updateSlot(index, "day_of_week", Number(e.target.value))}
                   >
@@ -406,14 +406,14 @@ export default function GroupDetail() {
                   </select>
                   <input
                     type="time"
-                    className="border rounded-lg px-3 py-2 text-sm"
+                    className="border rounded-lg px-3 py-2 text-sm bg-background border-input"
                     value={slot.start_time}
                     onChange={(e) => updateSlot(index, "start_time", e.target.value)}
                   />
                   <button
                     type="button"
                     onClick={() => removeSlot(index)}
-                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                    className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg"
                     disabled={seriesForm.slots.length <= 1}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -449,8 +449,8 @@ export default function GroupDetail() {
             <p className="text-sm text-muted-foreground">Уроков пока нет. Создайте расписание на вкладке «Расписание».</p>
           ) : (
             lessons.map((lesson) => (
-              <div key={lesson.id} className="border border-slate-100 rounded-lg overflow-hidden">
-                <div className="flex items-center justify-between gap-3 px-3 py-2 bg-slate-50">
+              <div key={lesson.id} className="border border-slate-100 dark:border-slate-800 rounded-lg overflow-hidden">
+                <div className="flex items-center justify-between gap-3 px-3 py-2 bg-slate-50 dark:bg-slate-800/60">
                   <button
                     type="button"
                     onClick={() => setExpandedLessonId(expandedLessonId === lesson.id ? null : lesson.id)}
@@ -461,13 +461,13 @@ export default function GroupDetail() {
                   <button
                     type="button"
                     onClick={() => setViewingLesson(lesson)}
-                    className="text-xs px-2 py-1 border rounded-md hover:bg-white"
+                    className="text-xs px-2 py-1 border rounded-md hover:bg-white dark:hover:bg-slate-900 border-slate-200 dark:border-slate-700"
                   >
                     Открыть
                   </button>
                 </div>
                 {expandedLessonId === lesson.id && (
-                  <div className="px-3 py-3 border-t border-slate-100">
+                  <div className="px-3 py-3 border-t border-slate-100 dark:border-slate-800">
                     <LessonAttendancePanel lessonId={lesson.id} students={students} />
                   </div>
                 )}

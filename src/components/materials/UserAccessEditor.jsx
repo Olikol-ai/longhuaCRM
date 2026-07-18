@@ -31,7 +31,6 @@ export default function UserAccessEditor({ targetUser, onClose, onSaved }) {
         setSelectedIds(granted);
         setExpandedCourses(new Set((data.courses ?? []).map((c) => c.id)));
       } catch (err) {
-        console.error("Failed to load access editor:", err);
         if (!cancelled) {
           setCourses([]);
           setSelectedIds(new Set());
@@ -95,7 +94,6 @@ export default function UserAccessEditor({ targetUser, onClose, onSaved }) {
       onSaved?.();
       onClose();
     } catch (err) {
-      console.error("Failed to save material access:", err);
       alert("Не удалось сохранить доступ");
     } finally {
       setSaving(false);

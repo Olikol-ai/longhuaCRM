@@ -1,16 +1,18 @@
 import { useState, useEffect } from "react";
 import { api } from '@/api';
 import { format, parseISO, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { ru } from "date-fns/locale";
 import { Download, GraduationCap, DollarSign, CheckCircle2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { toast } from "@/components/ui/use-toast";
 import { resolveTeacherPaymentLabel } from "@/lib/teacherLabels";
+import { formatCurrency } from "@/lib/formatters";
 
 const fieldCls = "px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500/20";
 
 const MONTHS = Array.from({ length: 6 }, (_, i) => {
   const d = subMonths(new Date(), i);
-  return { value: format(d, "yyyy-MM"), label: format(d, "MMMM yyyy") };
+  return { value: format(d, "yyyy-MM"), label: format(d, "LLLL yyyy", { locale: ru }) };
 });
 
 function exportCSV(filename, rows) {
@@ -68,7 +70,7 @@ export default function Salary() {
 
   const handleExport = () => {
     exportCSV(`salary_${selectedMonth}.csv`, [
-      ["Преподаватель", "Email", "Уроков проведено", "Без предупреждения", "Итого уроков", "Часов", "Ставка (₽/ч)", "Зарплата (₽)"],
+      ["Преподаватель", "Email", "Уроков проведено", "Без предупреждения", "Итого уроков", "Часов", "Ставка (BYN/ч)", "Зарплата (BYN)"],
       ...teacherSalaries.map(t => [
         t.name, t.email || "", t.completedCount, t.missedNoNoticeCount,
         t.paidLessons.length, t.totalHours.toFixed(1), t.hourly_rate || 0, t.salary
@@ -121,7 +123,7 @@ export default function Salary() {
 
       <div className="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-xl p-5 text-white">
         <p className="text-indigo-200 text-sm mb-1">Итого к выплате — {monthLabel}</p>
-        <p className="text-3xl font-bold">{totalSalary.toLocaleString()} BYN</p>
+        <p className="text-3xl font-bold">{formatCurrency(totalSalary)}</p>
         <p className="text-indigo-200 text-xs mt-1">
           {teacherSalaries.filter(t => t.paidLessons.length > 0).length} преподавателей · {teacherSalaries.reduce((s, t) => s + t.paidLessons.length, 0)} уроков
         </p>
@@ -143,12 +145,12 @@ export default function Salary() {
                 <div>
                   <p className="font-semibold text-foreground">{teacher.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    Ставка: {teacher.hourly_rate ? `${teacher.hourly_rate} BYN/час` : "не указана"}
+                    Ставка: {teacher.hourly_rate ? formatCurrency(teacher.hourly_rate).replace(' BYN', ' BYN/час') : "не указана"}
                   </p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-xl font-bold text-foreground">{teacher.salary.toLocaleString()} BYN</p>
+                <p className="text-xl font-bold text-foreground">{formatCurrency(teacher.salary)}</p>
                 <p className="text-xs text-muted-foreground">
                   {teacher.paidLessons.length} уроков · {teacher.totalHours.toFixed(1)} ч
                 </p>
@@ -191,7 +193,7 @@ export default function Salary() {
             <div key={row.id} className="border rounded-xl p-4 bg-card flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="min-w-0">
                 <p className="font-semibold flex items-center gap-2">
-                  <DollarSign className="w-4 h-4 shrink-0" /> {Number(row.amount).toFixed(2)} BYN
+                  <DollarSign className="w-4 h-4 shrink-0" /> {formatCurrency(row.amount)}
                 </p>
                 <p className="text-xs text-muted-foreground break-words">
                   {teacherName(row.teacher_id)} · Урок {lessonLabel(row.lesson_id)} · {row.status}

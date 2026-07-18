@@ -46,7 +46,6 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
         setTeacherEntityId(ownTeacher?.id ?? null);
       }
     } catch (err) {
-      console.error(err);
       setError(err.message || "Не удалось загрузить данные");
     } finally {
       setLoading(false);
@@ -107,7 +106,6 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
 
       onSuccess();
     } catch (err) {
-      console.error("Save error:", err);
       setError(err.message || "Ошибка при предоставлении доступа");
     } finally {
       setSaving(false);

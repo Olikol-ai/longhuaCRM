@@ -5,6 +5,7 @@ import { LessonSeriesEntity } from '../lesson-series/entities/lesson-series.enti
 import { LessonEntity } from '../lessons/entities/lesson.entity';
 import { AvailabilityBookingEntity } from '../schedule/entities/availability-booking.entity';
 import { AvailabilitySlotEntity } from '../schedule/entities/availability-slot.entity';
+import { ScheduleModule } from '../schedule/schedule.module';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherPaymentEntity } from '../teacher-payments/entities/teacher-payment.entity';
 import { UserEntity } from '../users/entities/user.entity';
@@ -19,6 +20,7 @@ import { TeachersService } from './teachers.service';
 
 @Module({
   imports: [
+    ScheduleModule,
     TypeOrmModule.forFeature([
       TeacherEntity,
       TeacherInviteLinkEntity,

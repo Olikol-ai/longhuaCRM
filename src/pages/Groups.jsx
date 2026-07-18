@@ -65,7 +65,6 @@ export default function Groups() {
       }
       await load();
     } catch (err) {
-      console.error("Failed to create group:", err);
       toast({
         title: "Не удалось создать группу",
         description: err.message || "Проверьте данные и попробуйте снова",
@@ -100,14 +99,14 @@ export default function Groups() {
 
       <div className="grid md:grid-cols-2 gap-4 p-4 border rounded-xl bg-card">
         <input
-          className="border rounded-lg px-3 py-2 text-sm"
+          className="border rounded-lg px-3 py-2 text-sm bg-background border-input"
           placeholder="Название группы"
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
           onKeyDown={(e) => e.key === "Enter" && handleCreate()}
         />
         <select
-          className="border rounded-lg px-3 py-2 text-sm"
+          className="border rounded-lg px-3 py-2 text-sm bg-background border-input"
           value={form.teacher_id}
           onChange={(e) => setForm({ ...form, teacher_id: e.target.value })}
         >
@@ -141,7 +140,7 @@ export default function Groups() {
               <div className="flex gap-2 items-center">
                 <Link
                   to={`/Groups/${group.id}`}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 text-xs border rounded-lg hover:bg-slate-50"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-xs border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700"
                 >
                   <Users className="w-3.5 h-3.5" /> Открыть <ChevronRight className="w-3.5 h-3.5" />
                 </Link>

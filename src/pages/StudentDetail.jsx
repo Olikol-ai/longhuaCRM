@@ -106,7 +106,7 @@ export default function StudentDetail() {
   if (!student) {
     return (
       <div className="p-6 lg:p-8 text-center py-20">
-        <p className="text-slate-500">Ученик не найден</p>
+        <p className="text-slate-500 dark:text-slate-400">Ученик не найден</p>
         <Link to="/UserManagement">
           <Button variant="link" className="mt-2">Назад к ученикам</Button>
         </Link>
@@ -125,7 +125,7 @@ export default function StudentDetail() {
   return (
     <div className="p-6 lg:p-8 max-w-5xl mx-auto">
       {/* Back */}
-      <Link to="/UserManagement" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-6">
+      <Link to="/UserManagement" className="inline-flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 mb-6">
         <ArrowLeft className="h-4 w-4" />
         Ученики
       </Link>
@@ -133,16 +133,16 @@ export default function StudentDetail() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-4">
-          <div className="h-14 w-14 rounded-2xl bg-indigo-50 flex items-center justify-center">
+          <div className="h-14 w-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center">
             <span className="text-xl font-bold text-indigo-600">{student.name[0].toUpperCase()}</span>
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">{student.name}</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{student.name}</h1>
             <div className="flex items-center gap-2 mt-1">
               <Badge variant="outline" className={
                 student.status === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
                 student.status === "paused" ? "bg-amber-50 text-amber-700 border-amber-200" :
-                "bg-slate-50 text-slate-600 border-slate-200"
+                "bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700"
               }>
                 {student.status}
               </Badge>
@@ -167,13 +167,13 @@ export default function StudentDetail() {
       {/* Info grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
         {info.map((item) => (
-          <div key={item.label} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200/70">
-            <div className="h-9 w-9 rounded-lg bg-slate-50 flex items-center justify-center">
+          <div key={item.label} className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/70">
+            <div className="h-9 w-9 rounded-lg bg-slate-50 dark:bg-slate-800/60 flex items-center justify-center">
               <item.icon className="h-4 w-4 text-slate-400" />
             </div>
             <div>
               <p className="text-xs text-slate-400">{item.label}</p>
-              <p className="text-sm font-medium text-slate-900">{item.value}</p>
+              <p className="text-sm font-medium text-slate-900 dark:text-white">{item.value}</p>
             </div>
           </div>
         ))}
@@ -185,14 +185,14 @@ export default function StudentDetail() {
             <CardTitle className="text-base">Заметки</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-slate-600">{student.notes}</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">{student.notes}</p>
           </CardContent>
         </Card>
       )}
 
       {enrollmentProgress.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-indigo-600" />
             Прогресс по курсам
           </h2>
@@ -217,8 +217,8 @@ export default function StudentDetail() {
                   <CardContent className="space-y-4">
                     <div>
                       <div className="flex justify-between text-sm mb-2">
-                        <span className="text-slate-600">Прогресс</span>
-                        <span className="font-medium text-slate-900">{percent}%</span>
+                        <span className="text-slate-600 dark:text-slate-400">Прогресс</span>
+                        <span className="font-medium text-slate-900 dark:text-white">{percent}%</span>
                       </div>
                       <Progress value={percent} className="h-2" />
                     </div>
@@ -235,9 +235,9 @@ export default function StudentDetail() {
                         <p className="text-xs text-blue-700">Осталось</p>
                         <p className="text-lg font-semibold text-blue-800">{remaining}</p>
                       </div>
-                      <div className="rounded-lg bg-slate-50 p-3 border border-slate-200">
-                        <p className="text-xs text-slate-500">Всего</p>
-                        <p className="text-lg font-semibold text-slate-800">{total}</p>
+                      <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-3 border border-slate-200 dark:border-slate-700">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Всего</p>
+                        <p className="text-lg font-semibold text-slate-800 dark:text-slate-100">{total}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -250,12 +250,12 @@ export default function StudentDetail() {
 
       {/* Lesson History */}
       <div className="mb-8">
-        <h2 className="text-lg font-semibold text-slate-900 mb-4">История уроков</h2>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">История уроков</h2>
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="bg-slate-50/80">
+                <TableRow className="bg-slate-50/80 dark:bg-slate-800/60">
                   <TableHead>Дата</TableHead>
                   <TableHead>Время</TableHead>
                   <TableHead>Преподаватель</TableHead>
@@ -265,7 +265,7 @@ export default function StudentDetail() {
               <TableBody>
                 {lessons.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-slate-500">Уроков пока нет</TableCell>
+                    <TableCell colSpan={4} className="text-center py-8 text-slate-500 dark:text-slate-400">Уроков пока нет</TableCell>
                   </TableRow>
                 ) : (
                   lessons.sort((a, b) => (b.date || "").localeCompare(a.date || "")).map((l) => (
@@ -294,12 +294,12 @@ export default function StudentDetail() {
 
       {/* Payment History */}
       <div>
-        <h2 className="text-lg font-semibold text-slate-900 mb-4">История платежей</h2>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">История платежей</h2>
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="bg-slate-50/80">
+                <TableRow className="bg-slate-50/80 dark:bg-slate-800/60">
                   <TableHead>Дата</TableHead>
                   <TableHead>Сумма</TableHead>
                   <TableHead>Уроков добавлено</TableHead>
@@ -309,7 +309,7 @@ export default function StudentDetail() {
               <TableBody>
                 {payments.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-slate-500">Платежей пока нет</TableCell>
+                    <TableCell colSpan={4} className="text-center py-8 text-slate-500 dark:text-slate-400">Платежей пока нет</TableCell>
                   </TableRow>
                 ) : (
                   payments.map((p) => (
@@ -317,7 +317,7 @@ export default function StudentDetail() {
                       <TableCell className="font-medium">{p.payment_date}</TableCell>
                       <TableCell className="font-semibold text-emerald-600">${p.amount}</TableCell>
                       <TableCell>+{p.lessons_added}</TableCell>
-                      <TableCell className="hidden sm:table-cell text-slate-500">{p.comment || "—"}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-slate-500 dark:text-slate-400">{p.comment || "—"}</TableCell>
                     </TableRow>
                   ))
                 )}

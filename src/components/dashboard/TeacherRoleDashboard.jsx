@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { api } from '@/api';
 import { format, isToday, parseISO } from "date-fns";
+import { ru } from "date-fns/locale";
 import { CalendarDays, Clock, CheckCircle2, XCircle, Video } from "lucide-react";
 import StatCard from "./StatCard";
 import { getGreetingName } from "@/lib/display-name";
@@ -82,7 +83,7 @@ export default function TeacherRoleDashboard({ user }) {
 
       <Card className="overflow-hidden">
         <div className="px-4 pt-4 pb-2 border-b border-border">
-          <h3 className="text-sm font-semibold text-foreground">Сегодня — {format(new Date(), "EEEE, MMM d")}</h3>
+          <h3 className="text-sm font-semibold text-foreground">Сегодня — {format(new Date(), "EEEE, d MMMM", { locale: ru })}</h3>
         </div>
         <div className="divide-y divide-border">
           {todayLessons.length === 0 ? (
@@ -157,7 +158,7 @@ export default function TeacherRoleDashboard({ user }) {
               <div key={lesson.id} className="flex items-center gap-3 px-4 py-3">
                 <div className="text-center w-10 flex-shrink-0">
                   <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400">{format(parseISO(lesson.date), "d")}</p>
-                  <p className="text-[10px] text-muted-foreground">{format(parseISO(lesson.date), "MMM")}</p>
+                  <p className="text-[10px] text-muted-foreground">{format(parseISO(lesson.date), "LLL", { locale: ru })}</p>
                 </div>
                 <div className="w-px h-8 bg-border" />
                 <div className="min-w-0 flex-1">

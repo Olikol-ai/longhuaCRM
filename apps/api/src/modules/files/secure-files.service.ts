@@ -75,14 +75,37 @@ export class SecureFilesService {
     if (!material?.fileUrl) {
       throw new NotFoundException('Material file not found');
     }
-    const absolutePath = this.resolveStoragePath(material.fileUrl);
+    return this.streamByStorageKey(material.fileUrl, {
+      disposition: 'inline',
+      filename: basename(this.resolveStoragePath(material.fileUrl)),
+    });
+  }
+
+  /**
+   * Stream a file previously stored via saveUploadedFile (Assessment attachments, etc.).
+   * Callers must authorize access before invoking this method.
+   */
+  streamByStorageKey(
+    storageKey: string,
+    options?: {
+      mime?: string | null;
+      filename?: string | null;
+      disposition?: 'inline' | 'attachment';
+    },
+  ): StreamableFile {
+    const absolutePath = this.resolveStoragePath(storageKey);
     if (!existsSync(absolutePath)) {
       throw new NotFoundException('File not found on disk');
     }
+    const disposition = options?.disposition ?? 'inline';
+    const filename = (options?.filename?.trim() || basename(absolutePath)).replace(
+      /["\r\n]/g,
+      '_',
+    );
     const stream = createReadStream(absolutePath);
     return new StreamableFile(stream, {
-      type: this.guessContentType(material.fileUrl),
-      disposition: `inline; filename="${basename(absolutePath)}"`,
+      type: options?.mime?.trim() || this.guessContentType(storageKey),
+      disposition: `${disposition}; filename="${filename}"`,
     });
   }
 

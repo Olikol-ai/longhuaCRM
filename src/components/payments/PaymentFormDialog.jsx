@@ -89,14 +89,14 @@ export default function PaymentFormDialog({ open, onOpenChange, studentId, onSav
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Record Payment</DialogTitle>
+          <DialogTitle>Записать оплату</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label>Student *</Label>
+            <Label>Ученик *</Label>
             <Select value={formData.student_id} onValueChange={handleStudentChange}>
               <SelectTrigger>
-                <SelectValue placeholder="Select student" />
+                <SelectValue placeholder="Выберите ученика" />
               </SelectTrigger>
               <SelectContent>
                 {students.map((s) => (
@@ -108,17 +108,17 @@ export default function PaymentFormDialog({ open, onOpenChange, studentId, onSav
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Amount ($) *</Label>
+              <Label>Сумма (BYN) *</Label>
               <Input
                 type="number"
                 min={0}
                 value={formData.amount}
                 onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                placeholder="0.00"
+                placeholder="0"
               />
             </div>
             <div className="space-y-2">
-              <Label>Lessons Added *</Label>
+              <Label>Уроков добавлено *</Label>
               <Input
                 type="number"
                 min={0}
@@ -130,7 +130,7 @@ export default function PaymentFormDialog({ open, onOpenChange, studentId, onSav
           </div>
 
           <div className="space-y-2">
-            <Label>Payment Date</Label>
+            <Label>Дата оплаты</Label>
             <Input
               type="date"
               value={formData.payment_date}
@@ -139,24 +139,24 @@ export default function PaymentFormDialog({ open, onOpenChange, studentId, onSav
           </div>
 
           <div className="space-y-2">
-            <Label>Comment</Label>
+            <Label>Комментарий</Label>
             <Textarea
               value={formData.comment}
               onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
-              placeholder="Payment notes..."
+              placeholder="Например: пакет на 8 занятий"
               rows={2}
             />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Отмена</Button>
           <Button
             onClick={handleSubmit}
             disabled={loading || !formData.student_id || !formData.amount || !formData.lessons_added}
             className="bg-indigo-600 hover:bg-indigo-700"
           >
             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Record Payment
+            Сохранить оплату
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { addDays, format, parseISO } from "date-fns";
-import { X, RefreshCw } from "lucide-react";
+import { X, RefreshCw, Loader2 } from "lucide-react";
 import { api } from "@/api";
 import TeacherAvailabilityPanel, { dayIndexFromDate } from "./TeacherAvailabilityPanel";
 import {
@@ -13,6 +13,14 @@ import {
 } from "@/components/ui/select";
 
 const DROPDOWN_Z = "z-[200]";
+const AVAILABLE_DEBOUNCE_MS = 400;
+
+function normalizeAvailableList(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.available)) return data.available;
+  if (Array.isArray(data?.teachers)) return data.teachers;
+  return [];
+}
 
 export default function LessonModal({
   date,
@@ -40,6 +48,10 @@ export default function LessonModal({
   const [saving, setSaving] = useState(false);
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [teacherSchedule, setTeacherSchedule] = useState({ hasSchedule: false, slots: [] });
+  const [availableTeachers, setAvailableTeachers] = useState([]);
+  const [availableLoading, setAvailableLoading] = useState(false);
+  const [availableError, setAvailableError] = useState(null);
+  const availableRequestId = useRef(0);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -72,6 +84,49 @@ export default function LessonModal({
     return () => { cancelled = true; };
   }, [form.teacher_id]);
 
+  useEffect(() => {
+    const dateValue = String(form.date || "").trim();
+    const startTime = String(form.start_time || "").trim();
+    if (!dateValue || !startTime) {
+      setAvailableTeachers([]);
+      setAvailableError(null);
+      setAvailableLoading(false);
+      return undefined;
+    }
+
+    const requestId = ++availableRequestId.current;
+    setAvailableLoading(true);
+    setAvailableError(null);
+
+    const timer = setTimeout(() => {
+      api.teachers
+        .getAvailable({
+          date: dateValue,
+          start_time: startTime,
+          duration: Number(form.duration) || 60,
+        })
+        .then((data) => {
+          if (availableRequestId.current !== requestId) return;
+          setAvailableTeachers(normalizeAvailableList(data));
+          setAvailableError(null);
+        })
+        .catch((err) => {
+          if (availableRequestId.current !== requestId) return;
+          setAvailableTeachers([]);
+          setAvailableError(err?.message || "Не удалось загрузить свободных преподавателей");
+        })
+        .finally(() => {
+          if (availableRequestId.current === requestId) {
+            setAvailableLoading(false);
+          }
+        });
+    }, AVAILABLE_DEBOUNCE_MS);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [form.date, form.start_time, form.duration]);
+
   const slotsForDay = useMemo(() => {
     if (!form.date || !teacherSchedule.hasSchedule) return [];
     const dayIndex = dayIndexFromDate(form.date);
@@ -84,6 +139,22 @@ export default function LessonModal({
     () => groups.filter((g) => !form.teacher_id || g.teacher_id === form.teacher_id),
     [groups, form.teacher_id],
   );
+
+  const availableIds = useMemo(
+    () => new Set(availableTeachers.map((t) => t.id)),
+    [availableTeachers],
+  );
+
+  const selectedTeacherBusy = Boolean(
+    form.teacher_id
+    && form.date
+    && form.start_time
+    && !availableLoading
+    && !availableError
+    && !availableIds.has(form.teacher_id),
+  );
+
+  const showAvailablePanel = Boolean(form.date && form.start_time);
 
   const canSubmit = Boolean(
     form.teacher_id &&
@@ -164,195 +235,247 @@ export default function LessonModal({
     }
   };
 
+  const availablePanel = showAvailablePanel ? (
+    <div className="rounded-xl border border-amber-200/80 dark:border-amber-800/60 bg-[#F5F0E8] dark:bg-amber-950/20 p-4 text-sm">
+      <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3">Свободные преподаватели</h4>
+      {availableLoading ? (
+        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          Проверяем расписание…
+        </div>
+      ) : availableError ? (
+        <p className="text-xs text-amber-800">{availableError}</p>
+      ) : availableTeachers.length === 0 ? (
+        <p className="text-sm text-slate-700 dark:text-slate-200">🔴 Нет свободных преподавателей на выбранное время.</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {availableTeachers.map((t) => (
+            <li key={t.id} className="text-sm text-slate-800 dark:text-slate-100">
+              🟢 {t.name}
+            </li>
+          ))}
+        </ul>
+      )}
+      {selectedTeacherBusy && (
+        <p className="mt-3 text-xs text-amber-900 border-t border-amber-200/70 pt-3">
+          Выбранный преподаватель уже имеет занятие в это время.
+        </p>
+      )}
+      {form.teacher_id && !selectedTeacherBusy && !availableLoading && !availableError && availableIds.has(form.teacher_id) && (
+        <p className="mt-3 text-xs text-emerald-800 border-t border-amber-200/70 pt-3">
+          🟢 Выбранный преподаватель свободен в это время.
+        </p>
+      )}
+    </div>
+  ) : null;
+
   const modal = (
     <div
       className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] flex flex-col z-[100]"
+        className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md md:max-w-3xl shadow-xl max-h-[90vh] flex flex-col z-[100]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 flex-shrink-0">
-          <h3 className="text-base font-semibold text-slate-800">Запланировать урок</h3>
-          <button type="button" onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg">
-            <X className="w-4 h-4 text-slate-500" />
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
+          <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Запланировать урок</h3>
+          <button type="button" onClick={onClose} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+            <X className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           </button>
         </div>
 
-        <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0 overscroll-contain">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-slate-600 mb-1">Преподаватель *</label>
-              <Select
-                value={form.teacher_id}
-                onValueChange={(value) => {
-                  setForm((f) => ({
-                    ...f,
-                    teacher_id: value,
-                    group_id: "",
-                  }));
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Выбрать преподавателя" />
-                </SelectTrigger>
-                <SelectContent className={DROPDOWN_Z}>
-                  {activeTeachers.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        <div className="p-6 overflow-y-auto flex-1 min-h-0 overscroll-contain">
+          <div className="flex flex-col md:flex-row gap-5 md:gap-6">
+            <div className="flex-1 min-w-0 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Преподаватель *</label>
+                  <Select
+                    value={form.teacher_id}
+                    onValueChange={(value) => {
+                      setForm((f) => ({
+                        ...f,
+                        teacher_id: value,
+                        group_id: "",
+                      }));
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Выбрать преподавателя" />
+                    </SelectTrigger>
+                    <SelectContent className={DROPDOWN_Z}>
+                      {activeTeachers.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-slate-600 mb-1">Тип урока *</label>
-              <Select
-                value={form.lesson_type}
-                onValueChange={(value) => {
-                  setForm((f) => ({
-                    ...f,
-                    lesson_type: value,
-                    primary_student_id: value === "individual" ? f.primary_student_id : "",
-                    group_id: value === "group" ? f.group_id : "",
-                  }));
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className={DROPDOWN_Z}>
-                  <SelectItem value="individual">Индивидуальный</SelectItem>
-                  <SelectItem value="group">Групповой</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Тип урока *</label>
+                  <Select
+                    value={form.lesson_type}
+                    onValueChange={(value) => {
+                      setForm((f) => ({
+                        ...f,
+                        lesson_type: value,
+                        primary_student_id: value === "individual" ? f.primary_student_id : "",
+                        group_id: value === "group" ? f.group_id : "",
+                      }));
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className={DROPDOWN_Z}>
+                      <SelectItem value="individual">Индивидуальный</SelectItem>
+                      <SelectItem value="group">Групповой</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            {form.lesson_type === "individual" ? (
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-600 mb-1">Ученик *</label>
-                <Select
-                  value={form.primary_student_id}
-                  onValueChange={(value) => set("primary_student_id", value)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Выбрать ученика" />
-                  </SelectTrigger>
-                  <SelectContent className={DROPDOWN_Z}>
-                    {activeStudents.length === 0 ? (
-                      <SelectItem value="__none" disabled>Нет доступных учеников</SelectItem>
-                    ) : (
-                      activeStudents.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name} · баланс: {s.lesson_balance || 0}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+                {form.lesson_type === "individual" ? (
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Ученик *</label>
+                    <Select
+                      value={form.primary_student_id}
+                      onValueChange={(value) => set("primary_student_id", value)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Выбрать ученика" />
+                      </SelectTrigger>
+                      <SelectContent className={DROPDOWN_Z}>
+                        {activeStudents.length === 0 ? (
+                          <SelectItem value="__none" disabled>Нет доступных учеников</SelectItem>
+                        ) : (
+                          activeStudents.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.name} · баланс: {s.lesson_balance || 0}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Группа *</label>
+                    <Select
+                      value={form.group_id}
+                      onValueChange={(value) => set("group_id", value)}
+                      disabled={!form.teacher_id}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder={form.teacher_id ? "Выбрать группу" : "Сначала выберите преподавателя"} />
+                      </SelectTrigger>
+                      <SelectContent className={DROPDOWN_Z}>
+                        {teacherGroups.length === 0 ? (
+                          <SelectItem value="__none" disabled>
+                            {form.teacher_id ? "Нет групп у преподавателя" : "Сначала выберите преподавателя"}
+                          </SelectItem>
+                        ) : (
+                          teacherGroups.map((g) => (
+                            <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Дата *</label>
+                  <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Время начала *</label>
+                  <input type="time" value={form.start_time} onChange={(e) => set("start_time", e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+                </div>
+                <TeacherAvailabilityPanel
+                  loading={scheduleLoading}
+                  hasSchedule={teacherSchedule.hasSchedule}
+                  slotsForDay={slotsForDay}
+                  selectedDate={form.date}
+                />
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Длительность (мин)</label>
+                  <Select
+                    value={String(form.duration)}
+                    onValueChange={(value) => set("duration", value)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className={DROPDOWN_Z}>
+                      {[30, 45, 60, 90, 120].map((d) => (
+                        <SelectItem key={d} value={String(d)}>{d} мин</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Формат</label>
+                  <Select
+                    value={form.lesson_format}
+                    onValueChange={(value) => set("lesson_format", value)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className={DROPDOWN_Z}>
+                      <SelectItem value="online">Дистанционное</SelectItem>
+                      <SelectItem value="offline">Очное</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.lesson_format === "online" && (
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Ссылка на встречу</label>
+                    <input value={form.meeting_link} onChange={(e) => set("meeting_link", e.target.value)}
+                      placeholder="https://zoom.us/j/... or meet.google.com/..."
+                      className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-600 mb-1">Группа *</label>
-                <Select
-                  value={form.group_id}
-                  onValueChange={(value) => set("group_id", value)}
-                  disabled={!form.teacher_id}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder={form.teacher_id ? "Выбрать группу" : "Сначала выберите преподавателя"} />
-                  </SelectTrigger>
-                  <SelectContent className={DROPDOWN_Z}>
-                    {teacherGroups.length === 0 ? (
-                      <SelectItem value="__none" disabled>
-                        {form.teacher_id ? "Нет групп у преподавателя" : "Сначала выберите преподавателя"}
-                      </SelectItem>
-                    ) : (
-                      teacherGroups.map((g) => (
-                        <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
 
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Дата *</label>
-              <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Время начала *</label>
-              <input type="time" value={form.start_time} onChange={(e) => set("start_time", e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
-            </div>
-            <TeacherAvailabilityPanel
-              loading={scheduleLoading}
-              hasSchedule={teacherSchedule.hasSchedule}
-              slotsForDay={slotsForDay}
-              selectedDate={form.date}
-            />
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Длительность (мин)</label>
-              <Select
-                value={String(form.duration)}
-                onValueChange={(value) => set("duration", value)}
+              <div
+                onClick={() => setRecurring(!recurring)}
+                className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                  recurring ? "border-indigo-300 bg-indigo-50 dark:bg-indigo-950/30" : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+                }`}
               >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className={DROPDOWN_Z}>
-                  {[30, 45, 60, 90, 120].map((d) => (
-                    <SelectItem key={d} value={String(d)}>{d} мин</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Формат</label>
-              <Select
-                value={form.lesson_format}
-                onValueChange={(value) => set("lesson_format", value)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className={DROPDOWN_Z}>
-                  <SelectItem value="online">Дистанционное</SelectItem>
-                  <SelectItem value="offline">Очное</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {form.lesson_format === "online" && (
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-600 mb-1">Ссылка на встречу</label>
-                <input value={form.meeting_link} onChange={(e) => set("meeting_link", e.target.value)}
-                  placeholder="https://zoom.us/j/... or meet.google.com/..."
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+                <RefreshCw className={`w-4 h-4 ${recurring ? "text-indigo-600" : "text-slate-400 dark:text-slate-500"}`} />
+                <div>
+                  <p className={`text-xs font-semibold ${recurring ? "text-indigo-700 dark:text-indigo-400" : "text-slate-600 dark:text-slate-300"}`}>Еженедельный повтор</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500">Создаёт урок на выбранную дату и ещё один через неделю</p>
+                </div>
+                <div className={`ml-auto w-4 h-4 rounded border-2 flex items-center justify-center ${recurring ? "border-indigo-600 bg-indigo-600" : "border-slate-300 dark:border-slate-600"}`}>
+                  {recurring && <span className="text-white text-[8px] font-bold">✓</span>}
+                </div>
               </div>
-            )}
-          </div>
 
-          <div
-            onClick={() => setRecurring(!recurring)}
-            className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
-              recurring ? "border-indigo-300 bg-indigo-50" : "border-slate-200 hover:bg-slate-50"
-            }`}
-          >
-            <RefreshCw className={`w-4 h-4 ${recurring ? "text-indigo-600" : "text-slate-400"}`} />
-            <div>
-              <p className={`text-xs font-semibold ${recurring ? "text-indigo-700" : "text-slate-600"}`}>Еженедельный повтор</p>
-              <p className="text-[10px] text-slate-400">Создаёт урок на выбранную дату и ещё один через неделю</p>
+              {/* Mobile: panel under the form */}
+              <div className="md:hidden">
+                {availablePanel}
+              </div>
             </div>
-            <div className={`ml-auto w-4 h-4 rounded border-2 flex items-center justify-center ${recurring ? "border-indigo-600 bg-indigo-600" : "border-slate-300"}`}>
-              {recurring && <span className="text-white text-[8px] font-bold">✓</span>}
+
+            {/* Desktop: side panel */}
+            <div className="hidden md:block w-64 shrink-0">
+              {availablePanel || (
+                <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-4 text-xs text-slate-400 dark:text-slate-500">
+                  Выберите дату и время, чтобы увидеть свободных преподавателей.
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-100 flex-shrink-0">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-lg">Отмена</button>
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex-shrink-0">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg">Отмена</button>
           <button type="button" onClick={handleSave}
             disabled={!canSubmit || saving}
             className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-40">

@@ -4,6 +4,7 @@ import { api } from '@/api';
 import { BookOpen, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { userFacingError } from '@/lib/userFacingError';
 
 const SUCCESS_MESSAGE =
   'Если такой email зарегистрирован, на него отправлена ссылка для восстановления пароля.';
@@ -23,7 +24,7 @@ export default function ForgotPassword() {
       await api.auth.forgotPassword(email.trim());
       setSubmitted(true);
     } catch (err) {
-      setError(err.message || 'Не удалось отправить ссылку. Попробуйте позже.');
+      setError(userFacingError(err, 'Не удалось отправить ссылку. Попробуйте позже.'));
     } finally {
       setLoading(false);
     }

@@ -59,7 +59,7 @@ export async function apiFetch(path, options = {}) {
 function extractApiErrorMessage(data) {
   const msg = data?.message;
   if (Array.isArray(msg)) {
-    return msg.filter(Boolean).join(', ') || 'Request failed';
+    return msg.filter(Boolean).join(', ') || 'Не удалось выполнить запрос. Попробуйте ещё раз.';
   }
   if (typeof msg === 'string' && msg.trim()) {
     return msg;
@@ -72,7 +72,7 @@ function extractApiErrorMessage(data) {
   if (typeof data?.error === 'string' && data.error.trim()) {
     return data.error;
   }
-  return 'Request failed';
+  return 'Не удалось выполнить запрос. Попробуйте ещё раз.';
 }
 
 export async function apiUpload(file) {
@@ -96,7 +96,7 @@ export async function apiUpload(file) {
     const payload = typeof data.message === 'object' && data.message !== null ? data.message : data;
     const message = Array.isArray(payload.message)
       ? payload.message.join(', ')
-      : payload.message || data.error || 'Upload failed';
+      : payload.message || data.error || 'Не удалось загрузить файл. Попробуйте ещё раз.';
     const err = new Error(message);
     err.status = res.status;
     err.data = payload;

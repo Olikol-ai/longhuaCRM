@@ -5,6 +5,7 @@ import { BookOpen, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { REGISTRATION_PASSWORD_HINT } from '@/lib/passwordPolicy';
+import { userFacingError } from '@/lib/userFacingError';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -38,7 +39,7 @@ export default function ResetPassword() {
       setSuccess(result?.message || 'Пароль успешно изменён. Теперь вы можете войти с новым паролем.');
       setTimeout(() => navigate('/login', { replace: true }), 2000);
     } catch (err) {
-      setError(err.message || 'Не удалось изменить пароль. Запросите новую ссылку.');
+      setError(userFacingError(err, 'Не удалось изменить пароль. Запросите новую ссылку.'));
     } finally {
       setLoading(false);
     }

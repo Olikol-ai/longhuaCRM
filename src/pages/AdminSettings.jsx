@@ -47,8 +47,8 @@ export default function AdminSettings() {
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
-          <Settings className="w-5 h-5 text-violet-600" />
+        <div className="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-950/50 flex items-center justify-center">
+          <Settings className="w-5 h-5 text-violet-600 dark:text-violet-400" />
         </div>
         <div>
           <h2 className="text-xl font-bold text-foreground">Настройки интеграций</h2>

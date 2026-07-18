@@ -82,13 +82,13 @@ export default function AdminPanelOverview({ onOpenExport, onOpenSalary }) {
 
       {stats.lowBalance > 0 && (
         <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/50 rounded-xl">
-          <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+          <AlertCircle className="w-4 h-4 text-amber-500 dark:text-amber-400 flex-shrink-0" />
           <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">
             У {stats.lowBalance} учеников осталось 2 урока или меньше
           </p>
           <Link
             to={createPageUrl("UserManagement")}
-            className="ml-auto text-xs font-semibold text-amber-600 hover:underline flex items-center gap-1"
+            className="ml-auto text-xs font-semibold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1"
           >
             Открыть <ArrowRight className="w-3 h-3" />
           </Link>

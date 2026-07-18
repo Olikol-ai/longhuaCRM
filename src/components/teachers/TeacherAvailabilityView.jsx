@@ -29,25 +29,25 @@ export default function TeacherAvailabilityView({ teacherId }) {
   const hasAny = slots.some(d => d.length > 0);
 
   if (!hasAny) return (
-    <p className="text-sm text-slate-400 text-center py-8">Преподаватель ещё не заполнил свой график</p>
+    <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-8">Преподаватель ещё не заполнил свой график</p>
   );
 
   return (
     <div className="space-y-2">
       {slots.map((daySlots, i) => (
-        <div key={i} className={`flex items-center gap-3 py-2.5 px-3 rounded-xl ${daySlots.length > 0 ? "bg-indigo-50" : "bg-slate-50/50"}`}>
-          <span className={`text-xs font-bold w-7 text-center shrink-0 ${daySlots.length > 0 ? "text-indigo-700" : "text-slate-300"}`}>
+        <div key={i} className={`flex items-center gap-3 py-2.5 px-3 rounded-xl ${daySlots.length > 0 ? "bg-indigo-50 dark:bg-indigo-950/30" : "bg-slate-50/50 dark:bg-slate-800/60"}`}>
+          <span className={`text-xs font-bold w-7 text-center shrink-0 ${daySlots.length > 0 ? "text-indigo-700 dark:text-indigo-400" : "text-slate-300 dark:text-slate-600"}`}>
             {DAYS_SHORT[i]}
           </span>
-          <span className={`text-xs flex-shrink-0 hidden sm:block w-24 ${daySlots.length > 0 ? "text-slate-600" : "text-slate-300"}`}>
+          <span className={`text-xs flex-shrink-0 hidden sm:block w-24 ${daySlots.length > 0 ? "text-slate-600 dark:text-slate-300" : "text-slate-300 dark:text-slate-600"}`}>
             {DAYS[i]}
           </span>
           {daySlots.length === 0 ? (
-            <span className="text-xs text-slate-300 italic">—</span>
+            <span className="text-xs text-slate-300 dark:text-slate-600 italic">—</span>
           ) : (
             <div className="flex flex-wrap gap-2">
               {daySlots.map((slot, j) => (
-                <span key={j} className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-indigo-200 text-indigo-700 text-xs font-semibold rounded-lg shadow-sm">
+                <span key={j} className="inline-flex items-center gap-1 px-2.5 py-1 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-400 text-xs font-semibold rounded-lg shadow-sm">
                   {slot.from} – {slot.to}
                 </span>
               ))}

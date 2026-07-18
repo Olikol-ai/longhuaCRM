@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { api } from '@/api';
 import { format, isToday, isTomorrow, parseISO, differenceInDays } from "date-fns";
+import { ru } from "date-fns/locale";
 import { CalendarDays, Users, GraduationCap, AlertCircle, Clock, ArrowRight, Cake } from "lucide-react";
 import StatCard from "./StatCard";
 import LessonRow from "./LessonRow";
@@ -132,7 +133,7 @@ export default function AdminDashboard({ user }) {
       )}
 
       <div className="grid lg:grid-cols-2 gap-6">
-        <DashboardSection title="Уроки сегодня" subtitle={format(new Date(), "MMM d")}>
+        <DashboardSection title="Уроки сегодня" subtitle={format(new Date(), "d MMMM", { locale: ru })}>
           <div className="space-y-0.5">
             {todayLessons.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-6">Уроков сегодня нет</p>
@@ -146,7 +147,7 @@ export default function AdminDashboard({ user }) {
           </div>
         </DashboardSection>
 
-        <DashboardSection title="Уроки завтра" subtitle={format(new Date(Date.now() + 86400000), "MMM d")}>
+        <DashboardSection title="Уроки завтра" subtitle={format(new Date(Date.now() + 86400000), "d MMMM", { locale: ru })}>
           <div className="space-y-0.5">
             {tomorrowLessons.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-6">Уроков завтра нет</p>

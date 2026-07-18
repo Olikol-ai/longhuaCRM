@@ -143,14 +143,14 @@ export default function StudentLessons() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-        <h1 className="text-2xl font-bold text-slate-900">Мои уроки</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Мои уроки</h1>
         <button onClick={toggleTheme}
-          className="p-2.5 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-100 transition-colors ml-auto"
+          className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ml-auto"
           title="Сменить тему">
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
         {/* View switcher */}
-        <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+        <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
           {[
             { id: "calendar", icon: Calendar, label: "Месяц" },
             { id: "week", icon: Calendar, label: "Неделя" },
@@ -160,7 +160,7 @@ export default function StudentLessons() {
               key={v.id}
               onClick={() => { setViewMode(v.id); setSelectedDay(null); }}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                viewMode === v.id ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                viewMode === v.id ? "bg-white dark:bg-slate-900 text-indigo-700 shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
               }`}
             >
               <v.icon className="h-3.5 w-3.5" />
@@ -178,7 +178,7 @@ export default function StudentLessons() {
             <Button variant="outline" size="icon" onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="h-9 w-9">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <h2 className="text-base font-semibold text-slate-900 flex-1 sm:flex-none sm:min-w-[180px] text-center capitalize truncate">
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white flex-1 sm:flex-none sm:min-w-[180px] text-center capitalize truncate">
               {format(currentDate, "LLLL yyyy", { locale: ru })}
             </h2>
             <Button variant="outline" size="icon" onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="h-9 w-9">
@@ -189,9 +189,9 @@ export default function StudentLessons() {
             </Button>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto shadow-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-x-auto shadow-sm">
             {/* Weekday headers */}
-            <div className="grid grid-cols-7 border-b border-slate-100 min-w-[520px]">
+            <div className="grid grid-cols-7 border-b border-slate-100 dark:border-slate-800 min-w-[520px]">
               {WEEK_DAYS_RU.map((d) => (
                 <div key={d} className="py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wide">
                   {d}
@@ -210,13 +210,13 @@ export default function StudentLessons() {
                   <div
                     key={i}
                     onClick={() => setSelectedDay(isSelected ? null : day)}
-                    className={`min-h-[80px] p-2 border-b border-r border-slate-100 cursor-pointer transition-colors
-                      ${isSelected ? "bg-indigo-50" : "hover:bg-slate-50"}
+                    className={`min-h-[80px] p-2 border-b border-r border-slate-100 dark:border-slate-800 cursor-pointer transition-colors
+                      ${isSelected ? "bg-indigo-50 dark:bg-indigo-950/40" : "hover:bg-slate-50 dark:hover:bg-slate-800"}
                       ${!inMonth ? "opacity-40" : ""}
                     `}
                   >
                     <div className={`text-xs font-semibold mb-1 w-6 h-6 flex items-center justify-center rounded-full
-                      ${isToday(day) ? "bg-indigo-600 text-white" : "text-slate-700"}
+                      ${isToday(day) ? "bg-indigo-600 text-white" : "text-slate-700 dark:text-slate-300"}
                     `}>
                       {format(day, "d")}
                     </div>
@@ -242,11 +242,11 @@ export default function StudentLessons() {
           {/* Selected day detail */}
           {selectedDay && (
             <div className="mt-4">
-              <h3 className="text-sm font-semibold text-slate-700 mb-3 capitalize">
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 capitalize">
                 {format(selectedDay, "EEEE, d MMMM", { locale: ru })}
               </h3>
               {selectedDayLessons.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-6 bg-white rounded-xl border border-dashed border-slate-200">
+                <p className="text-sm text-slate-400 text-center py-6 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
                   Уроков нет
                 </p>
               ) : (
@@ -268,7 +268,7 @@ export default function StudentLessons() {
             <Button variant="outline" size="icon" onClick={() => setCurrentDate(subWeeks(currentDate, 1))} className="h-9 w-9">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <h2 className="text-base font-semibold text-slate-900 flex-1 sm:flex-none sm:min-w-[220px] text-center truncate">
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white flex-1 sm:flex-none sm:min-w-[220px] text-center truncate">
               {format(weekDays[0], "d MMM", { locale: ru })} — {format(weekDays[6], "d MMM yyyy", { locale: ru })}
             </h2>
             <Button variant="outline" size="icon" onClick={() => setCurrentDate(addWeeks(currentDate, 1))} className="h-9 w-9">
@@ -284,10 +284,10 @@ export default function StudentLessons() {
               const dayStr = format(day, "yyyy-MM-dd");
               const dayLessons = getLessonsForDay(dayStr);
               return (
-                <div key={i} className={`rounded-2xl border p-3 ${isToday(day) ? "border-indigo-300 bg-indigo-50/50" : "border-slate-200 bg-white"}`}>
+                <div key={i} className={`rounded-2xl border p-3 ${isToday(day) ? "border-indigo-300 bg-indigo-50/50 dark:border-indigo-700 dark:bg-indigo-950/40" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"}`}>
                   <div className="text-center mb-3">
                     <p className="text-[11px] text-slate-400 uppercase font-medium">{WEEK_DAYS_RU[i]}</p>
-                    <div className={`text-xl font-bold mx-auto mt-0.5 w-8 h-8 flex items-center justify-center rounded-full ${isToday(day) ? "bg-indigo-600 text-white" : "text-slate-900"}`}>
+                    <div className={`text-xl font-bold mx-auto mt-0.5 w-8 h-8 flex items-center justify-center rounded-full ${isToday(day) ? "bg-indigo-600 text-white" : "text-slate-900 dark:text-white"}`}>
                       {format(day, "d")}
                     </div>
                   </div>
@@ -298,10 +298,10 @@ export default function StudentLessons() {
                       dayLessons.map((lesson) => (
                         <div
                           key={lesson.id}
-                          className={`p-2.5 bg-white rounded-xl border-l-4 border border-slate-100 shadow-sm ${STATUS_BORDER[lesson.status] || "border-l-slate-300"}`}
+                          className={`p-2.5 bg-white dark:bg-slate-900 rounded-xl border-l-4 border border-slate-100 dark:border-slate-800 shadow-sm ${STATUS_BORDER[lesson.status] || "border-l-slate-300"}`}
                         >
-                          <p className="text-xs font-bold text-slate-900">{lesson.start_time}</p>
-                          <p className="text-[11px] text-slate-600 mt-0.5 truncate">{resolveLessonTeacherLabel(lesson)}</p>
+                          <p className="text-xs font-bold text-slate-900 dark:text-white">{lesson.start_time}</p>
+                          <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 truncate">{resolveLessonTeacherLabel(lesson)}</p>
                           <p className="text-[10px] text-slate-400">{lesson.duration || 60} мин</p>
                           {lesson.meeting_link && (
                             <a
@@ -330,13 +330,13 @@ export default function StudentLessons() {
           {/* Controls */}
           <div className="flex flex-wrap items-center gap-3 mb-5">
             {/* Filter */}
-            <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+            <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
               {[["all", "Все"], ["upcoming", "Предстоящие"], ["past", "История"]].map(([f, label]) => (
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
                   className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                    filter === f ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    filter === f ? "bg-white dark:bg-slate-900 text-indigo-700 shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                   }`}
                 >
                   {label}
@@ -353,7 +353,7 @@ export default function StudentLessons() {
           {listLessons.length === 0 ? (
             <Card className="p-10 text-center border-dashed">
               <Calendar className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-              <p className="text-sm text-slate-500">Уроков нет</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Уроков нет</p>
             </Card>
           ) : (
             <div className="space-y-2">
@@ -370,13 +370,13 @@ export default function StudentLessons() {
 
 function LessonCard({ lesson }) {
   return (
-    <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white rounded-xl border-l-4 border border-slate-200 hover:shadow-sm transition-all ${STATUS_BORDER[lesson.status] || "border-l-slate-300"}`}>
+    <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white dark:bg-slate-900 rounded-xl border-l-4 border border-slate-200 dark:border-slate-700 hover:shadow-sm transition-all ${STATUS_BORDER[lesson.status] || "border-l-slate-300"}`}>
       <div className="flex items-center gap-4">
-        <div className="text-center min-w-[56px] bg-slate-50 rounded-xl py-2">
+        <div className="text-center min-w-[56px] bg-slate-50 dark:bg-slate-800/60 rounded-xl py-2">
           <p className="text-[10px] text-slate-400 uppercase font-medium">
             {format(new Date(lesson.date), "MMM", { locale: ru })}
           </p>
-          <p className="text-xl font-bold text-slate-900 leading-tight">
+          <p className="text-xl font-bold text-slate-900 dark:text-white leading-tight">
             {format(new Date(lesson.date), "d")}
           </p>
           <p className="text-[10px] text-slate-400">
@@ -384,22 +384,22 @@ function LessonCard({ lesson }) {
           </p>
         </div>
         <div>
-          <p className="font-semibold text-slate-900">{lesson.start_time}</p>
-          <p className="text-sm text-slate-600">{resolveLessonTeacherLabel(lesson)}</p>
+          <p className="font-semibold text-slate-900 dark:text-white">{lesson.start_time}</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400">{resolveLessonTeacherLabel(lesson)}</p>
           <p className="text-xs text-slate-400">{lesson.duration || 60} мин</p>
           {lesson.notes && <p className="text-xs text-slate-400 mt-0.5">{lesson.notes}</p>}
         </div>
       </div>
       <div className="flex items-center gap-3 ml-auto sm:ml-0">
         <Badge className={`text-[11px] ${lesson.status === "planned" ? "bg-blue-50 text-blue-700" : lesson.status === "completed" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`} variant="outline">
-          {STATUS_LABELS[lesson.status] || lesson.status}
+          {STATUS_LABELS[lesson.status] || 'Статус неизвестен'}
         </Badge>
         {lesson.meeting_link && lesson.status === "planned" && (
           <a
             href={lesson.meeting_link}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-medium hover:bg-indigo-100 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 rounded-lg text-xs font-medium hover:bg-indigo-100 transition-colors"
           >
             <Video className="h-3.5 w-3.5" /> Войти
           </a>

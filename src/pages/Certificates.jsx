@@ -224,7 +224,7 @@ export default function Certificates() {
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
       <div>
-        <h2 className="text-xl font-bold">Сертификаты</h2>
+        <h2 className="text-xl font-bold text-foreground">Сертификаты</h2>
         <p className="text-sm text-muted-foreground">
           Создание черновиков, привязка к ученику и курсу, ручная дата выдачи
         </p>
@@ -365,7 +365,7 @@ export default function Certificates() {
           >
             <div>
               <p className="font-semibold flex items-center gap-2">
-                <Award className="w-4 h-4 text-indigo-600" /> {cert.registration_number}
+                <Award className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> {cert.registration_number}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 {studentName(cert.student_id)} · {courseName(cert.course_id)} ·{' '}
@@ -402,7 +402,7 @@ export default function Certificates() {
                   type="button"
                   size="sm"
                   variant="outline"
-                  className="gap-1 text-amber-700"
+                  className="gap-1 text-amber-700 dark:text-amber-400"
                   disabled={busyId === cert.id}
                   onClick={() => handleRevoke(cert)}
                   data-testid={`cert-revoke-${cert.id}`}

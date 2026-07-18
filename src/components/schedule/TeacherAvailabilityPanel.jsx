@@ -24,7 +24,7 @@ export default function TeacherAvailabilityPanel({
 
   if (loading) {
     return (
-      <div className="col-span-2 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-500">
+      <div className="col-span-2 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 px-3 py-2.5 text-xs text-slate-500 dark:text-slate-400">
         <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" />
         Загрузка расписания преподавателя…
       </div>
@@ -41,8 +41,8 @@ export default function TeacherAvailabilityPanel({
   }
 
   return (
-    <div className="col-span-2 rounded-xl border border-indigo-200 bg-indigo-50/60 px-3 py-2.5">
-      <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-800 mb-1.5">
+    <div className="col-span-2 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/30 px-3 py-2.5">
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-800 dark:text-indigo-300 mb-1.5">
         <Clock className="h-3.5 w-3.5" />
         Свободные слоты ({dayLabel})
       </div>

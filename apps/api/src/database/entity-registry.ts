@@ -31,6 +31,7 @@ import { TeacherPaymentEntity } from '../modules/teacher-payments/entities/teach
 import { AppSettingEntity } from '../modules/settings/entities/app-setting.entity';
 import { UserEntity } from '../modules/users/entities/user.entity';
 import { LessonConfirmationEntity } from '../modules/lesson-confirmations/entities/lesson-confirmation.entity';
+import { ASSESSMENT_ENTITIES } from '../modules/assessment/entities';
 
 /** All v2 domain entities for TypeORM registration. */
 export const ALL_V2_ENTITIES = [
@@ -67,4 +68,5 @@ export const ALL_V2_ENTITIES = [
   NotificationEntity,
   AuditLogEntity,
   AppSettingEntity,
+  ...ASSESSMENT_ENTITIES,
 ];

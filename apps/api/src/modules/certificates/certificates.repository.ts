@@ -81,6 +81,10 @@ export class CertificatesRepository {
     return this.certificateRepo.findOne({ where });
   }
 
+  findByAssessmentResultId(assessmentResultId: string): Promise<CertificateEntity | null> {
+    return this.certificateRepo.findOne({ where: { assessmentResultId } });
+  }
+
   saveHistory(entity: Partial<CertificateHistoryEntity>): Promise<CertificateHistoryEntity> {
     return this.historyRepo.save(this.historyRepo.create(entity));
   }

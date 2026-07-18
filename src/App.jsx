@@ -25,9 +25,28 @@ const Groups = lazy(() => import('./pages/Groups'));
 const GroupDetail = lazy(() => import('./pages/GroupDetail'));
 const Certificates = lazy(() => import('./pages/Certificates'));
 const StudentCertificates = lazy(() => import('./pages/StudentCertificates'));
+const StudentExams = lazy(() => import('./pages/StudentExams'));
+const StudentExamTake = lazy(() => import('./pages/StudentExamTake'));
 const CertificateView = lazy(() => import('./pages/CertificateView'));
 const CertificateVerify = lazy(() => import('./pages/CertificateVerify'));
 const Payments = lazy(() => import('./pages/Payments'));
+const PaymentReturn = lazy(() => import('./pages/PaymentReturn'));
+const AdminAssessment = lazy(() => import('./pages/AdminAssessment'));
+const AssessmentBanks = lazy(() => import('./pages/AssessmentBanks'));
+const AssessmentQuestions = lazy(() => import('./pages/AssessmentQuestions'));
+const AssessmentExamTemplates = lazy(() => import('./pages/AssessmentExamTemplates'));
+const AssessmentBlueprints = lazy(() => import('./pages/AssessmentBlueprints'));
+const AssessmentBlueprintEdit = lazy(() => import('./pages/AssessmentBlueprintEdit'));
+const AssessmentExams = lazy(() => import('./pages/AssessmentExams'));
+const AssessmentExamDetail = lazy(() => import('./pages/AssessmentExamDetail'));
+const AssessmentAssignments = lazy(() => import('./pages/AssessmentAssignments'));
+const AssessmentAssignmentDetail = lazy(() => import('./pages/AssessmentAssignmentDetail'));
+const AssessmentResults = lazy(() => import('./pages/AssessmentResults'));
+const AssessmentResultDetail = lazy(() => import('./pages/AssessmentResultDetail'));
+const TeacherAssessment = lazy(() => import('./pages/TeacherAssessment'));
+const TeacherAssessmentReview = lazy(() => import('./pages/TeacherAssessmentReview'));
+const TeacherAssessmentReviewDetail = lazy(() => import('./pages/TeacherAssessmentReviewDetail'));
+const TeacherAssessmentResults = lazy(() => import('./pages/TeacherAssessmentResults'));
 
 /**
  * Route registration: see docs/frontend-routing.md
@@ -112,9 +131,9 @@ const AuthenticatedApp = () => {
 
           if (['Dashboard', 'Schedule', 'StudentDetail'].includes(path)) {
             element = <AdminRoute>{element}</AdminRoute>;
-          } else if (['TeacherDashboard', 'TeacherSchedule'].includes(path)) {
+          } else if (['TeacherDashboard', 'TeacherSchedule', 'TeacherAssessment', 'TeacherAssessmentReview', 'TeacherAssessmentReviewDetail', 'TeacherAssessmentResults'].includes(path)) {
             element = <TeacherRoute>{element}</TeacherRoute>;
-          } else if (['StudentDashboard', 'StudentLessons', 'StudentCertificates'].includes(path)) {
+          } else if (['StudentDashboard', 'StudentLessons', 'StudentCertificates', 'StudentExams'].includes(path)) {
             element = <StudentRoute>{element}</StudentRoute>;
           }
 
@@ -122,6 +141,10 @@ const AuthenticatedApp = () => {
         })}
         <Route path="/AdminLessonMaterials" element={<Navigate to="/MaterialsHub" replace />} />
         <Route path="/MaterialsHub" element={<TeacherRoute><LayoutWrapper currentPageName="MaterialsHub"><MaterialsHub /></LayoutWrapper></TeacherRoute>} />
+        <Route path="/TeacherAssessment" element={<TeacherRoute><LayoutWrapper currentPageName="TeacherAssessment"><TeacherAssessment /></LayoutWrapper></TeacherRoute>} />
+        <Route path="/TeacherAssessmentReview" element={<TeacherRoute><LayoutWrapper currentPageName="TeacherAssessment"><TeacherAssessmentReview /></LayoutWrapper></TeacherRoute>} />
+        <Route path="/TeacherAssessmentReviewDetail" element={<TeacherRoute><LayoutWrapper currentPageName="TeacherAssessment"><TeacherAssessmentReviewDetail /></LayoutWrapper></TeacherRoute>} />
+        <Route path="/TeacherAssessmentResults" element={<TeacherRoute><LayoutWrapper currentPageName="TeacherAssessment"><TeacherAssessmentResults /></LayoutWrapper></TeacherRoute>} />
         <Route path="/StudentLessonMaterials" element={<StudentRoute><LayoutWrapper currentPageName="StudentLessonMaterials"><StudentLessonMaterials /></LayoutWrapper></StudentRoute>} />
         <Route path="/UserManagement" element={<AdminRoute><LayoutWrapper currentPageName="UserManagement"><UserManagement /></LayoutWrapper></AdminRoute>} />
         <Route path="/AdminPanel" element={<AdminRoute><LayoutWrapper currentPageName="AdminPanel"><AdminPanel /></LayoutWrapper></AdminRoute>} />
@@ -129,9 +152,24 @@ const AuthenticatedApp = () => {
         <Route path="/Groups" element={<AdminRoute><LayoutWrapper currentPageName="Groups"><Groups /></LayoutWrapper></AdminRoute>} />
         <Route path="/Certificates" element={<AdminRoute><LayoutWrapper currentPageName="Certificates"><Certificates /></LayoutWrapper></AdminRoute>} />
         <Route path="/StudentCertificates" element={<StudentRoute><LayoutWrapper currentPageName="StudentCertificates"><StudentCertificates /></LayoutWrapper></StudentRoute>} />
+        <Route path="/StudentExams" element={<StudentRoute><LayoutWrapper currentPageName="StudentExams"><StudentExams /></LayoutWrapper></StudentRoute>} />
+        <Route path="/StudentExamTake" element={<StudentRoute><LayoutWrapper currentPageName="StudentExams"><StudentExamTake /></LayoutWrapper></StudentRoute>} />
         <Route path="/certificate/:id" element={<CertificateView />} />
         <Route path="/Attendance" element={<Navigate to="/Groups" replace />} />
         <Route path="/Payments" element={<AdminRoute><LayoutWrapper currentPageName="Payments"><Payments /></LayoutWrapper></AdminRoute>} />
+        <Route path="/PaymentReturn" element={<StudentRoute><LayoutWrapper currentPageName="PaymentReturn"><PaymentReturn /></LayoutWrapper></StudentRoute>} />
+        <Route path="/AdminAssessment" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AdminAssessment /></LayoutWrapper></AdminRoute>} />
+        <Route path="/AssessmentBanks" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentBanks /></LayoutWrapper></AdminRoute>} />
+        <Route path="/AssessmentQuestions" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentQuestions /></LayoutWrapper></AdminRoute>} />
+        <Route path="/AssessmentExamTemplates" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentExamTemplates /></LayoutWrapper></AdminRoute>} />
+        <Route path="/AssessmentBlueprints" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentBlueprints /></LayoutWrapper></AdminRoute>} />
+        <Route path="/AssessmentBlueprintEdit" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentBlueprintEdit /></LayoutWrapper></AdminRoute>} />
+        <Route path="/AssessmentExams" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentExams /></LayoutWrapper></AdminRoute>} />
+        <Route path="/AssessmentExamDetail" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentExamDetail /></LayoutWrapper></AdminRoute>} />
+        <Route path="/AssessmentAssignments" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentAssignments /></LayoutWrapper></AdminRoute>} />
+        <Route path="/AssessmentAssignmentDetail" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentAssignmentDetail /></LayoutWrapper></AdminRoute>} />
+        <Route path="/AssessmentResults" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentResults /></LayoutWrapper></AdminRoute>} />
+        <Route path="/AssessmentResultDetail" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentResultDetail /></LayoutWrapper></AdminRoute>} />
         <Route path="/LessonSeriesAdmin" element={<Navigate to="/Groups" replace />} />
         <Route path="/TeacherPayments" element={<TeacherPaymentsLegacyRedirect />} />
         <Route path="*" element={<OnboardingFallback />} />

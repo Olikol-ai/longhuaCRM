@@ -116,14 +116,15 @@ export class AlfaBankService {
     }
 
     const apiUrl = this.config.get('alfaBank.apiUrl');
+    const returnUrl = this.buildPaymentReturnUrl(params.returnUrl, params.origin, payment.id);
     const activeOrderNumber = payment.orderNumber || orderNumber;
     const alfaPayload = {
       userName: alfaMerchantId,
       password: alfaToken,
       orderNumber: activeOrderNumber,
       amount: Math.round(amount * 100),
-      returnUrl: params.returnUrl || `${params.origin}/`,
-      description: `${params.type === 'package' ? 'Пакет уроков' : 'Курс'} - ${params.itemId}`,
+      returnUrl,
+      description: `${params.type === 'package' ? 'Пакет уроков' : 'Курс'} - ${shopItem.name}`,
       clientId: params.studentId,
       expirationDate: new Date(Date.now() + PENDING_TTL_MS).toISOString(),
       language: 'RU',
@@ -236,6 +237,27 @@ export class AlfaBankService {
           ? 'Заявка сохранена. Администратор пока не получил уведомление в Telegram — свяжитесь со школой напрямую.'
           : undefined,
     };
+  }
+
+  private buildPaymentReturnUrl(
+    returnUrl: string | undefined,
+    origin: string | undefined,
+    paymentId: string,
+  ): string {
+    const publicUrl = (this.config.get<string>('appPublicUrl') ?? '').replace(/\/$/, '');
+    const originBase = (origin ?? '').replace(/\/$/, '');
+    const base =
+      (returnUrl && returnUrl.trim()) ||
+      (publicUrl ? `${publicUrl}/PaymentReturn` : `${originBase}/PaymentReturn`);
+
+    try {
+      const url = new URL(base);
+      url.searchParams.set('payment_id', paymentId);
+      return url.toString();
+    } catch {
+      const sep = base.includes('?') ? '&' : '?';
+      return `${base}${sep}payment_id=${encodeURIComponent(paymentId)}`;
+    }
   }
 
   private async acquirePendingPayment(input: {
@@ -363,6 +385,48 @@ export class AlfaBankService {
     throw new ForbiddenException('Only students and administrators can initiate payments');
   }
 
+  /**
+   * Shared success path for webhook + status poll.
+   * Idempotent: already-paid payments skip side effects (enrollment / Telegram).
+   */
+  async confirmPaidAndNotify(params: {
+    orderNumber: string;
+    externalOrderId: string;
+  }): Promise<{
+    applied: boolean;
+    alreadyPaid?: boolean;
+    notFound?: boolean;
+    paymentId?: string;
+    status: 'paid' | 'pending' | 'failed' | 'refunded' | 'unknown';
+  }> {
+    const result = await this.paymentsService.markPaidFromWebhook({
+      orderNumber: params.orderNumber,
+      externalOrderId: params.externalOrderId,
+      comment: `Оплачено через Alfa Bank - ${params.externalOrderId}`,
+    });
+
+    if (result.notFound) {
+      return { applied: false, notFound: true, status: 'unknown' };
+    }
+
+    if (result.alreadyPaid) {
+      return {
+        applied: true,
+        alreadyPaid: true,
+        paymentId: result.paymentId,
+        status: 'paid',
+      };
+    }
+
+    await this.notifyStudentPaymentSuccess(result);
+    return {
+      applied: true,
+      alreadyPaid: false,
+      paymentId: result.paymentId,
+      status: 'paid',
+    };
+  }
+
   async handleWebhook(bodyText: string): Promise<string> {
     const params = new URLSearchParams(bodyText);
     const { token: alfaToken } = await this.settingsService.getAlfaCredentials();
@@ -373,7 +437,6 @@ export class AlfaBankService {
 
     const orderId = params.get('orderId');
     const orderNumber = params.get('orderNumber');
-    const amount = parseInt(params.get('amount') || '0', 10) / 100;
     const status = params.get('status');
     const checksum = params.get('checksum');
 
@@ -393,10 +456,9 @@ export class AlfaBankService {
       throw new ForbiddenException('Invalid AlfaBank webhook signature');
     }
 
-    const result = await this.paymentsService.markPaidFromWebhook({
+    const result = await this.confirmPaidAndNotify({
       orderNumber,
       externalOrderId: orderId,
-      comment: `Оплачено через Alfa Bank - ${orderId}`,
     });
 
     if (result.notFound) {
@@ -404,27 +466,139 @@ export class AlfaBankService {
       throw new NotFoundException('Payment not found');
     }
 
-    if (result.alreadyPaid) {
-      return '1';
-    }
-
-    const student = result.student;
-    if (student?.telegramId) {
-      if (this.paymentsService.isPackagePayment(result.shopItem)) {
-        const msg = `✅ Платёж успешно обработан!\n\n💳 Сумма: ${amount.toFixed(2)} BYN\n📚 Уроков добавлено: ${result.lessonsAdded ?? 0}\n💡 Новый баланс: ${student.lessonBalance} уроков`;
-        this.telegramService.sendMessage(String(student.telegramId), msg).catch(() => undefined);
-      } else if (this.paymentsService.isCoursePayment(result.shopItem)) {
-        const msg = `✅ Курс успешно активирован!\n\n📚 Тип: Групповой курс\n💳 Сумма: ${amount.toFixed(2)} BYN\n🎓 Всего занятий: 35 часов`;
-        this.telegramService.sendMessage(String(student.telegramId), msg).catch(() => undefined);
-      }
-    }
-
     return '1';
   }
 
+  /**
+   * Student/admin status check after return from bank.
+   * Never trusts browser return alone — polls Alfa when still pending, then uses confirmPaidAndNotify.
+   */
+  async getPaymentStatusForActor(
+    paymentId: string,
+    userId: string,
+    userRole: string,
+  ): Promise<{
+    ok: true;
+    payment_id: string;
+    status: PaymentEntity['status'];
+    amount: number;
+    currency: string;
+    order_number: string | null;
+    provider: string;
+    message: string;
+  }> {
+    const payment = await this.dataSource.getRepository(PaymentEntity).findOne({
+      where: { id: paymentId },
+    });
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+    if (!payment.studentId) {
+      throw new BadRequestException('Payment has no student');
+    }
+    await this.assertStudentAccess(userId, userRole, payment.studentId);
+
+    if (payment.status === 'pending' && payment.externalId && payment.orderNumber) {
+      await this.syncPendingPaymentFromAlfa(payment);
+    }
+
+    const fresh = await this.dataSource.getRepository(PaymentEntity).findOne({
+      where: { id: paymentId },
+    });
+    if (!fresh) {
+      throw new NotFoundException('Payment not found');
+    }
+
+    return {
+      ok: true,
+      payment_id: fresh.id,
+      status: fresh.status,
+      amount: Number(fresh.amount),
+      currency: fresh.currency ?? 'BYN',
+      order_number: fresh.orderNumber,
+      provider: fresh.provider,
+      message: this.statusUserMessage(fresh.status),
+    };
+  }
+
+  /** Legacy RPC: resolve by Alfa orderId, then sync via the same confirm path. */
   async checkPaymentStatus(orderId: string) {
+    const payment = await this.dataSource.getRepository(PaymentEntity).findOne({
+      where: { externalId: orderId },
+    });
+
+    if (payment?.orderNumber) {
+      if (payment.status === 'pending') {
+        await this.syncPendingPaymentFromAlfa(payment);
+      }
+      const fresh = await this.dataSource.getRepository(PaymentEntity).findOne({
+        where: { id: payment.id },
+      });
+      return {
+        ok: true,
+        orderId,
+        paymentId: payment.id,
+        status: fresh?.status ?? payment.status,
+        statusLabel: fresh?.status ?? payment.status,
+        isPaid: (fresh?.status ?? payment.status) === 'paid',
+        amount: Number(fresh?.amount ?? payment.amount),
+      };
+    }
+
+    const gateway = await this.fetchAlfaOrderStatus(orderId);
+    return {
+      ok: true,
+      orderId,
+      status: gateway.orderStatus,
+      statusLabel: gateway.statusLabel,
+      isPaid: gateway.isPaid,
+      amount: gateway.amount,
+    };
+  }
+
+  private async syncPendingPaymentFromAlfa(payment: PaymentEntity): Promise<void> {
+    if (!payment.externalId || !payment.orderNumber) {
+      return;
+    }
+    if (payment.status !== 'pending') {
+      return;
+    }
+
+    let gateway: Awaited<ReturnType<AlfaBankService['fetchAlfaOrderStatus']>>;
+    try {
+      gateway = await this.fetchAlfaOrderStatus(payment.externalId);
+    } catch (error) {
+      this.logger.warn(
+        `Alfa status check failed for payment ${payment.id}: ${(error as Error).message}`,
+      );
+      return;
+    }
+
+    if (gateway.isPaid) {
+      await this.confirmPaidAndNotify({
+        orderNumber: payment.orderNumber,
+        externalOrderId: payment.externalId,
+      });
+      return;
+    }
+
+    if (gateway.isFailed) {
+      payment.status = 'failed';
+      await this.dataSource.getRepository(PaymentEntity).save(payment);
+    }
+  }
+
+  private async fetchAlfaOrderStatus(orderId: string): Promise<{
+    orderStatus: string;
+    statusLabel: string;
+    isPaid: boolean;
+    isFailed: boolean;
+    amount: number;
+  }> {
     const { token: alfaToken, merchantId } = await this.settingsService.getAlfaCredentials();
-    if (!alfaToken || !merchantId) throw new Error('Alfa Bank credentials not configured');
+    if (!alfaToken || !merchantId) {
+      throw new Error('Alfa Bank credentials not configured');
+    }
 
     const apiUrl = this.config.get('alfaBank.apiUrl');
     const res = await fetch(`${apiUrl}/getOrderStatusExtended.do`, {
@@ -438,23 +612,84 @@ export class AlfaBankService {
       signal: AbortSignal.timeout(15_000),
     });
 
-    const data = await res.json();
-    const status = String(data.orderStatus);
-    const isPaid = status === '1' || status === '5';
+    const data = (await res.json()) as {
+      orderStatus?: number | string;
+      amount?: number;
+      errorCode?: number;
+      errorMessage?: string;
+    };
+    if (data.errorCode !== undefined && Number(data.errorCode) !== 0) {
+      throw new Error(data.errorMessage || 'Payment gateway status error');
+    }
+
+    const status = String(data.orderStatus ?? '');
     const labels: Record<string, string> = {
       '0': 'pending',
       '1': 'paid',
       '2': 'cancelled',
+      '3': 'pending',
+      '4': 'failed',
       '5': 'paid',
+      '6': 'refunded',
     };
 
     return {
-      ok: true,
-      orderId,
-      status,
+      orderStatus: status,
       statusLabel: labels[status] || status,
-      isPaid,
+      isPaid: status === '1' || status === '5',
+      isFailed: status === '2' || status === '4',
       amount: (data.amount || 0) / 100,
     };
+  }
+
+  private statusUserMessage(status: PaymentEntity['status']): string {
+    switch (status) {
+      case 'paid':
+        return 'Оплата успешно завершена';
+      case 'pending':
+        return 'Оплата ещё проверяется';
+      case 'failed':
+        return 'Оплата не прошла';
+      case 'refunded':
+        return 'Оплата возвращена';
+      default:
+        return 'Статус неизвестен';
+    }
+  }
+
+  private async notifyStudentPaymentSuccess(result: {
+    student?: StudentEntity;
+    shopItem?: ShopItemEntity | null;
+    lessonsAdded?: number;
+    amount?: number;
+  }): Promise<void> {
+    const student = result.student;
+    if (!student?.telegramId) {
+      return;
+    }
+
+    const itemName = result.shopItem?.name ?? 'услугу';
+    let msg: string;
+
+    if (this.paymentsService.isCoursePayment(result.shopItem)) {
+      msg =
+        `🎉 Оплата успешно получена!\n\n` +
+        `Вы записаны на курс:\n${itemName}\n\n` +
+        `Добро пожаловать в Longhua!`;
+    } else if (this.paymentsService.isPackagePayment(result.shopItem)) {
+      msg =
+        `🎉 Оплата успешно получена!\n\n` +
+        `Абонемент: ${itemName}\n` +
+        `Уроков добавлено: ${result.lessonsAdded ?? 0}\n` +
+        `Новый баланс: ${student.lessonBalance ?? 0}\n\n` +
+        `Добро пожаловать в Longhua!`;
+    } else {
+      msg =
+        `🎉 Оплата успешно получена!\n\n` +
+        `Сумма: ${(result.amount ?? 0).toFixed(2)} BYN\n\n` +
+        `Добро пожаловать в Longhua!`;
+    }
+
+    this.telegramService.sendMessage(String(student.telegramId), msg).catch(() => undefined);
   }
 }

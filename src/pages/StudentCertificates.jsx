@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/api';
-import { Award, ExternalLink, Loader2, Sparkles } from 'lucide-react';
+import { Award, Download, ExternalLink, Loader2, Sparkles } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 
@@ -22,6 +22,7 @@ export default function StudentCertificates() {
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [celebration, setCelebration] = useState(null);
+  const [downloadingId, setDownloadingId] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,7 +68,7 @@ export default function StudentCertificates() {
 
   const courseName = (id) => {
     const c = courses.find((row) => row.id === id);
-    return c?.name || c?.course_name || 'Курс';
+    return c?.name || c?.course_name || 'Курс Longhua';
   };
 
   const studentName =
@@ -86,10 +87,35 @@ export default function StudentCertificates() {
     setCelebration(null);
   };
 
+  const downloadPdf = async (certId, event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    setDownloadingId(certId);
+    try {
+      const blob = await api.certificates.downloadPdf(certId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `longhua-certificate-${certId.slice(0, 8)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast({
+        title: 'Не удалось скачать PDF',
+        description: err?.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+        <Loader2 className="h-6 w-6 animate-spin text-red-700" />
       </div>
     );
   }
@@ -104,13 +130,13 @@ export default function StudentCertificates() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Мои сертификаты</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Документы о прохождении курсов Longhua Chinese — открываются в формате PDF
+          Достижения Longhua Chinese — сертификаты о прохождении курсов и экзаменов
         </p>
       </div>
 
       {celebration && (
         <div
-          className="relative overflow-hidden rounded-2xl border-2 border-amber-300/80 dark:border-amber-700 bg-gradient-to-br from-amber-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-950 dark:to-indigo-950 p-5 sm:p-6 shadow-md"
+          className="relative overflow-hidden rounded-2xl border-2 border-amber-300/80 dark:border-amber-700 bg-gradient-to-br from-amber-50 via-white to-red-50 dark:from-slate-900 dark:via-slate-950 dark:to-red-950/40 p-5 sm:p-6 shadow-md"
           data-testid="certificate-achievement-banner"
         >
           <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-amber-200/40 blur-2xl" />
@@ -126,9 +152,9 @@ export default function StudentCertificates() {
               {celebration.body}
             </p>
             <div className="flex flex-wrap gap-2 pt-1">
-              <Button asChild className="bg-indigo-600 hover:bg-indigo-700 gap-2">
+              <Button asChild className="bg-red-800 hover:bg-red-900 gap-2">
                 <Link to={viewPath} onClick={markCelebrationRead}>
-                  Посмотреть сертификат
+                  Открыть сертификат
                 </Link>
               </Button>
               <Button type="button" variant="outline" onClick={markCelebrationRead}>
@@ -145,35 +171,62 @@ export default function StudentCertificates() {
           <p className="text-slate-500">Пока нет выданных сертификатов</p>
         </div>
       ) : (
-        <div className="grid gap-5 sm:grid-cols-2">
+        <div className="grid gap-6 sm:grid-cols-1 lg:grid-cols-2">
           {rows.map((cert) => (
-            <Link
+            <article
               key={cert.id}
-              to={`/certificate/${cert.id}`}
-              className="group relative overflow-hidden rounded-2xl border-2 border-amber-200/80 dark:border-amber-900/50 bg-gradient-to-br from-amber-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-950 dark:to-indigo-950 p-6 shadow-sm hover:shadow-md transition-shadow"
+              className="relative overflow-hidden rounded-3xl border-2 border-amber-200/90 dark:border-amber-900/50 bg-gradient-to-br from-amber-50 via-white to-red-50 dark:from-slate-900 dark:via-slate-950 dark:to-red-950/30 p-6 sm:p-8 shadow-md"
               data-testid={`student-cert-card-${cert.id}`}
             >
-              <div className="absolute inset-3 border border-amber-300/40 dark:border-amber-700/30 rounded-xl pointer-events-none" />
-              <div className="relative space-y-4 text-center">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-amber-800/70 dark:text-amber-200/70">
-                  Longhua Chinese · PDF
+              <div className="absolute inset-4 border border-amber-300/50 dark:border-amber-700/40 rounded-2xl pointer-events-none" />
+              <div className="relative flex flex-col items-center text-center gap-4">
+                <img
+                  src="/icon-master.png"
+                  alt="Longhua Chinese"
+                  className="h-16 w-16 sm:h-20 sm:w-20 object-contain drop-shadow-sm"
+                />
+                <p className="text-[11px] uppercase tracking-[0.22em] text-amber-900/70 dark:text-amber-200/70 font-semibold">
+                  Longhua Chinese · Достижение
                 </p>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-snug">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white leading-snug">
                   {courseName(cert.course_id)}
                 </h2>
                 <p className="text-sm text-slate-600 dark:text-slate-300">{studentName}</p>
-                <div className="text-xs text-slate-500 space-y-1">
+                <div className="text-sm text-slate-600 dark:text-slate-400 space-y-1.5">
                   <p>
-                    Серия {cert.blank_series || '—'} · № {cert.blank_number || '—'}
+                    Серия <span className="font-semibold text-slate-800 dark:text-slate-200">{cert.blank_series || '—'}</span>
+                    {' · '}
+                    № <span className="font-semibold text-slate-800 dark:text-slate-200">{cert.blank_number || '—'}</span>
                   </p>
                   <p>Дата выдачи: {cert.issue_date || '—'}</p>
-                  <p>{STATUS_LABEL[cert.status] || cert.status}</p>
+                  <p className="inline-flex items-center rounded-full bg-amber-100/80 dark:bg-amber-900/40 px-3 py-0.5 text-xs font-medium text-amber-900 dark:text-amber-100">
+                    {STATUS_LABEL[cert.status] || 'Статус неизвестен'}
+                  </p>
                 </div>
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 group-hover:underline">
-                  Открыть PDF <ExternalLink className="h-3 w-3" />
-                </span>
+                <div className="flex flex-wrap justify-center gap-2 pt-2">
+                  <Button asChild className="bg-red-800 hover:bg-red-900 gap-2">
+                    <Link to={`/certificate/${cert.id}`}>
+                      <ExternalLink className="h-4 w-4" />
+                      Открыть сертификат
+                    </Link>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="gap-2 border-amber-300 text-amber-950 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-100"
+                    disabled={downloadingId === cert.id}
+                    onClick={(e) => downloadPdf(cert.id, e)}
+                  >
+                    {downloadingId === cert.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                    Скачать PDF
+                  </Button>
+                </div>
               </div>
-            </Link>
+            </article>
           ))}
         </div>
       )}

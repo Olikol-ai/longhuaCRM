@@ -67,7 +67,6 @@ export default function MaterialManager() {
           : [],
       );
     } catch (err) {
-      console.error(err);
       setMaterials([]);
       setCourses([]);
       setFolders([]);

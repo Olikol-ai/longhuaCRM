@@ -174,7 +174,7 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-slate-400 mt-1">Изменение преподавателя доступно только администратору</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Изменение преподавателя доступно только администратору</p>
             </div>
             <div className="space-y-2">
               <Label>Дата начала</Label>

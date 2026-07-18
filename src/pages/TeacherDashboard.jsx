@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { getGreetingName } from '@/lib/display-name';
 import { resolveLessonStudentLabel } from '@/lib/studentLabels';
 import { format } from "date-fns";
+import { ru } from "date-fns/locale";
 import { Calendar, CheckCircle2, XCircle, Clock, Loader2, Sun, Moon, DollarSign, Link2, Copy } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import StatCard from "@/components/dashboard/StatCard";
 import { toast } from "@/components/ui/use-toast";
+import { formatCurrency } from "@/lib/formatters";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,29 +37,37 @@ export default function TeacherDashboard() {
   const [loading, setLoading] = useState(true);
   const [confirmAction, setConfirmAction] = useState(null);
   const [showMaterialPicker, setShowMaterialPicker] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const { theme, toggleTheme } = useTheme();
 
   const loadData = async () => {
     if (!user) return;
-    const [allTeachers, allLessons, allStudents, myPayments, myInvites] = await Promise.all([
-      api.teachers.list(),
-      api.lessons.list("-date", 200),
-      api.students.list(),
-      api.teacherPayments.my().catch(() => []),
-      api.teacherInvites.list().catch(() => []),
-    ]);
-    const t = allTeachers.find((x) => x.user_id === user.id || x.email === user.email);
-    setTeacher(t);
-    if (t) {
-      setLessons(allLessons.filter((l) => l.teacher_id === t.id));
-      setStudents(allStudents.filter((s) => s.assigned_teacher === t.id));
-    } else {
-      setLessons([]);
-      setStudents([]);
+    setLoadError(null);
+    try {
+      const [allTeachers, allLessons, allStudents, myPayments, myInvites] = await Promise.all([
+        api.teachers.list(),
+        api.lessons.list("-date", 200),
+        api.students.list(),
+        api.teacherPayments.my().catch(() => []),
+        api.teacherInvites.list().catch(() => []),
+      ]);
+      const t = allTeachers.find((x) => x.user_id === user.id || x.email === user.email);
+      setTeacher(t);
+      if (t) {
+        setLessons(allLessons.filter((l) => l.teacher_id === t.id));
+        setStudents(allStudents.filter((s) => s.assigned_teacher === t.id));
+      } else {
+        setLessons([]);
+        setStudents([]);
+      }
+      setPayments(Array.isArray(myPayments) ? myPayments : []);
+      setInvites(Array.isArray(myInvites) ? myInvites : []);
+    } catch (err) {
+      setLoadError(err?.message || "Не удалось загрузить данные");
+    } finally {
+      setLoading(false);
     }
-    setPayments(Array.isArray(myPayments) ? myPayments : []);
-    setInvites(Array.isArray(myInvites) ? myInvites : []);
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -108,15 +118,37 @@ export default function TeacherDashboard() {
   };
 
   const handleMarkComplete = async (lesson, materialIds = []) => {
-    await api.lessons.update(lesson.id, { status: "completed", material_ids: materialIds });
-    setConfirmAction(null);
-    loadData();
+    setActionBusy(true);
+    try {
+      await api.lessons.update(lesson.id, { status: "completed", material_ids: materialIds });
+      setConfirmAction(null);
+      await loadData();
+    } catch (err) {
+      toast({
+        title: "Не удалось завершить урок",
+        description: err?.message || "Попробуйте ещё раз",
+        variant: "destructive",
+      });
+    } finally {
+      setActionBusy(false);
+    }
   };
 
   const handleMarkCancelled = async (lesson) => {
-    await api.lessons.update(lesson.id, { status: "cancelled" });
-    setConfirmAction(null);
-    loadData();
+    setActionBusy(true);
+    try {
+      await api.lessons.update(lesson.id, { status: "cancelled" });
+      setConfirmAction(null);
+      await loadData();
+    } catch (err) {
+      toast({
+        title: "Не удалось отменить урок",
+        description: err?.message || "Попробуйте ещё раз",
+        variant: "destructive",
+      });
+    } finally {
+      setActionBusy(false);
+    }
   };
 
   if (loading) {
@@ -127,11 +159,22 @@ export default function TeacherDashboard() {
     );
   }
 
+  if (loadError) {
+    return (
+      <div className="p-4 sm:p-6 lg:p-8 text-center py-20 space-y-3">
+        <p className="text-slate-600 dark:text-slate-300">{loadError}</p>
+        <Button variant="outline" onClick={() => { setLoading(true); loadData(); }}>
+          Повторить
+        </Button>
+      </div>
+    );
+  }
+
   if (!teacher) {
     return (
       <div className="p-4 sm:p-6 lg:p-8 text-center py-20">
-        <p className="text-slate-500">Профиль преподавателя не найден для вашего аккаунта.</p>
-        <p className="text-xs text-slate-400 mt-2">Обратитесь к администратору.</p>
+        <p className="text-slate-500 dark:text-slate-400">Профиль преподавателя не найден для вашего аккаунта.</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">Обратитесь к администратору.</p>
       </div>
     );
   }
@@ -148,7 +191,7 @@ export default function TeacherDashboard() {
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Добро пожаловать, {getGreetingName(teacher) || getGreetingName(user) || "Преподаватель"}</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{format(new Date(), "EEEE, d MMMM yyyy", { locale: ru })}</p>
         </div>
         <button onClick={toggleTheme}
           className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
@@ -165,7 +208,7 @@ export default function TeacherDashboard() {
 
       <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Приглашение учеников</h2>
       <Card className="p-4 mb-8 space-y-3">
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
           Создайте ссылку. После регистрации и подтверждения email ученик автоматически закрепится за вами.
         </p>
         <div className="flex flex-wrap gap-2">
@@ -219,8 +262,8 @@ export default function TeacherDashboard() {
       <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Мои выплаты</h2>
       {payments.length === 0 ? (
         <Card className="p-6 text-center border-dashed mb-8">
-          <DollarSign className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-          <p className="text-sm text-slate-500">Начислений пока нет</p>
+          <DollarSign className="h-8 w-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+          <p className="text-sm text-slate-500 dark:text-slate-400">Начислений пока нет</p>
         </Card>
       ) : (
         <div className="space-y-2 mb-8">
@@ -228,9 +271,9 @@ export default function TeacherDashboard() {
             <Card key={row.id} className="p-4 flex items-center justify-between gap-3">
               <div>
                 <p className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                  <DollarSign className="w-4 h-4" /> {Number(row.amount).toFixed(2)} BYN
+                  <DollarSign className="w-4 h-4" /> {formatCurrency(row.amount)}
                 </p>
-                <p className="text-xs text-slate-500">{row.status}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{row.status}</p>
               </div>
               <Badge variant={row.status === "paid" ? "default" : "secondary"}>
                 {row.status === "paid" ? "Оплачено" : "Ожидает"}
@@ -243,8 +286,8 @@ export default function TeacherDashboard() {
       <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Предстоящие уроки</h2>
       {upcomingLessons.length === 0 ? (
         <Card className="p-8 text-center border-dashed">
-          <Calendar className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-          <p className="text-sm text-slate-500">Предстоящих уроков нет</p>
+          <Calendar className="h-8 w-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+          <p className="text-sm text-slate-500 dark:text-slate-400">Предстоящих уроков нет</p>
         </Card>
       ) : (
         <div className="space-y-3">
@@ -253,7 +296,7 @@ export default function TeacherDashboard() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-4">
                            <div className="text-center min-w-[60px]">
-                             <p className="text-xs text-slate-400 dark:text-slate-500">{format(new Date(lesson.date), "MMM d")}</p>
+                             <p className="text-xs text-slate-400 dark:text-slate-500">{format(new Date(lesson.date), "d MMM", { locale: ru })}</p>
                              <p className="text-lg font-bold text-slate-900 dark:text-white">{lesson.start_time}</p>
                              <p className="text-[11px] text-slate-400 dark:text-slate-500">{lesson.duration || 60} min</p>
                            </div>
@@ -264,7 +307,7 @@ export default function TeacherDashboard() {
                         href={lesson.meeting_link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-indigo-600 hover:underline"
+                        className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
                       >
                         Войти на встречу →
                       </a>
@@ -277,7 +320,7 @@ export default function TeacherDashboard() {
                     variant="outline"
                     size="sm"
                     onClick={() => setConfirmAction({ type: "cancel", lesson })}
-                    className="text-red-600 border-red-200 hover:bg-red-50"
+                    className="text-red-600 border-red-200 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-950/50"
                   >
                     <XCircle className="h-4 w-4 mr-1" />
                     Отменить
@@ -327,8 +370,9 @@ export default function TeacherDashboard() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Назад</AlertDialogCancel>
+            <AlertDialogCancel disabled={actionBusy}>Назад</AlertDialogCancel>
             <AlertDialogAction
+              disabled={actionBusy}
               onClick={() =>
                 confirmAction?.type === "complete"
                   ? handleMarkComplete(confirmAction.lesson)
@@ -336,7 +380,7 @@ export default function TeacherDashboard() {
               }
               className={confirmAction?.type === "complete" ? "bg-emerald-600" : "bg-red-600"}
             >
-              Подтвердить
+              {actionBusy ? "Сохранение…" : "Подтвердить"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

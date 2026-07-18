@@ -13,6 +13,9 @@ import { StudentEntity } from '../../students/entities/student.entity';
 
 export type CertificateStatus = 'draft' | 'issued' | 'sent' | 'duplicate' | 'revoked';
 
+/** Provenance of certificate creation. Null/undefined = manual CRM issuance. */
+export type CertificateSource = 'assessment' | 'enrollment' | 'manual';
+
 @Entity('certificates')
 export class CertificateEntity {
   @PrimaryGeneratedColumn('uuid')
@@ -56,6 +59,16 @@ export class CertificateEntity {
 
   @Column({ name: 'recipient_signature', type: 'text', nullable: true })
   recipientSignature: string | null;
+
+  /** Creation source — e.g. `assessment` when issued from a passed Result. */
+  @Index('IDX_CERTIFICATES_SOURCE')
+  @Column({ name: 'source', type: 'varchar', length: 32, nullable: true })
+  source: CertificateSource | string | null;
+
+  /** One Assessment Result may create at most one Certificate. */
+  @Index('UQ_CERTIFICATES_ASSESSMENT_RESULT_ID', { unique: true })
+  @Column({ name: 'assessment_result_id', type: 'uuid', nullable: true })
+  assessmentResultId: string | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

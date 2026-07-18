@@ -10,6 +10,15 @@ import { JobGuard } from '../../common/concurrency/job-guard';
 import { assertHttpsTelegramWebhookUrl } from './telegram-mode.util';
 import { TelegramService } from './telegram.service';
 
+/** Telegram keeps last_error_* historically; only recent errors need repair. */
+const RECENT_WEBHOOK_ERROR_WINDOW_SEC = 15 * 60;
+
+type TelegramWebhookInfoResult = {
+  url?: string;
+  last_error_date?: number;
+  last_error_message?: string;
+};
+
 @Injectable()
 export class TelegramWebhookLifecycleService
   implements OnApplicationBootstrap, BeforeApplicationShutdown
@@ -76,21 +85,57 @@ export class TelegramWebhookLifecycleService
 
       try {
         const info = await this.telegramService.getWebhookInfo();
-        const currentUrl = (info as { result?: { url?: string; last_error_date?: number } })
-          ?.result?.url;
-        const lastErrorDate = (info as { result?: { last_error_date?: number } })?.result
-          ?.last_error_date;
+        const result = (info as { result?: TelegramWebhookInfoResult })?.result;
+        const currentUrl = result?.url;
+        const lastErrorDate = result?.last_error_date;
+        const lastErrorMessage = result?.last_error_message?.trim() || undefined;
 
-        if (currentUrl !== expectedUrl || lastErrorDate) {
+        const urlMismatch = currentUrl !== expectedUrl;
+        const hasRecentDeliveryError = this.isRecentWebhookError(
+          lastErrorDate,
+          lastErrorMessage,
+        );
+
+        if (urlMismatch || hasRecentDeliveryError) {
           this.logger.warn(
-            `Webhook mismatch or error detected (url=${currentUrl}, last_error_date=${lastErrorDate}). Re-registering...`,
+            `Webhook repair needed (url=${currentUrl}, expected=${expectedUrl}, ` +
+              `last_error_date=${lastErrorDate ?? 'none'}, ` +
+              `last_error_message=${lastErrorMessage ?? 'none'}). Re-registering...`,
           );
           await this.ensureWebhook();
+          return;
+        }
+
+        if (lastErrorDate || lastErrorMessage) {
+          this.logger.log(
+            `Telegram webhook OK at ${currentUrl}; historical delivery error retained by API ` +
+              `(last_error_date=${lastErrorDate ?? 'none'}, ` +
+              `last_error_message=${lastErrorMessage ?? 'none'}). Skipping setWebhook.`,
+          );
         }
       } catch (error) {
         this.logger.error(`Webhook health check failed: ${(error as Error).message}`);
       }
     });
+  }
+
+  /**
+   * last_error_date alone is historical and must not trigger setWebhook.
+   * A current problem is last_error_message with a recent last_error_date.
+   */
+  private isRecentWebhookError(
+    lastErrorDate: number | undefined,
+    lastErrorMessage: string | undefined,
+  ): boolean {
+    if (!lastErrorMessage) {
+      return false;
+    }
+    if (typeof lastErrorDate !== 'number' || lastErrorDate <= 0) {
+      // Message without a usable timestamp — treat as needing repair.
+      return true;
+    }
+    const ageSec = Math.floor(Date.now() / 1000) - lastErrorDate;
+    return ageSec >= 0 && ageSec <= RECENT_WEBHOOK_ERROR_WINDOW_SEC;
   }
 
   private async ensureWebhook() {

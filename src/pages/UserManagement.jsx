@@ -22,6 +22,7 @@ import {
   visibleTeachers,
 } from "./userManagement.constants";
 import { resolveAssignedTeacherLabel } from "@/lib/teacherLabels";
+import { formatHourlyRateShort } from "@/lib/formatters";
 
 const showOrphanNotice = (result) => showOrphanStudentsNotice(result, toast);
 
@@ -62,7 +63,7 @@ function RoleDropdown({ userId, currentRole, onChangeRole, disabled }) {
         ref={btnRef}
         onClick={handleOpen}
         disabled={disabled}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-40"
+        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-40"
       >
         Сменить роль <ChevronDown className="w-3 h-3" />
       </button>
@@ -71,10 +72,10 @@ function RoleDropdown({ userId, currentRole, onChangeRole, disabled }) {
         <>
           <div className="fixed inset-0 z-[100]" onClick={() => setOpen(false)} />
           <div
-            className="fixed z-[101] bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden min-w-[180px]"
+            className="fixed z-[101] bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 overflow-hidden min-w-[180px]"
             style={{ top: pos.top, left: pos.left }}
           >
-            <div className="px-3 py-2 border-b border-slate-50">
+            <div className="px-3 py-2 border-b border-slate-50 dark:border-slate-800">
               <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Выбрать роль</p>
             </div>
             {options.map(role => {
@@ -84,7 +85,7 @@ function RoleDropdown({ userId, currentRole, onChangeRole, disabled }) {
                 <button
                   key={role}
                   onClick={() => { onChangeRole(userId, role); setOpen(false); }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                 >
                   <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
                   <Icon className="w-3.5 h-3.5 text-slate-400" />
@@ -103,13 +104,13 @@ function RoleDropdown({ userId, currentRole, onChangeRole, disabled }) {
 function ConfirmDeleteModal({ user, onConfirm, onCancel }) {
   return createPortal(
     <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6">
-        <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-sm w-full p-6">
+        <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950/40 flex items-center justify-center mx-auto mb-4">
           <Trash2 className="w-5 h-5 text-red-600" />
         </div>
-        <h3 className="text-base font-bold text-slate-800 text-center mb-1">Удалить пользователя?</h3>
-        <p className="text-sm text-slate-500 text-center mb-6">
-          <span className="font-semibold text-slate-700">{
+        <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 text-center mb-1">Удалить пользователя?</h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400 text-center mb-6">
+          <span className="font-semibold text-slate-700 dark:text-slate-300">{
             user.first_name && user.last_name 
               ? `${user.last_name} ${user.first_name}`
               : user.full_name || user.email
@@ -117,7 +118,7 @@ function ConfirmDeleteModal({ user, onConfirm, onCancel }) {
         </p>
         <div className="flex gap-3">
           <button onClick={onCancel}
-            className="flex-1 px-4 py-2.5 text-sm font-medium border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+            className="flex-1 px-4 py-2.5 text-sm font-medium border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
             Отмена
           </button>
           <button onClick={onConfirm}
@@ -155,7 +156,6 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
       showOrphanNotice(result);
       await onReload();
     } catch (err) {
-      console.error("Failed to delete user:", err);
       alert(err?.message || "Не удалось удалить пользователя");
     } finally {
       setUpdating(null);
@@ -173,7 +173,7 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
     if (entry.first_name && entry.last_name) {
       return `${entry.last_name} ${entry.first_name}`;
     }
-    return entry.full_name || entry.email || "Unknown";
+    return entry.full_name || entry.email || 'Без имени';
   };
 
   const filtered = entries.filter((u) => {
@@ -199,10 +199,10 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border ${
                 active
                   ? (cfg ? `${cfg.bg} ${cfg.text} border-transparent` : "bg-slate-800 text-white border-transparent")
-                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                  : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300"
               }`}>
               {tab.label}
-              <span className={`text-xs px-1.5 py-0.5 rounded-md font-bold ${active ? "bg-white/30" : "bg-slate-100 text-slate-500"}`}>
+              <span className={`text-xs px-1.5 py-0.5 rounded-md font-bold ${active ? "bg-white/30 dark:bg-white/10" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
                 {count}
               </span>
             </button>
@@ -215,9 +215,9 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Поиск по имени или email..."
-          className="w-full pl-9 pr-8 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+          className="w-full pl-9 pr-8 py-2.5 text-sm border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
         {search && (
-          <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+          <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-400">
             <X className="w-3.5 h-3.5" />
           </button>
         )}
@@ -225,13 +225,13 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
 
       {/* Table */}
       {loading ? (
-        <div className="flex justify-center py-16 bg-white rounded-2xl border border-slate-100">
+        <div className="flex justify-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
           <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-2xl border border-slate-100">
+        <div className="text-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
           <Users className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-          <p className="text-slate-500 font-medium">Пользователи не найдены</p>
+          <p className="text-slate-500 dark:text-slate-400 font-medium">Пользователи не найдены</p>
         </div>
       ) : (
         <>
@@ -246,13 +246,13 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
               const hasAccount = u.has_account !== false;
               const rowKey = hasAccount ? u.id : `${u.entry_type}:${u.id}`;
               return (
-                <div key={rowKey} className={`bg-white rounded-2xl border border-slate-100 p-4 ${isUpd ? "opacity-60" : ""}`}>
+                <div key={rowKey} className={`bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4 ${isUpd ? "opacity-60" : ""}`}>
                   <div className="flex items-start gap-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${cfg.bg} ${cfg.text}`}>
                       {initials}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-slate-800 truncate">{displayName}</p>
+                      <p className="font-medium text-slate-800 dark:text-slate-100 truncate">{displayName}</p>
                       <p className="text-xs text-slate-400 truncate mt-0.5">{u.email || "—"}</p>
                       {!hasAccount && (
                         <p className="text-[11px] text-amber-600 font-medium mt-0.5">Профиль без аккаунта</p>
@@ -268,7 +268,7 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
                     </div>
                     {isUpd && <Loader2 className="w-4 h-4 animate-spin text-indigo-500 flex-shrink-0" />}
                   </div>
-                  <div className="mt-3 pt-3 border-t border-slate-50 flex flex-wrap items-center gap-2">
+                  <div className="mt-3 pt-3 border-t border-slate-50 dark:border-slate-800 flex flex-wrap items-center gap-2">
                     {hasAccount ? (
                       <>
                         <RoleDropdown userId={u.id} currentRole={role} onChangeRole={changeRole} disabled={isUpd} />
@@ -276,7 +276,7 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
                           type="button"
                           onClick={() => setDeleteConfirm(u)}
                           disabled={isUpd}
-                          className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 disabled:opacity-40"
+                          className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/50 disabled:opacity-40"
                         >
                           <Trash2 className="w-3.5 h-3.5" /> Удалить
                         </button>
@@ -291,10 +291,10 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
           </div>
 
           {/* Desktop table */}
-          <div className="hidden md:block bg-white rounded-2xl border border-slate-100 overflow-x-auto">
+          <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-x-auto">
             <table className="w-full text-sm min-w-[640px]">
               <thead>
-                <tr className="border-b border-slate-100">
+                <tr className="border-b border-slate-100 dark:border-slate-800">
                   <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Пользователь</th>
                   <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Email</th>
                   <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Роль</th>
@@ -312,14 +312,14 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
                   const hasAccount = u.has_account !== false;
                   const rowKey = hasAccount ? u.id : `${u.entry_type}:${u.id}`;
                   return (
-                    <tr key={rowKey} className={`border-b border-slate-50 last:border-0 ${isUpd ? "opacity-60" : "hover:bg-slate-50/50"} transition-colors`}>
+                    <tr key={rowKey} className={`border-b border-slate-50 dark:border-slate-800 last:border-0 ${isUpd ? "opacity-60" : "hover:bg-slate-50/50 dark:hover:bg-slate-800/50"} transition-colors`}>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${cfg.bg} ${cfg.text}`}>
                             {initials}
                           </div>
                           <div className="min-w-0">
-                            <p className="font-medium text-slate-800 truncate">{displayName}</p>
+                            <p className="font-medium text-slate-800 dark:text-slate-100 truncate">{displayName}</p>
                             {!hasAccount && (
                               <p className="text-[11px] text-amber-600 font-medium mt-0.5">Профиль без аккаунта</p>
                             )}
@@ -327,7 +327,7 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
                           {isUpd && <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500 flex-shrink-0" />}
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 text-slate-500 text-xs">{u.email || "—"}</td>
+                      <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-xs">{u.email || "—"}</td>
                       <td className="px-5 py-3.5"><RoleBadge role={role} /></td>
                       <td className="px-5 py-3.5 text-slate-400 text-xs hidden lg:table-cell">
                         {u.created_date ? new Date(u.created_date).toLocaleDateString("ru-RU") : "—"}
@@ -337,7 +337,7 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
                           <div className="flex items-center justify-end gap-2">
                             <RoleDropdown userId={u.id} currentRole={role} onChangeRole={changeRole} disabled={isUpd} />
                             <button type="button" onClick={() => setDeleteConfirm(u)} disabled={isUpd}
-                              className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40">
+                              className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-400 rounded-lg transition-colors disabled:opacity-40">
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
@@ -370,9 +370,9 @@ function StudentsTab({ students, teachers, loading, onReload }) {
   const [deleting, setDeleting] = useState(false);
 
   const STATUS_STYLE = {
-    active:   "bg-emerald-50 text-emerald-700 border-emerald-200",
-    inactive: "bg-slate-50 text-slate-500 border-slate-200",
-    paused:   "bg-amber-50 text-amber-700 border-amber-200",
+    active:   "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
+    inactive: "bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700",
+    paused:   "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
   };
   const STATUS_LABEL = { active: "Активен", inactive: "Неактивен", paused: "Пауза" };
 
@@ -385,7 +385,6 @@ function StudentsTab({ students, teachers, loading, onReload }) {
       setDeleteTarget(null);
       await onReload();
     } catch (err) {
-      console.error("Failed to delete student:", err);
       alert(err?.message || "Не удалось удалить ученика");
     } finally {
       setDeleting(false);
@@ -406,7 +405,7 @@ function StudentsTab({ students, teachers, loading, onReload }) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Поиск учеников..."
-            className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+            className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
         </div>
         <div className="flex items-center gap-3 justify-between sm:justify-end sm:ml-auto">
           <span className="text-sm text-slate-400">{students.length} учеников</span>
@@ -418,26 +417,26 @@ function StudentsTab({ students, teachers, loading, onReload }) {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-16 bg-white rounded-2xl border border-slate-100">
+        <div className="flex justify-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
           <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
         </div>
       ) : (
         <>
           <div className="md:hidden space-y-3">
             {filtered.length === 0 ? (
-              <div className="text-center py-12 text-slate-400 bg-white rounded-2xl border border-slate-100">Ученики не найдены</div>
+              <div className="text-center py-12 text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">Ученики не найдены</div>
             ) : filtered.map(s => (
-              <div key={s.id} className="bg-white rounded-2xl border border-slate-100 p-4">
+              <div key={s.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center flex-shrink-0">
                     <span className="text-xs font-bold text-blue-600">{(s.name || "?")[0].toUpperCase()}</span>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-slate-800 truncate">{s.name}</p>
+                    <p className="font-medium text-slate-800 dark:text-slate-100 truncate">{s.name}</p>
                     <p className="text-xs text-slate-400 truncate mt-0.5">{s.email || "—"}</p>
-                    <p className="text-xs text-slate-500 mt-1 truncate">Преподаватель: {getTeacherName(s.assigned_teacher)}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 truncate">Преподаватель: {getTeacherName(s.assigned_teacher)}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className={`inline-flex items-center gap-1 text-sm font-bold ${(s.lesson_balance || 0) <= 0 ? "text-red-600" : (s.lesson_balance || 0) <= 2 ? "text-amber-600" : "text-slate-800"}`}>
+                      <span className={`inline-flex items-center gap-1 text-sm font-bold ${(s.lesson_balance || 0) <= 0 ? "text-red-600" : (s.lesson_balance || 0) <= 2 ? "text-amber-600" : "text-slate-800 dark:text-slate-100"}`}>
                         Баланс: {(s.lesson_balance || 0) <= 0 && "⚠️ "}{s.lesson_balance || 0}
                       </span>
                       <span className={`inline-flex px-2 py-0.5 rounded-md text-xs font-semibold border ${STATUS_STYLE[s.status] || STATUS_STYLE.active}`}>
@@ -446,18 +445,18 @@ function StudentsTab({ students, teachers, loading, onReload }) {
                     </div>
                   </div>
                 </div>
-                <div className="mt-3 pt-3 border-t border-slate-50 flex flex-wrap gap-2">
+                <div className="mt-3 pt-3 border-t border-slate-50 dark:border-slate-800 flex flex-wrap gap-2">
                   <Link to={createPageUrl("StudentDetail") + `?id=${s.id}`} className="flex-1 min-w-[7rem]">
-                    <button type="button" className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-indigo-700 bg-indigo-50 rounded-lg hover:bg-indigo-100">
+                    <button type="button" className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-indigo-700 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg hover:bg-indigo-100">
                       <Eye className="w-3.5 h-3.5" /> Просмотр
                     </button>
                   </Link>
                   <button type="button" onClick={() => { setEditStudent(s); setShowForm(true); }}
-                    className="flex-1 min-w-[7rem] inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-slate-700 bg-slate-50 rounded-lg hover:bg-slate-100">
+                    className="flex-1 min-w-[7rem] inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
                     <Pencil className="w-3.5 h-3.5" /> Изменить
                   </button>
                   <button type="button" onClick={() => setDeleteTarget(s)}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100">
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/50">
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -465,10 +464,10 @@ function StudentsTab({ students, teachers, loading, onReload }) {
             ))}
           </div>
 
-          <div className="hidden md:block bg-white rounded-2xl border border-slate-100 overflow-x-auto">
+          <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-x-auto">
             <table className="w-full text-sm min-w-[720px]">
               <thead>
-                <tr className="border-b border-slate-100">
+                <tr className="border-b border-slate-100 dark:border-slate-800">
                   <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Имя</th>
                   <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Email</th>
                   <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Преподаватель</th>
@@ -479,19 +478,19 @@ function StudentsTab({ students, teachers, loading, onReload }) {
               </thead>
               <tbody>
                 {filtered.map(s => (
-                  <tr key={s.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors">
+                  <tr key={s.id} className="border-b border-slate-50 dark:border-slate-800 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center flex-shrink-0">
                           <span className="text-xs font-bold text-blue-600">{(s.name || "?")[0].toUpperCase()}</span>
                         </div>
-                        <span className="font-medium text-slate-800">{s.name}</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-100">{s.name}</span>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 text-slate-500 text-xs">{s.email || "—"}</td>
-                    <td className="px-5 py-3.5 text-slate-500 text-xs">{getTeacherName(s.assigned_teacher)}</td>
+                    <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-xs">{s.email || "—"}</td>
+                    <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-xs">{getTeacherName(s.assigned_teacher)}</td>
                     <td className="px-5 py-3.5">
-                      <span className={`inline-flex items-center gap-1 text-sm font-bold ${(s.lesson_balance || 0) <= 0 ? "text-red-600" : (s.lesson_balance || 0) <= 2 ? "text-amber-600" : "text-slate-800"}`}>
+                      <span className={`inline-flex items-center gap-1 text-sm font-bold ${(s.lesson_balance || 0) <= 0 ? "text-red-600" : (s.lesson_balance || 0) <= 2 ? "text-amber-600" : "text-slate-800 dark:text-slate-100"}`}>
                         {(s.lesson_balance || 0) <= 0 && "⚠️ "}{s.lesson_balance || 0}
                       </span>
                     </td>
@@ -503,16 +502,16 @@ function StudentsTab({ students, teachers, loading, onReload }) {
                     <td className="px-5 py-3.5">
                       <div className="flex items-center justify-end gap-1">
                         <Link to={createPageUrl("StudentDetail") + `?id=${s.id}`}>
-                          <button type="button" className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Просмотр">
+                          <button type="button" className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 dark:bg-indigo-950/40 rounded-lg transition-colors" title="Просмотр">
                             <Eye className="w-4 h-4" />
                           </button>
                         </Link>
                         <button type="button" onClick={() => { setEditStudent(s); setShowForm(true); }}
-                          className="p-2 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" title="Редактировать">
+                          className="p-2 text-slate-300 hover:text-slate-600 dark:hover:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Редактировать">
                           <Pencil className="w-4 h-4" />
                         </button>
                         <button type="button" onClick={() => setDeleteTarget(s)}
-                          className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Удалить">
+                          className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-400 rounded-lg transition-colors" title="Удалить">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -567,7 +566,6 @@ function TeachersTab({ teachers, students, loading, onReload }) {
       setDeleteTarget(null);
       await onReload();
     } catch (err) {
-      console.error("Failed to delete teacher:", err);
       alert(err?.message || "Не удалось удалить преподавателя");
     } finally {
       setDeleting(false);
@@ -584,7 +582,7 @@ function TeachersTab({ teachers, students, loading, onReload }) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Поиск преподавателей..."
-            className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+            className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
         </div>
         <div className="flex items-center gap-3 justify-between sm:justify-end sm:ml-auto">
           <span className="text-sm text-slate-400">{teachers.length} преподавателей</span>
@@ -596,46 +594,46 @@ function TeachersTab({ teachers, students, loading, onReload }) {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-16 bg-white rounded-2xl border border-slate-100">
+        <div className="flex justify-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
           <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
         </div>
       ) : (
         <>
           <div className="md:hidden space-y-3">
             {filtered.length === 0 ? (
-              <div className="text-center py-12 text-slate-400 bg-white rounded-2xl border border-slate-100">Преподаватели не найдены</div>
+              <div className="text-center py-12 text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">Преподаватели не найдены</div>
             ) : filtered.map(t => (
-              <div key={t.id} className="bg-white rounded-2xl border border-slate-100 p-4">
+              <div key={t.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4">
                 <button type="button" className="w-full text-left" onClick={() => setViewTeacher(t)}>
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center flex-shrink-0">
                       <span className="text-xs font-bold text-emerald-600">{(t.name || "?")[0].toUpperCase()}</span>
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-slate-800 truncate">{t.name}</p>
+                      <p className="font-medium text-slate-800 dark:text-slate-100 truncate">{t.name}</p>
                       <p className="text-xs text-slate-400 truncate mt-0.5">{t.email}</p>
-                      <p className="text-xs text-slate-500 mt-1 truncate">{t.specializations || "—"}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 truncate">{t.specializations || "—"}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                        <span className="font-medium text-slate-700">{t.hourly_rate || 0} BYN/ч</span>
-                        <span className="text-slate-500">Ученики: {getStudentCount(t.id)}</span>
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border ${t.status === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-50 text-slate-500 border-slate-200"}`}>
+                        <span className="font-medium text-slate-700 dark:text-slate-300">{formatHourlyRateShort(t.hourly_rate || 0)}</span>
+                        <span className="text-slate-500 dark:text-slate-400">Ученики: {getStudentCount(t.id)}</span>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border ${t.status === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800" : "bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700"}`}>
                           {t.status === "active" ? <><CheckCircle2 className="w-3 h-3" /> Активен</> : "Неактивен"}
                         </span>
                       </div>
                     </div>
                   </div>
                 </button>
-                <div className="mt-3 pt-3 border-t border-slate-50 flex flex-wrap gap-2">
+                <div className="mt-3 pt-3 border-t border-slate-50 dark:border-slate-800 flex flex-wrap gap-2">
                   <button type="button" onClick={() => setViewTeacher(t)}
-                    className="flex-1 min-w-[7rem] inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-indigo-700 bg-indigo-50 rounded-lg hover:bg-indigo-100">
+                    className="flex-1 min-w-[7rem] inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-indigo-700 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg hover:bg-indigo-100">
                     <Eye className="w-3.5 h-3.5" /> Просмотр
                   </button>
                   <button type="button" onClick={() => { setEditTeacher(t); setShowForm(true); }}
-                    className="flex-1 min-w-[7rem] inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-slate-700 bg-slate-50 rounded-lg hover:bg-slate-100">
+                    className="flex-1 min-w-[7rem] inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
                     <Pencil className="w-3.5 h-3.5" /> Изменить
                   </button>
                   <button type="button" onClick={() => setDeleteTarget(t)}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100">
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/50">
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -643,10 +641,10 @@ function TeachersTab({ teachers, students, loading, onReload }) {
             ))}
           </div>
 
-          <div className="hidden md:block bg-white rounded-2xl border border-slate-100 overflow-x-auto">
+          <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-x-auto">
             <table className="w-full text-sm min-w-[720px]">
               <thead>
-                <tr className="border-b border-slate-100">
+                <tr className="border-b border-slate-100 dark:border-slate-800">
                   <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Имя</th>
                   <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Специализация</th>
                   <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Ставка</th>
@@ -657,34 +655,34 @@ function TeachersTab({ teachers, students, loading, onReload }) {
               </thead>
               <tbody>
                 {filtered.map(t => (
-                  <tr key={t.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => setViewTeacher(t)}>
+                  <tr key={t.id} className="border-b border-slate-50 dark:border-slate-800 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer" onClick={() => setViewTeacher(t)}>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center flex-shrink-0">
                           <span className="text-xs font-bold text-emerald-600">{(t.name || "?")[0].toUpperCase()}</span>
                         </div>
                         <div className="min-w-0">
-                          <p className="font-medium text-slate-800">{t.name}</p>
+                          <p className="font-medium text-slate-800 dark:text-slate-100">{t.name}</p>
                           <p className="text-xs text-slate-400 truncate">{t.email}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 text-slate-500 text-xs">{t.specializations || "—"}</td>
-                    <td className="px-5 py-3.5 text-slate-700 font-medium">{t.hourly_rate || 0} BYN/ч</td>
-                    <td className="px-5 py-3.5 text-slate-700">{getStudentCount(t.id)}</td>
+                    <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-xs">{t.specializations || "—"}</td>
+                    <td className="px-5 py-3.5 text-slate-700 dark:text-slate-300 font-medium">{formatHourlyRateShort(t.hourly_rate || 0)}</td>
+                    <td className="px-5 py-3.5 text-slate-700 dark:text-slate-300">{getStudentCount(t.id)}</td>
                     <td className="px-5 py-3.5">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border ${t.status === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-50 text-slate-500 border-slate-200"}`}>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border ${t.status === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800" : "bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700"}`}>
                         {t.status === "active" ? <><CheckCircle2 className="w-3 h-3" /> Активен</> : "Неактивен"}
                       </span>
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center justify-end gap-1">
                         <button type="button" onClick={(e) => { e.stopPropagation(); setEditTeacher(t); setShowForm(true); }}
-                          className="p-2 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" title="Редактировать">
+                          className="p-2 text-slate-300 hover:text-slate-600 dark:hover:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Редактировать">
                           <Pencil className="w-4 h-4" />
                         </button>
                         <button type="button" onClick={(e) => { e.stopPropagation(); setDeleteTarget(t); }}
-                          className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Удалить">
+                          className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-400 rounded-lg transition-colors" title="Удалить">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -764,7 +762,6 @@ export default function UserManagement() {
       if (loadGenerationRef.current !== generation) {
         return;
       }
-      console.error("Failed to load user management data:", err);
       setLoadError(err?.message || "Не удалось загрузить данные");
     } finally {
       if (loadGenerationRef.current === generation) {
@@ -786,10 +783,9 @@ export default function UserManagement() {
         description: `Пользователю назначена роль «${ROLE_CONFIG[newRole]?.label || newRole}»`,
       });
     } catch (err) {
-      console.error("Failed to change user role:", err);
       toast({
-        title: "Не удалось сменить роль",
-        description: err?.message || "Повторите попытку",
+        title: "Не удалось изменить роль",
+        description: err?.message || "Попробуйте ещё раз",
         variant: "destructive",
       });
       throw err;
@@ -802,21 +798,21 @@ export default function UserManagement() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto w-full min-w-0">
       <div className="mb-6">
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Пользователи</h1>
-        <p className="text-sm text-slate-500 mt-1">Управление аккаунтами, учениками и преподавателями</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">Пользователи</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Управление аккаунтами, учениками и преподавателями</p>
         {loadError && (
           <p className="mt-2 text-sm text-red-600">{loadError}</p>
         )}
       </div>
 
       <div className="mb-6 -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
-        <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-max min-w-full sm:min-w-0 sm:w-fit">
+        <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1 w-max min-w-full sm:min-w-0 sm:w-fit">
           {TABS.map(tab => {
             const Icon = tab.icon;
             return (
               <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
-                  activeTab === tab.id ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700"
+                  activeTab === tab.id ? "bg-white dark:bg-slate-900 shadow-sm text-slate-800 dark:text-slate-100" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                 }`}>
                 <Icon className="w-4 h-4 shrink-0" /> {tab.label}
               </button>

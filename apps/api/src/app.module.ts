@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
@@ -14,6 +15,7 @@ import { GuardsModule } from './common/guards/guards.module';
 import { DomainAccessModule } from './common/access/domain-access.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { AssessmentModule } from './modules/assessment/assessment.module';
 import { CertificatesModule } from './modules/certificates/certificates.module';
 import { CoursesModule } from './modules/courses/courses.module';
 import { GroupsModule } from './modules/groups/groups.module';
@@ -98,6 +100,7 @@ function resolveEnvFilePaths(): string[] {
       }),
     }),
     ScheduleModule.forRoot(),
+    EventEmitterModule.forRoot(),
     GuardsModule,
     DomainAccessModule,
     AuditModule,
@@ -115,6 +118,7 @@ function resolveEnvFilePaths(): string[] {
     TeacherPaymentsModule,
     MaterialsModule,
     CertificatesModule,
+    AssessmentModule,
     NotificationsModule,
     SettingsModule,
     AlfaBankModule,

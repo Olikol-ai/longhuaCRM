@@ -14,6 +14,12 @@ import { MaterialFolderEntity } from '../../modules/materials/entities/material-
 import { MaterialEntity } from '../../modules/materials/entities/material.entity';
 import { StudentEntity } from '../../modules/students/entities/student.entity';
 import { TeacherEntity } from '../../modules/teachers/entities/teacher.entity';
+import {
+  AssessmentAttemptEntity,
+  AssessmentExamAssignmentEntity,
+  AssessmentExamEntity,
+  AssessmentResultEntity,
+} from '../../modules/assessment/entities';
 import { CertificateAccessService } from './certificate-access.service';
 import { CourseAccessService } from './course-access.service';
 import { LessonAccessService } from './lesson-access.service';
@@ -21,6 +27,7 @@ import { MaterialsDomainAccessService } from './materials-domain-access.service'
 import { ScheduleAccessService } from './schedule-access.service';
 import { StudentAccessService } from './student-access.service';
 import { TeacherAccessService } from './teacher-access.service';
+import { AssessmentAccessService } from './assessment-access.service';
 
 @Global()
 @Module({
@@ -40,6 +47,10 @@ import { TeacherAccessService } from './teacher-access.service';
       MaterialCourseGrantEntity,
       MaterialGroupGrantEntity,
       CertificateEntity,
+      AssessmentExamEntity,
+      AssessmentExamAssignmentEntity,
+      AssessmentAttemptEntity,
+      AssessmentResultEntity,
     ]),
   ],
   providers: [
@@ -50,6 +61,7 @@ import { TeacherAccessService } from './teacher-access.service';
     CourseAccessService,
     MaterialsDomainAccessService,
     CertificateAccessService,
+    AssessmentAccessService,
   ],
   exports: [
     StudentAccessService,
@@ -59,6 +71,7 @@ import { TeacherAccessService } from './teacher-access.service';
     CourseAccessService,
     MaterialsDomainAccessService,
     CertificateAccessService,
+    AssessmentAccessService,
   ],
 })
 export class DomainAccessModule {}

@@ -2,9 +2,10 @@ import { useState, useEffect } from "react";
 import { api } from '@/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { parseISO, format, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { ru } from "date-fns/locale";
 import { TrendingUp, Users, BookOpen, Download, GraduationCap, CreditCard } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { formatMoneyByn, sumPaymentAmounts } from "@/lib/money";
+import { formatCurrency, sumPaymentAmounts } from "@/lib/formatters";
 
 function StatBox({ label, value, color = "indigo" }) {
   const colors = {
@@ -63,7 +64,7 @@ export default function Analytics() {
         return false;
       }
     });
-    return { month: format(month, "MMM yy"), revenue: sumPaymentAmounts(monthPayments) };
+    return { month: format(month, "LLL yy", { locale: ru }), revenue: sumPaymentAmounts(monthPayments) };
   });
 
   const totalRevenue = sumPaymentAmounts(payments);
@@ -128,8 +129,8 @@ export default function Analytics() {
 
       {/* KPI */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatBox label="Общая выручка" value={formatMoneyByn(totalRevenue)} color="emerald" />
-        <StatBox label="Выручка за месяц" value={formatMoneyByn(monthRevenue)} color="indigo" />
+        <StatBox label="Общая выручка" value={formatCurrency(totalRevenue)} color="emerald" />
+        <StatBox label="Выручка за месяц" value={formatCurrency(monthRevenue)} color="indigo" />
         <StatBox label="Активных учеников" value={activeStudents} color="sky" />
         <StatBox label="Уроков проведено" value={completedLessons} color="violet" />
         <StatBox label="Мало уроков (≤1)" value={lowBalanceStudents} color="amber" />
@@ -143,7 +144,7 @@ export default function Analytics() {
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" stroke="hsl(var(--border))" />
             <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
             <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-            <Tooltip formatter={(v) => [formatMoneyByn(v), "Выручка"]} />
+            <Tooltip formatter={(v) => [formatCurrency(v), "Выручка"]} />
             <Bar dataKey="revenue" fill="#6366f1" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>

@@ -18,6 +18,7 @@ import {
 import { ru } from "date-fns/locale";
 import LessonModal from "@/components/schedule/LessonModal";
 import { createWeeklyLessonSeries } from "@/lib/recurring-lessons";
+import { toast } from "@/components/ui/use-toast";
 
 const STATUS_BG = {
   planned: "bg-indigo-500",
@@ -61,6 +62,7 @@ export default function TeacherSchedule() {
   const [expandedLesson, setExpandedLesson] = useState(null);
   const [selectedDay, setSelectedDay] = useState(null);
   const [mainTab, setMainTab] = useState("schedule"); // "schedule" | "availability"
+  const [loadError, setLoadError] = useState(null);
   const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
@@ -68,26 +70,32 @@ export default function TeacherSchedule() {
   }, [user]);
 
   const loadData = async () => {
-    const [teachers, allLessons, allStudents, allGroups] = await Promise.all([
-      api.teachers.list(),
-      api.lessons.list("-date", 500),
-      api.students.list(),
-      api.groups.list(),
-    ]);
-    const t = teachers.find((row) => row.user_id === user.id || row.email === user.email);
-    setAllTeachers(teachers);
-    if (t) {
-      setTeacher(t);
-      setLessons(allLessons.filter((l) => l.teacher_id === t.id));
-      setStudents(allStudents.filter((s) => s.assigned_teacher === t.id));
-      setGroups(allGroups.filter((g) => g.teacher_id === t.id));
-    } else {
-      setTeacher(null);
-      setLessons([]);
-      setStudents([]);
-      setGroups([]);
+    setLoadError(null);
+    try {
+      const [teachers, allLessons, allStudents, allGroups] = await Promise.all([
+        api.teachers.list(),
+        api.lessons.list("-date", 500),
+        api.students.list(),
+        api.groups.list(),
+      ]);
+      const t = teachers.find((row) => row.user_id === user.id || row.email === user.email);
+      setAllTeachers(teachers);
+      if (t) {
+        setTeacher(t);
+        setLessons(allLessons.filter((l) => l.teacher_id === t.id));
+        setStudents(allStudents.filter((s) => s.assigned_teacher === t.id));
+        setGroups(allGroups.filter((g) => g.teacher_id === t.id));
+      } else {
+        setTeacher(null);
+        setLessons([]);
+        setStudents([]);
+        setGroups([]);
+      }
+    } catch (err) {
+      setLoadError(err?.message || "Не удалось загрузить расписание");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const getLessonsForDay = (dateStr) =>
@@ -109,10 +117,19 @@ export default function TeacherSchedule() {
 
   const markLesson = async (lesson, status) => {
     setUpdating(lesson.id);
-    await api.lessons.update(lesson.id, { status });
-    setExpandedLesson(null);
-    setUpdating(null);
-    loadData();
+    try {
+      await api.lessons.update(lesson.id, { status });
+      setExpandedLesson(null);
+      await loadData();
+    } catch (err) {
+      toast({
+        title: "Не удалось обновить урок",
+        description: err?.message || "Попробуйте ещё раз",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdating(null);
+    }
   };
 
   const handleSaveLesson = async (data, recurring) => {
@@ -134,6 +151,17 @@ export default function TeacherSchedule() {
 
   if (loading) {
     return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-indigo-600" /></div>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="p-4 sm:p-6 lg:p-8 text-center py-20 space-y-3">
+        <p className="text-slate-600 dark:text-slate-300">{loadError}</p>
+        <Button variant="outline" onClick={() => { setLoading(true); loadData(); }}>
+          Повторить
+        </Button>
+      </div>
+    );
   }
 
   const selectedDayStr = selectedDay ? format(selectedDay, "yyyy-MM-dd") : null;
@@ -158,7 +186,7 @@ export default function TeacherSchedule() {
           <button
             onClick={() => setMainTab("availability")}
             className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-              mainTab === "availability" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              mainTab === "availability" ? "bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-400 shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
             }`}
           >
             Свободный график
@@ -211,7 +239,7 @@ export default function TeacherSchedule() {
             <Button variant="outline" size="icon" onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="h-9 w-9">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <h2 className="text-base font-semibold text-slate-900 flex-1 sm:flex-none sm:min-w-[180px] text-center capitalize truncate">
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white flex-1 sm:flex-none sm:min-w-[180px] text-center capitalize truncate">
               {format(currentDate, "LLLL yyyy", { locale: ru })}
             </h2>
             <Button variant="outline" size="icon" onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="h-9 w-9">
@@ -225,7 +253,7 @@ export default function TeacherSchedule() {
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-x-auto shadow-sm">
             <div className="grid grid-cols-7 border-b border-slate-100 dark:border-slate-700 min-w-[520px]">
               {WEEK_DAYS_RU.map((d) => (
-                <div key={d} className="py-3 text-center text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">{d}</div>
+                <div key={d} className="py-3 text-center text-xs font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wide">{d}</div>
               ))}
             </div>
             <div className="grid grid-cols-7 min-w-[520px]">
@@ -274,11 +302,11 @@ export default function TeacherSchedule() {
                 </Button>
               </div>
               {selectedDayLessons.length === 0 ? (
-                <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-6 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">Уроков нет</p>
+                <p className="text-sm text-slate-400 dark:text-slate-400 text-center py-6 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">Уроков нет</p>
               ) : (
                 <div className="space-y-2">
                   {selectedDayLessons.map((lesson) => (
-                    <TeacherLessonCard key={lesson.id} lesson={lesson} expandedLesson={expandedLesson} setExpandedLesson={setExpandedLesson} markLesson={markLesson} updating={updating} />
+                    <TeacherLessonCard key={lesson.id} lesson={lesson} students={students} expandedLesson={expandedLesson} setExpandedLesson={setExpandedLesson} markLesson={markLesson} updating={updating} />
                   ))}
                 </div>
               )}
@@ -294,7 +322,7 @@ export default function TeacherSchedule() {
             <Button variant="outline" size="icon" onClick={() => setCurrentDate(subWeeks(currentDate, 1))} className="h-9 w-9">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <h2 className="text-base font-semibold text-slate-900 flex-1 sm:flex-none sm:min-w-[220px] text-center truncate">
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white flex-1 sm:flex-none sm:min-w-[220px] text-center truncate">
               {format(weekDays[0], "d MMM", { locale: ru })} — {format(weekDays[6], "d MMM yyyy", { locale: ru })}
             </h2>
             <Button variant="outline" size="icon" onClick={() => setCurrentDate(addWeeks(currentDate, 1))} className="h-9 w-9">
@@ -314,13 +342,13 @@ export default function TeacherSchedule() {
                   <div className="flex items-center justify-between mb-3">
                     <div>
                       <p className="text-[11px] text-slate-400 uppercase font-medium">{WEEK_DAYS_RU[i]}</p>
-                      <div className={`text-xl font-bold w-8 h-8 flex items-center justify-center rounded-full mt-0.5 ${isToday(day) ? "bg-indigo-600 text-white" : "text-slate-900"}`}>
+                      <div className={`text-xl font-bold w-8 h-8 flex items-center justify-center rounded-full mt-0.5 ${isToday(day) ? "bg-indigo-600 text-white" : "text-slate-900 dark:text-white"}`}>
                         {format(day, "d")}
                       </div>
                     </div>
                     <button
                       onClick={() => openNewLesson(dayStr)}
-                      className="h-7 w-7 rounded-lg bg-indigo-50 hover:bg-indigo-100 flex items-center justify-center transition-colors"
+                      className="h-7 w-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 flex items-center justify-center transition-colors"
                     >
                       <Plus className="h-3.5 w-3.5 text-indigo-600" />
                     </button>
@@ -332,11 +360,11 @@ export default function TeacherSchedule() {
                       dayLessons.map(lesson => (
                         <div
                           key={lesson.id}
-                          className={`p-2.5 bg-white rounded-xl border-l-4 border border-slate-100 shadow-sm cursor-pointer hover:shadow-md transition-all ${STATUS_BORDER[lesson.status] || "border-l-slate-300"}`}
+                          className={`p-2.5 bg-white dark:bg-slate-900 rounded-xl border-l-4 border border-slate-100 dark:border-slate-800 shadow-sm cursor-pointer hover:shadow-md transition-all ${STATUS_BORDER[lesson.status] || "border-l-slate-300"}`}
                           onClick={() => setExpandedLesson(expandedLesson === lesson.id ? null : lesson.id)}
                         >
-                          <p className="text-xs font-bold text-slate-900">{lesson.start_time}</p>
-                          <p className="text-[11px] text-slate-600 mt-0.5 truncate">
+                          <p className="text-xs font-bold text-slate-900 dark:text-white">{lesson.start_time}</p>
+                          <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 truncate">
                             {resolveLessonStudentLabel(lesson, students)}
                           </p>
                           <p className="text-[10px] text-slate-400">{lesson.duration || 60} мин</p>
@@ -348,7 +376,7 @@ export default function TeacherSchedule() {
                             </a>
                           )}
                           {expandedLesson === lesson.id && lesson.status === "planned" && (
-                            <div className="mt-2 pt-2 border-t border-slate-100 space-y-1">
+                            <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
                               {[
                                 { status: "completed", icon: CheckCircle2, label: "Проведено", cls: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" },
                                 { status: "cancelled", icon: XCircle, label: "Отменить", cls: "bg-red-50 text-red-600 hover:bg-red-100" },
@@ -384,7 +412,7 @@ export default function TeacherSchedule() {
             <div className="text-center py-16 text-slate-400">Уроков нет</div>
           ) : (
             listLessons.map((lesson) => (
-              <TeacherLessonCard key={lesson.id} lesson={lesson} expandedLesson={expandedLesson} setExpandedLesson={setExpandedLesson} markLesson={markLesson} updating={updating} />
+              <TeacherLessonCard key={lesson.id} lesson={lesson} students={students} expandedLesson={expandedLesson} setExpandedLesson={setExpandedLesson} markLesson={markLesson} updating={updating} />
             ))
           )}
         </div>
@@ -407,19 +435,19 @@ export default function TeacherSchedule() {
   );
 }
 
-function TeacherLessonCard({ lesson, expandedLesson, setExpandedLesson, markLesson, updating }) {
+function TeacherLessonCard({ lesson, students, expandedLesson, setExpandedLesson, markLesson, updating }) {
   return (
     <div
-      className={`p-4 bg-white rounded-xl border-l-4 border border-slate-200 cursor-pointer hover:shadow-sm transition-all ${STATUS_BORDER[lesson.status] || "border-l-slate-300"}`}
+      className={`p-4 bg-white dark:bg-slate-900 rounded-xl border-l-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:shadow-sm transition-all ${STATUS_BORDER[lesson.status] || "border-l-slate-300 dark:border-l-slate-600"}`}
       onClick={() => setExpandedLesson(expandedLesson === lesson.id ? null : lesson.id)}
     >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-4">
-          <div className="text-center min-w-[56px] bg-slate-50 rounded-xl py-2">
+          <div className="text-center min-w-[56px] bg-slate-50 dark:bg-slate-800/60 rounded-xl py-2">
             <p className="text-[10px] text-slate-400 uppercase font-medium">
               {format(new Date(lesson.date), "MMM", { locale: ru })}
             </p>
-            <p className="text-xl font-bold text-slate-900 leading-tight">
+            <p className="text-xl font-bold text-slate-900 dark:text-white leading-tight">
               {format(new Date(lesson.date), "d")}
             </p>
             <p className="text-[10px] text-slate-400">
@@ -427,12 +455,12 @@ function TeacherLessonCard({ lesson, expandedLesson, setExpandedLesson, markLess
             </p>
           </div>
           <div>
-            <p className="font-semibold text-slate-900">{lesson.start_time}</p>
-            <p className="text-sm text-slate-600">{resolveLessonStudentLabel(lesson, students)}</p>
+            <p className="font-semibold text-slate-900 dark:text-white">{lesson.start_time}</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">{resolveLessonStudentLabel(lesson, students)}</p>
             <p className="text-xs text-slate-400">{lesson.duration || 60} мин</p>
             {lesson.meeting_link && (
               <a href={lesson.meeting_link} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:underline mt-0.5"
+                className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline mt-0.5"
                 onClick={e => e.stopPropagation()}>
                 <Video className="h-3 w-3" /> Войти на встречу
               </a>
@@ -440,27 +468,27 @@ function TeacherLessonCard({ lesson, expandedLesson, setExpandedLesson, markLess
           </div>
         </div>
         <Badge variant="outline" className={`text-[11px] shrink-0 ${
-          lesson.status === "planned" ? "bg-blue-50 text-blue-700" :
-          lesson.status === "completed" ? "bg-emerald-50 text-emerald-700" :
-          "bg-red-50 text-red-600"
+          lesson.status === "planned" ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800" :
+          lesson.status === "completed" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800" :
+          "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"
         }`}>
           {STATUS_LABELS[lesson.status] || lesson.status}
         </Badge>
       </div>
 
       {expandedLesson === lesson.id && lesson.status === "planned" && (
-        <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
+        <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap gap-2">
           {[
-            { status: "completed", icon: CheckCircle2, label: "Проведено", cls: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200" },
-            { status: "cancelled", icon: XCircle, label: "Отменить", cls: "bg-red-50 text-red-600 hover:bg-red-100 border-red-200" },
-            { status: "missed", icon: XCircle, label: "Пропущено", cls: "bg-orange-50 text-orange-600 hover:bg-orange-100 border-orange-200" },
-            { status: "missed_no_notice", icon: Clock, label: "Без предупреждения", cls: "bg-red-50 text-red-700 hover:bg-red-100 border-red-300" },
+            { status: "completed", icon: CheckCircle2, label: "Проведено", cls: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60 dark:border-emerald-800" },
+            { status: "cancelled", icon: XCircle, label: "Отменить", cls: "bg-red-50 text-red-600 hover:bg-red-100 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/60 dark:border-red-800" },
+            { status: "missed", icon: XCircle, label: "Пропущено", cls: "bg-orange-50 text-orange-600 hover:bg-orange-100 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:hover:bg-orange-950/60 dark:border-orange-800" },
+            { status: "missed_no_notice", icon: Clock, label: "Без предупреждения", cls: "bg-red-50 text-red-700 hover:bg-red-100 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/60 dark:border-red-800" },
           ].map(({ status, icon: Icon, label, cls }) => (
             <button
               key={status}
               onClick={e => { e.stopPropagation(); markLesson(lesson, status); }}
               disabled={updating === lesson.id}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 ${cls}`}
+              className={`flex items-center gap-1.5 px-3 py-2 min-h-[40px] text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 ${cls}`}
             >
               <Icon className="w-3.5 h-3.5" /> {label}
             </button>

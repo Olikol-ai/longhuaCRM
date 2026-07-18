@@ -67,18 +67,18 @@ export default function LessonAttendancePanel({ lessonId, students = [], compact
   return (
     <div className={`space-y-2 ${compact ? "" : "mt-2"}`}>
       {!compact && (
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Посещаемость</p>
+        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Посещаемость</p>
       )}
       {rows.map((row) => (
         <div
           key={row.id}
-          className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"
+          className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-3 py-2"
         >
           <div>
-            <p className="text-sm font-medium text-slate-800">
+            <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
               {resolveStudentLabel(row.student_id, students)}
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               {STATUS_LABELS[row.attendance_status] || row.attendance_status}
             </p>
           </div>
@@ -86,7 +86,7 @@ export default function LessonAttendancePanel({ lessonId, students = [], compact
             <button
               type="button"
               onClick={() => mark(row.id, "present")}
-              className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-white px-2 py-1 text-[11px] text-emerald-700 hover:bg-emerald-50"
+              className="inline-flex items-center gap-1 rounded-md border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 px-2 py-1 text-[11px] text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
               title="Присутствовал"
             >
               <Check className="h-3 w-3" />
@@ -94,7 +94,7 @@ export default function LessonAttendancePanel({ lessonId, students = [], compact
             <button
               type="button"
               onClick={() => mark(row.id, "absent")}
-              className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-2 py-1 text-[11px] text-red-600 hover:bg-red-50"
+              className="inline-flex items-center gap-1 rounded-md border border-red-200 dark:border-red-800 bg-white dark:bg-slate-900 px-2 py-1 text-[11px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
               title="Отсутствовал"
             >
               <X className="h-3 w-3" />
@@ -102,7 +102,7 @@ export default function LessonAttendancePanel({ lessonId, students = [], compact
             <button
               type="button"
               onClick={() => mark(row.id, "excused")}
-              className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-white px-2 py-1 text-[11px] text-amber-700 hover:bg-amber-50"
+              className="inline-flex items-center gap-1 rounded-md border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900 px-2 py-1 text-[11px] text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40"
               title="Уважительная причина"
             >
               <AlertTriangle className="h-3 w-3" />

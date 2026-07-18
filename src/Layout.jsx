@@ -16,6 +16,7 @@ import {
   Moon,
   Layers,
   Award,
+  ClipboardList,
   CreditCard,
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
@@ -37,12 +38,14 @@ const adminNav = [
   { name: "Сертификаты", icon: Award, page: "Certificates" },
   { name: "Платежи", icon: CreditCard, page: "Payments" },
   { name: "Материалы", icon: BookOpen, page: "MaterialsHub" },
+  { name: "Экзамены", icon: ClipboardList, page: "AdminAssessment" },
   { name: "Настройки", icon: Settings, page: "Settings" },
 ];
 
 const teacherNav = [
   { name: "Главная", icon: LayoutDashboard, page: "TeacherDashboard" },
   { name: "Моё расписание", icon: Calendar, page: "TeacherSchedule" },
+  { name: "Экзамены", icon: ClipboardList, page: "TeacherAssessment" },
   { name: "Материалы", icon: BookOpen, page: "MaterialsHub" },
   { name: "Профиль", icon: UserCircle, page: "Profile" },
   { name: "Настройки", icon: Settings, page: "Settings" },
@@ -53,6 +56,7 @@ const studentNav = [
   { name: "Мои уроки", icon: Calendar, page: "StudentLessons" },
   { name: "Мои материалы", icon: BookOpen, page: "StudentLessonMaterials" },
   { name: "Мои сертификаты", icon: Award, page: "StudentCertificates" },
+  { name: "Мои экзамены", icon: ClipboardList, page: "StudentExams" },
   { name: "Профиль", icon: UserCircle, page: "Profile" },
   { name: "Настройки", icon: Settings, page: "Settings" },
 ];
@@ -112,7 +116,7 @@ export default function Layout({ children, currentPageName }) {
     .slice(0, 2);
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex overflow-x-hidden">
+    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/40 z-40 lg:hidden"
@@ -121,9 +125,15 @@ export default function Layout({ children, currentPageName }) {
         />
       )}
 
+      {/*
+        Sidebar is always position:fixed (viewport).
+        Mobile: off-canvas drawer (-translate-x-full until open).
+        Desktop (lg+): always visible; main column uses lg:pl-64 so content is not covered.
+      */}
       <aside
         className={`
-          fixed lg:sticky top-0 left-0 z-50 h-dvh max-h-screen w-[min(16rem,85vw)] max-w-[16rem]
+          fixed top-0 left-0 z-50 h-dvh max-h-dvh
+          w-[min(16rem,85vw)] lg:w-64
           bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-700
           transform transition-transform duration-200 ease-in-out
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0
@@ -157,7 +167,7 @@ export default function Layout({ children, currentPageName }) {
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto overscroll-contain">
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto overscroll-contain min-h-0">
           {navItems.map((item) => {
             const isActive = currentPageName === item.page;
             return (
@@ -184,7 +194,7 @@ export default function Layout({ children, currentPageName }) {
         <div className="border-t border-slate-200 dark:border-slate-800 p-3 shrink-0">
           <div className="flex items-center gap-3 px-2 sm:px-3 py-2">
             <Avatar className="h-8 w-8 shrink-0">
-              <AvatarFallback className="bg-indigo-100 text-indigo-700 text-xs font-semibold">
+              <AvatarFallback className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-xs font-semibold">
                 {initials}
               </AvatarFallback>
             </Avatar>
@@ -206,7 +216,7 @@ export default function Layout({ children, currentPageName }) {
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0 w-full max-w-full">
+      <div className="flex flex-col min-h-screen min-w-0 w-full max-w-full lg:pl-64">
         <header className="lg:hidden h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-3 sm:px-4 sticky top-0 z-30 shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <button
@@ -229,7 +239,7 @@ export default function Layout({ children, currentPageName }) {
           </button>
         </header>
 
-        <main className="flex-1 overflow-x-hidden overflow-y-auto min-w-0">
+        <main className="flex-1 min-w-0 w-full overflow-x-hidden">
           {children}
         </main>
       </div>

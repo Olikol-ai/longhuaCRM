@@ -72,6 +72,17 @@ export function getRequiredRoleForPath(pathname) {
     || pathname.startsWith('/Groups/')
     || pathname === '/Certificates'
     || pathname === '/Payments'
+    || pathname === '/AdminAssessment'
+    || pathname === '/AssessmentBanks'
+    || pathname === '/AssessmentQuestions'
+    || pathname === '/AssessmentBlueprints'
+    || pathname === '/AssessmentBlueprintEdit'
+    || pathname === '/AssessmentExams'
+    || pathname === '/AssessmentExamDetail'
+    || pathname === '/AssessmentAssignments'
+    || pathname === '/AssessmentAssignmentDetail'
+    || pathname === '/AssessmentResults'
+    || pathname === '/AssessmentResultDetail'
     || pathname === '/Students'
     || pathname === '/students'
     || pathname.startsWith('/StudentDetail')
@@ -83,6 +94,10 @@ export function getRequiredRoleForPath(pathname) {
     pathname === '/teacher'
     || pathname === '/TeacherDashboard'
     || pathname === '/TeacherSchedule'
+    || pathname === '/TeacherAssessment'
+    || pathname === '/TeacherAssessmentReview'
+    || pathname === '/TeacherAssessmentReviewDetail'
+    || pathname === '/TeacherAssessmentResults'
   ) {
     return 'teacher';
   }
@@ -93,6 +108,9 @@ export function getRequiredRoleForPath(pathname) {
     || pathname === '/StudentLessons'
     || pathname === '/StudentLessonMaterials'
     || pathname === '/StudentCertificates'
+    || pathname === '/StudentExams'
+    || pathname === '/StudentExamTake'
+    || pathname === '/PaymentReturn'
   ) {
     return 'student';
   }
