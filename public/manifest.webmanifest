@@ -1,15 +1,15 @@
 {
-  "name": "Longhua CRM",
+  "name": "Longhua Academy",
   "short_name": "Longhua",
-  "description": "Платформа управления языковой школой Longhua Chinese",
+  "description": "Longhua Academy — образовательная платформа для изучения китайского языка",
   "lang": "ru",
   "dir": "ltr",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "theme_color": "#0f172a",
-  "background_color": "#0f172a",
+  "theme_color": "#8B1A1A",
+  "background_color": "#1A1212",
   "categories": ["business", "education", "productivity"],
   "icons": [
     {

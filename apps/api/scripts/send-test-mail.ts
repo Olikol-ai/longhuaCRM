@@ -50,7 +50,7 @@ async function main(): Promise<void> {
   await transporter.verify();
   console.log('SMTP connection established');
 
-  const from = mail.from ?? mail.user ?? 'Longhua Chinese <noreply@localhost>';
+  const from = mail.from ?? mail.user ?? 'Longhua Academy <noreply@localhost>';
   const info = await transporter.sendMail({
     from,
     to,

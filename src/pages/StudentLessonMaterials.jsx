@@ -59,7 +59,7 @@ export default function StudentLessonMaterials() {
   if (loading || isLoadingAuth) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand" />
       </div>
     );
   }
@@ -148,7 +148,7 @@ export default function StudentLessonMaterials() {
                         }
                       }}
                     >
-                      <Card className="p-4 hover:shadow-lg transition-all cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-700 h-full flex flex-col">
+                      <Card className="p-4 hover:shadow-lg transition-all cursor-pointer hover:border-brand/40 dark:hover:border-brand/40 h-full flex flex-col">
                         <div className="flex items-start justify-between mb-3">
                           <div className={`h-10 w-10 rounded-lg ${typeInfo.bg} flex items-center justify-center`}>
                             <IconComp className={`h-5 w-5 ${typeInfo.color}`} />

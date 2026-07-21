@@ -153,7 +153,7 @@ export default function PaymentFormDialog({ open, onOpenChange, studentId, onSav
           <Button
             onClick={handleSubmit}
             disabled={loading || !formData.student_id || !formData.amount || !formData.lessons_added}
-            className="bg-indigo-600 hover:bg-indigo-700"
+            className="bg-primary hover:bg-primary/90"
           >
             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Сохранить оплату

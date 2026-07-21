@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Not, Repository } from 'typeorm';
+import { FindOptionsWhere, In, Not, Repository } from 'typeorm';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { AvailabilityBookingEntity } from './entities/availability-booking.entity';
@@ -27,6 +27,16 @@ export class ScheduleRepository {
     return this.slotRepo.findOne({ where: { id } });
   }
 
+  findSlotsByTeacherIds(teacherIds: string[]): Promise<AvailabilitySlotEntity[]> {
+    if (teacherIds.length === 0) {
+      return Promise.resolve([]);
+    }
+    return this.slotRepo.find({
+      where: { teacherId: In(teacherIds) },
+      order: { dayOfWeek: 'ASC', timeFrom: 'ASC' },
+    });
+  }
+
   findSlotsByTeacherId(teacherId: string): Promise<AvailabilitySlotEntity[]> {
     return this.slotRepo.find({
       where: { teacherId },
@@ -48,6 +58,32 @@ export class ScheduleRepository {
 
   async deleteSlot(id: string): Promise<void> {
     await this.slotRepo.delete({ id });
+  }
+
+  async deleteSlotsByTeacherId(teacherId: string): Promise<void> {
+    await this.slotRepo.delete({ teacherId });
+  }
+
+  async replaceSlotsForTeacher(
+    teacherId: string,
+    slots: Array<Pick<AvailabilitySlotEntity, 'dayOfWeek' | 'timeFrom' | 'timeTo'>>,
+  ): Promise<AvailabilitySlotEntity[]> {
+    return this.slotRepo.manager.transaction(async (manager) => {
+      const repo = manager.getRepository(AvailabilitySlotEntity);
+      await repo.delete({ teacherId });
+      if (slots.length === 0) {
+        return [];
+      }
+      const rows = slots.map((slot) =>
+        repo.create({
+          teacherId,
+          dayOfWeek: slot.dayOfWeek,
+          timeFrom: slot.timeFrom,
+          timeTo: slot.timeTo,
+        }),
+      );
+      return repo.save(rows);
+    });
   }
 
   filterSlots(
@@ -74,6 +110,41 @@ export class ScheduleRepository {
         status: Not('cancelled' as LessonEntity['status']),
       },
     });
+  }
+
+  /**
+   * Lessons on a date where any of the given students participate
+   * (primary student or attendance_records).
+   */
+  findLessonsForStudentsOnDate(
+    studentIds: string[],
+    date: string,
+    excludeLessonId?: string,
+  ): Promise<LessonEntity[]> {
+    if (studentIds.length === 0) {
+      return Promise.resolve([]);
+    }
+
+    const qb = this.lessonRepo
+      .createQueryBuilder('lesson')
+      .leftJoin(
+        'attendance_records',
+        'att',
+        'att.lesson_id = lesson.id',
+      )
+      .where('lesson.date = :date', { date })
+      .andWhere('lesson.status != :cancelled', { cancelled: 'cancelled' })
+      .andWhere(
+        '(lesson.primary_student_id IN (:...studentIds) OR att.student_id IN (:...studentIds))',
+        { studentIds },
+      )
+      .distinct(true);
+
+    if (excludeLessonId) {
+      qb.andWhere('lesson.id != :excludeLessonId', { excludeLessonId });
+    }
+
+    return qb.getMany();
   }
 
   findActiveBookingsByTeacherAndDate(

@@ -6,11 +6,11 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 
 const DEFAULTS = {
-  school_name: "Longhua Chinese",
+  school_name: "Longhua Academy",
   title: "Добро пожаловать!",
-  subtitle: "Платформа управления языковой школой",
-  body_text: "Спасибо, что зарегистрировались в Longhua Chinese!\n\nВаш аккаунт находится на рассмотрении. В ближайшее время администратор назначит вам роль — после этого вы получите доступ к платформе.",
-  info_text: "Если у вас есть вопросы — свяжитесь с администратором школы.",
+  subtitle: "Образовательная платформа Longhua Academy",
+  body_text: "Спасибо, что зарегистрировались в Longhua Academy!\n\nВаш аккаунт находится на рассмотрении. В ближайшее время администратор назначит вам роль — после этого вы получите доступ к платформе.",
+  info_text: "Если у вас есть вопросы — свяжитесь с администратором Longhua Academy.",
 };
 
 export default function WelcomePageEditor() {
@@ -46,7 +46,7 @@ export default function WelcomePageEditor() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-indigo-600" /></div>;
+    return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-brand" /></div>;
   }
 
   return (
@@ -56,7 +56,7 @@ export default function WelcomePageEditor() {
           <h1 className="text-2xl font-bold text-foreground">Страница приветствия</h1>
           <p className="text-sm text-muted-foreground mt-1">Редактирование текста, который видят новые пользователи</p>
         </div>
-        <Button onClick={handleSave} disabled={saving} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
+        <Button onClick={handleSave} disabled={saving} className="bg-primary hover:bg-primary/90 gap-2">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           Сохранить
         </Button>
@@ -75,7 +75,7 @@ export default function WelcomePageEditor() {
           <Eye className="h-4 w-4 text-muted-foreground" />
           <p className="text-sm font-semibold text-muted-foreground">Предпросмотр</p>
         </div>
-        <div className="bg-gradient-to-br from-indigo-50 via-background to-muted dark:from-indigo-950/30 dark:via-background dark:to-muted rounded-2xl border border-border p-8 text-center space-y-5">
+        <div className="bg-gradient-to-br from-brand-soft via-background to-muted dark:from-brand-soft/30 dark:via-background dark:to-muted rounded-2xl border border-border p-8 text-center space-y-5">
           <p className="text-xl font-bold text-foreground">{form.school_name}</p>
           <p className="text-muted-foreground text-xs">{form.subtitle}</p>
           <Card className="p-6 space-y-4 text-left max-w-sm mx-auto">
@@ -83,7 +83,7 @@ export default function WelcomePageEditor() {
             {form.body_text.split("\n").filter(Boolean).map((line, i) => (
               <p key={i} className="text-muted-foreground text-sm">{line}</p>
             ))}
-            <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-xl px-4 py-3 text-sm text-indigo-700 dark:text-indigo-300">
+            <div className="bg-brand-soft dark:bg-brand-soft/40 rounded-xl px-4 py-3 text-sm text-brand dark:text-brand">
               {form.info_text}
             </div>
           </Card>
@@ -94,7 +94,7 @@ export default function WelcomePageEditor() {
 }
 
 function Field({ label, value, onChange, multiline }) {
-  const cls = "w-full px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400";
+  const cls = "w-full px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40";
   return (
     <div>
       <label className="block text-xs font-medium text-muted-foreground mb-1">{label}</label>

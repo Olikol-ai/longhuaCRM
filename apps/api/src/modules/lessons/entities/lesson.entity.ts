@@ -103,6 +103,10 @@ export class LessonEntity {
   @Column({ name: 'meeting_link', type: 'text', nullable: true })
   meetingLink: string | null;
 
+  /** Classroom / cabinet label for offline lessons. */
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  room: string | null;
+
   @Column({ name: 'reminder_24h_sent', type: 'boolean', default: false })
   reminder24hSent: boolean;
 

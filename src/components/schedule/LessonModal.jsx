@@ -67,7 +67,7 @@ export default function LessonModal({
       .then((data) => {
         if (!cancelled) {
           setTeacherSchedule({
-            hasSchedule: Boolean(data?.hasSchedule),
+            hasSchedule: Boolean(data?.hasSchedule ?? data?.has_schedule),
             slots: Array.isArray(data?.slots) ? data.slots : [],
           });
         }
@@ -236,7 +236,7 @@ export default function LessonModal({
   };
 
   const availablePanel = showAvailablePanel ? (
-    <div className="rounded-xl border border-amber-200/80 dark:border-amber-800/60 bg-[#F5F0E8] dark:bg-amber-950/20 p-4 text-sm">
+    <div className="rounded-xl border border-brand-gold/40 dark:border-brand-gold/30 bg-brand-gold-soft dark:bg-brand-gold-soft/40 p-4 text-sm">
       <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3">Свободные преподаватели</h4>
       {availableLoading ? (
         <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs">
@@ -387,12 +387,12 @@ export default function LessonModal({
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Дата *</label>
                   <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Время начала *</label>
                   <input type="time" value={form.start_time} onChange={(e) => set("start_time", e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40" />
                 </div>
                 <TeacherAvailabilityPanel
                   loading={scheduleLoading}
@@ -436,7 +436,7 @@ export default function LessonModal({
                     <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Ссылка на встречу</label>
                     <input value={form.meeting_link} onChange={(e) => set("meeting_link", e.target.value)}
                       placeholder="https://zoom.us/j/... or meet.google.com/..."
-                      className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+                      className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40" />
                   </div>
                 )}
               </div>
@@ -444,15 +444,15 @@ export default function LessonModal({
               <div
                 onClick={() => setRecurring(!recurring)}
                 className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
-                  recurring ? "border-indigo-300 bg-indigo-50 dark:bg-indigo-950/30" : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  recurring ? "border-brand/40 bg-brand-soft dark:bg-brand-soft/30" : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
                 }`}
               >
-                <RefreshCw className={`w-4 h-4 ${recurring ? "text-indigo-600" : "text-slate-400 dark:text-slate-500"}`} />
+                <RefreshCw className={`w-4 h-4 ${recurring ? "text-brand" : "text-slate-400 dark:text-slate-500"}`} />
                 <div>
-                  <p className={`text-xs font-semibold ${recurring ? "text-indigo-700 dark:text-indigo-400" : "text-slate-600 dark:text-slate-300"}`}>Еженедельный повтор</p>
+                  <p className={`text-xs font-semibold ${recurring ? "text-brand dark:text-brand" : "text-slate-600 dark:text-slate-300"}`}>Еженедельный повтор</p>
                   <p className="text-[10px] text-slate-400 dark:text-slate-500">Создаёт урок на выбранную дату и ещё один через неделю</p>
                 </div>
-                <div className={`ml-auto w-4 h-4 rounded border-2 flex items-center justify-center ${recurring ? "border-indigo-600 bg-indigo-600" : "border-slate-300 dark:border-slate-600"}`}>
+                <div className={`ml-auto w-4 h-4 rounded border-2 flex items-center justify-center ${recurring ? "border-brand bg-brand" : "border-slate-300 dark:border-slate-600"}`}>
                   {recurring && <span className="text-white text-[8px] font-bold">✓</span>}
                 </div>
               </div>
@@ -478,7 +478,7 @@ export default function LessonModal({
           <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg">Отмена</button>
           <button type="button" onClick={handleSave}
             disabled={!canSubmit || saving}
-            className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-40">
+            className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-40">
             {saving ? "Создание..." : recurring ? "Создать 2 урока" : "Создать урок"}
           </button>
         </div>

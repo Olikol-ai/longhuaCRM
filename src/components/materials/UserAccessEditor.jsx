@@ -104,7 +104,7 @@ export default function UserAccessEditor({ targetUser, onClose, onSaved }) {
     return (
       <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
         <div className="bg-card rounded-2xl p-8 border border-border">
-          <Loader2 className="h-6 w-6 animate-spin text-indigo-600 mx-auto" />
+          <Loader2 className="h-6 w-6 animate-spin text-brand mx-auto" />
         </div>
       </div>
     );
@@ -148,7 +148,7 @@ export default function UserAccessEditor({ targetUser, onClose, onSaved }) {
                         if (el) el.indeterminate = partiallySelected;
                       }}
                       onChange={() => toggleCourse(course)}
-                      className="rounded accent-indigo-600"
+                      className="rounded accent-brand"
                     />
                     <button
                       type="button"
@@ -179,7 +179,7 @@ export default function UserAccessEditor({ targetUser, onClose, onSaved }) {
                             type="checkbox"
                             checked={selectedIds.has(material.id)}
                             onChange={() => toggleMaterial(material.id)}
-                            className="rounded accent-indigo-600"
+                            className="rounded accent-brand"
                           />
                           <span className="text-sm text-foreground">{material.title}</span>
                         </label>
@@ -199,7 +199,7 @@ export default function UserAccessEditor({ targetUser, onClose, onSaved }) {
           <Button
             onClick={handleSave}
             disabled={saving}
-            className="bg-indigo-600 hover:bg-indigo-700 gap-2"
+            className="bg-primary hover:bg-primary/90 gap-2"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Сохранить

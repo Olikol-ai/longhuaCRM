@@ -24,4 +24,8 @@ export const TEACHER_LESSON_UPDATE_FIELDS = [
   'status',
   'notes',
   'meetingLink',
+  'room',
+  'date',
+  'startTime',
+  'duration',
 ] as const;

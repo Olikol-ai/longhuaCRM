@@ -52,7 +52,7 @@ export default function MaterialPickerDialog({ onConfirm, onSkip, onCancel, less
         <div className="flex-1 overflow-y-auto px-6 py-3 space-y-1.5">
           {loading ? (
             <div className="flex items-center justify-center py-10">
-              <Loader2 className="h-5 w-5 animate-spin text-indigo-600" />
+              <Loader2 className="h-5 w-5 animate-spin text-brand" />
             </div>
           ) : filtered.length === 0 ? (
             <p className="text-center text-sm text-slate-400 dark:text-slate-500 py-8">Материалы не найдены</p>
@@ -67,7 +67,7 @@ export default function MaterialPickerDialog({ onConfirm, onSkip, onCancel, less
                   key={mat.id}
                   onClick={() => toggle(mat.id)}
                   className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
-                    isSelected ? "border-indigo-300 bg-indigo-50 dark:bg-indigo-950/30" : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    isSelected ? "border-brand/40 bg-brand-soft dark:bg-brand-soft/30" : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800"
                   }`}
                 >
                   <IconComp className={`h-4 w-4 shrink-0 ${typeInfo.color}`} />
@@ -75,7 +75,7 @@ export default function MaterialPickerDialog({ onConfirm, onSkip, onCancel, less
                     <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{mat.title}</p>
                     {block && <p className="text-xs text-slate-400 dark:text-slate-500">{block}</p>}
                   </div>
-                  {isSelected && <CheckCircle2 className="h-4 w-4 text-indigo-600 shrink-0" />}
+                  {isSelected && <CheckCircle2 className="h-4 w-4 text-brand shrink-0" />}
                 </button>
               );
             })

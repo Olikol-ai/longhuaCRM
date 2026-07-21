@@ -1,6 +1,6 @@
 # Business Logic
 
-Ключевые бизнес-процессы Longhua Chinese. Реализация — в NestJS services (`apps/api/src/modules/`).
+Ключевые бизнес-процессы Longhua Academy. Реализация — в NestJS services (`apps/api/src/modules/`).
 
 ## Роли
 

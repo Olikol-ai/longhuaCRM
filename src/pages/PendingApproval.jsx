@@ -9,12 +9,12 @@ import { Input } from '@/components/ui/input';
 import { userFacingError } from '@/lib/userFacingError';
 
 const DEFAULTS = {
-  school_name: 'Longhua Chinese',
+  school_name: 'Longhua Academy',
   title: 'Подтверждение email',
-  subtitle: 'Платформа управления языковой школой',
+  subtitle: 'Образовательная платформа Longhua Academy',
   body_text:
     'Спасибо за регистрацию!\n\nПосле подтверждения кода администратор назначит вам роль — затем откроется доступ к платформе.',
-  info_text: 'Если у вас есть вопросы — свяжитесь с администратором школы.',
+  info_text: 'Если у вас есть вопросы — свяжитесь с администратором Longhua Academy.',
 };
 
 export default function PendingApproval() {
@@ -120,10 +120,10 @@ export default function PendingApproval() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 dark:from-indigo-950/40 via-white dark:via-slate-950 to-slate-50 dark:to-slate-950 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-gradient-to-br from-brand-soft dark:from-brand-soft/40 via-white dark:via-slate-950 to-slate-50 dark:to-slate-950 flex items-center justify-center p-6">
       <div className="max-w-lg w-full text-center space-y-8">
         <div className="flex items-center justify-center gap-3">
-          <div className="h-14 w-14 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
+          <div className="h-14 w-14 bg-brand rounded-2xl flex items-center justify-center shadow-lg shadow-amber-300">
             <BookOpen className="h-7 w-7 text-white" />
           </div>
         </div>
@@ -173,7 +173,7 @@ export default function PendingApproval() {
                 )}
                 <Button
                   asChild
-                  className="w-full bg-indigo-600 hover:bg-indigo-700"
+                  className="w-full bg-primary hover:bg-primary/90"
                   data-testid="registration-verified-login"
                 >
                   <Link to="/login">Войти</Link>
@@ -207,14 +207,14 @@ export default function PendingApproval() {
                     />
                   </div>
                   {error && (
-                    <p className="text-sm text-red-600 bg-red-50 p-2 rounded-lg" data-testid="registration-verify-error">
+                    <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-lg" data-testid="registration-verify-error">
                       {error}
                     </p>
                   )}
                   <Button
                     type="submit"
                     disabled={verifying}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700"
+                    className="w-full bg-primary hover:bg-primary/90"
                     data-testid="registration-verify-submit"
                   >
                     {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Подтвердить код'}
@@ -248,9 +248,9 @@ export default function PendingApproval() {
           </div>
 
           {!registrationVerified && (
-            <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl px-6 py-4 flex items-start gap-3">
-              <Sparkles className="h-5 w-5 text-indigo-500 shrink-0 mt-0.5" />
-              <p className="text-sm text-indigo-700">{settings.info_text}</p>
+            <div className="bg-brand-soft dark:bg-brand-soft/40 rounded-2xl px-6 py-4 flex items-start gap-3">
+              <Sparkles className="h-5 w-5 text-brand shrink-0 mt-0.5" />
+              <p className="text-sm text-brand">{settings.info_text}</p>
             </div>
           )}
         </div>

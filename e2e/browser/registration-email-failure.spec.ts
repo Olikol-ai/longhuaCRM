@@ -17,6 +17,6 @@ test.describe('Registration email failure', () => {
       timeout: 15_000,
     });
     await expect(page).not.toHaveURL(/auth\/pending-approval/);
-    await expect(page.getByRole('heading', { name: 'Longhua Chinese' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Longhua Academy' })).toBeVisible();
   });
 });

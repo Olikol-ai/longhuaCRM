@@ -9,9 +9,9 @@ import {
 export const ROLE_CONFIG = {
   admin: {
     label: 'Администратор',
-    bg: 'bg-violet-100 dark:bg-violet-950/40',
-    text: 'text-violet-700 dark:text-violet-300',
-    dot: 'bg-violet-500',
+    bg: 'bg-brand-muted dark:bg-brand-soft/40',
+    text: 'text-brand dark:text-brand',
+    dot: 'bg-brand',
     icon: Shield,
   },
   teacher: {
@@ -23,9 +23,9 @@ export const ROLE_CONFIG = {
   },
   student: {
     label: 'Ученик',
-    bg: 'bg-blue-100 dark:bg-blue-950/40',
-    text: 'text-blue-700 dark:text-blue-300',
-    dot: 'bg-blue-500',
+    bg: 'bg-slate-100 dark:bg-slate-800',
+    text: 'text-slate-700 dark:text-slate-300',
+    dot: 'bg-slate-500',
     icon: Users,
   },
   pending: {

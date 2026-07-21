@@ -94,7 +94,7 @@ function FolderRow({
         isDropOver
           ? 'bg-emerald-100 text-emerald-900 ring-2 ring-emerald-400 dark:bg-emerald-950/50 dark:text-emerald-100'
           : selected
-            ? 'bg-indigo-50 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200'
+            ? 'bg-brand-soft text-brand-hover dark:bg-brand-soft/50 dark:text-brand'
             : 'hover:bg-muted/70 text-foreground'
       }`}
       style={{ paddingLeft: `${8 + depth * 12}px` }}
@@ -136,7 +136,7 @@ function FolderRow({
           <button
             type="button"
             title="Подпапка"
-            className="p-1 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded"
+            className="p-1 text-brand hover:bg-brand-soft dark:hover:bg-brand-soft rounded"
             onClick={onStartAdd}
           >
             <FolderPlus className="h-3.5 w-3.5" />
@@ -289,7 +289,7 @@ function FolderNode({
         type="button"
         disabled={busy}
         onClick={createChild}
-        className="px-2 py-1 text-xs bg-indigo-600 text-white rounded"
+        className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded"
       >
         OK
       </button>
@@ -398,7 +398,7 @@ function CourseBody({
           isOver
             ? 'bg-emerald-100 text-emerald-900 ring-2 ring-emerald-400 dark:bg-emerald-950/50 dark:text-emerald-100'
             : courseSelected
-              ? 'bg-indigo-50 text-indigo-800 dark:bg-indigo-950/50'
+              ? 'bg-brand-soft text-brand-hover dark:bg-brand-soft/50'
               : ''
         }`}
         title={canReceiveMaterials ? 'Отпустите, чтобы переместить материал в корень курса' : undefined}
@@ -429,7 +429,7 @@ function CourseBody({
             className="flex flex-1 items-center gap-2 min-w-0 text-left"
             onClick={() => onSelectFolder({ courseId: course.id, folderId: null })}
           >
-            <BookOpen className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+            <BookOpen className="h-3.5 w-3.5 text-brand shrink-0" />
             <span className="truncate font-medium">{label}</span>
             <span className="text-[10px] text-muted-foreground shrink-0">
               {countByCourse[course.id] || 0}
@@ -442,7 +442,7 @@ function CourseBody({
             <button
               type="button"
               title="Новая папка"
-              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-indigo-700 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950"
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-brand hover:bg-brand-soft dark:text-brand dark:hover:bg-brand-soft"
               onClick={() => {
                 setExpandedCourses((prev) => new Set(prev).add(course.id));
                 setAddingFolderFor(course.id);
@@ -483,7 +483,7 @@ function CourseBody({
             type="button"
             disabled={busy}
             onClick={() => createRootFolder(course.id)}
-            className="px-2 py-1 text-xs bg-indigo-600 text-white rounded"
+            className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded"
           >
             OK
           </button>
@@ -846,7 +846,7 @@ export default function FolderTree({
             <button
               type="button"
               onClick={() => setShowCourseForm((v) => !v)}
-              className="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-indigo-700"
+              className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90"
               data-testid="materials-create-course"
             >
               <Plus className="h-3 w-3" />
@@ -885,7 +885,7 @@ export default function FolderTree({
                 type="button"
                 disabled={creatingCourse}
                 onClick={createCourse}
-                className="flex-1 rounded-md bg-indigo-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                className="flex-1 rounded-md bg-primary px-2 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 data-testid="materials-course-save"
               >
                 {creatingCourse ? 'Создание…' : 'Сохранить'}
@@ -911,7 +911,7 @@ export default function FolderTree({
           onClick={() => onSelectFolder({ courseId: null, folderId: null })}
           className={`w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-left ${
             !selectedCourseId && !selectedFolderId
-              ? 'bg-indigo-50 text-indigo-800 dark:bg-indigo-950/50'
+              ? 'bg-brand-soft text-brand-hover dark:bg-brand-soft/50'
               : 'hover:bg-muted/70'
           }`}
         >

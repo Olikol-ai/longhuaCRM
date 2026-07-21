@@ -94,7 +94,7 @@ export default function PaymentReturn() {
       <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-8 text-center space-y-5">
         {loading ? (
           <>
-            <Loader2 className="h-10 w-10 animate-spin text-indigo-500 mx-auto" />
+            <Loader2 className="h-10 w-10 animate-spin text-brand mx-auto" />
             <p className="text-sm text-slate-500">Проверяем статус оплаты…</p>
           </>
         ) : error ? (
@@ -124,7 +124,7 @@ export default function PaymentReturn() {
           </>
         )}
 
-        <Button asChild className="w-full bg-indigo-600 hover:bg-indigo-700">
+        <Button asChild className="w-full bg-primary hover:bg-primary/90">
           <Link to="/StudentDashboard">Вернуться в кабинет</Link>
         </Button>
       </div>

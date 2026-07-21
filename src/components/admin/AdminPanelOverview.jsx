@@ -19,10 +19,10 @@ import StatCard from "@/components/dashboard/StatCard";
 import { Card } from "@/components/ui/card";
 
 const QUICK_ACTIONS = [
-  { label: "Расписание", page: "Schedule", icon: Calendar, color: "indigo" },
-  { label: "Пользователи", page: "UserManagement", icon: Users, color: "sky" },
+  { label: "Расписание", page: "Schedule", icon: Calendar, color: "brand" },
+  { label: "Пользователи", page: "UserManagement", icon: Users, color: "muted" },
   { label: "Платежи", page: "Payments", icon: CreditCard, color: "emerald" },
-  { label: "Группы", page: "Groups", icon: Users, color: "violet" },
+  { label: "Группы", page: "Groups", icon: Users, color: "muted" },
   { label: "Сертификаты", page: "Certificates", icon: Award, color: "amber" },
 ];
 
@@ -74,8 +74,8 @@ export default function AdminPanelOverview({ onOpenExport, onOpenSalary }) {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard label="Уроков сегодня" value={stats.todayLessons} icon={CalendarDays} color="indigo" />
-        <StatCard label="Активных учеников" value={stats.activeStudents} icon={GraduationCap} color="sky" />
+        <StatCard label="Уроков сегодня" value={stats.todayLessons} icon={CalendarDays} color="brand" />
+        <StatCard label="Активных учеников" value={stats.activeStudents} icon={GraduationCap} color="muted" />
         <StatCard label="Активных преподавателей" value={stats.activeTeachers} icon={Users} color="emerald" />
         <StatCard label="Низкий баланс" value={stats.lowBalance} icon={AlertCircle} color="amber" />
       </div>
@@ -109,7 +109,7 @@ export default function AdminPanelOverview({ onOpenExport, onOpenSalary }) {
                 to={createPageUrl(action.page)}
                 className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-border hover:bg-muted transition-colors text-sm font-medium text-foreground"
               >
-                <Icon className="w-4 h-4 text-indigo-500 shrink-0" />
+                <Icon className="w-4 h-4 text-brand shrink-0" />
                 {action.label}
               </Link>
             );
@@ -120,7 +120,7 @@ export default function AdminPanelOverview({ onOpenExport, onOpenSalary }) {
               onClick={onOpenSalary}
               className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-border hover:bg-muted transition-colors text-sm font-medium text-foreground text-left"
             >
-              <DollarSign className="w-4 h-4 text-indigo-500 shrink-0" />
+              <DollarSign className="w-4 h-4 text-brand shrink-0" />
               Зарплата
             </button>
           )}
@@ -130,7 +130,7 @@ export default function AdminPanelOverview({ onOpenExport, onOpenSalary }) {
               onClick={onOpenExport}
               className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-border hover:bg-muted transition-colors text-sm font-medium text-foreground text-left"
             >
-              <Download className="w-4 h-4 text-indigo-500 shrink-0" />
+              <Download className="w-4 h-4 text-brand shrink-0" />
               Экспорт данных
             </button>
           )}

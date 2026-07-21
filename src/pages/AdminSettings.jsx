@@ -3,7 +3,7 @@ import { api } from '@/api';
 import { Settings, CreditCard, Save, CheckCircle2, Eye, ShieldAlert } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
-const fieldCls = "w-full px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400";
+const fieldCls = "w-full px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40";
 const btnOutline = "px-3 py-2 text-xs font-medium border border-border rounded-lg hover:bg-muted text-muted-foreground flex items-center gap-1.5";
 
 export default function AdminSettings() {
@@ -47,8 +47,8 @@ export default function AdminSettings() {
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-950/50 flex items-center justify-center">
-          <Settings className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+        <div className="w-10 h-10 rounded-xl bg-brand-muted dark:bg-brand-soft/50 flex items-center justify-center">
+          <Settings className="w-5 h-5 text-brand dark:text-brand" />
         </div>
         <div>
           <h2 className="text-xl font-bold text-foreground">Настройки интеграций</h2>

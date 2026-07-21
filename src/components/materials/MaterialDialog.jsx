@@ -180,7 +180,7 @@ export default function MaterialDialog({
                 onClick={() => setSourceMode('file')}
                 className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors ${
                   sourceMode === 'file'
-                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    ? 'bg-primary text-primary-foreground border-brand'
                     : 'bg-background border-border hover:bg-muted'
                 }`}
               >
@@ -192,7 +192,7 @@ export default function MaterialDialog({
                 onClick={() => setSourceMode('link')}
                 className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors ${
                   sourceMode === 'link'
-                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    ? 'bg-primary text-primary-foreground border-brand'
                     : 'bg-background border-border hover:bg-muted'
                 }`}
               >
@@ -207,7 +207,7 @@ export default function MaterialDialog({
               <label className="block text-sm font-medium mb-2">
                 Файл {!editing && '*'}
               </label>
-              <label className="flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-border p-5 hover:border-indigo-400 transition-colors">
+              <label className="flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-border p-5 hover:border-brand/40 transition-colors">
                 {file ? (
                   <span className="flex items-center gap-2 text-sm">
                     <File className="h-4 w-4" />
@@ -318,7 +318,7 @@ export default function MaterialDialog({
             Отмена
           </Button>
           <Button
-            className="flex-1 bg-indigo-600 hover:bg-indigo-700"
+            className="flex-1 bg-primary hover:bg-primary/90"
             onClick={handleSave}
             disabled={saving || !canSave}
           >

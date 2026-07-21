@@ -119,7 +119,7 @@ export default function Groups() {
           type="button"
           onClick={handleCreate}
           disabled={creating}
-          className="md:col-span-2 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm disabled:opacity-60"
+          className="md:col-span-2 flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm disabled:opacity-60"
         >
           {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
           {creating ? "Создание…" : "Создать группу"}
@@ -134,7 +134,7 @@ export default function Groups() {
           {groups.map((group) => (
             <div key={group.id} className="border rounded-xl p-4 bg-card flex items-center justify-between gap-4">
               <Link to={`/Groups/${group.id}`} className="flex-1 min-w-0 group">
-                <p className="font-semibold group-hover:text-indigo-700 transition-colors">{group.name}</p>
+                <p className="font-semibold group-hover:text-brand transition-colors">{group.name}</p>
                 <p className="text-xs text-muted-foreground">{teacherName(group.teacher_id)} · {group.status}</p>
               </Link>
               <div className="flex gap-2 items-center">

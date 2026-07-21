@@ -150,7 +150,7 @@ export default function AccessControlModal({ material, course, folders = [], onC
     return (
       <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
         <div className="bg-card rounded-2xl p-8">
-          <Loader2 className="h-6 w-6 animate-spin text-indigo-600 mx-auto" />
+          <Loader2 className="h-6 w-6 animate-spin text-brand mx-auto" />
         </div>
       </div>
     );
@@ -190,7 +190,7 @@ export default function AccessControlModal({ material, course, folders = [], onC
             type="button"
             onClick={() => setTab("info")}
             className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-              tab === "info" ? "border-indigo-600 text-indigo-700 dark:text-indigo-400" : "border-transparent text-muted-foreground"
+              tab === "info" ? "border-brand text-brand dark:text-brand" : "border-transparent text-muted-foreground"
             }`}
           >
             Информация
@@ -199,7 +199,7 @@ export default function AccessControlModal({ material, course, folders = [], onC
             type="button"
             onClick={() => setTab("access")}
             className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-              tab === "access" ? "border-indigo-600 text-indigo-700 dark:text-indigo-400" : "border-transparent text-muted-foreground"
+              tab === "access" ? "border-brand text-brand dark:text-brand" : "border-transparent text-muted-foreground"
             }`}
           >
             Доступ
@@ -244,7 +244,7 @@ export default function AccessControlModal({ material, course, folders = [], onC
                         });
                       }
                     }}
-                    className="inline-flex text-indigo-600 dark:text-indigo-400 hover:underline"
+                    className="inline-flex text-brand dark:text-brand hover:underline"
                   >
                     Открыть материал
                   </button>
@@ -255,7 +255,7 @@ export default function AccessControlModal({ material, course, folders = [], onC
 
           {tab === "access" && (
           <>
-          <div className="p-4 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-300 flex items-start gap-2">
+          <div className="p-4 bg-brand-soft dark:bg-brand-soft/40 rounded-xl border border-brand/30 dark:border-brand/40 text-sm text-brand dark:text-brand flex items-start gap-2">
             <Lock className="h-4 w-4 mt-0.5 shrink-0" />
             <p>
               Отметьте учеников ниже и нажмите «Выдать доступ» — они появятся в «Текущих правах».
@@ -326,7 +326,7 @@ export default function AccessControlModal({ material, course, folders = [], onC
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground flex items-center gap-2">
-                        <FolderKanban className="h-4 w-4 text-sky-600" />
+                        <FolderKanban className="h-4 w-4 text-brand" />
                         {row.name}
                       </p>
                       <AccessSourceBadges
@@ -409,7 +409,7 @@ export default function AccessControlModal({ material, course, folders = [], onC
                       type="checkbox"
                       checked={selectedStudentIds.includes(s.id)}
                       onChange={() => toggleStudent(s.id)}
-                      className="rounded accent-indigo-600"
+                      className="rounded accent-brand"
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-foreground">{s.name || s.email || "Ученик"}</p>
@@ -441,7 +441,7 @@ export default function AccessControlModal({ material, course, folders = [], onC
             <Button
               onClick={handleSavePersonal}
               disabled={saving || selectedStudentIds.length === 0}
-              className="bg-indigo-600 hover:bg-indigo-700 gap-2"
+              className="bg-primary hover:bg-primary/90 gap-2"
               data-testid="access-save-personal"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}

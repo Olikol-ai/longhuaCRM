@@ -139,7 +139,7 @@ export default function TopUpModal({ onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden safe-pb sm:pb-0">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 dark:border-slate-800">
           <div>
             <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
@@ -183,7 +183,7 @@ export default function TopUpModal({ onClose }) {
 
               {loading ? (
                 <div className="flex justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
+                  <Loader2 className="h-6 w-6 animate-spin text-brand" />
                 </div>
               ) : filtered.length === 0 ? (
                 <p className="text-center text-slate-400 dark:text-slate-500 text-sm py-8">Нет доступных предложений</p>
@@ -195,7 +195,7 @@ export default function TopUpModal({ onClose }) {
                     <button
                       key={item.id}
                       onClick={() => handleSelect(item)}
-                      className="w-full text-left p-4 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 transition-all group"
+                      className="w-full text-left p-4 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-brand/40 dark:hover:border-brand/40 hover:bg-brand-soft/50 dark:hover:bg-brand-soft/20 transition-all group"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0">
@@ -218,7 +218,7 @@ export default function TopUpModal({ onClose }) {
                           ) : (
                             <span className="text-xs text-slate-400 dark:text-slate-500">по договору</span>
                           )}
-                          <ChevronRight className="h-4 w-4 text-slate-300 dark:text-slate-600 group-hover:text-indigo-400 transition-colors" />
+                          <ChevronRight className="h-4 w-4 text-slate-300 dark:text-slate-600 group-hover:text-brand transition-colors" />
                         </div>
                       </div>
                     </button>
@@ -231,9 +231,9 @@ export default function TopUpModal({ onClose }) {
 
           {step === STEPS.CONFIRM && selected && (
             <div className="space-y-5">
-              <div className="bg-indigo-50 dark:bg-indigo-950/30 rounded-2xl p-5 space-y-3">
+              <div className="bg-brand-soft dark:bg-brand-soft/30 rounded-2xl p-5 space-y-3">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-indigo-600 flex items-center justify-center">
+                  <div className="h-10 w-10 rounded-xl bg-brand flex items-center justify-center">
                     {selected.type === "course" ? (
                       <GraduationCap className="h-5 w-5 text-white" />
                     ) : (
@@ -248,9 +248,9 @@ export default function TopUpModal({ onClose }) {
                   </div>
                 </div>
                 {selected.price > 0 && (
-                  <div className="flex items-center justify-between pt-2 border-t border-indigo-100 dark:border-indigo-900">
+                  <div className="flex items-center justify-between pt-2 border-t border-brand/20 dark:border-brand/40">
                     <span className="text-sm text-slate-600 dark:text-slate-300">Итого к оплате:</span>
-                    <span className="text-xl font-bold text-indigo-700">{formatCurrency(selected.price)}</span>
+                    <span className="text-xl font-bold text-brand">{formatCurrency(selected.price)}</span>
                   </div>
                 )}
                 {selected.description && (
@@ -262,7 +262,7 @@ export default function TopUpModal({ onClose }) {
                 <Button variant="outline" onClick={() => setStep(STEPS.SELECT)} className="flex-1">
                   Назад
                 </Button>
-                <Button onClick={handleConfirm} className="flex-1 bg-indigo-600 hover:bg-indigo-700">
+                <Button onClick={handleConfirm} className="flex-1 bg-primary hover:bg-primary/90">
                   Перейти к оплате
                 </Button>
               </div>
@@ -285,20 +285,20 @@ export default function TopUpModal({ onClose }) {
                     key={method.id}
                     onClick={() => handlePayment(method.id)}
                     disabled={paying}
-                    className="w-full text-left p-4 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 transition-all group flex items-center gap-3 disabled:opacity-50"
+                    className="w-full text-left p-4 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-brand/40 dark:hover:border-brand/40 hover:bg-brand-soft/50 dark:hover:bg-brand-soft/20 transition-all group flex items-center gap-3 disabled:opacity-50"
                   >
-                    <div className="h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-indigo-100 dark:group-hover:bg-indigo-950/40">
+                    <div className="h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-brand-muted dark:group-hover:bg-brand-soft/40">
                       {paying ? (
                         <Loader2 className="h-4 w-4 text-slate-500 dark:text-slate-400 animate-spin" />
                       ) : (
-                        <CreditCard className="h-4 w-4 text-slate-500 dark:text-slate-400 group-hover:text-indigo-600" />
+                        <CreditCard className="h-4 w-4 text-slate-500 dark:text-slate-400 group-hover:text-brand" />
                       )}
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{method.label}</p>
                       <p className="text-xs text-slate-400 dark:text-slate-500">{method.hint}</p>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-slate-300 dark:text-slate-600 group-hover:text-indigo-400" />
+                    <ChevronRight className="h-4 w-4 text-slate-300 dark:text-slate-600 group-hover:text-brand" />
                   </button>
                 ))}
               </div>
@@ -319,7 +319,7 @@ export default function TopUpModal({ onClose }) {
                   {offlineNotice || 'Администратор обработает ваш запрос и пополнит баланс в ближайшее время.'}
                 </p>
               </div>
-              <Button onClick={handleDone} className="w-full bg-indigo-600 hover:bg-indigo-700">
+              <Button onClick={handleDone} className="w-full bg-primary hover:bg-primary/90">
                 Готово
               </Button>
             </div>

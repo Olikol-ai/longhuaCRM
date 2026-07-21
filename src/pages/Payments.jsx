@@ -8,7 +8,7 @@ import { resolvePaymentStudentLabel } from "@/lib/studentLabels";
 import { sumPaymentAmounts } from "@/lib/money";
 import { formatCurrency } from "@/lib/formatters";
 
-const inputCls = "w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400";
+const inputCls = "w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40";
 
 const STATUS_FILTERS = [
   { id: "all", label: "Все" },
@@ -152,7 +152,7 @@ export default function Payments() {
         <button
           type="button"
           onClick={() => { setEditingPayment(null); setShowModal(true); }}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 w-full sm:w-auto"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 w-full sm:w-auto"
         >
           <Plus className="w-4 h-4" /> Добавить платёж
         </button>
@@ -167,15 +167,15 @@ export default function Payments() {
           <p className="text-xs text-muted-foreground mt-0.5">Общая выручка</p>
         </Card>
         <Card className="p-4 sm:p-5">
-          <div className="w-8 h-8 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg flex items-center justify-center mb-3">
-            <TrendingUp className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+          <div className="w-8 h-8 bg-brand-soft dark:bg-brand-soft/40 rounded-lg flex items-center justify-center mb-3">
+            <TrendingUp className="w-4 h-4 text-brand dark:text-brand" />
           </div>
           <p className="text-2xl font-bold text-foreground">{formatCurrency(monthRevenue)}</p>
           <p className="text-xs text-muted-foreground mt-0.5">В этом месяце</p>
         </Card>
         <Card className="p-4 sm:p-5 sm:col-span-2 lg:col-span-1">
-          <div className="w-8 h-8 bg-violet-50 dark:bg-violet-950/40 rounded-lg flex items-center justify-center mb-3">
-            <CreditCard className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+          <div className="w-8 h-8 bg-brand-soft dark:bg-brand-soft/40 rounded-lg flex items-center justify-center mb-3">
+            <CreditCard className="w-4 h-4 text-brand dark:text-brand" />
           </div>
           <p className="text-2xl font-bold text-foreground">{thisMonth.length}</p>
           <p className="text-xs text-muted-foreground mt-0.5">Платежей за месяц</p>
@@ -197,8 +197,8 @@ export default function Payments() {
               onClick={() => setStatusFilter(f.id)}
               className={`px-3 py-2 text-xs font-medium rounded-lg border transition-colors ${
                 statusFilter === f.id
-                  ? "bg-indigo-600 text-white border-indigo-600"
-                  : "bg-background text-muted-foreground border-border hover:border-indigo-300"
+                  ? "bg-primary text-primary-foreground border-brand"
+                  : "bg-background text-muted-foreground border-border hover:border-brand/40"
               }`}
             >
               {f.label}
@@ -240,8 +240,8 @@ export default function Payments() {
                   <tr key={payment.id} className="hover:bg-muted/50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-950/50 flex items-center justify-center">
-                          <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                        <div className="w-7 h-7 rounded-full bg-brand-muted dark:bg-brand-soft/50 flex items-center justify-center">
+                          <span className="text-xs font-semibold text-brand dark:text-brand">
                             {(label || "?")[0]}
                           </span>
                         </div>
@@ -276,7 +276,7 @@ export default function Payments() {
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => { setEditingPayment(payment); setShowModal(true); }}
-                          className="p-1.5 text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-lg transition-colors"
+                          className="p-1.5 text-muted-foreground hover:text-brand hover:bg-brand-soft dark:hover:bg-brand-soft/50 rounded-lg transition-colors"
                           title="Редактировать"
                         >
                           <Pencil className="w-3.5 h-3.5" />

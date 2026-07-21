@@ -219,11 +219,11 @@ export default function Profile() {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const roleLabel = { admin: "Администратор", teacher: "Преподаватель", student: "Ученик", pending: "Ожидает роли" };
-  const roleColor = { admin: "bg-violet-100 text-violet-700", teacher: "bg-emerald-100 text-emerald-700", student: "bg-sky-100 text-sky-700", pending: "bg-amber-100 text-amber-700" };
+  const roleColor = { admin: "bg-brand-muted text-brand", teacher: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300", student: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300", pending: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300" };
 
   if (isLoadingAuth || !user) return (
     <div className="flex items-center justify-center py-20">
-      <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+      <div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" />
     </div>
   );
 
@@ -237,7 +237,7 @@ export default function Profile() {
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 flex items-center gap-4">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center flex-shrink-0">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-brand-active flex items-center justify-center flex-shrink-0">
           <span className="text-2xl font-bold text-white">{(user.full_name || user.email || "U")[0].toUpperCase()}</span>
         </div>
         <div>
@@ -265,7 +265,7 @@ export default function Profile() {
           <input type="email" value={form.email}
             onChange={e => set("email", e.target.value)}
             disabled={user.role === 'admin'}
-            className={`w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 ${user.role === 'admin' ? 'bg-slate-50 dark:bg-slate-800/60 text-slate-400 cursor-not-allowed' : ''}`} />
+            className={`w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40 ${user.role === 'admin' ? 'bg-slate-50 dark:bg-slate-800/60 text-slate-400 cursor-not-allowed' : ''}`} />
         </div>
 
         <div>
@@ -273,21 +273,21 @@ export default function Profile() {
           <input type="tel" value={form.phone}
             onChange={e => set("phone", formatBelarusPhone(e.target.value))}
             placeholder={PHONE_PLACEHOLDER}
-            className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+            className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40" />
         </div>
 
         {user.has_student_profile && (
           <div>
             <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Дата рождения</label>
             <input type="date" value={form.birthday} onChange={e => set("birthday", e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40" />
           </div>
         )}
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 space-y-3">
         <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-          <Send className="w-4 h-4 text-blue-400" /> Telegram
+          <Send className="w-4 h-4 text-brand" /> Telegram
         </h3>
         <div className="border-t border-slate-100 dark:border-slate-800" />
 
@@ -306,7 +306,7 @@ export default function Profile() {
               ⚠️ Не подключён{waitingLink ? ' — ожидаем привязку…' : ''}
             </p>
             <button type="button" onClick={handleTelegramLink} disabled={linking}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-700 text-sm font-medium rounded-xl hover:bg-blue-100 transition-colors disabled:opacity-50">
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-soft text-brand text-sm font-medium rounded-xl hover:bg-brand-muted transition-colors disabled:opacity-50">
               {linking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
               Привязать Telegram
             </button>
@@ -317,14 +317,14 @@ export default function Profile() {
       {user.role === "teacher" && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 space-y-3" data-testid="teacher-invite-profile-block">
           <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-            <Users className="w-4 h-4 text-indigo-400" /> Ссылка для регистрации учеников
+            <Users className="w-4 h-4 text-brand" /> Ссылка для регистрации учеников
           </h3>
           <div className="border-t border-slate-100 dark:border-slate-800" />
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Отправьте ссылку ученику. После регистрации и подтверждения email он автоматически закрепится за вами.
           </p>
           {inviteUrl ? (
-            <p className="text-xs break-all text-indigo-700 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg px-3 py-2" data-testid="teacher-invite-profile-url">
+            <p className="text-xs break-all text-brand bg-brand-soft dark:bg-brand-soft/40 rounded-lg px-3 py-2" data-testid="teacher-invite-profile-url">
               {inviteUrl}
             </p>
           ) : (
@@ -338,7 +338,7 @@ export default function Profile() {
                 type="button"
                 onClick={ensureTeacherInvite}
                 disabled={inviteBusy}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground text-sm font-medium rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50"
                 data-testid="teacher-invite-profile-create"
               >
                 {inviteBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
@@ -361,7 +361,7 @@ export default function Profile() {
 
       <div className="flex justify-end">
         <button onClick={handleSave} disabled={saving}
-          className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+          className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground text-sm font-medium rounded-xl hover:bg-primary/90 disabled:opacity-50 transition-colors">
           {saved
             ? <><CheckCircle2 className="w-4 h-4" /> Сохранено!</>
             : saving

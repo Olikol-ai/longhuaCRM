@@ -13,6 +13,26 @@ export class ScheduleAccessService {
     return this.teacherAccess.isAdmin(actor);
   }
 
+  async assertCanWriteTeacherSchedule(
+    actor: DomainAccessActor,
+    teacherId: string,
+  ): Promise<void> {
+    if (this.isAdmin(actor)) {
+      return;
+    }
+
+    const role = normalizeRole(actor.role);
+    if (role === 'teacher') {
+      const ownTeacherId = await this.teacherAccess.resolveTeacherId(actor);
+      if (!ownTeacherId || ownTeacherId !== teacherId) {
+        throw new ForbiddenException('Cannot modify another teacher schedule');
+      }
+      return;
+    }
+
+    throw new ForbiddenException('Forbidden');
+  }
+
   async assertCanAccessTeacherSchedule(
     actor: DomainAccessActor,
     teacherId: string,

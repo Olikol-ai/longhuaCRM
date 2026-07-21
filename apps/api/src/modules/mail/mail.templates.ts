@@ -1,5 +1,6 @@
-const BRAND_COLOR = '#4f46e5';
-const BRAND_NAME = 'Longhua Chinese';
+const BRAND_COLOR = '#8B1A1A';
+const BRAND_ACCENT = '#C9A227';
+const BRAND_NAME = 'Longhua Academy';
 
 function layout(content: string): string {
   return `<!DOCTYPE html>
@@ -9,14 +10,14 @@ function layout(content: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${BRAND_NAME}</title>
 </head>
-<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f1f5f9;padding:32px 16px;">
+<body style="margin:0;padding:0;background:#f7f5f2;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f7f5f2;padding:32px 16px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,0.08);">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(26,18,18,0.08);">
           <tr>
-            <td style="background:${BRAND_COLOR};padding:28px 32px;text-align:center;">
-              <div style="width:48px;height:48px;margin:0 auto 12px;background:rgba(255,255,255,0.2);border-radius:12px;line-height:48px;font-size:24px;">📚</div>
+            <td style="background:${BRAND_COLOR};padding:28px 32px;text-align:center;border-bottom:3px solid ${BRAND_ACCENT};">
+              <div style="width:48px;height:48px;margin:0 auto 12px;background:rgba(201,162,39,0.25);border-radius:12px;line-height:48px;font-size:24px;border:1px solid ${BRAND_ACCENT};">📚</div>
               <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.02em;">${BRAND_NAME}</h1>
             </td>
           </tr>
@@ -26,7 +27,7 @@ function layout(content: string): string {
             </td>
           </tr>
           <tr>
-            <td style="padding:20px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;">
+            <td style="padding:20px 32px;background:#f8fafc;border-top:1px solid #e8e0d8;text-align:center;">
               <p style="margin:0;font-size:12px;color:#94a3b8;">© ${new Date().getFullYear()} ${BRAND_NAME}</p>
             </td>
           </tr>
@@ -56,13 +57,13 @@ export function verificationCodeEmail(code: string): { subject: string; text: st
   const html = layout(`
     <p style="margin:0 0 16px;font-size:15px;color:#334155;line-height:1.6;">Здравствуйте!</p>
     <p style="margin:0 0 8px;font-size:15px;color:#334155;line-height:1.6;font-weight:600;">Ваш код подтверждения:</p>
-    <div style="background:#eef2ff;border:2px solid #c7d2fe;border-radius:12px;padding:24px;text-align:center;margin-bottom:20px;">
+    <div style="background:#f7f5f2;border:2px solid ${BRAND_ACCENT};border-radius:12px;padding:24px;text-align:center;margin-bottom:20px;">
       <p style="margin:0;font-size:36px;font-weight:700;color:${BRAND_COLOR};letter-spacing:8px;font-family:monospace;">${code}</p>
     </div>
     <p style="margin:0 0 12px;font-size:14px;color:#475569;line-height:1.6;">
       Код действителен <strong>15 минут</strong>.
     </p>
-    <p style="margin:0 0 12px;font-size:13px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px;line-height:1.5;">
+    <p style="margin:0 0 12px;font-size:13px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px;line-height:1.5;">
       ⚠️ Никому не сообщайте этот код. Сотрудники ${BRAND_NAME} никогда не запрашивают его.
     </p>
     <p style="margin:0;font-size:13px;color:#64748b;line-height:1.5;">
@@ -78,7 +79,7 @@ export function passwordResetEmail(resetUrl: string): { subject: string; text: s
   const text = [
     'Здравствуйте!',
     '',
-    'Вы запросили восстановление пароля в Longhua Chinese.',
+    `Вы запросили восстановление пароля в ${BRAND_NAME}.`,
     '',
     'Перейдите по ссылке, чтобы задать новый пароль:',
     resetUrl,
@@ -95,7 +96,7 @@ export function passwordResetEmail(resetUrl: string): { subject: string; text: s
       Вы запросили восстановление пароля. Нажмите кнопку ниже, чтобы задать новый пароль.
     </p>
     <p style="margin:0 0 24px;text-align:center;">
-      <a href="${safeUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:14px 28px;border-radius:10px;">
+      <a href="${safeUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:14px 28px;border-radius:10px;border-bottom:3px solid ${BRAND_ACCENT};">
         Задать новый пароль
       </a>
     </p>
@@ -119,18 +120,18 @@ export function smtpTestEmail(): { subject: string; text: string; html: string }
   const text = [
     'Поздравляем!',
     '',
-    'Если вы получили это письмо — SMTP Яндекса успешно настроен.',
+    'Если вы получили это письмо — SMTP успешно настроен.',
   ].join('\n');
 
   const html = layout(`
-    <h2 style="margin:0 0 16px;font-size:20px;color:#0f172a;font-weight:700;">Поздравляем!</h2>
-    <div style="background:linear-gradient(135deg,#ecfdf5 0%,#d1fae5 100%);border:1px solid #6ee7b7;border-radius:12px;padding:24px;margin-bottom:20px;">
-      <p style="margin:0;font-size:16px;color:#065f46;line-height:1.6;font-weight:500;">
-        Если вы получили это письмо — SMTP Яндекса успешно настроен.
+    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1212;font-weight:700;">Поздравляем!</h2>
+    <div style="background:linear-gradient(135deg,#f7f5f2 0%,#fff7e6 100%);border:1px solid ${BRAND_ACCENT};border-radius:12px;padding:24px;margin-bottom:20px;">
+      <p style="margin:0;font-size:16px;color:#6b1212;line-height:1.6;font-weight:500;">
+        Если вы получили это письмо — SMTP успешно настроен.
       </p>
     </div>
     <p style="margin:0;font-size:14px;color:#64748b;line-height:1.5;">
-      Это тестовое письмо отправлено из Longhua CRM для проверки почтовой конфигурации.
+      Это тестовое письмо отправлено из ${BRAND_NAME} для проверки почтовой конфигурации.
     </p>
   `);
 

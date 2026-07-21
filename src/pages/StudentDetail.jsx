@@ -98,7 +98,7 @@ export default function StudentDetail() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand" />
       </div>
     );
   }
@@ -133,8 +133,8 @@ export default function StudentDetail() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-4">
-          <div className="h-14 w-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center">
-            <span className="text-xl font-bold text-indigo-600">{student.name[0].toUpperCase()}</span>
+          <div className="h-14 w-14 rounded-2xl bg-brand-soft dark:bg-brand-soft/40 flex items-center justify-center">
+            <span className="text-xl font-bold text-brand">{student.name[0].toUpperCase()}</span>
           </div>
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{student.name}</h1>
@@ -157,7 +157,7 @@ export default function StudentDetail() {
             <CreditCard className="h-4 w-4 mr-2" />
             Добавить платёж
           </Button>
-          <Button onClick={() => setShowEditForm(true)} className="bg-indigo-600 hover:bg-indigo-700">
+          <Button onClick={() => setShowEditForm(true)} className="bg-primary hover:bg-primary/90">
             <Pencil className="h-4 w-4 mr-2" />
             Изменить
           </Button>
@@ -193,7 +193,7 @@ export default function StudentDetail() {
       {enrollmentProgress.length > 0 && (
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-indigo-600" />
+            <TrendingUp className="h-5 w-5 text-brand" />
             Прогресс по курсам
           </h2>
           <div className="grid gap-4">
@@ -231,9 +231,9 @@ export default function StudentDetail() {
                         <p className="text-xs text-amber-700">Пропущено</p>
                         <p className="text-lg font-semibold text-amber-800">{missed}</p>
                       </div>
-                      <div className="rounded-lg bg-blue-50 p-3 border border-blue-100">
-                        <p className="text-xs text-blue-700">Осталось</p>
-                        <p className="text-lg font-semibold text-blue-800">{remaining}</p>
+                      <div className="rounded-lg bg-brand-soft p-3 border border-brand/20">
+                        <p className="text-xs text-brand">Осталось</p>
+                        <p className="text-lg font-semibold text-brand">{remaining}</p>
                       </div>
                       <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-3 border border-slate-200 dark:border-slate-700">
                         <p className="text-xs text-slate-500 dark:text-slate-400">Всего</p>
@@ -278,7 +278,7 @@ export default function StudentDetail() {
                           l.status === "completed" ? "bg-emerald-50 text-emerald-700" :
                           l.status === "cancelled" ? "bg-red-50 text-red-700" :
                           l.status === "rescheduled" ? "bg-amber-50 text-amber-700" :
-                          "bg-blue-50 text-blue-700"
+                          "bg-brand-soft text-brand"
                         }>
                           {l.status}
                         </Badge>

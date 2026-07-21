@@ -62,7 +62,7 @@ export default function TeacherAssessmentResults() {
         <div>
           <Link
             to={createPageUrl('TeacherAssessment')}
-            className="text-xs text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400"
+            className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
           >
             ← Мои экзамены
           </Link>
@@ -142,7 +142,7 @@ export default function TeacherAssessmentResults() {
 
       {loading ? (
         <div className="flex justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+          <Loader2 className="h-6 w-6 animate-spin text-brand" />
         </div>
       ) : results.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-10 text-center text-slate-500">

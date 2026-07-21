@@ -31,7 +31,7 @@ export default function AssessmentResultDetail() {
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand" />
       </div>
     );
   }
@@ -56,7 +56,7 @@ export default function AssessmentResultDetail() {
       <div>
         <Link
           to={createPageUrl('AssessmentResults')}
-          className="text-xs text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400"
+          className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
         >
           ← Результаты
         </Link>

@@ -22,6 +22,15 @@ LonghuaCRM — монорепозиторий CRM для языковой шко
 Интеграции: SMTP (Nodemailer), Telegram Bot (webhook), Alfa Bank (опционально)
 ```
 
+## Хранение данных
+
+- CRM entities — **relational** (PostgreSQL + TypeORM migrations).
+- Teacher availability — таблица `teacher_availability_slots` (не `slots jsonb`).
+- Assessment — snapshot-таблицы `assessment_*_snapshots` (не JSON blob).
+- **JSONB не используется** для бизнес-сущностей.
+
+Подробно: [architecture/storage-policy.md](./architecture/storage-policy.md), [Database.md](./Database.md).
+
 ## Структура репозитория
 
 ```

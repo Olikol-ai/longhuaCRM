@@ -1,3 +1,8 @@
+> **HISTORICAL / COMPLETED (JSONB migration finished).**
+> This file describes an earlier plan/audit that mentioned `data jsonb`, `slots jsonb`, or legacy JSON storage.
+> **Current architecture:** relational CRM entities; TeacherAvailability via `teacher_availability_slots`; Assessment via snapshot tables; **no JSONB for business entities**.
+> See [../../Database.md](../../Database.md) and [../../architecture/storage-policy.md](../../architecture/storage-policy.md).
+
 # Спецификация этапа 7: Testing Strategy
 
 **Roadmap:** [07-testing.md](../07-testing.md)  

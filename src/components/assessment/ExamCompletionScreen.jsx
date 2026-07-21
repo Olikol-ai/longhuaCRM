@@ -80,11 +80,11 @@ export default function ExamCompletionScreen({ result, examTitle, onBack }) {
 
         <div className="pt-2">
           {onBack ? (
-            <Button className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700" onClick={onBack}>
+            <Button className="w-full sm:w-auto bg-primary hover:bg-primary/90" onClick={onBack}>
               К списку экзаменов
             </Button>
           ) : (
-            <Button asChild className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700">
+            <Button asChild className="w-full sm:w-auto bg-primary hover:bg-primary/90">
               <Link to={createPageUrl('StudentExams')}>К списку экзаменов</Link>
             </Button>
           )}

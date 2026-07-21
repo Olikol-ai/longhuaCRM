@@ -76,7 +76,7 @@ export default function ExamAssignmentCard({
         <div className="flex flex-col sm:items-end gap-2 shrink-0 w-full sm:w-auto">
           {card.status === EXAM_UI_STATUS.NOT_STARTED && (
             <Button
-              className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700"
+              className="w-full sm:w-auto bg-primary hover:bg-primary/90"
               disabled={busy}
               onClick={() => onStart?.(card)}
             >

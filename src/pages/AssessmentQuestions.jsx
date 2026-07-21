@@ -31,6 +31,7 @@ import { toast } from '@/components/ui/use-toast';
 import { createPageUrl } from '@/utils';
 import { useAssessmentBanks } from '@/hooks/useAssessmentBanks';
 import { useAssessmentQuestions } from '@/hooks/useAssessmentQuestions';
+import { useAuth } from '@/lib/AuthContext';
 import {
   QUESTION_TYPE_LABEL,
   QUESTION_TYPES,
@@ -38,6 +39,7 @@ import {
 } from '@/lib/assessment-admin';
 
 export default function AssessmentQuestions() {
+  const { user } = useAuth();
   const [bankId, setBankId] = useState('');
   const [type, setType] = useState('');
   const [status, setStatus] = useState('');
@@ -45,12 +47,19 @@ export default function AssessmentQuestions() {
   const [searchApplied, setSearchApplied] = useState('');
 
   const { banks } = useAssessmentBanks();
-  const { questions, loading, error, reload } = useAssessmentQuestions({
+  const { questions, loading, error, reload, removeQuestion } = useAssessmentQuestions({
     bankId,
     type,
     status,
     search: searchApplied,
   });
+
+  const isAdmin = user?.role === 'admin';
+  const canDeleteQuestion = (question) =>
+    isAdmin ||
+    (Boolean(user?.id) &&
+      Boolean(question?.created_by_user_id) &&
+      question.created_by_user_id === user.id);
 
   const bankNameById = useMemo(() => {
     const map = new Map();
@@ -76,7 +85,8 @@ export default function AssessmentQuestions() {
     setDialogOpen(true);
   };
 
-  const runLifecycle = async () => {
+  const runLifecycle = async (event) => {
+    event?.preventDefault?.();
     const action = confirmAction;
     if (!action?.question) return;
     const { question, type: actionType } = action;
@@ -85,15 +95,19 @@ export default function AssessmentQuestions() {
       if (actionType === 'publish') {
         await api.assessment.publishQuestion(question.id);
         toast({ title: 'Вопрос опубликован' });
+        setConfirmAction(null);
+        reload();
       } else if (actionType === 'archive') {
         await api.assessment.archiveQuestion(question.id);
         toast({ title: 'Вопрос архивирован' });
+        setConfirmAction(null);
+        reload();
       } else if (actionType === 'delete') {
         await api.assessment.deleteQuestion(question.id);
-        toast({ title: 'Вопрос удалён' });
+        setConfirmAction(null);
+        removeQuestion(question.id);
+        toast({ title: 'Вопрос успешно удалён.' });
       }
-      setConfirmAction(null);
-      reload();
     } catch (err) {
       toast({
         title: 'Операция не выполнена',
@@ -109,14 +123,17 @@ export default function AssessmentQuestions() {
     publish: {
       title: 'Опубликовать вопрос?',
       description: 'После публикации вопрос станет доступен для экзаменов.',
+      confirmLabel: 'Подтвердить',
     },
     archive: {
       title: 'Архивировать вопрос?',
       description: 'Вопрос будет переведён в архив и недоступен для новых экзаменов.',
+      confirmLabel: 'Подтвердить',
     },
     delete: {
       title: 'Удалить вопрос?',
-      description: 'Удаление возможно только для черновиков. Это действие необратимо.',
+      description: 'Это действие нельзя отменить.',
+      confirmLabel: 'Удалить',
     },
   };
 
@@ -126,7 +143,7 @@ export default function AssessmentQuestions() {
         <div>
           <Link
             to={createPageUrl('AdminAssessment')}
-            className="text-xs text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400"
+            className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
           >
             ← Экзамены
           </Link>
@@ -143,7 +160,7 @@ export default function AssessmentQuestions() {
             Обновить
           </Button>
           <Button
-            className="bg-indigo-600 hover:bg-indigo-700"
+            className="bg-primary hover:bg-primary/90"
             size="sm"
             onClick={openCreate}
             disabled={banks.length === 0}
@@ -235,7 +252,7 @@ export default function AssessmentQuestions() {
 
       {loading ? (
         <div className="flex justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+          <Loader2 className="h-6 w-6 animate-spin text-brand" />
         </div>
       ) : questions.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-10 text-center space-y-3">
@@ -247,7 +264,7 @@ export default function AssessmentQuestions() {
             Измените фильтры или создайте новый вопрос.
           </p>
           <Button
-            className="bg-indigo-600 hover:bg-indigo-700"
+            className="bg-primary hover:bg-primary/90"
             onClick={openCreate}
             disabled={banks.length === 0}
           >
@@ -265,7 +282,7 @@ export default function AssessmentQuestions() {
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0 space-y-2 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs rounded-full px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300">
+                    <span className="text-xs rounded-full px-2 py-0.5 bg-brand-soft dark:bg-brand-soft/40 text-brand dark:text-brand">
                       {QUESTION_TYPE_LABEL[q.type] || q.type}
                     </span>
                     <LifecycleBadge status={q.status} />
@@ -305,18 +322,6 @@ export default function AssessmentQuestions() {
                         <Send className="h-3.5 w-3.5 mr-1" />
                         Опубликовать
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-rose-600"
-                        disabled={busyId === q.id}
-                        onClick={() =>
-                          setConfirmAction({ type: 'delete', question: q })
-                        }
-                      >
-                        <Trash2 className="h-3.5 w-3.5 mr-1" />
-                        Удалить
-                      </Button>
                     </>
                   ) : (
                     <Button
@@ -326,6 +331,20 @@ export default function AssessmentQuestions() {
                     >
                       <Eye className="h-3.5 w-3.5 mr-1" />
                       Просмотр
+                    </Button>
+                  )}
+                  {canDeleteQuestion(q) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-rose-600"
+                      disabled={busyId === q.id}
+                      onClick={() =>
+                        setConfirmAction({ type: 'delete', question: q })
+                      }
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-1" />
+                      Удалить
                     </Button>
                   )}
                   {q.status !== 'archived' && (
@@ -379,7 +398,9 @@ export default function AssessmentQuestions() {
           <AlertDialogFooter>
             <AlertDialogCancel>Отмена</AlertDialogCancel>
             <AlertDialogAction disabled={!!busyId} onClick={runLifecycle}>
-              {busyId ? "Выполнение…" : "Подтвердить"}
+              {busyId
+                ? 'Выполнение…'
+                : confirmCopy[confirmAction?.type]?.confirmLabel || 'Подтвердить'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

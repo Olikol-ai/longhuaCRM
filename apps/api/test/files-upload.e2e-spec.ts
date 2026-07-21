@@ -104,4 +104,65 @@ describeE2E('Secure files upload (e2e)', () => {
     expect(materialRes.body.file_url).toBe(uploadRes.body.url);
     expect(materialRes.body.title).toBe('Uploaded Worksheet');
   });
+
+  it('streams signed material PDF as binary (not serialized StreamableFile JSON)', async () => {
+    const courseRes = await api(app)
+      .post('/api/courses')
+      .set(authHeader(adminToken))
+      .send({ name: `Signed Stream Course ${Date.now()}`, courseType: 'basic_beginner' })
+      .expect(201);
+
+    const folderRes = await api(app)
+      .post('/api/materials/folders')
+      .set(authHeader(adminToken))
+      .send({ name: 'Signed Folder', courseTemplateId: courseRes.body.id })
+      .expect(201);
+
+    const pdfBytes = Buffer.from('%PDF-1.4 signed-stream-smoke');
+    const uploadRes = await api(app)
+      .post('/api/files/upload')
+      .set(authHeader(adminToken))
+      .attach('file', pdfBytes, 'signed-smoke.pdf')
+      .expect(201);
+
+    const materialRes = await api(app)
+      .post('/api/materials')
+      .set(authHeader(adminToken))
+      .send({
+        folderId: folderRes.body.id,
+        title: 'Signed Smoke PDF',
+        fileUrl: uploadRes.body.url,
+        fileType: 'pdf',
+      })
+      .expect(201);
+
+    const urlRes = await api(app)
+      .get(`/api/files/material/${materialRes.body.id}/url`)
+      .set(authHeader(adminToken))
+      .expect(200);
+
+    expect(urlRes.body.url).toMatch(/^\/api\/files\/signed\//);
+
+    const streamRes = await api(app).get(urlRes.body.url).buffer(true).parse((res, cb) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+      res.on('end', () => cb(null, Buffer.concat(chunks)));
+    });
+
+    expect(streamRes.status).toBe(200);
+    expect(String(streamRes.headers['content-type'] || '')).toMatch(/application\/pdf/i);
+    expect(String(streamRes.headers['content-disposition'] || '')).toMatch(/inline/i);
+    expect(String(streamRes.headers['content-disposition'] || '')).toMatch(/filename=/i);
+
+    const body = streamRes.body as Buffer;
+    expect(Buffer.isBuffer(body)).toBe(true);
+    expect(body.toString('utf8')).toContain('%PDF-1.4');
+    expect(body.toString('utf8')).not.toContain('"options"');
+    expect(body.toString('utf8')).not.toContain('"stream"');
+  });
+
+  it('rejects invalid signed token', async () => {
+    const res = await api(app).get('/api/files/signed/not-a-valid.token');
+    expect(res.status).toBe(401);
+  });
 });

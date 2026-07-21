@@ -114,30 +114,50 @@ export default function GroupDetail() {
   const seriesList = workspace?.series ?? [];
   const activeSeries = workspace?.active_series ?? workspace?.activeSeries;
 
-  const memberStudents = useMemo(
-    () => members.map((m) => students.find((s) => s.id === (m.student_id ?? m.studentId))).filter(Boolean),
-    [members, students],
+  const memberStudentIds = useMemo(
+    () => new Set(members.map((m) => m.student_id ?? m.studentId).filter(Boolean)),
+    [members],
+  );
+
+  const availableStudents = useMemo(
+    () =>
+      students.filter(
+        (s) => s.status !== "inactive" && !memberStudentIds.has(s.id),
+      ),
+    [students, memberStudentIds],
   );
 
   const handleAddMember = async () => {
-    if (!memberStudentId) return;
+    if (!memberStudentId) {
+      toast({ title: "Выберите ученика", variant: "destructive" });
+      return;
+    }
     try {
       await api.groups.addMember(groupId, memberStudentId);
       setMemberStudentId("");
       await load();
       toast({ title: "Ученик добавлен в группу" });
     } catch (err) {
-      toast({ title: "Ошибка", description: err.message, variant: "destructive" });
+      toast({
+        title: "Не удалось добавить ученика",
+        description: err.message,
+        variant: "destructive",
+      });
     }
   };
 
   const handleRemoveMember = async (memberId) => {
-    if (!window.confirm("Удалить ученика из группы?")) return;
+    if (!window.confirm("Удалить ученика из группы? Сам ученик останется в системе.")) return;
     try {
       await api.groups.removeMember(groupId, memberId);
       await load();
+      toast({ title: "Ученик удалён из группы" });
     } catch (err) {
-      toast({ title: "Ошибка", description: err.message, variant: "destructive" });
+      toast({
+        title: "Не удалось удалить ученика",
+        description: err.message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -219,7 +239,7 @@ export default function GroupDetail() {
     return (
       <div className="p-6 space-y-4">
         <p className="text-sm text-red-600">Группа не найдена</p>
-        <Link to="/Groups" className="text-sm text-indigo-600 hover:underline">← К списку групп</Link>
+        <Link to="/Groups" className="text-sm text-brand hover:underline">← К списку групп</Link>
       </div>
     );
   }
@@ -253,7 +273,7 @@ export default function GroupDetail() {
             onClick={() => setActiveTab(tab.id)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               activeTab === tab.id
-                ? "bg-indigo-600 text-white"
+                ? "bg-primary text-primary-foreground"
                 : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
             }`}
           >
@@ -282,7 +302,7 @@ export default function GroupDetail() {
                 <ul className="text-sm space-y-1">
                   {(activeSeries.slots ?? []).map((slot) => (
                     <li key={slot.id ?? `${slot.day_of_week}-${slot.start_time}`} className="flex items-center gap-2">
-                      <Clock className="h-3.5 w-3.5 text-indigo-500" /> {formatSlot(slot)}
+                      <Clock className="h-3.5 w-3.5 text-brand" /> {formatSlot(slot)}
                     </li>
                   ))}
                 </ul>
@@ -296,42 +316,85 @@ export default function GroupDetail() {
 
       {activeTab === "students" && (
         <div className="border rounded-xl p-4 bg-card space-y-4">
-          <h3 className="font-semibold flex items-center gap-2"><Users className="h-4 w-4" /> Ученики группы</h3>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-semibold flex items-center gap-2">
+              <Users className="h-4 w-4" /> Ученики группы
+            </h3>
+            <p className="text-xs text-muted-foreground">{members.length} в составе</p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2">
             <select
               className="border rounded-lg px-3 py-2 text-sm flex-1 bg-background border-input"
               value={memberStudentId}
               onChange={(e) => setMemberStudentId(e.target.value)}
             >
               <option value="">Выберите ученика</option>
-              {students.filter((s) => s.status !== "inactive").map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
+              {availableStudents.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name || "Без имени"}
+                  {s.email ? ` · ${s.email}` : ""}
+                </option>
               ))}
             </select>
             <button
               type="button"
               onClick={handleAddMember}
-              className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm flex items-center gap-1"
+              disabled={!memberStudentId}
+              className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm flex items-center justify-center gap-1 disabled:opacity-60"
             >
-              <UserPlus className="h-4 w-4" /> Добавить
+              <UserPlus className="h-4 w-4" /> Добавить ученика
             </button>
           </div>
-          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-            {members.map((member) => (
-              <li key={member.id} className="flex items-center justify-between py-2">
-                <span className="text-sm font-medium">
-                  {resolveStudentLabel(member.student_id ?? member.studentId, students)}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveMember(member.id)}
-                  className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </li>
-            ))}
-          </ul>
+
+          {members.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              В группе пока нет учеников. Добавьте первого выше.
+            </p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-slate-100 dark:border-slate-800">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 dark:bg-slate-800/60 text-left text-xs text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Имя</th>
+                    <th className="px-3 py-2 font-medium">Email</th>
+                    <th className="px-3 py-2 font-medium">Статус</th>
+                    <th className="px-3 py-2 font-medium w-24">Действия</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {members.map((member) => {
+                    const student = students.find(
+                      (s) => s.id === (member.student_id ?? member.studentId),
+                    );
+                    return (
+                      <tr key={member.id}>
+                        <td className="px-3 py-2 font-medium">
+                          {student?.name
+                            || resolveStudentLabel(member.student_id ?? member.studentId, students)}
+                        </td>
+                        <td className="px-3 py-2 text-muted-foreground">
+                          {student?.email || "—"}
+                        </td>
+                        <td className="px-3 py-2">
+                          {student?.status || "—"}
+                        </td>
+                        <td className="px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMember(member.id)}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-md"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Удалить
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -423,7 +486,7 @@ export default function GroupDetail() {
               <button
                 type="button"
                 onClick={addSlot}
-                className="text-sm text-indigo-600 hover:underline inline-flex items-center gap-1"
+                className="text-sm text-brand hover:underline inline-flex items-center gap-1"
               >
                 <Plus className="h-4 w-4" /> Добавить день
               </button>
@@ -433,7 +496,7 @@ export default function GroupDetail() {
               type="button"
               onClick={handleCreateSeries}
               disabled={creatingSeries}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm disabled:opacity-60"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm disabled:opacity-60"
             >
               {creatingSeries ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarRange className="h-4 w-4" />}
               Создать уроки по расписанию
@@ -454,7 +517,7 @@ export default function GroupDetail() {
                   <button
                     type="button"
                     onClick={() => setExpandedLessonId(expandedLessonId === lesson.id ? null : lesson.id)}
-                    className="text-sm font-medium text-left hover:text-indigo-700"
+                    className="text-sm font-medium text-left hover:text-brand"
                   >
                     {lesson.date} · {formatTime(lesson.start_time)} · {lesson.status}
                   </button>

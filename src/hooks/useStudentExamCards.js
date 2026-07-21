@@ -50,7 +50,7 @@ export function useStudentExamCards() {
           description:
             exam?.description ||
             (exam?.status === 'published'
-              ? 'Назначенный экзамен Longhua Chinese'
+              ? 'Назначенный экзамен Longhua Academy'
               : 'Экзамен'),
           assignedAt: assignment.valid_from || assignment.created_at,
           deadline: assignment.valid_to || exam?.available_to || null,

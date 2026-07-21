@@ -35,8 +35,8 @@ export default function ForgotPassword() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-3">
-            <BookOpen className="h-10 w-10 text-indigo-600" />
-            <h1 className="text-3xl font-bold text-foreground tracking-tight">Longhua Chinese</h1>
+            <BookOpen className="h-10 w-10 text-brand" />
+            <h1 className="text-3xl font-bold text-foreground tracking-tight">Longhua Academy</h1>
           </div>
           <p className="text-muted-foreground">Восстановление пароля</p>
         </div>
@@ -54,7 +54,7 @@ export default function ForgotPassword() {
               </p>
               <Link
                 to="/login"
-                className="block text-center text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+                className="block text-center text-sm font-medium text-brand hover:text-brand hover:underline"
               >
                 Вернуться ко входу
               </Link>
@@ -77,7 +77,7 @@ export default function ForgotPassword() {
               </div>
 
               {error && (
-                <p className="text-sm text-red-600 bg-red-50 dark:bg-red-950/30 p-3 rounded-lg">
+                <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
                   {error}
                 </p>
               )}
@@ -85,7 +85,7 @@ export default function ForgotPassword() {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-indigo-600 hover:bg-indigo-700"
+                className="w-full bg-primary hover:bg-primary/90"
                 data-testid="forgot-password-submit"
               >
                 {loading ? (
@@ -101,7 +101,7 @@ export default function ForgotPassword() {
               <div className="text-center">
                 <Link
                   to="/login"
-                  className="text-sm text-indigo-600 hover:text-indigo-700 hover:underline"
+                  className="text-sm text-brand hover:text-brand hover:underline"
                 >
                   Вернуться ко входу
                 </Link>

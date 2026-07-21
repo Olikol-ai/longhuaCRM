@@ -3,7 +3,7 @@ import { resolveLessonTeacherLabel } from "@/lib/teacherLabels";
 import { resolveLessonStudentLabel } from "@/lib/studentLabels";
 
 const statusStyles = {
-  planned: "bg-sky-50 text-sky-600 border-sky-100 dark:bg-sky-950/50 dark:text-sky-400 dark:border-sky-900/50",
+  planned: "bg-brand-soft text-brand border-brand/20 dark:bg-brand-soft/50 dark:text-brand dark:border-brand/40",
   completed: "bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-400 dark:border-emerald-900/50",
   cancelled: "bg-red-50 text-red-500 border-red-100 dark:bg-red-950/50 dark:text-red-400 dark:border-red-900/50",
   rescheduled: "bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-900/50",
@@ -31,7 +31,7 @@ export default function LessonRow({
 
   return (
     <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors group">
-      <div className="w-1 h-10 rounded-full bg-indigo-400 dark:bg-indigo-500 flex-shrink-0" />
+      <div className="w-1 h-10 rounded-full bg-brand dark:bg-brand flex-shrink-0" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium text-foreground">{title}</span>
@@ -48,7 +48,7 @@ export default function LessonRow({
               href={lesson.meeting_link}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
+              className="flex items-center gap-1 text-xs text-brand dark:text-brand hover:text-brand dark:hover:text-brand"
               onClick={(e) => e.stopPropagation()}
             >
               <Video className="w-3 h-3" /> Join

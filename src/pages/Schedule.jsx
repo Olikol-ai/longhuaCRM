@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { api } from '@/api';
 import { useAuth } from "@/lib/AuthContext";
 import {
@@ -16,7 +16,7 @@ import { resolveLessonTeacherLabel } from "@/lib/teacherLabels";
 import { resolveLessonStudentLabel } from "@/lib/studentLabels";
 
 export default function Schedule() {
-  const [view, setView] = useState("week");
+  const [view, setView] = useState("month");
   const [current, setCurrent] = useState(new Date());
   const [lessons, setLessons] = useState([]);
   const [teachers, setTeachers] = useState([]);
@@ -81,6 +81,12 @@ export default function Schedule() {
     return () => { cancelled = true; };
   }, [selectedTeacherId, lessons]);
 
+  // Lessons shown in month/week/day views — filtered by selected teacher when set.
+  const visibleLessons = useMemo(() => {
+    if (!selectedTeacherId) return lessons;
+    return lessons.filter((lesson) => lesson.teacher_id === selectedTeacherId);
+  }, [lessons, selectedTeacherId]);
+
   const navigate = (dir) => {
     if (view === "week") setCurrent(dir === "next" ? addWeeks(current, 1) : subWeeks(current, 1));
     else if (view === "month") setCurrent(dir === "next" ? addMonths(current, 1) : subMonths(current, 1));
@@ -108,12 +114,24 @@ export default function Schedule() {
   };
 
   const handleUpdate = async (id, data) => {
+    const previous = viewingLesson;
+    const timeChanged =
+      (data.date != null && data.date !== previous?.date) ||
+      (data.start_time != null &&
+        String(data.start_time).slice(0, 5) !== String(previous?.start_time || "").slice(0, 5)) ||
+      (data.duration != null && Number(data.duration) !== Number(previous?.duration || 60));
+
     try {
       await api.lessons.update(id, data);
       setViewingLesson(null);
       await load();
+      alert(
+        timeChanged
+          ? "Занятие успешно перенесено."
+          : "Информация о занятии обновлена.",
+      );
     } catch (err) {
-      alert(err.message || 'Не удалось обновить урок');
+      alert(err.message || 'Не удалось обновить урок. Проверьте свободный график и пересечения.');
     }
   };
 
@@ -128,7 +146,7 @@ export default function Schedule() {
   };
 
   const getLessonsForDay = (day) =>
-    lessons.filter(l => {
+    visibleLessons.filter(l => {
       try { return isSameDay(parseISO(l.date), day); } catch { return false; }
     }).sort((a, b) => a.start_time?.localeCompare(b.start_time));
 
@@ -183,7 +201,7 @@ export default function Schedule() {
           <button
             type="button"
             onClick={() => { setSelectedDate(format(current, "yyyy-MM-dd")); setShowModal(true); }}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 w-full sm:w-auto min-h-[40px]"
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 w-full sm:w-auto min-h-[40px]"
           >
             <Plus className="w-4 h-4" /> Новый урок
           </button>
@@ -197,7 +215,7 @@ export default function Schedule() {
         )}
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" />
           </div>
         ) : view === "month" ? (
           <MonthView current={current} teachers={teachers} students={students} getLessonsForDay={getLessonsForDay} onDayClick={(d) => {
@@ -246,7 +264,7 @@ export default function Schedule() {
 }
 
 const statusColors = {
-  planned: "bg-indigo-100 text-indigo-700 border-indigo-200",
+  planned: "bg-brand-muted text-brand border-brand/30",
   completed: "bg-emerald-100 text-emerald-700 border-emerald-200",
   cancelled: "bg-red-100 text-red-500 border-red-200",
   rescheduled: "bg-amber-100 text-amber-700 border-amber-200",
@@ -304,7 +322,7 @@ function MonthView({ current, teachers, students, getLessonsForDay, onDayClick, 
               }`}
             >
               <span className={`text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full mb-1 ${
-                isToday(day) ? "bg-indigo-600 text-white" : inMonth ? "text-slate-700 dark:text-slate-300" : "text-slate-300 dark:text-slate-600"
+                isToday(day) ? "bg-primary text-primary-foreground" : inMonth ? "text-slate-700 dark:text-slate-300" : "text-slate-300 dark:text-slate-600"
               }`}>
                 {format(day, "d")}
               </span>
@@ -378,10 +396,10 @@ function WeekView({ current, teachers, students, hours, getLessonsForDay, onSlot
       <div className="grid grid-cols-8 border-b border-slate-100 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900 z-10">
         <div className="py-3" />
         {days.map(day => (
-          <div key={day.toISOString()} className={`text-center py-3 ${isToday(day) ? "text-indigo-600" : ""}`}>
+          <div key={day.toISOString()} className={`text-center py-3 ${isToday(day) ? "text-brand" : ""}`}>
             <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">{format(day, "EEEEEE", { locale: ru })}</p>
             <span className={`text-sm font-bold mt-0.5 w-7 h-7 inline-flex items-center justify-center rounded-full ${
-              isToday(day) ? "bg-indigo-600 text-white" : "text-slate-700 dark:text-slate-300"
+              isToday(day) ? "bg-primary text-primary-foreground" : "text-slate-700 dark:text-slate-300"
             }`}>{format(day, "d")}</span>
           </div>
         ))}

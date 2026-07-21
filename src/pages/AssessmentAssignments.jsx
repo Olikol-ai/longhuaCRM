@@ -72,7 +72,7 @@ export default function AssessmentAssignments() {
         <div>
           <Link
             to={createPageUrl('AdminAssessment')}
-            className="text-xs text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400"
+            className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
           >
             ← Экзамены
           </Link>
@@ -89,7 +89,7 @@ export default function AssessmentAssignments() {
             Обновить
           </Button>
           <Button
-            className="bg-indigo-600 hover:bg-indigo-700"
+            className="bg-primary hover:bg-primary/90"
             size="sm"
             onClick={() => setCreateOpen(true)}
           >
@@ -124,7 +124,7 @@ export default function AssessmentAssignments() {
 
       {loading ? (
         <div className="flex justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+          <Loader2 className="h-6 w-6 animate-spin text-brand" />
         </div>
       ) : assignments.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-10 text-center space-y-3">
@@ -136,7 +136,7 @@ export default function AssessmentAssignments() {
             Назначьте опубликованный экзамен ученику или группе.
           </p>
           <Button
-            className="bg-indigo-600 hover:bg-indigo-700"
+            className="bg-primary hover:bg-primary/90"
             onClick={() => setCreateOpen(true)}
           >
             <Plus className="h-4 w-4 mr-2" />

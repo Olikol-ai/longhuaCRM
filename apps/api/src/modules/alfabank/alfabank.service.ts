@@ -675,19 +675,19 @@ export class AlfaBankService {
       msg =
         `🎉 Оплата успешно получена!\n\n` +
         `Вы записаны на курс:\n${itemName}\n\n` +
-        `Добро пожаловать в Longhua!`;
+        `Добро пожаловать в Longhua Academy!`;
     } else if (this.paymentsService.isPackagePayment(result.shopItem)) {
       msg =
         `🎉 Оплата успешно получена!\n\n` +
         `Абонемент: ${itemName}\n` +
         `Уроков добавлено: ${result.lessonsAdded ?? 0}\n` +
         `Новый баланс: ${student.lessonBalance ?? 0}\n\n` +
-        `Добро пожаловать в Longhua!`;
+        `Добро пожаловать в Longhua Academy!`;
     } else {
       msg =
         `🎉 Оплата успешно получена!\n\n` +
         `Сумма: ${(result.amount ?? 0).toFixed(2)} BYN\n\n` +
-        `Добро пожаловать в Longhua!`;
+        `Добро пожаловать в Longhua Academy!`;
     }
 
     this.telegramService.sendMessage(String(student.telegramId), msg).catch(() => undefined);

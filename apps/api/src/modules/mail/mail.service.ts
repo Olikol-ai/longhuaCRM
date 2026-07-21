@@ -177,7 +177,7 @@ export class MailService implements OnModuleInit {
     return (
       this.config.get<string>('mail.from') ??
       this.config.get<string>('mail.user') ??
-      'Longhua Chinese <noreply@localhost>'
+      'Longhua Academy <noreply@localhost>'
     );
   }
 

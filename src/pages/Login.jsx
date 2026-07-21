@@ -88,8 +88,8 @@ export default function Login() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-3">
-            <BookOpen className="h-10 w-10 text-indigo-600" />
-            <h1 className="text-3xl font-bold text-foreground tracking-tight">Longhua Chinese</h1>
+            <BookOpen className="h-10 w-10 text-brand" />
+            <h1 className="text-3xl font-bold text-foreground tracking-tight">Longhua Academy</h1>
           </div>
           <p className="text-muted-foreground">Платформа управления языковой школой</p>
         </div>
@@ -120,7 +120,7 @@ export default function Login() {
             {mode === 'register' && (
               <>
                 {inviteToken && (
-                  <p className="text-xs text-indigo-700 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg px-3 py-2">
+                  <p className="text-xs text-brand bg-brand-soft dark:bg-brand-soft/40 rounded-lg px-3 py-2">
                     Регистрация по приглашению преподавателя. После подтверждения email вы будете закреплены за ним.
                   </p>
                 )}
@@ -134,14 +134,14 @@ export default function Login() {
                 </div>
                 {!inviteToken && (
                   <label
-                    className="flex items-start gap-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-950/30 px-3 py-3 cursor-pointer"
+                    className="flex items-start gap-3 rounded-xl border border-amber-300 dark:border-amber-800 bg-brand-soft/70 dark:bg-brand-soft/30 px-3 py-3 cursor-pointer"
                     data-testid="register-wants-student-label"
                   >
                     <input
                       type="checkbox"
                       checked={wantsStudentRole}
                       onChange={(e) => setWantsStudentRole(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500"
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-brand focus:ring-brand"
                       data-testid="register-wants-student"
                     />
                     <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 text-left">
@@ -179,13 +179,13 @@ export default function Login() {
             </div>
 
             {error && (
-              <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 p-3 rounded-lg">{error}</p>
+              <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">{error}</p>
             )}
 
             <Button
               type="submit"
               disabled={loading}
-              className="w-full bg-indigo-600 hover:bg-indigo-700"
+              className="w-full bg-primary hover:bg-primary/90"
             >
               {loading ? (
                 <>
@@ -203,7 +203,7 @@ export default function Login() {
               <div className="text-center pt-1">
                 <Link
                   to="/forgot-password"
-                  className="text-sm text-indigo-600 hover:underline"
+                  className="text-sm text-brand hover:underline"
                   data-testid="forgot-password-link"
                 >
                   Забыли пароль?

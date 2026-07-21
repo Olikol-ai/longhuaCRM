@@ -24,6 +24,7 @@ import {
 } from '../telegram/telegram-messages';
 import { TelegramGateway } from '../telegram/telegram.gateway';
 import { UserEntity } from '../users/entities/user.entity';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   LessonConfirmationEntity,
   LessonConfirmationStatus,
@@ -53,12 +54,99 @@ export class LessonConfirmationService {
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
     private readonly gateway: TelegramGateway,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async findConfirmationById(
     id: string,
   ): Promise<LessonConfirmationEntity | null> {
     return this.confirmationRepo.findOne({ where: { id } });
+  }
+
+  async findConfirmedStudentIdsForLesson(lessonId: string): Promise<string[]> {
+    const rows = await this.confirmationRepo.find({
+      where: {
+        lessonId,
+        status: LessonConfirmationStatus.CONFIRMED,
+      },
+      select: ['studentId'],
+    });
+    return rows.map((row) => row.studentId);
+  }
+
+  /**
+   * After a time reschedule: CONFIRMED → PENDING and re-send Confirm/Decline.
+   * Old confirmation must not apply to the new slot.
+   */
+  async resetConfirmedAndRerequest(
+    lesson: LessonEntity,
+    studentIds: string[],
+  ): Promise<void> {
+    if (!this.isIndividualLesson(lesson) || studentIds.length === 0) {
+      return;
+    }
+
+    for (const studentId of studentIds) {
+      const confirmation = await this.findByLessonAndStudent(lesson.id, studentId);
+      if (
+        !confirmation ||
+        confirmation.status !== LessonConfirmationStatus.CONFIRMED
+      ) {
+        continue;
+      }
+
+      confirmation.status = LessonConfirmationStatus.PENDING;
+      confirmation.confirmedAt = null;
+      confirmation.declinedAt = null;
+      confirmation.declineReason = null;
+      confirmation.requestedAt = null;
+      await this.confirmationRepo.save(confirmation);
+
+      const student = await this.studentRepo.findOne({ where: { id: studentId } });
+      if (!student) {
+        this.logger.warn(
+          `Skip confirmation re-request: student ${studentId} not found`,
+        );
+        continue;
+      }
+
+      const chatId = await this.resolveStudentChatId(student);
+      if (chatId) {
+        confirmation.telegramChatId = chatId;
+        await this.confirmationRepo.save(confirmation);
+      }
+
+      const sent = await this.sendConfirmationMessage(confirmation, lesson, student);
+      if (sent) {
+        confirmation.requestedAt = new Date();
+        await this.confirmationRepo.save(confirmation);
+      } else {
+        this.logger.warn(
+          `Confirmation ${confirmation.id} reset to PENDING but Telegram re-request failed`,
+        );
+      }
+
+      if (student.userId) {
+        try {
+          await this.notifications.create({
+            userId: student.userId,
+            channel: 'in_app',
+            type: 'lesson_confirmation_rerequest',
+            title: 'Подтвердите занятие',
+            body: 'Время занятия изменилось. Пожалуйста, подтвердите участие заново.',
+            status: 'sent',
+            referenceType: 'lesson',
+            referenceId: lesson.id,
+          });
+        } catch (err) {
+          this.logger.warn(
+            `Failed in-app reconfirm notify for student ${studentId}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        }
+      }
+    }
   }
 
   async findByLessonAndStudent(

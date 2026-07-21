@@ -136,6 +136,12 @@ export class AssessmentExamRepository {
     });
   }
 
+  /** True when the live question is attached to at least one Exam (RESTRICT on delete). */
+  async isQuestionUsedInExams(questionId: string): Promise<boolean> {
+    const count = await this.examQuestionRepo.count({ where: { questionId } });
+    return count > 0;
+  }
+
   /** Replace exam questions only (sections must already exist). */
   async replaceExamQuestions(
     examId: string,

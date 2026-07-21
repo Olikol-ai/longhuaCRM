@@ -1,7 +1,8 @@
 # LongHua Assessment — Architecture Boundaries
 
-Status: scaffold (no exam domain entities yet)  
-Context: bounded module inside LongHuaCRM NestJS API (`apps/api`)
+Status: **implemented** (entities, migrations, services, HTTP API)  
+Context: bounded module inside LongHuaCRM NestJS API (`apps/api`)  
+Storage: [../architecture/storage-policy.md](../architecture/storage-policy.md)
 
 ## Decision
 
@@ -25,15 +26,13 @@ Extract to a standalone service remains possible later if boundaries below are r
 - Topics / taxonomy for questions
 - Assessment rules (**single** relational store for all exam conduct settings)
 - Assignments (polymorphic target; **status** SM — no `active` boolean)
-- Attempts, snapshots, attempt answers + **answer selections**, results + **breakdowns**
+- Attempts, **relational snapshots**, attempt answers + **answer selections**, results + **breakdowns**
 
-Future PostgreSQL tables **must** use the prefix:
+All PostgreSQL tables use the prefix:
 
 ```text
 assessment_
 ```
-
-Examples (not created yet): `assessment_exams`, `assessment_questions`, `assessment_attempts`.
 
 Content lifecycle (Question, ExamTemplate, Blueprint, Exam): `draft` → `published` (immutable) → `archived`.
 
@@ -41,13 +40,13 @@ Attempt lifecycle: `created` → `started` → `submitted` (`submit_reason`: `ma
 Result lifecycle: `processing` → optional `pending_review` → `passed` \| `failed` \| `invalidated` (`evaluation_type`: `automatic` \| `manual` \| `mixed`).  
 Assignment cancel forbidden if any Attempt is `started` (`409`).
 
-Full entity graph, snapshot strategy, and assignment model:  
-**[domain-model.md](./domain-model.md)** (approved for Entity design).
+Full entity graph and snapshot strategy:  
+**[domain-model.md](./domain-model.md)**.
 
-Public REST contract (design only):  
+Public REST contract:  
 **[api-contract.md](./api-contract.md)**.
 
-Lifecycle / state machines (official):  
+Lifecycle / state machines:  
 **[state-machine.md](./state-machine.md)**.
 
 ### Assessment does not own
@@ -59,7 +58,7 @@ Lifecycle / state machines (official):
 - Payments, AlfaBank
 - Telegram bots / lesson confirmations
 - Materials library (beyond referencing SecureFiles for exam media)
-- Certificate issuance workflow (optional bridge later)
+- Certificate issuance workflow (bridge via `assessment_result_id` when issued)
 
 ## Identity & references
 
@@ -85,20 +84,25 @@ Rules:
 - Domain rules: `AssessmentAccessService` in global `DomainAccessModule` (same pattern as certificates / materials).
 - Assessment must not invent a parallel login or role system.
 
-## Forbidden coupling
+## Storage (no business JSONB)
 
-Assessment code **must not**:
+Assessment **must not** store stable exam / attempt / result payloads in JSON/JSONB (`json_record` forbidden project-wide).
 
-- mutate User / Student / Teacher / Lesson / Payment / Material aggregates;
-- start TypeORM transactions that write Assessment + CRM domain tables together for convenience;
-- import CRM service methods to “reach through” and change foreign domain state;
-- store stable business exam data in JSON/JSONB (`json_record` is forbidden project-wide).
+Attempt content is persisted as **snapshot tables**:
 
-Allowed:
+| Table | Role |
+|-------|------|
+| `assessment_question_snapshots` | Frozen question for an attempt |
+| `assessment_answer_snapshots` | Frozen answer options |
+| `assessment_attempt_answers` | Participant response |
+| `assessment_attempt_answer_selections` | Selected options (normalized rows) |
+| `assessment_result_breakdowns` | Per-section scores |
 
-- read CRM repositories/services for **authorization scope** (e.g. resolve `student_id` from JWT);
+Allowed non-business integrations:
+
+- read CRM repositories/services for **authorization scope**;
 - call SecureFiles for upload/signed URLs of question media;
-- emit notifications via existing NotificationsModule with Assessment as the event source (later phases).
+- emit notifications via NotificationsModule / certificate bridge after pass.
 
 ## Module layout
 
@@ -107,32 +111,12 @@ apps/api/src/modules/assessment/
   assessment.module.ts
   controllers/
   services/
-  repositories/   (empty until entities)
-  entities/       (empty until entities)
-  dto/            (empty until APIs)
-  enums/          (QuestionType, AttemptStatus — vocabulary only)
-  guards/         (empty; use global JWT/roles unless domain-specific needed)
+  repositories/
+  entities/
+  dto/
+  enums/
+  guards/
   types/
 ```
 
-Access service:
-
-```text
-apps/api/src/common/access/assessment-access.service.ts
-```
-
-## Current scaffold
-
-- `GET /api/assessment/health` → `{ "module": "assessment", "status": "ok" }` (JWT required)
-- Enums prepared: `QuestionType`, `AttemptStatus`
-- No TypeORM entities, no migrations, no exam business logic
-
-## Next phases
-
-1. Relational entities + migrations (`assessment_*`) — **ready to start** (architecture frozen)
-2. Authoring APIs
-3. Assignment + attempts
-4. Scoring + results
-5. Frontend surfaces
-
-Do not add Exam / Question / Attempt entities until explicitly requested.
+Access service lives under `apps/api/src/common/access/` (DomainAccessModule), consistent with other domains.

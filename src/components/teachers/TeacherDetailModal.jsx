@@ -11,7 +11,7 @@ export default function TeacherDetailModal({ teacher, students, onEdit, onDelete
       <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-brand-active flex items-center justify-center">
               <span className="text-sm font-bold text-white">{teacher.name[0]}</span>
             </div>
             <div>
@@ -22,7 +22,7 @@ export default function TeacherDetailModal({ teacher, students, onEdit, onDelete
             </div>
           </div>
           <div className="flex gap-1">
-            <button onClick={() => onEdit(teacher)} className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 dark:hover:text-indigo-400 text-slate-400 dark:text-slate-500 rounded-lg">
+            <button onClick={() => onEdit(teacher)} className="p-1.5 hover:bg-brand-soft dark:hover:bg-brand-soft/50 hover:text-brand dark:hover:text-brand text-slate-400 dark:text-slate-500 rounded-lg">
               <Edit2 className="w-4 h-4" />
             </button>
             <button onClick={() => { onDelete(teacher.id); onClose(); }} className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-500 dark:hover:text-red-400 text-slate-400 dark:text-slate-500 rounded-lg">
@@ -41,7 +41,7 @@ export default function TeacherDetailModal({ teacher, students, onEdit, onDelete
               key={t.id}
               onClick={() => setTab(t.id)}
               className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 -mb-px ${
-                tab === t.id ? "border-indigo-600 text-indigo-700 dark:text-indigo-400" : "border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
+                tab === t.id ? "border-brand text-brand dark:text-brand" : "border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
               }`}
             >
               {t.label}
@@ -76,8 +76,8 @@ export default function TeacherDetailModal({ teacher, students, onEdit, onDelete
               ) : (
                 myStudents.map(s => (
                   <div key={s.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800">
-                    <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center">
-                      <span className="text-[10px] font-bold text-indigo-600">{s.name[0]}</span>
+                    <div className="w-6 h-6 rounded-full bg-brand-muted flex items-center justify-center">
+                      <span className="text-[10px] font-bold text-brand">{s.name[0]}</span>
                     </div>
                     <span className="text-sm text-slate-700 dark:text-slate-200">{s.name}</span>
                     <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">{s.lesson_balance || 0} уроков</span>

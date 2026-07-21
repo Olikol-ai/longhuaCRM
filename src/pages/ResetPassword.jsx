@@ -50,8 +50,8 @@ export default function ResetPassword() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-3">
-            <BookOpen className="h-10 w-10 text-indigo-600" />
-            <h1 className="text-3xl font-bold text-foreground tracking-tight">Longhua Chinese</h1>
+            <BookOpen className="h-10 w-10 text-brand" />
+            <h1 className="text-3xl font-bold text-foreground tracking-tight">Longhua Academy</h1>
           </div>
           <p className="text-muted-foreground">Новый пароль</p>
         </div>
@@ -61,13 +61,13 @@ export default function ResetPassword() {
 
           {!token ? (
             <div className="space-y-4" data-testid="reset-password-missing-token">
-              <p className="text-sm text-red-600 bg-red-50 dark:bg-red-950/30 p-3 rounded-lg">
+              <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
                 Ссылка для сброса пароля недействительна или устарела. Запросите новую на странице
                 восстановления пароля.
               </p>
               <Link
                 to="/forgot-password"
-                className="block text-center text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+                className="block text-center text-sm font-medium text-brand hover:text-brand hover:underline"
               >
                 Восстановить пароль
               </Link>
@@ -79,7 +79,7 @@ export default function ResetPassword() {
               </p>
               <Link
                 to="/login"
-                className="block text-center text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+                className="block text-center text-sm font-medium text-brand hover:text-brand hover:underline"
               >
                 Перейти ко входу
               </Link>
@@ -120,7 +120,7 @@ export default function ResetPassword() {
               </div>
 
               {error && (
-                <p className="text-sm text-red-600 bg-red-50 dark:bg-red-950/30 p-3 rounded-lg">
+                <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
                   {error}
                 </p>
               )}
@@ -128,7 +128,7 @@ export default function ResetPassword() {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-indigo-600 hover:bg-indigo-700"
+                className="w-full bg-primary hover:bg-primary/90"
                 data-testid="reset-password-submit"
               >
                 {loading ? (
@@ -144,7 +144,7 @@ export default function ResetPassword() {
               <div className="text-center">
                 <Link
                   to="/login"
-                  className="text-sm text-indigo-600 hover:text-indigo-700 hover:underline"
+                  className="text-sm text-brand hover:text-brand hover:underline"
                 >
                   Вернуться ко входу
                 </Link>

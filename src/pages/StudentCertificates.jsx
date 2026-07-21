@@ -115,7 +115,7 @@ export default function StudentCertificates() {
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-red-700" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand" />
       </div>
     );
   }
@@ -130,7 +130,7 @@ export default function StudentCertificates() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Мои сертификаты</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Достижения Longhua Chinese — сертификаты о прохождении курсов и экзаменов
+          Достижения Longhua Academy — сертификаты о прохождении курсов и экзаменов
         </p>
       </div>
 
@@ -182,11 +182,11 @@ export default function StudentCertificates() {
               <div className="relative flex flex-col items-center text-center gap-4">
                 <img
                   src="/icon-master.png"
-                  alt="Longhua Chinese"
+                  alt="Longhua Academy"
                   className="h-16 w-16 sm:h-20 sm:w-20 object-contain drop-shadow-sm"
                 />
                 <p className="text-[11px] uppercase tracking-[0.22em] text-amber-900/70 dark:text-amber-200/70 font-semibold">
-                  Longhua Chinese · Достижение
+                  Longhua Academy · Достижение
                 </p>
                 <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white leading-snug">
                   {courseName(cert.course_id)}

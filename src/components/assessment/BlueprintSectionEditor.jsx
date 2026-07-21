@@ -111,7 +111,7 @@ export default function BlueprintSectionEditor({
                         {...dragProvided.draggableProps}
                         className={`rounded-2xl border bg-white dark:bg-slate-900/80 p-4 space-y-3 ${
                           snapshot.isDragging
-                            ? 'border-indigo-400 shadow-lg'
+                            ? 'border-brand/40 shadow-lg'
                             : 'border-slate-200 dark:border-slate-700'
                         }`}
                       >

@@ -36,7 +36,7 @@ function AudioAttachment({ attachment }) {
       <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Аудиоматериал</p>
       <a
         href={src}
-        className="text-sm text-indigo-600 dark:text-indigo-400 underline"
+        className="text-sm text-brand dark:text-brand underline"
         target="_blank"
         rel="noreferrer"
         onClick={(e) => {
@@ -83,7 +83,7 @@ export default function QuestionCard({
       data-testid="question-card"
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
+        <span className="text-xs font-medium uppercase tracking-wide text-brand dark:text-brand">
           Вопрос {index + 1}
         </span>
         <span className="text-xs rounded-full px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
@@ -109,7 +109,7 @@ export default function QuestionCard({
           <a
             key={att.id || att.url}
             href={att.url || assessment.downloadAttachmentUrl(att.id)}
-            className="block text-sm text-indigo-600 dark:text-indigo-400 underline"
+            className="block text-sm text-brand dark:text-brand underline"
             target="_blank"
             rel="noreferrer"
           >
@@ -128,13 +128,13 @@ export default function QuestionCard({
                 key={opt.snapshot_id}
                 className={`flex items-start gap-3 rounded-xl border p-3 sm:p-3.5 cursor-pointer transition-colors ${
                   checked
-                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 dark:border-indigo-400'
+                    ? 'border-brand bg-brand-soft dark:bg-brand-soft/40 dark:border-brand/40'
                     : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60'
                 }`}
               >
                 <input
                   type="radio"
-                  className="mt-1 h-4 w-4 accent-indigo-600"
+                  className="mt-1 h-4 w-4 accent-brand"
                   name={`q-${question.snapshot_id}`}
                   checked={checked}
                   onChange={() => onSingleChoice(question.snapshot_id, opt.snapshot_id)}
@@ -160,13 +160,13 @@ export default function QuestionCard({
                 key={opt.snapshot_id}
                 className={`flex items-start gap-3 rounded-xl border p-3 sm:p-3.5 cursor-pointer transition-colors ${
                   checked
-                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 dark:border-indigo-400'
+                    ? 'border-brand bg-brand-soft dark:bg-brand-soft/40 dark:border-brand/40'
                     : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60'
                 }`}
               >
                 <input
                   type="checkbox"
-                  className="mt-1 h-4 w-4 accent-indigo-600"
+                  className="mt-1 h-4 w-4 accent-brand"
                   checked={checked}
                   onChange={() => onToggleMultiple(question.snapshot_id, opt.snapshot_id)}
                 />
@@ -190,7 +190,7 @@ export default function QuestionCard({
           <textarea
             id={`text-${question.snapshot_id}`}
             rows={4}
-            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 text-sm sm:text-base text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 text-sm sm:text-base text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand"
             placeholder="Ваш ответ…"
             value={text}
             onChange={(e) => onTextChange(question.snapshot_id, e.target.value)}

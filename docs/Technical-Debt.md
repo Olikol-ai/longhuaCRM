@@ -51,6 +51,8 @@
 4. **No event bus** — синхронные side effects в services (достаточно для текущего масштаба)
 5. **Single region** — нет multi-DC
 
+**Не является долгом:** отсутствие JSONB на бизнес-таблицах — это целевое состояние. См. [architecture/storage-policy.md](./architecture/storage-policy.md).
+
 ## Не трогать без необходимости
 
 - Рабочие транзакции и locks на lesson complete / payments / certificates

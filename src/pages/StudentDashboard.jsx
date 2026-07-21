@@ -22,7 +22,7 @@ const STATUS_LABELS = {
 };
 
 const STATUS_COLORS = {
-  planned: "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400",
+  planned: "bg-brand-soft text-brand dark:bg-brand-soft/50 dark:text-brand",
   completed: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
   cancelled: "bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-400",
   rescheduled: "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400",
@@ -79,7 +79,7 @@ export default function StudentDashboard() {
   if (loading || isLoadingAuth) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand" />
       </div>
     );
   }
@@ -133,7 +133,7 @@ export default function StudentDashboard() {
           </button>
           <button
             onClick={() => setShowTopUp(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
+            className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
           >
             <Plus className="h-4 w-4" />
             Пополнить баланс
@@ -149,8 +149,8 @@ export default function StudentDashboard() {
           icon={BookOpen}
           color={(student.lesson_balance || 0) <= 2 ? "rose" : "emerald"}
         />
-        <StatCard title="Предстоящие уроки" value={upcoming.length} icon={Calendar} color="indigo" />
-        <StatCard title="Завершённые уроки" value={completedCount} icon={Clock} color="sky" />
+        <StatCard title="Предстоящие уроки" value={upcoming.length} icon={Calendar} color="brand" />
+        <StatCard title="Завершённые уроки" value={completedCount} icon={Clock} color="muted" />
       </div>
 
       {/* Teacher card */}
@@ -199,13 +199,13 @@ export default function StudentDashboard() {
               <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
                 <button
                   onClick={() => setViewMode("list")}
-                  className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400"}`}
+                  className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-white dark:bg-slate-900 shadow-sm text-brand dark:text-brand" : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400"}`}
                 >
                   <List className="h-3.5 w-3.5" />
                 </button>
                 <button
                   onClick={() => setViewMode("calendar")}
-                  className={`p-1.5 rounded-md transition-colors ${viewMode === "calendar" ? "bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400"}`}
+                  className={`p-1.5 rounded-md transition-colors ${viewMode === "calendar" ? "bg-white dark:bg-slate-900 shadow-sm text-brand dark:text-brand" : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400"}`}
                 >
                   <Calendar className="h-3.5 w-3.5" />
                 </button>
@@ -227,14 +227,14 @@ export default function StudentDashboard() {
                   <Card key={lesson.id} className="p-4 hover:shadow-md transition-shadow">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-4">
-                        <div className="text-center min-w-[64px] bg-indigo-50 dark:bg-indigo-950/40 rounded-xl py-2">
-                          <p className="text-[11px] text-indigo-400 dark:text-indigo-300 font-medium uppercase">
+                        <div className="text-center min-w-[64px] bg-brand-soft dark:bg-brand-soft/40 rounded-xl py-2">
+                          <p className="text-[11px] text-brand dark:text-brand font-medium uppercase">
                             {format(new Date(lesson.date), "MMM", { locale: ru })}
                           </p>
-                          <p className="text-2xl font-bold text-indigo-700 dark:text-indigo-300 leading-tight">
+                          <p className="text-2xl font-bold text-brand dark:text-brand leading-tight">
                             {format(new Date(lesson.date), "d")}
                           </p>
-                          <p className="text-[11px] text-indigo-400 dark:text-indigo-300">
+                          <p className="text-[11px] text-brand dark:text-brand">
                             {format(new Date(lesson.date), "EEE", { locale: ru })}
                           </p>
                         </div>
@@ -250,7 +250,7 @@ export default function StudentDashboard() {
                           href={lesson.meeting_link}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-xl text-sm font-medium hover:bg-indigo-100 dark:hover:bg-indigo-950/60 transition-colors shrink-0"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-brand-soft dark:bg-brand-soft/40 text-brand dark:text-brand rounded-xl text-sm font-medium hover:bg-brand-muted dark:hover:bg-brand-soft/60 transition-colors shrink-0"
                         >
                           <Video className="h-4 w-4" />
                           Войти
@@ -266,7 +266,7 @@ export default function StudentDashboard() {
                 {calendarDays.map(([dateStr, dayLessons]) => (
                   <div key={dateStr}>
                     <div className="flex items-center gap-3 mb-2">
-                      <div className="h-8 w-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold">
+                      <div className="h-8 w-8 rounded-full bg-brand flex items-center justify-center text-white text-xs font-bold">
                         {format(new Date(dateStr), "d")}
                       </div>
                       <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 capitalize">
@@ -276,7 +276,7 @@ export default function StudentDashboard() {
                     </div>
                     <div className="ml-11 space-y-2">
                       {dayLessons.map((lesson) => (
-                        <div key={lesson.id} className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-200 hover:shadow-sm transition-all">
+                        <div key={lesson.id} className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-brand/30 hover:shadow-sm transition-all">
                           <div className="w-14 text-center">
                             <p className="text-sm font-bold text-slate-900 dark:text-white">{lesson.start_time}</p>
                             <p className="text-[10px] text-slate-400 dark:text-slate-500">{lesson.duration || 60} мин</p>
@@ -290,7 +290,7 @@ export default function StudentDashboard() {
                               href={lesson.meeting_link}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-1 text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline shrink-0"
+                              className="flex items-center gap-1 text-[11px] text-brand dark:text-brand hover:underline shrink-0"
                             >
                               <Video className="h-3 w-3" /> Войти
                             </a>

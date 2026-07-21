@@ -83,7 +83,7 @@ export default function NameFormModal({ user, onSave }) {
           <Button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 bg-indigo-600 hover:bg-indigo-700 gap-2"
+            className="flex-1 bg-primary hover:bg-primary/90 gap-2"
           >
             {saving ? (
               <>

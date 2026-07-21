@@ -96,5 +96,9 @@ export class CreateLessonDto {
 
   @IsOptional()
   @IsString()
+  room?: string;
+
+  @IsOptional()
+  @IsString()
   notes?: string;
 }

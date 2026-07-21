@@ -124,7 +124,7 @@ export default function MaterialTable({
                     type="checkbox"
                     checked={allSelected}
                     onChange={(e) => onSelectAll(e.target.checked)}
-                    className="rounded border-border accent-indigo-600"
+                    className="rounded border-border accent-brand"
                   />
                 </th>
               )}
@@ -159,7 +159,7 @@ export default function MaterialTable({
                     e.dataTransfer.setDragImage?.(e.currentTarget, 24, 24);
                   }}
                   className={`group border-b border-border last:border-0 hover:bg-muted/30 ${
-                    selected ? 'bg-indigo-50/60 dark:bg-indigo-950/20' : ''
+                    selected ? 'bg-brand-soft/60 dark:bg-brand-soft/20' : ''
                   } ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
                   title={draggable ? 'Перетащите в курс или папку слева' : undefined}
                 >
@@ -175,7 +175,7 @@ export default function MaterialTable({
                           type="checkbox"
                           checked={selected}
                           onChange={() => onToggleSelect(mat.id)}
-                          className="rounded border-border accent-indigo-600"
+                          className="rounded border-border accent-brand"
                           onClick={(e) => e.stopPropagation()}
                         />
                       </div>
@@ -194,7 +194,7 @@ export default function MaterialTable({
                       <div className="min-w-0">
                         <button
                           type="button"
-                          className="font-medium text-foreground truncate text-left hover:text-indigo-600 hover:underline"
+                          className="font-medium text-foreground truncate text-left hover:text-brand hover:underline"
                           onClick={() => handleOpen(mat)}
                           onMouseDown={(e) => e.stopPropagation()}
                         >

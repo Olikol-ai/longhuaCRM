@@ -11,7 +11,7 @@ export type AuthSession = {
 
 export async function waitForLoginPage(page: Page): Promise<void> {
   await page.goto('/login', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: 'Longhua Chinese' })).toBeVisible({
+  await expect(page.getByRole('heading', { name: 'Longhua Academy' })).toBeVisible({
     timeout: 30_000,
   });
 }

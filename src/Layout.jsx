@@ -116,7 +116,7 @@ export default function Layout({ children, currentPageName }) {
     .slice(0, 2);
 
   return (
-    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
+    <div className="min-h-app bg-background text-foreground overflow-x-hidden">
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/40 z-40 lg:hidden"
@@ -129,36 +129,38 @@ export default function Layout({ children, currentPageName }) {
         Sidebar is always position:fixed (viewport).
         Mobile: off-canvas drawer (-translate-x-full until open).
         Desktop (lg+): always visible; main column uses lg:pl-64 so content is not covered.
+        PWA / iOS: safe-pt / safe-pb keep chrome clear of Dynamic Island & home indicator.
       */}
       <aside
         className={`
-          fixed top-0 left-0 z-50 h-dvh max-h-dvh
+          fixed top-0 left-0 z-50 h-app max-h-app
           w-[min(16rem,85vw)] lg:w-64
-          bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-700
+          bg-card border-r border-border
           transform transition-transform duration-200 ease-in-out
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0
           flex flex-col shadow-xl lg:shadow-none
+          safe-pt safe-pb
         `}
       >
-        <div className="h-14 sm:h-16 flex items-center justify-between px-4 sm:px-5 border-b border-slate-200 dark:border-slate-800 shrink-0">
+        <div className="h-14 sm:h-16 flex items-center justify-between px-4 sm:px-5 border-b border-border shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
+            <div className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center bg-brand-soft text-brand">
               <BookOpen className="h-5 w-5" />
             </div>
-            <span className="text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate">Longhua</span>
+            <span className="text-lg font-bold text-foreground tracking-tight truncate">Longhua</span>
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
               onClick={toggleTheme}
-              className="hidden lg:flex p-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="hidden lg:flex p-2 text-muted-foreground hover:text-foreground rounded-lg hover:bg-brand-soft hover:text-brand transition-colors"
               title="Переключить тему"
             >
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
             <button
               type="button"
-              className="lg:hidden p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg"
+              className="lg:hidden p-2 text-muted-foreground hover:text-foreground rounded-lg"
               onClick={() => setSidebarOpen(false)}
               aria-label="Закрыть меню"
             >
@@ -178,36 +180,36 @@ export default function Layout({ children, currentPageName }) {
                 className={`
                   flex items-center gap-3 px-3 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-all
                   ${isActive
-                    ? "bg-indigo-600 text-white"
-                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-brand-soft hover:text-brand"
                   }
                 `}
               >
-                <item.icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-white" : "text-slate-600 dark:text-slate-400"}`} />
+                <item.icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-primary-foreground" : ""}`} />
                 <span className="text-[13px] truncate">{item.name}</span>
-                {isActive && <ChevronRight className="h-4 w-4 ml-auto shrink-0 text-white" />}
+                {isActive && <ChevronRight className="h-4 w-4 ml-auto shrink-0 text-primary-foreground" />}
               </Link>
             );
           })}
         </nav>
 
-        <div className="border-t border-slate-200 dark:border-slate-800 p-3 shrink-0">
+        <div className="border-t border-border p-3 shrink-0">
           <div className="flex items-center gap-3 px-2 sm:px-3 py-2">
             <Avatar className="h-8 w-8 shrink-0">
-              <AvatarFallback className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-xs font-semibold">
+              <AvatarFallback className="bg-brand-soft text-brand text-xs font-semibold">
                 {initials}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{fullName}</p>
-              <p className="text-xs text-slate-600 dark:text-slate-400 truncate">
+              <p className="text-sm font-medium text-foreground truncate">{fullName}</p>
+              <p className="text-xs text-muted-foreground truncate">
                 {role === "admin" ? "Администратор" : role === "teacher" ? "Преподаватель" : role === "student" ? "Ученик" : "Ожидает роли"}
               </p>
             </div>
             <button
               type="button"
               onClick={logout}
-              className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors shrink-0"
+              className="p-2 text-muted-foreground hover:text-foreground transition-colors shrink-0"
               aria-label="Выйти"
             >
               <LogOut className="h-4 w-4" />
@@ -216,30 +218,32 @@ export default function Layout({ children, currentPageName }) {
         </div>
       </aside>
 
-      <div className="flex flex-col min-h-screen min-w-0 w-full max-w-full lg:pl-64">
-        <header className="lg:hidden h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-3 sm:px-4 sticky top-0 z-30 shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
+      <div className="flex flex-col min-h-app min-w-0 w-full max-w-full lg:pl-64">
+        <header className="lg:hidden sticky top-0 z-30 shrink-0 bg-card border-b border-border safe-pt">
+          <div className="h-14 flex items-center justify-between px-3 sm:px-4">
+            <div className="flex items-center gap-2 min-w-0">
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(true)}
+                className="p-2 -ml-1 text-muted-foreground rounded-lg hover:bg-brand-soft hover:text-brand"
+                aria-label="Открыть меню"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+              <span className="font-semibold text-foreground truncate">Longhua</span>
+            </div>
             <button
               type="button"
-              onClick={() => setSidebarOpen(true)}
-              className="p-2 -ml-1 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-              aria-label="Открыть меню"
+              onClick={toggleTheme}
+              className="p-2 text-muted-foreground hover:text-brand transition-colors rounded-lg"
+              aria-label="Переключить тему"
             >
-              <Menu className="h-5 w-5" />
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
-            <span className="font-semibold text-slate-900 dark:text-white truncate">Longhua</span>
           </div>
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors rounded-lg"
-            aria-label="Переключить тему"
-          >
-            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </button>
         </header>
 
-        <main className="flex-1 min-w-0 w-full overflow-x-hidden">
+        <main className="flex-1 min-w-0 w-full overflow-x-hidden safe-pb">
           {children}
         </main>
       </div>

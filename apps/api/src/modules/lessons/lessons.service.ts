@@ -4,15 +4,18 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, FindOptionsWhere } from 'typeorm';
 import { LessonAccessService } from '../../common/access/lesson-access.service';
 import { TeacherAccessService } from '../../common/access/teacher-access.service';
 import { normalizeRole } from '../../common/constants/roles';
 import { JwtPayload } from '../auth/auth.service';
+import { AuditService } from '../audit/audit.service';
 import { EnrollmentProgressService } from '../courses/enrollment-progress.service';
 import { GroupEntity } from '../groups/entities/group.entity';
 import { GroupMemberEntity } from '../groups/entities/group-member.entity';
+import { LessonConfirmationService } from '../lesson-confirmations/lesson-confirmation.service';
 import { AvailabilityBookingEntity } from '../schedule/entities/availability-booking.entity';
 import { ScheduleService } from '../schedule/schedule.service';
 import { StudentEntity } from '../students/entities/student.entity';
@@ -25,6 +28,13 @@ import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
+import {
+  LESSON_RESCHEDULED,
+  LESSON_UPDATED,
+  LessonRescheduledPayload,
+  LessonUpdatedChangedField,
+  LessonUpdatedPayload,
+} from './events/lesson.events';
 import { LessonsRepository } from './lessons.repository';
 
 @Injectable()
@@ -37,6 +47,9 @@ export class LessonsService {
     private readonly scheduleService: ScheduleService,
     private readonly teacherPaymentsService: TeacherPaymentsService,
     private readonly enrollmentProgress: EnrollmentProgressService,
+    private readonly lessonConfirmations: LessonConfirmationService,
+    private readonly audit: AuditService,
+    private readonly events: EventEmitter2,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -95,6 +108,14 @@ export class LessonsService {
       duration,
     );
 
+    const createStudentIds = await this.resolveCreateStudentIdsForConflict(normalized);
+    await this.scheduleService.assertNoStudentScheduleConflicts(
+      createStudentIds,
+      normalized.date,
+      normalized.startTime,
+      duration,
+    );
+
     const created = await this.dataSource.transaction(async (manager) => {
       const teacher = await manager.getRepository(TeacherEntity).findOne({
         where: { id: normalized.teacherId },
@@ -142,6 +163,7 @@ export class LessonsService {
           lessonType,
           lessonFormat: normalized.lessonFormat ?? 'online',
           meetingLink: normalized.meetingLink ?? null,
+          room: normalized.room ?? null,
           notes: normalized.notes ?? null,
         }),
       );
@@ -244,13 +266,23 @@ export class LessonsService {
     const duration = (payload.duration as number | undefined) ?? before.duration ?? 60;
     const nextStatus = (payload.status as string | undefined) ?? before.status;
 
-    const scheduleChanged =
-      teacherId !== before.teacherId ||
+    const timeRescheduled =
       date !== before.date ||
-      startTime !== before.startTime ||
+      this.scheduleService.normalizeTime(startTime).slice(0, 5) !==
+        this.scheduleService.normalizeTime(before.startTime).slice(0, 5) ||
       duration !== (before.duration ?? 60);
 
-    if (scheduleChanged && before.status !== 'cancelled' && nextStatus !== 'cancelled' && teacherId) {
+    const scheduleSlotChanged =
+      timeRescheduled || teacherId !== before.teacherId;
+
+    const infoChanges = this.collectLessonInfoChanges(before, payload);
+
+    if (
+      scheduleSlotChanged &&
+      before.status !== 'cancelled' &&
+      nextStatus !== 'cancelled' &&
+      teacherId
+    ) {
       await this.scheduleService.assertAvailableForLesson(teacherId, date, startTime, duration);
       await this.scheduleService.assertNoScheduleConflicts(
         teacherId,
@@ -261,12 +293,47 @@ export class LessonsService {
       );
     }
 
+    if (
+      timeRescheduled &&
+      before.status !== 'cancelled' &&
+      nextStatus !== 'cancelled'
+    ) {
+      const participantLesson = {
+        ...before,
+        primaryStudentId:
+          (payload.primaryStudentId as string | undefined) ?? before.primaryStudentId,
+        groupId: (payload.groupId as string | undefined) ?? before.groupId,
+        lessonType:
+          (payload.lessonType as LessonEntity['lessonType'] | undefined) ??
+          before.lessonType,
+      };
+      const studentIds =
+        await this.lessonConfirmations.resolveParticipantStudentIds(participantLesson);
+      await this.scheduleService.assertNoStudentScheduleConflicts(
+        studentIds,
+        date,
+        startTime,
+        duration,
+        id,
+      );
+    }
+
+    const confirmedStudentIds = timeRescheduled
+      ? await this.lessonConfirmations.findConfirmedStudentIdsForLesson(id)
+      : [];
+
+    if (timeRescheduled) {
+      // Reminder jobs key off lesson.date/startTime + reminder24hSent.
+      (payload as UpdateLessonDto & { reminder24hSent?: boolean }).reminder24hSent =
+        false;
+    }
+
     const row = await this.repository.update(id, payload as UpdateLessonDto);
     if (!row) {
       throw new NotFoundException('Lesson not found');
     }
 
-    if (scheduleChanged) {
+    if (scheduleSlotChanged) {
       const timeFrom = this.scheduleService.normalizeTime(startTime);
       const timeTo = this.scheduleService.addMinutesToTime(timeFrom, duration);
       const bookingUpdate: Partial<AvailabilityBookingEntity> = {
@@ -284,6 +351,86 @@ export class LessonsService {
       );
     }
 
+    let teacherName: string | null = null;
+    const resolvedTeacherId = teacherId ?? before.teacherId;
+    if (resolvedTeacherId && (timeRescheduled || infoChanges.length > 0)) {
+      teacherName =
+        (
+          await this.dataSource.getRepository(TeacherEntity).findOne({
+            where: { id: resolvedTeacherId },
+            select: ['id', 'name'],
+          })
+        )?.name?.trim() || null;
+    }
+    const actorLabel = teacherName || actor.email || 'Преподаватель';
+
+    if (timeRescheduled) {
+      if (confirmedStudentIds.length > 0) {
+        await this.lessonConfirmations.resetConfirmedAndRerequest(
+          row,
+          confirmedStudentIds,
+        );
+      }
+
+      await this.audit.log({
+        actorUserId: actor.sub,
+        action: 'lesson_rescheduled',
+        entityType: 'Lesson',
+        entityId: id,
+        summary: [
+          `Преподаватель ${actorLabel} перенёс занятие.`,
+          `Было: ${before.date} ${this.scheduleService.normalizeTime(before.startTime).slice(0, 5)} (${before.duration ?? 60} мин)`,
+          `Стало: ${date} ${this.scheduleService.normalizeTime(startTime).slice(0, 5)} (${duration} мин)`,
+        ].join(' '),
+      });
+
+      if (confirmedStudentIds.length > 0) {
+        const eventPayload: LessonRescheduledPayload = {
+          lessonId: id,
+          teacherId: resolvedTeacherId,
+          actorUserId: actor.sub,
+          teacherDisplayName: teacherName ?? actorLabel,
+          previous: {
+            date: before.date,
+            startTime: before.startTime,
+            duration: before.duration ?? 60,
+          },
+          next: {
+            date,
+            startTime,
+            duration,
+          },
+          confirmedStudentIds,
+        };
+        this.events.emit(LESSON_RESCHEDULED, eventPayload);
+      }
+    } else if (infoChanges.length > 0) {
+      const studentIds = await this.lessonConfirmations.resolveParticipantStudentIds(row);
+
+      await this.audit.log({
+        actorUserId: actor.sub,
+        action: 'lesson_updated',
+        entityType: 'Lesson',
+        entityId: id,
+        summary: [
+          `Преподаватель ${actorLabel} обновил информацию о занятии.`,
+          ...infoChanges.map(
+            (change) =>
+              `${change.label}: «${change.previous ?? '—'}» → «${change.next ?? '—'}»`,
+          ),
+        ].join(' '),
+      });
+
+      this.events.emit(LESSON_UPDATED, {
+        lessonId: id,
+        teacherId: resolvedTeacherId,
+        actorUserId: actor.sub,
+        teacherDisplayName: teacherName ?? actorLabel,
+        changedFields: infoChanges,
+        studentIds,
+      } satisfies LessonUpdatedPayload);
+    }
+
     if (
       payload.status &&
       typeof payload.status === 'string' &&
@@ -292,6 +439,75 @@ export class LessonsService {
       await this.studentBalanceService.handleLessonStatusUpdate(id, payload.status);
     }
     return this.attachDisplayNames([row])[0];
+  }
+
+  private collectLessonInfoChanges(
+    before: LessonEntity,
+    payload: Record<string, unknown>,
+  ): LessonUpdatedChangedField[] {
+    const changes: LessonUpdatedChangedField[] = [];
+    const normalize = (value: unknown): string | null => {
+      if (value == null) return null;
+      const text = String(value).trim();
+      return text.length ? text : null;
+    };
+
+    if (payload.notes !== undefined) {
+      const previous = normalize(before.notes);
+      const next = normalize(payload.notes);
+      if (previous !== next) {
+        changes.push({
+          field: 'notes',
+          label: 'комментарий',
+          previous,
+          next,
+        });
+      }
+    }
+
+    if (payload.meetingLink !== undefined) {
+      const previous = normalize(before.meetingLink);
+      const next = normalize(payload.meetingLink);
+      if (previous !== next) {
+        changes.push({
+          field: 'meetingLink',
+          label: 'ссылка',
+          previous,
+          next,
+        });
+      }
+    }
+
+    if (payload.room !== undefined) {
+      const previous = normalize(before.room);
+      const next = normalize(payload.room);
+      if (previous !== next) {
+        changes.push({
+          field: 'room',
+          label: 'кабинет',
+          previous,
+          next,
+        });
+      }
+    }
+
+    return changes;
+  }
+
+  private async resolveCreateStudentIdsForConflict(
+    dto: CreateLessonDto,
+  ): Promise<string[]> {
+    if (dto.primaryStudentId && !dto.groupId) {
+      return [dto.primaryStudentId];
+    }
+    if (dto.groupId) {
+      const members = await this.dataSource.getRepository(GroupMemberEntity).find({
+        where: { groupId: dto.groupId },
+        select: ['studentId'],
+      });
+      return [...new Set(members.map((row) => row.studentId).filter(Boolean))];
+    }
+    return [];
   }
 
   async delete(id: string): Promise<void> {

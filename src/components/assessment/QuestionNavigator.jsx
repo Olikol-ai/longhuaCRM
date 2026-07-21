@@ -20,7 +20,7 @@ export default function QuestionNavigator({
           'h-11 w-11 sm:h-8 sm:w-8 rounded-lg text-xs font-semibold border transition-colors ';
         if (active) {
           cls +=
-            'bg-indigo-600 text-white border-indigo-600 dark:bg-indigo-500 dark:border-indigo-500';
+            'bg-primary text-primary-foreground border-brand dark:bg-brand dark:border-brand';
         } else if (answered) {
           cls +=
             'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-700';

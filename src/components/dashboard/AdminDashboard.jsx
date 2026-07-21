@@ -114,9 +114,9 @@ export default function AdminDashboard({ user }) {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard label="Уроков сегодня" value={todayLessons.length} icon={CalendarDays} color="indigo" />
-        <StatCard label="Уроков завтра" value={tomorrowLessons.length} icon={Clock} color="violet" />
-        <StatCard label="Всего учеников" value={activeStudents.length} icon={GraduationCap} color="sky" />
+        <StatCard label="Уроков сегодня" value={todayLessons.length} icon={CalendarDays} color="brand" />
+        <StatCard label="Уроков завтра" value={tomorrowLessons.length} icon={Clock} color="muted" />
+        <StatCard label="Всего учеников" value={activeStudents.length} icon={GraduationCap} color="muted" />
         <StatCard label="Всего преподавателей" value={teachers.filter(t => t.status !== "inactive").length} icon={Users} color="emerald" />
       </div>
 
@@ -188,8 +188,8 @@ export default function AdminDashboard({ user }) {
           <div className="divide-y divide-border">
             {lowBalanceStudents.map(s => (
               <div key={s.id} className="flex items-center gap-3 px-2 py-3">
-                <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-950/50 flex items-center justify-center">
-                  <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">{s.name[0]}</span>
+                <div className="w-7 h-7 rounded-full bg-brand-muted dark:bg-brand-soft/50 flex items-center justify-center">
+                  <span className="text-xs font-semibold text-brand dark:text-brand">{s.name[0]}</span>
                 </div>
                 <span className="text-sm text-foreground flex-1">{s.name}</span>
                 <span className={`text-xs font-bold px-2 py-1 rounded-full ${

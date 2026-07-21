@@ -215,7 +215,7 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Поиск по имени или email..."
-          className="w-full pl-9 pr-8 py-2.5 text-sm border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+          className="w-full pl-9 pr-8 py-2.5 text-sm border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40" />
         {search && (
           <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-400">
             <X className="w-3.5 h-3.5" />
@@ -226,7 +226,7 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
       {/* Table */}
       {loading ? (
         <div className="flex justify-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
-          <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+          <Loader2 className="w-6 h-6 animate-spin text-brand" />
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
@@ -266,7 +266,7 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
                         )}
                       </div>
                     </div>
-                    {isUpd && <Loader2 className="w-4 h-4 animate-spin text-indigo-500 flex-shrink-0" />}
+                    {isUpd && <Loader2 className="w-4 h-4 animate-spin text-brand flex-shrink-0" />}
                   </div>
                   <div className="mt-3 pt-3 border-t border-slate-50 dark:border-slate-800 flex flex-wrap items-center gap-2">
                     {hasAccount ? (
@@ -324,7 +324,7 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
                               <p className="text-[11px] text-amber-600 font-medium mt-0.5">Профиль без аккаунта</p>
                             )}
                           </div>
-                          {isUpd && <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500 flex-shrink-0" />}
+                          {isUpd && <Loader2 className="w-3.5 h-3.5 animate-spin text-brand flex-shrink-0" />}
                         </div>
                       </td>
                       <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-xs">{u.email || "—"}</td>
@@ -405,12 +405,12 @@ function StudentsTab({ students, teachers, loading, onReload }) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Поиск учеников..."
-            className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+            className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40" />
         </div>
         <div className="flex items-center gap-3 justify-between sm:justify-end sm:ml-auto">
           <span className="text-sm text-slate-400">{students.length} учеников</span>
           <button type="button" onClick={() => { setEditStudent(null); setShowForm(true); }}
-            className="flex items-center gap-2 px-4 py-2.5 min-h-[44px] bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors flex-shrink-0">
+            className="flex items-center gap-2 px-4 py-2.5 min-h-[44px] bg-primary text-primary-foreground text-sm font-medium rounded-xl hover:bg-primary/90 transition-colors flex-shrink-0">
             <Plus className="w-4 h-4" /> Добавить
           </button>
         </div>
@@ -418,7 +418,7 @@ function StudentsTab({ students, teachers, loading, onReload }) {
 
       {loading ? (
         <div className="flex justify-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
-          <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+          <Loader2 className="w-6 h-6 animate-spin text-brand" />
         </div>
       ) : (
         <>
@@ -428,8 +428,8 @@ function StudentsTab({ students, teachers, loading, onReload }) {
             ) : filtered.map(s => (
               <div key={s.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xs font-bold text-blue-600">{(s.name || "?")[0].toUpperCase()}</span>
+                  <div className="w-10 h-10 rounded-full bg-brand-soft dark:bg-brand-soft/40 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs font-bold text-brand">{(s.name || "?")[0].toUpperCase()}</span>
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-slate-800 dark:text-slate-100 truncate">{s.name}</p>
@@ -447,7 +447,7 @@ function StudentsTab({ students, teachers, loading, onReload }) {
                 </div>
                 <div className="mt-3 pt-3 border-t border-slate-50 dark:border-slate-800 flex flex-wrap gap-2">
                   <Link to={createPageUrl("StudentDetail") + `?id=${s.id}`} className="flex-1 min-w-[7rem]">
-                    <button type="button" className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-indigo-700 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg hover:bg-indigo-100">
+                    <button type="button" className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-brand bg-brand-soft dark:bg-brand-soft/40 rounded-lg hover:bg-brand-muted">
                       <Eye className="w-3.5 h-3.5" /> Просмотр
                     </button>
                   </Link>
@@ -481,8 +481,8 @@ function StudentsTab({ students, teachers, loading, onReload }) {
                   <tr key={s.id} className="border-b border-slate-50 dark:border-slate-800 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center flex-shrink-0">
-                          <span className="text-xs font-bold text-blue-600">{(s.name || "?")[0].toUpperCase()}</span>
+                        <div className="w-8 h-8 rounded-full bg-brand-soft dark:bg-brand-soft/40 flex items-center justify-center flex-shrink-0">
+                          <span className="text-xs font-bold text-brand">{(s.name || "?")[0].toUpperCase()}</span>
                         </div>
                         <span className="font-medium text-slate-800 dark:text-slate-100">{s.name}</span>
                       </div>
@@ -502,7 +502,7 @@ function StudentsTab({ students, teachers, loading, onReload }) {
                     <td className="px-5 py-3.5">
                       <div className="flex items-center justify-end gap-1">
                         <Link to={createPageUrl("StudentDetail") + `?id=${s.id}`}>
-                          <button type="button" className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 dark:bg-indigo-950/40 rounded-lg transition-colors" title="Просмотр">
+                          <button type="button" className="p-2 text-slate-300 hover:text-brand hover:bg-brand-soft dark:bg-brand-soft/40 rounded-lg transition-colors" title="Просмотр">
                             <Eye className="w-4 h-4" />
                           </button>
                         </Link>
@@ -582,12 +582,12 @@ function TeachersTab({ teachers, students, loading, onReload }) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Поиск преподавателей..."
-            className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+            className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40" />
         </div>
         <div className="flex items-center gap-3 justify-between sm:justify-end sm:ml-auto">
           <span className="text-sm text-slate-400">{teachers.length} преподавателей</span>
           <button type="button" onClick={() => { setEditTeacher(null); setShowForm(true); }}
-            className="flex items-center gap-2 px-4 py-2.5 min-h-[44px] bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors flex-shrink-0">
+            className="flex items-center gap-2 px-4 py-2.5 min-h-[44px] bg-primary text-primary-foreground text-sm font-medium rounded-xl hover:bg-primary/90 transition-colors flex-shrink-0">
             <Plus className="w-4 h-4" /> Добавить
           </button>
         </div>
@@ -595,7 +595,7 @@ function TeachersTab({ teachers, students, loading, onReload }) {
 
       {loading ? (
         <div className="flex justify-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
-          <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+          <Loader2 className="w-6 h-6 animate-spin text-brand" />
         </div>
       ) : (
         <>
@@ -625,7 +625,7 @@ function TeachersTab({ teachers, students, loading, onReload }) {
                 </button>
                 <div className="mt-3 pt-3 border-t border-slate-50 dark:border-slate-800 flex flex-wrap gap-2">
                   <button type="button" onClick={() => setViewTeacher(t)}
-                    className="flex-1 min-w-[7rem] inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-indigo-700 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg hover:bg-indigo-100">
+                    className="flex-1 min-w-[7rem] inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-brand bg-brand-soft dark:bg-brand-soft/40 rounded-lg hover:bg-brand-muted">
                     <Eye className="w-3.5 h-3.5" /> Просмотр
                   </button>
                   <button type="button" onClick={() => { setEditTeacher(t); setShowForm(true); }}

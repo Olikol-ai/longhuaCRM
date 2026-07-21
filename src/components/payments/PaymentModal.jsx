@@ -2,7 +2,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { format } from "date-fns";
 
-const fieldCls = "w-full px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400";
+const fieldCls = "w-full px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40";
 
 export default function PaymentModal({ students, onSave, onClose, initialData }) {
   const [form, setForm] = useState({
@@ -69,7 +69,7 @@ export default function PaymentModal({ students, onSave, onClose, initialData })
           </div>
 
           {form.student_id && form.lessons_added && (
-            <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-xl p-3 text-sm text-indigo-700 dark:text-indigo-300">
+            <div className="bg-brand-soft dark:bg-brand-soft/40 rounded-xl p-3 text-sm text-brand dark:text-brand">
               Сумма: <strong>{form.amount} BYN</strong> · Баланс увеличится на <strong>{form.lessons_added}</strong> уроков
             </div>
           )}
@@ -77,7 +77,7 @@ export default function PaymentModal({ students, onSave, onClose, initialData })
         <div className="flex justify-end gap-2 px-6 py-4 border-t border-border">
           <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted rounded-lg">Отмена</button>
           <button onClick={handleSave}
-            className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+            className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
             {isEdit ? "Сохранить изменения" : "Сохранить платёж"}
           </button>
         </div>

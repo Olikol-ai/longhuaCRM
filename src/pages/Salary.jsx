@@ -8,7 +8,7 @@ import { toast } from "@/components/ui/use-toast";
 import { resolveTeacherPaymentLabel } from "@/lib/teacherLabels";
 import { formatCurrency } from "@/lib/formatters";
 
-const fieldCls = "px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500/20";
+const fieldCls = "px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-brand/20";
 
 const MONTHS = Array.from({ length: 6 }, (_, i) => {
   const d = subMonths(new Date(), i);
@@ -121,10 +121,10 @@ export default function Salary() {
         </div>
       </div>
 
-      <div className="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-xl p-5 text-white">
-        <p className="text-indigo-200 text-sm mb-1">Итого к выплате — {monthLabel}</p>
+      <div className="bg-gradient-to-r from-primary to-brand-hover rounded-xl p-5 text-primary-foreground">
+        <p className="text-primary-foreground/80 text-sm mb-1">Итого к выплате — {monthLabel}</p>
         <p className="text-3xl font-bold">{formatCurrency(totalSalary)}</p>
-        <p className="text-indigo-200 text-xs mt-1">
+        <p className="text-primary-foreground/80 text-xs mt-1">
           {teacherSalaries.filter(t => t.paidLessons.length > 0).length} преподавателей · {teacherSalaries.reduce((s, t) => s + t.paidLessons.length, 0)} уроков
         </p>
       </div>
@@ -139,8 +139,8 @@ export default function Salary() {
           <Card key={teacher.id} className="p-5">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-950/50 flex items-center justify-center">
-                  <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400">{teacher.name?.[0]}</span>
+                <div className="w-10 h-10 rounded-full bg-brand-muted dark:bg-brand-soft/50 flex items-center justify-center">
+                  <span className="text-sm font-bold text-brand dark:text-brand">{teacher.name?.[0]}</span>
                 </div>
                 <div>
                   <p className="font-semibold text-foreground">{teacher.name}</p>

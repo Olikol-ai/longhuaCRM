@@ -128,7 +128,7 @@ export default function TeacherFormDialog({ open, onOpenChange, teacher, onSave 
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Отмена</Button>
-          <Button onClick={handleSubmit} disabled={loading || !formData.name} className="bg-indigo-600 hover:bg-indigo-700">
+          <Button onClick={handleSubmit} disabled={loading || !formData.name} className="bg-primary hover:bg-primary/90">
             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {teacher ? "Сохранить" : "Создать"}
           </Button>

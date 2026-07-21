@@ -125,10 +125,17 @@ export class AssessmentQuestionsController {
   @Delete(':questionId')
   @Roles('admin', 'teacher')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete draft question' })
-  @ApiResponse({ status: 204, description: 'Question deleted' })
-  async remove(@Param('questionId', ParseUUIDPipe) questionId: string) {
-    await this.questions.deleteDraft(questionId);
+  @ApiOperation({
+    summary:
+      'Delete question (admin or author). Hard-delete when unused; archive when used in exams.',
+  })
+  @ApiResponse({ status: 204, description: 'Question deleted or archived' })
+  @ApiResponse({ status: 403, description: 'Not admin and not the question author' })
+  async remove(
+    @CurrentUser() user: JwtPayload,
+    @Param('questionId', ParseUUIDPipe) questionId: string,
+  ) {
+    await this.questions.deleteQuestion(user, questionId);
   }
 
   @Post(':questionId/publish')

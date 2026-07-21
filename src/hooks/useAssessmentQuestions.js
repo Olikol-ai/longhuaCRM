@@ -35,5 +35,10 @@ export function useAssessmentQuestions({ bankId, type, status, search } = {}) {
     reload();
   }, [reload]);
 
-  return { questions, total, loading, error, reload };
+  const removeQuestion = useCallback((questionId) => {
+    setQuestions((prev) => prev.filter((q) => q.id !== questionId));
+    setTotal((prev) => Math.max(0, prev - 1));
+  }, []);
+
+  return { questions, total, loading, error, reload, removeQuestion };
 }

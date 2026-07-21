@@ -86,7 +86,7 @@ export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
 
         {loadingMeta ? (
           <div className="flex justify-center py-10">
-            <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+            <Loader2 className="h-6 w-6 animate-spin text-brand" />
           </div>
         ) : (
           <div className="space-y-4 py-1">
@@ -164,7 +164,7 @@ export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
             Отмена
           </Button>
           <Button
-            className="bg-indigo-600 hover:bg-indigo-700"
+            className="bg-primary hover:bg-primary/90"
             onClick={handleCreate}
             disabled={saving || loadingMeta || blueprints.length === 0}
           >

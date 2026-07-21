@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import MaterialPickerDialog from "@/components/materials/MaterialPickerDialog";
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
@@ -25,6 +25,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+function isActiveInvite(row) {
+  if (!row || row.revoked_at) return false;
+  const expires = row.expires_at ? new Date(row.expires_at).getTime() : 0;
+  return expires > Date.now();
+}
+
 export default function TeacherDashboard() {
   const { user } = useAuth();
   const [teacher, setTeacher] = useState(null);
@@ -40,6 +46,11 @@ export default function TeacherDashboard() {
   const [actionBusy, setActionBusy] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const { theme, toggleTheme } = useTheme();
+
+  const activeInvites = useMemo(
+    () => invites.filter(isActiveInvite),
+    [invites],
+  );
 
   const loadData = async () => {
     if (!user) return;
@@ -105,10 +116,18 @@ export default function TeacherDashboard() {
 
   const handleRevokeInvite = async (id) => {
     try {
+      // Optimistic UI: hide immediately, then sync with server.
+      setInvites((prev) =>
+        prev.map((row) =>
+          row.id === id ? { ...row, revoked_at: new Date().toISOString() } : row,
+        ),
+      );
+      setLatestInviteUrl('');
       await api.teacherInvites.revoke(id);
       toast({ title: "Ссылка отозвана" });
       await loadData();
     } catch (err) {
+      await loadData();
       toast({
         title: "Не удалось отозвать ссылку",
         description: err?.message,
@@ -154,7 +173,7 @@ export default function TeacherDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand" />
       </div>
     );
   }
@@ -201,8 +220,8 @@ export default function TeacherDashboard() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <StatCard title="Уроков сегодня" value={todayLessons.length} icon={Calendar} color="indigo" />
-        <StatCard title="Предстоящие" value={upcomingLessons.length} icon={Clock} color="sky" />
+        <StatCard title="Уроков сегодня" value={todayLessons.length} icon={Calendar} color="brand" />
+        <StatCard title="Предстоящие" value={upcomingLessons.length} icon={Clock} color="muted" />
         <StatCard title="Завершено" value={completedCount} icon={CheckCircle2} color="emerald" />
       </div>
 
@@ -215,7 +234,7 @@ export default function TeacherDashboard() {
           <Button
             onClick={handleCreateInvite}
             disabled={inviteBusy}
-            className="bg-indigo-600 hover:bg-indigo-700 gap-2"
+            className="bg-primary hover:bg-primary/90 gap-2"
             data-testid="teacher-invite-create"
           >
             {inviteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
@@ -229,32 +248,25 @@ export default function TeacherDashboard() {
           )}
         </div>
         {latestInviteUrl && (
-          <p className="text-xs break-all text-indigo-700 dark:text-indigo-300" data-testid="teacher-invite-url">
+          <p className="text-xs break-all text-brand dark:text-brand" data-testid="teacher-invite-url">
             {latestInviteUrl}
           </p>
         )}
-        {invites.length > 0 && (
+        {activeInvites.length > 0 && (
           <div className="space-y-2 pt-2 border-t border-border">
-            {invites.slice(0, 5).map((row) => {
-              const active = !row.revoked_at && new Date(row.expires_at).getTime() > Date.now();
-              return (
-                <div key={row.id} className="flex items-center justify-between gap-2 text-sm">
-                  <div>
-                    <Badge variant={active ? "default" : "secondary"}>
-                      {active ? "Активна" : "Недействительна"}
-                    </Badge>
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      до {format(new Date(row.expires_at), "dd.MM.yyyy")} · использований: {row.use_count ?? 0}
-                    </span>
-                  </div>
-                  {active && (
-                    <Button type="button" variant="ghost" size="sm" onClick={() => handleRevokeInvite(row.id)}>
-                      Отозвать
-                    </Button>
-                  )}
+            {activeInvites.slice(0, 5).map((row) => (
+              <div key={row.id} className="flex items-center justify-between gap-2 text-sm">
+                <div>
+                  <Badge variant="default">Активна</Badge>
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    до {format(new Date(row.expires_at), "dd.MM.yyyy")} · использований: {row.use_count ?? 0}
+                  </span>
                 </div>
-              );
-            })}
+                <Button type="button" variant="ghost" size="sm" onClick={() => handleRevokeInvite(row.id)}>
+                  Отозвать
+                </Button>
+              </div>
+            ))}
           </div>
         )}
       </Card>
@@ -307,7 +319,7 @@ export default function TeacherDashboard() {
                         href={lesson.meeting_link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                        className="text-xs text-brand dark:text-brand hover:underline"
                       >
                         Войти на встречу →
                       </a>

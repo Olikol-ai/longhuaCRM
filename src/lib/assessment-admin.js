@@ -200,9 +200,9 @@ export function assignmentStatusBadgeClass(status) {
     case 'active':
       return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200';
     case 'scheduled':
-      return 'bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-200';
+      return 'bg-brand-muted text-brand dark:bg-brand-soft/50 dark:text-brand';
     case 'completed':
-      return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200';
+      return 'bg-brand-muted text-brand-hover dark:bg-brand-soft/50 dark:text-brand';
     case 'cancelled':
       return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
     case 'draft':

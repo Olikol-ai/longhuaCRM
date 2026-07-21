@@ -1,6 +1,11 @@
 # Database
 
-PostgreSQL 17 — единственное хранилище бизнес-данных. JSONB / `json_record` для стабильных сущностей **не используется**.
+PostgreSQL 17 — единственное хранилище бизнес-данных.
+
+**Хранение:** все стабильные CRM- и Assessment-сущности — **реляционные** таблицы (typed columns + FK).  
+**JSONB / `json_record` / `data jsonb` / `slots jsonb` для бизнес-сущностей не используются** (проверено в live DB: 0 колонок `json`/`jsonb`).
+
+Политика и исключения: [architecture/storage-policy.md](./architecture/storage-policy.md).
 
 ## Подключение
 
@@ -28,9 +33,10 @@ Entities лежат в `apps/api/src/modules/*/entities/`, не в отдель�
 | | `GroupMemberEntity` | `group_members` |
 | Уроки | `LessonEntity` | `lessons` |
 | | `AttendanceEntity` | `attendance_records` |
-| Расписание | `AvailabilitySlotEntity` | `teacher_availability_slots` |
+| Расписание | `AvailabilitySlotEntity` | `teacher_availability_slots` (не jsonb) |
 | | `AvailabilityBookingEntity` | `teacher_availability_bookings` |
 | | `LessonSeriesEntity` | `lesson_series` |
+| | `LessonSeriesSlotEntity` | `lesson_series_slots` |
 | | `SeriesStudentEntity` | `lesson_series_students` |
 | | `SeriesExclusionEntity` | `lesson_series_exclusions` |
 | Финансы | `PaymentEntity` | `payments` |
@@ -46,7 +52,7 @@ Entities лежат в `apps/api/src/modules/*/entities/`, не в отдель�
 | | `AuditLogEntity` | `audit_logs` |
 | | `AppSettingEntity` | `app_settings` |
 
-## Миграции (8 файлов)
+## Миграции
 
 ```bash
 npm run migration:run      # применить
@@ -54,23 +60,29 @@ npm run migration:revert   # откатить последнюю
 ```
 
 Каталог: `apps/api/src/database/migrations/`  
-DataSource: `apps/api/src/database/data-source.ts`
+DataSource: `apps/api/src/database/data-source.ts`  
+Актуальный список — массив `migrations` в `data-source.ts` (включая Assessment, invite links, soft-delete materials, …).
 
-| Migration | Назначение |
-|-----------|------------|
-| `1731000000000-InitialSchemaV2` | Базовая v2 схема |
-| `1732000000000-Phase2BusinessFlow` | Бизнес-потоки |
-| `1733000000000-Phase3ProductionReadiness` | Lesson series, progress |
-| `1734000000000-LegacyV2Bridge` | Legacy bridge |
-| `1735000000000-TeacherPaymentsSchemaAlign` | Teacher payments |
-| `1736000000000-SchemaEntityAlign` | Entity alignment |
-| `1737000000000-CertificateUniquenessAlign` | Certificate uniques |
-| `1738000000000-IntegrityHardening` | FK, idempotency, partial uniques |
+Базовая цепочка v2 начинается с `1731000000000-InitialSchemaV2` (**реляционная** схема, без `data jsonb`).  
+Исторические миграции `MigrateJsonbData` / `DropJsonbColumn` из ранних планов **не являются** текущим описанием схемы — переход завершён.
 
 **Правила:**
 - `synchronize: false` в production и development (кроме `NODE_ENV=test` + `E2E_SYNC_SCHEMA=true`).
 - При старте API миграции применяются автоматически (`migrationsRun: true`), если не задан `E2E_SYNC_SCHEMA=true`.
 - `npm run dev:server` дополнительно вызывает `migration:run` перед `start:dev`.
+
+## Assessment snapshots
+
+Модуль Assessment хранит снимок экзамена в попытке реляционно:
+
+| Таблица | Назначение |
+|--------|------------|
+| `assessment_question_snapshots` | Снимок вопроса |
+| `assessment_answer_snapshots` | Снимок вариантов |
+| `assessment_attempt_answers` / `…_selections` | Ответы участника |
+| `assessment_result_breakdowns` | Разбивка результата |
+
+Не использовать JSONB-документы для exam payload.
 
 ## Целостность
 

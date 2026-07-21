@@ -17,11 +17,12 @@ import {
 } from "date-fns";
 import { ru } from "date-fns/locale";
 import LessonModal from "@/components/schedule/LessonModal";
+import LessonDetailModal from "@/components/schedule/LessonDetailModal";
 import { createWeeklyLessonSeries } from "@/lib/recurring-lessons";
 import { toast } from "@/components/ui/use-toast";
 
 const STATUS_BG = {
-  planned: "bg-indigo-500",
+  planned: "bg-brand",
   completed: "bg-emerald-500",
   cancelled: "bg-red-400",
   rescheduled: "bg-amber-500",
@@ -29,7 +30,7 @@ const STATUS_BG = {
   missed_no_notice: "bg-red-700",
 };
 const STATUS_BORDER = {
-  planned: "border-l-indigo-500",
+  planned: "border-l-brand",
   completed: "border-l-emerald-500",
   cancelled: "border-l-red-400",
   rescheduled: "border-l-amber-500",
@@ -58,6 +59,7 @@ export default function TeacherSchedule() {
   const [viewMode, setViewMode] = useState("week"); // "month" | "week" | "list"
   const [showModal, setShowModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
+  const [viewingLesson, setViewingLesson] = useState(null);
   const [updating, setUpdating] = useState(null);
   const [expandedLesson, setExpandedLesson] = useState(null);
   const [selectedDay, setSelectedDay] = useState(null);
@@ -134,14 +136,51 @@ export default function TeacherSchedule() {
 
   const handleSaveLesson = async (data, recurring) => {
     if (!teacher) return;
-    const lessonData = { ...data, teacher_id: teacher.id };
-    await createWeeklyLessonSeries(
-      (payload) => api.lessons.create(payload),
-      lessonData,
-      recurring,
-    );
-    setShowModal(false);
-    await loadData();
+    try {
+      const lessonData = { ...data, teacher_id: teacher.id };
+      await createWeeklyLessonSeries(
+        (payload) => api.lessons.create(payload),
+        lessonData,
+        recurring,
+      );
+      setShowModal(false);
+      await loadData();
+    } catch (err) {
+      toast({
+        title: "Не удалось создать урок",
+        description: err?.message || "Попробуйте ещё раз",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUpdateLesson = async (id, data) => {
+    const previous = viewingLesson;
+    const timeChanged =
+      (data.date != null && data.date !== previous?.date) ||
+      (data.start_time != null &&
+        String(data.start_time).slice(0, 5) !== String(previous?.start_time || "").slice(0, 5)) ||
+      (data.duration != null && Number(data.duration) !== Number(previous?.duration || 60));
+
+    try {
+      await api.lessons.update(id, data);
+      setViewingLesson(null);
+      setExpandedLesson(null);
+      toast({
+        title: timeChanged
+          ? "Занятие успешно перенесено."
+          : "Информация о занятии обновлена.",
+      });
+      await loadData();
+    } catch (err) {
+      toast({
+        title: timeChanged
+          ? "Не удалось перенести занятие"
+          : "Не удалось обновить занятие",
+        description: err?.message || "Проверьте свободный график и пересечения",
+        variant: "destructive",
+      });
+    }
   };
 
   const openNewLesson = (dateStr) => {
@@ -149,8 +188,13 @@ export default function TeacherSchedule() {
     setShowModal(true);
   };
 
+  const openLessonDetails = (lesson) => {
+    setViewingLesson(lesson);
+    setExpandedLesson(null);
+  };
+
   if (loading) {
-    return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-indigo-600" /></div>;
+    return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-brand" /></div>;
   }
 
   if (loadError) {
@@ -178,7 +222,7 @@ export default function TeacherSchedule() {
           <button
             onClick={() => setMainTab("schedule")}
             className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-              mainTab === "schedule" ? "bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-400 shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+              mainTab === "schedule" ? "bg-white dark:bg-slate-700 text-brand dark:text-brand shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
             }`}
           >
             Моё расписание
@@ -186,7 +230,7 @@ export default function TeacherSchedule() {
           <button
             onClick={() => setMainTab("availability")}
             className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-              mainTab === "availability" ? "bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-400 shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+              mainTab === "availability" ? "bg-white dark:bg-slate-700 text-brand dark:text-brand shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
             }`}
           >
             Свободный график
@@ -219,14 +263,14 @@ export default function TeacherSchedule() {
                 key={v.id}
                 onClick={() => { setViewMode(v.id); setSelectedDay(null); }}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                  viewMode === v.id ? "bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-400 shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                  viewMode === v.id ? "bg-white dark:bg-slate-700 text-brand dark:text-brand shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                 }`}
               >
                 {v.label}
               </button>
             ))}
           </div>
-          <Button onClick={() => openNewLesson(null)} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
+          <Button onClick={() => openNewLesson(null)} className="bg-primary hover:bg-primary/90 gap-2">
             <Plus className="h-4 w-4" /> Создать занятие
           </Button>
         </div>
@@ -267,12 +311,12 @@ export default function TeacherSchedule() {
                     key={i}
                     onClick={() => setSelectedDay(isSelected ? null : day)}
                     className={`min-h-[80px] p-2 border-b border-r border-slate-100 dark:border-slate-700 cursor-pointer transition-colors
-                      ${isSelected ? "bg-indigo-50 dark:bg-indigo-900/20" : "hover:bg-slate-50 dark:hover:bg-slate-800"}
+                      ${isSelected ? "bg-brand-soft dark:bg-brand-soft/40" : "hover:bg-slate-50 dark:hover:bg-slate-800"}
                       ${!inMonth ? "opacity-40" : ""}
                     `}
                   >
                     <div className={`text-xs font-semibold mb-1 w-6 h-6 flex items-center justify-center rounded-full
-                      ${isToday(day) ? "bg-indigo-600 text-white" : "text-slate-700 dark:text-slate-300"}
+                      ${isToday(day) ? "bg-primary text-primary-foreground" : "text-slate-700 dark:text-slate-300"}
                     `}>
                       {format(day, "d")}
                     </div>
@@ -297,7 +341,7 @@ export default function TeacherSchedule() {
                 <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 capitalize">
                   {format(selectedDay, "EEEE, d MMMM", { locale: ru })}
                 </h3>
-                <Button size="sm" onClick={() => openNewLesson(selectedDayStr)} className="bg-indigo-600 hover:bg-indigo-700 h-7 text-xs gap-1">
+                <Button size="sm" onClick={() => openNewLesson(selectedDayStr)} className="bg-primary hover:bg-primary/90 h-7 text-xs gap-1">
                   <Plus className="h-3 w-3" /> Добавить
                 </Button>
               </div>
@@ -306,7 +350,16 @@ export default function TeacherSchedule() {
               ) : (
                 <div className="space-y-2">
                   {selectedDayLessons.map((lesson) => (
-                    <TeacherLessonCard key={lesson.id} lesson={lesson} students={students} expandedLesson={expandedLesson} setExpandedLesson={setExpandedLesson} markLesson={markLesson} updating={updating} />
+                    <TeacherLessonCard
+                      key={lesson.id}
+                      lesson={lesson}
+                      students={students}
+                      expandedLesson={expandedLesson}
+                      setExpandedLesson={setExpandedLesson}
+                      markLesson={markLesson}
+                      updating={updating}
+                      onOpenDetails={openLessonDetails}
+                    />
                   ))}
                 </div>
               )}
@@ -338,19 +391,19 @@ export default function TeacherSchedule() {
               const dayStr = format(day, "yyyy-MM-dd");
               const dayLessons = getLessonsForDay(dayStr);
               return (
-                <div key={i} className={`rounded-2xl border p-3 ${isToday(day) ? "border-indigo-300 bg-indigo-50/40 dark:bg-indigo-900/20 dark:border-indigo-700" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"}`}>
+                <div key={i} className={`rounded-2xl border p-3 ${isToday(day) ? "border-brand/40 bg-brand-soft/40 dark:bg-brand-soft/40 dark:border-brand/40" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"}`}>
                   <div className="flex items-center justify-between mb-3">
                     <div>
                       <p className="text-[11px] text-slate-400 uppercase font-medium">{WEEK_DAYS_RU[i]}</p>
-                      <div className={`text-xl font-bold w-8 h-8 flex items-center justify-center rounded-full mt-0.5 ${isToday(day) ? "bg-indigo-600 text-white" : "text-slate-900 dark:text-white"}`}>
+                      <div className={`text-xl font-bold w-8 h-8 flex items-center justify-center rounded-full mt-0.5 ${isToday(day) ? "bg-primary text-primary-foreground" : "text-slate-900 dark:text-white"}`}>
                         {format(day, "d")}
                       </div>
                     </div>
                     <button
                       onClick={() => openNewLesson(dayStr)}
-                      className="h-7 w-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 flex items-center justify-center transition-colors"
+                      className="h-7 w-7 rounded-lg bg-brand-soft dark:bg-brand-soft/40 hover:bg-brand-muted flex items-center justify-center transition-colors"
                     >
-                      <Plus className="h-3.5 w-3.5 text-indigo-600" />
+                      <Plus className="h-3.5 w-3.5 text-brand" />
                     </button>
                   </div>
                   <div className="space-y-2">
@@ -370,13 +423,20 @@ export default function TeacherSchedule() {
                           <p className="text-[10px] text-slate-400">{lesson.duration || 60} мин</p>
                           {lesson.meeting_link && (
                             <a href={lesson.meeting_link} target="_blank" rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-[10px] text-indigo-600 hover:underline mt-1"
+                              className="inline-flex items-center gap-1 text-[10px] text-brand hover:underline mt-1"
                               onClick={e => e.stopPropagation()}>
                               <Video className="h-2.5 w-2.5" /> Войти
                             </a>
                           )}
                           {expandedLesson === lesson.id && lesson.status === "planned" && (
                             <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); openLessonDetails(lesson); }}
+                                className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium rounded-lg transition-colors bg-brand-soft text-brand hover:bg-brand-muted"
+                              >
+                                <Calendar className="w-3 h-3" /> Перенести
+                              </button>
                               {[
                                 { status: "completed", icon: CheckCircle2, label: "Проведено", cls: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" },
                                 { status: "cancelled", icon: XCircle, label: "Отменить", cls: "bg-red-50 text-red-600 hover:bg-red-100" },
@@ -412,7 +472,16 @@ export default function TeacherSchedule() {
             <div className="text-center py-16 text-slate-400">Уроков нет</div>
           ) : (
             listLessons.map((lesson) => (
-              <TeacherLessonCard key={lesson.id} lesson={lesson} students={students} expandedLesson={expandedLesson} setExpandedLesson={setExpandedLesson} markLesson={markLesson} updating={updating} />
+              <TeacherLessonCard
+                key={lesson.id}
+                lesson={lesson}
+                students={students}
+                expandedLesson={expandedLesson}
+                setExpandedLesson={setExpandedLesson}
+                markLesson={markLesson}
+                updating={updating}
+                onOpenDetails={openLessonDetails}
+              />
             ))
           )}
         </div>
@@ -429,13 +498,26 @@ export default function TeacherSchedule() {
           onClose={() => setShowModal(false)}
         />
       )}
+
+      {viewingLesson && (
+        <LessonDetailModal
+          lesson={viewingLesson}
+          teachers={allTeachers.length ? allTeachers : (teacher ? [teacher] : [])}
+          students={students}
+          isAdmin={false}
+          isTeacher
+          onUpdate={handleUpdateLesson}
+          onDelete={() => {}}
+          onClose={() => setViewingLesson(null)}
+        />
+      )}
       </>
       )}
     </div>
   );
 }
 
-function TeacherLessonCard({ lesson, students, expandedLesson, setExpandedLesson, markLesson, updating }) {
+function TeacherLessonCard({ lesson, students, expandedLesson, setExpandedLesson, markLesson, updating, onOpenDetails }) {
   return (
     <div
       className={`p-4 bg-white dark:bg-slate-900 rounded-xl border-l-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:shadow-sm transition-all ${STATUS_BORDER[lesson.status] || "border-l-slate-300 dark:border-l-slate-600"}`}
@@ -460,7 +542,7 @@ function TeacherLessonCard({ lesson, students, expandedLesson, setExpandedLesson
             <p className="text-xs text-slate-400">{lesson.duration || 60} мин</p>
             {lesson.meeting_link && (
               <a href={lesson.meeting_link} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline mt-0.5"
+                className="inline-flex items-center gap-1 text-xs text-brand dark:text-brand hover:underline mt-0.5"
                 onClick={e => e.stopPropagation()}>
                 <Video className="h-3 w-3" /> Войти на встречу
               </a>
@@ -468,7 +550,7 @@ function TeacherLessonCard({ lesson, students, expandedLesson, setExpandedLesson
           </div>
         </div>
         <Badge variant="outline" className={`text-[11px] shrink-0 ${
-          lesson.status === "planned" ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800" :
+          lesson.status === "planned" ? "bg-brand-soft text-brand dark:bg-brand-soft/40 dark:text-brand dark:border-brand/40" :
           lesson.status === "completed" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800" :
           "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"
         }`}>
@@ -478,6 +560,13 @@ function TeacherLessonCard({ lesson, students, expandedLesson, setExpandedLesson
 
       {expandedLesson === lesson.id && lesson.status === "planned" && (
         <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onOpenDetails?.(lesson); }}
+            className="flex items-center gap-1.5 px-3 py-2 min-h-[40px] text-xs font-medium rounded-lg border transition-colors bg-brand-soft text-brand border-brand/30 hover:bg-brand-muted dark:bg-brand-soft/40 dark:text-brand dark:border-brand/40"
+          >
+            <Calendar className="w-3.5 h-3.5" /> Перенести
+          </button>
           {[
             { status: "completed", icon: CheckCircle2, label: "Проведено", cls: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60 dark:border-emerald-800" },
             { status: "cancelled", icon: XCircle, label: "Отменить", cls: "bg-red-50 text-red-600 hover:bg-red-100 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/60 dark:border-red-800" },

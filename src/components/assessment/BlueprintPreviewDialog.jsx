@@ -30,7 +30,7 @@ export default function BlueprintPreviewDialog({
 
         {loading ? (
           <div className="flex justify-center py-10">
-            <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+            <Loader2 className="h-6 w-6 animate-spin text-brand" />
           </div>
         ) : (
           <div className="space-y-4">

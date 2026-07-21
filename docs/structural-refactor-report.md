@@ -1,3 +1,8 @@
+> **HISTORICAL / COMPLETED (JSONB migration finished).**
+> This file describes an earlier plan/audit that mentioned `data jsonb`, `slots jsonb`, or legacy JSON storage.
+> **Current architecture:** relational CRM entities; TeacherAvailability via `teacher_availability_slots`; Assessment via snapshot tables; **no JSONB for business entities**.
+> See [docs/Database.md](docs/Database.md) and [docs/architecture/storage-policy.md](docs/architecture/storage-policy.md).
+
 # Structural Refactor Report
 
 Date: 2026-06-28  

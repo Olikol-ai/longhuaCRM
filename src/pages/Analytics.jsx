@@ -7,16 +7,15 @@ import { TrendingUp, Users, BookOpen, Download, GraduationCap, CreditCard } from
 import { Card } from "@/components/ui/card";
 import { formatCurrency, sumPaymentAmounts } from "@/lib/formatters";
 
-function StatBox({ label, value, color = "indigo" }) {
+function StatBox({ label, value, color = "brand" }) {
   const colors = {
     emerald: "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-100 dark:border-emerald-900/50",
-    indigo: "bg-indigo-50 dark:bg-indigo-950/40 border-indigo-100 dark:border-indigo-900/50",
-    sky: "bg-sky-50 dark:bg-sky-950/40 border-sky-100 dark:border-sky-900/50",
-    violet: "bg-violet-50 dark:bg-violet-950/40 border-violet-100 dark:border-violet-900/50",
+    brand: "bg-brand-soft dark:bg-brand-soft/40 border-brand/20 dark:border-brand/40",
+    muted: "bg-muted border-border",
     amber: "bg-amber-50 dark:bg-amber-950/40 border-amber-100 dark:border-amber-900/50",
   };
   return (
-    <div className={`rounded-xl border p-5 ${colors[color]}`}>
+    <div className={`rounded-xl border p-5 ${colors[color] || colors.brand}`}>
       <p className="text-2xl font-bold text-foreground">{value}</p>
       <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
     </div>
@@ -130,9 +129,9 @@ export default function Analytics() {
       {/* KPI */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatBox label="Общая выручка" value={formatCurrency(totalRevenue)} color="emerald" />
-        <StatBox label="Выручка за месяц" value={formatCurrency(monthRevenue)} color="indigo" />
-        <StatBox label="Активных учеников" value={activeStudents} color="sky" />
-        <StatBox label="Уроков проведено" value={completedLessons} color="violet" />
+        <StatBox label="Выручка за месяц" value={formatCurrency(monthRevenue)} color="brand" />
+        <StatBox label="Активных учеников" value={activeStudents} color="muted" />
+        <StatBox label="Уроков проведено" value={completedLessons} color="muted" />
         <StatBox label="Мало уроков (≤1)" value={lowBalanceStudents} color="amber" />
       </div>
 
@@ -145,7 +144,7 @@ export default function Analytics() {
             <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
             <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
             <Tooltip formatter={(v) => [formatCurrency(v), "Выручка"]} />
-            <Bar dataKey="revenue" fill="#6366f1" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="revenue" fill="#8B1A1A" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </Card>
@@ -158,8 +157,8 @@ export default function Analytics() {
               <p className="text-sm text-muted-foreground text-center py-4">Нет данных</p>
             ) : teacherStats.map(t => (
               <div key={t.id} className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-950/50 flex items-center justify-center flex-shrink-0">
-                  <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">{t.name?.[0]}</span>
+                <div className="w-8 h-8 rounded-full bg-brand-muted dark:bg-brand-soft/50 flex items-center justify-center flex-shrink-0">
+                  <span className="text-xs font-bold text-brand dark:text-brand">{t.name?.[0]}</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between mb-1">
@@ -167,7 +166,7 @@ export default function Analytics() {
                     <span className="text-xs text-muted-foreground ml-2">{t.completed} пров. · {t.planned} план.</span>
                   </div>
                   <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full bg-indigo-500 rounded-full"
+                    <div className="h-full bg-brand rounded-full"
                       style={{ width: `${Math.min(100, (t.total / maxLessons) * 100)}%` }} />
                   </div>
                 </div>
@@ -180,7 +179,7 @@ export default function Analytics() {
           <h3 className="text-sm font-semibold text-foreground mb-4">Уроки за этот месяц</h3>
           <div className="space-y-1">
             {[
-              { label: "Запланировано", status: "planned", color: "bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-400" },
+              { label: "Запланировано", status: "planned", color: "bg-brand-muted text-brand dark:bg-brand-soft/50 dark:text-brand" },
               { label: "Проведено", status: "completed", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400" },
               { label: "Отменено", status: "cancelled", color: "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400" },
               { label: "Перенесено", status: "rescheduled", color: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400" },

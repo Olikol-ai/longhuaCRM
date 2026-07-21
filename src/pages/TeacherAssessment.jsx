@@ -29,7 +29,7 @@ export default function TeacherAssessment() {
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand" />
       </div>
     );
   }
@@ -38,7 +38,7 @@ export default function TeacherAssessment() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 mb-1">
+          <div className="flex items-center gap-2 text-brand dark:text-brand mb-1">
             <ClipboardList className="h-5 w-5" />
             <span className="text-xs font-semibold uppercase tracking-wide">Экзамены</span>
           </div>

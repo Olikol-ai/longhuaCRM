@@ -73,7 +73,7 @@ export default function AccessManagementPanel({ isAdmin }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand" />
       </div>
     );
   }
@@ -109,7 +109,7 @@ export default function AccessManagementPanel({ isAdmin }) {
             onClick={() => setUserTypeTab("students")}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               userTypeTab === "students"
-                ? "bg-indigo-600 text-white"
+                ? "bg-primary text-primary-foreground"
                 : "bg-muted text-muted-foreground hover:bg-muted/80"
             }`}
           >
@@ -120,7 +120,7 @@ export default function AccessManagementPanel({ isAdmin }) {
             onClick={() => setUserTypeTab("teachers")}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               userTypeTab === "teachers"
-                ? "bg-indigo-600 text-white"
+                ? "bg-primary text-primary-foreground"
                 : "bg-muted text-muted-foreground hover:bg-muted/80"
             }`}
           >
@@ -139,8 +139,8 @@ export default function AccessManagementPanel({ isAdmin }) {
           {activeList.map((row) => (
             <Card key={row.userId} className="p-4 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-950 flex items-center justify-center shrink-0">
-                  <span className="text-sm font-bold text-indigo-700 dark:text-indigo-300">
+                <div className="w-10 h-10 rounded-full bg-brand-muted dark:bg-brand-soft flex items-center justify-center shrink-0">
+                  <span className="text-sm font-bold text-brand dark:text-brand">
                     {(row.name || row.email || '?').charAt(0).toUpperCase()}
                   </span>
                 </div>

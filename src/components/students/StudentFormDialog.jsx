@@ -230,7 +230,7 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
             type="button"
             onClick={handleSubmit}
             disabled={loading || !formData.name}
-            className="bg-indigo-600 hover:bg-indigo-700"
+            className="bg-primary hover:bg-primary/90"
             data-testid="student-form-save"
           >
             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}

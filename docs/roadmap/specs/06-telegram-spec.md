@@ -1,3 +1,8 @@
+> **HISTORICAL / COMPLETED (JSONB migration finished).**
+> This file describes an earlier plan/audit that mentioned `data jsonb`, `slots jsonb`, or legacy JSON storage.
+> **Current architecture:** relational CRM entities; TeacherAvailability via `teacher_availability_slots`; Assessment via snapshot tables; **no JSONB for business entities**.
+> See [../../Database.md](../../Database.md) and [../../architecture/storage-policy.md](../../architecture/storage-policy.md).
+
 # Спецификация этапа 6: Telegram Module
 
 **Roadmap:** [06-telegram.md](../06-telegram.md)  

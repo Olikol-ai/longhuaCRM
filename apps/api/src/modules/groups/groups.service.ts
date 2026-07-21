@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { FindOptionsWhere } from 'typeorm';
 import { TeacherAccessService } from '../../common/access/teacher-access.service';
 import { JwtPayload } from '../auth/auth.service';
@@ -72,6 +76,13 @@ export class GroupsService {
     const row = await this.repository.findById(groupId);
     if (!row) {
       throw new NotFoundException('Group not found');
+    }
+    const existing = await this.repository.findMemberByGroupAndStudent(
+      groupId,
+      dto.studentId,
+    );
+    if (existing) {
+      throw new ConflictException('Ученик уже состоит в этой группе');
     }
     return this.repository.saveMember({ groupId, studentId: dto.studentId });
   }

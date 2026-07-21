@@ -408,7 +408,7 @@ export class CertificatesService {
       || certificate.status === 'sent'
       || certificate.status === 'duplicate';
 
-    let message = 'Сертификат действителен и подтверждён в реестре Longhua Chinese.';
+    let message = 'Сертификат действителен и подтверждён в реестре Longhua Academy.';
     if (certificate.status === 'revoked') {
       message = 'Сертификат отозван и больше не является действительным.';
     }

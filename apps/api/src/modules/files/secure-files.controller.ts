@@ -3,13 +3,11 @@ import {
   Get,
   Param,
   Post,
-  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Response } from 'express';
 import { memoryStorage } from 'multer';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -42,9 +40,8 @@ export class SecureFilesController {
   }
 
   @Get('signed/:token')
-  async streamSigned(@Param('token') token: string, @Res({ passthrough: true }) res: Response) {
-    const file = await this.secureFiles.streamSignedFile(token);
-    return file;
+  async streamSigned(@Param('token') token: string) {
+    return this.secureFiles.streamSignedFile(token);
   }
 
   @Get('material/:materialId/url')

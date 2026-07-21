@@ -6,11 +6,11 @@ import { BookOpen, Clock, Sparkles, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const DEFAULTS = {
-  school_name: "Longhua Chinese",
+  school_name: "Longhua Academy",
   title: "Добро пожаловать!",
-  subtitle: "Платформа управления языковой школой",
-  body_text: "Спасибо, что зарегистрировались в Longhua Chinese!\n\nВаш аккаунт находится на рассмотрении. В ближайшее время администратор назначит вам роль — после этого вы получите доступ к платформе.",
-  info_text: "Если у вас есть вопросы — свяжитесь с администратором школы.",
+  subtitle: "Образовательная платформа Longhua Academy",
+  body_text: "Спасибо, что зарегистрировались в Longhua Academy!\n\nВаш аккаунт находится на рассмотрении. В ближайшее время администратор назначит вам роль — после этого вы получите доступ к платформе.",
+  info_text: "Если у вас есть вопросы — свяжитесь с администратором Longhua Academy.",
 };
 
 export default function Welcome() {
@@ -26,11 +26,11 @@ export default function Welcome() {
   const greetingName = getGreetingName(user);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 dark:from-indigo-950/40 via-white dark:via-slate-950 to-slate-50 dark:to-slate-950 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-gradient-to-br from-brand-soft dark:from-brand-soft/40 via-white dark:via-slate-950 to-slate-50 dark:to-slate-950 flex items-center justify-center p-6">
       <div className="max-w-lg w-full text-center space-y-8">
         {/* Logo */}
         <div className="flex items-center justify-center gap-3">
-          <div className="h-14 w-14 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
+          <div className="h-14 w-14 bg-brand rounded-2xl flex items-center justify-center shadow-lg shadow-amber-300">
             <BookOpen className="h-7 w-7 text-white" />
           </div>
         </div>
@@ -59,9 +59,9 @@ export default function Welcome() {
             ))}
           </div>
 
-          <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl px-6 py-4 flex items-start gap-3 text-left">
-            <Sparkles className="h-5 w-5 text-indigo-500 shrink-0 mt-0.5" />
-            <p className="text-sm text-indigo-700">{settings.info_text}</p>
+          <div className="bg-brand-soft dark:bg-brand-soft/40 rounded-2xl px-6 py-4 flex items-start gap-3 text-left">
+              <Sparkles className="h-5 w-5 text-brand shrink-0 mt-0.5" />
+            <p className="text-sm text-brand">{settings.info_text}</p>
           </div>
         </div>
 

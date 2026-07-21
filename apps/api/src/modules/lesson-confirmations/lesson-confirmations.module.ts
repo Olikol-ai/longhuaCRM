@@ -7,6 +7,7 @@ import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { UserEntity } from '../users/entities/user.entity';
 import { TelegramGatewayModule } from '../telegram/telegram-gateway.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { LessonConfirmationEntity } from './entities/lesson-confirmation.entity';
 import { LessonConfirmationJobsService } from './lesson-confirmation-jobs.service';
 import { LessonConfirmationService } from './lesson-confirmation.service';
@@ -27,6 +28,7 @@ import { GroupMemberEntity } from '../groups/entities/group-member.entity';
       UserEntity,
     ]),
     TelegramGatewayModule,
+    NotificationsModule,
   ],
   providers: [LessonConfirmationService, LessonConfirmationJobsService],
   exports: [LessonConfirmationService, LessonConfirmationJobsService, TypeOrmModule],

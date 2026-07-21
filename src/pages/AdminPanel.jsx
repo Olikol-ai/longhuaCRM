@@ -34,7 +34,7 @@ export default function AdminPanel() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium rounded-lg whitespace-nowrap transition-colors shrink-0 lg:px-3 lg:py-1.5 lg:text-sm ${
                   active
-                    ? "bg-indigo-600 text-white shadow-sm"
+                    ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >

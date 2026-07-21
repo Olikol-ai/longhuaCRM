@@ -126,6 +126,33 @@ describe('AssessmentAccessService ACL', () => {
     ).rejects.toThrow(/another teacher Result|Forbidden/);
   });
 
+  it('admin can delete any question', () => {
+    expect(() =>
+      access.assertCanDeleteQuestion(
+        { sub: 'admin-1', role: 'admin', email: 'a@t.com' },
+        { createdByUserId: 'someone-else' },
+      ),
+    ).not.toThrow();
+  });
+
+  it('author teacher can delete own question', () => {
+    expect(() =>
+      access.assertCanDeleteQuestion(
+        { sub: 'user-t1', role: 'teacher', email: 't@t.com' },
+        { createdByUserId: 'user-t1' },
+      ),
+    ).not.toThrow();
+  });
+
+  it('other teacher cannot delete foreign question', () => {
+    expect(() =>
+      access.assertCanDeleteQuestion(
+        { sub: 'user-t1', role: 'teacher', email: 't@t.com' },
+        { createdByUserId: 'user-t-OTHER' },
+      ),
+    ).toThrow(ForbiddenException);
+  });
+
   it('admin bypass works', async () => {
     assignmentRepo.findOne.mockResolvedValue({
       id: 'asg-1',

@@ -4,6 +4,7 @@ import { ScheduleAccessService } from '../../common/access/schedule-access.servi
 import { JwtPayload } from '../auth/auth.service';
 import { AvailabilityBookingEntity } from './entities/availability-booking.entity';
 import { AvailabilitySlotEntity } from './entities/availability-slot.entity';
+import { AvailabilitySlotItemDto } from './dto/replace-availability-slots.dto';
 import { CreateAvailabilitySlotDto } from './dto/create-availability-slot.dto';
 import { UpdateAvailabilitySlotDto } from './dto/update-availability-slot.dto';
 import { ScheduleRepository } from './schedule.repository';
@@ -32,6 +33,9 @@ const UNAVAILABLE_MESSAGE =
 const CONFLICT_MESSAGE =
   'У преподавателя уже есть урок или бронирование в это время.';
 
+const STUDENT_CONFLICT_MESSAGE =
+  'У ученика уже есть другое занятие в это время.';
+
 @Injectable()
 export class ScheduleService {
   constructor(
@@ -53,21 +57,74 @@ export class ScheduleService {
     return row;
   }
 
-  createSlot(dto: CreateAvailabilitySlotDto): Promise<AvailabilitySlotEntity> {
-    return this.repository.saveSlot(dto);
+  async createSlot(
+    actor: JwtPayload,
+    dto: CreateAvailabilitySlotDto,
+  ): Promise<AvailabilitySlotEntity> {
+    await this.scheduleAccess.assertCanWriteTeacherSchedule(actor, dto.teacherId);
+    this.assertValidTimeRange(dto.timeFrom, dto.timeTo);
+    return this.repository.saveSlot({
+      teacherId: dto.teacherId,
+      dayOfWeek: dto.dayOfWeek,
+      timeFrom: this.normalizeTime(dto.timeFrom),
+      timeTo: this.normalizeTime(dto.timeTo),
+    });
   }
 
-  async updateSlot(id: string, dto: UpdateAvailabilitySlotDto): Promise<AvailabilitySlotEntity> {
-    const row = await this.repository.updateSlot(id, dto);
+  async updateSlot(
+    actor: JwtPayload,
+    id: string,
+    dto: UpdateAvailabilitySlotDto,
+  ): Promise<AvailabilitySlotEntity> {
+    const existing = await this.repository.findSlotById(id);
+    if (!existing) {
+      throw new NotFoundException('Availability slot not found');
+    }
+    await this.scheduleAccess.assertCanWriteTeacherSchedule(actor, existing.teacherId);
+
+    const timeFrom = dto.timeFrom ?? existing.timeFrom;
+    const timeTo = dto.timeTo ?? existing.timeTo;
+    this.assertValidTimeRange(timeFrom, timeTo);
+
+    const row = await this.repository.updateSlot(id, {
+      dayOfWeek: dto.dayOfWeek,
+      timeFrom: dto.timeFrom ? this.normalizeTime(dto.timeFrom) : undefined,
+      timeTo: dto.timeTo ? this.normalizeTime(dto.timeTo) : undefined,
+    });
     if (!row) {
       throw new NotFoundException('Availability slot not found');
     }
     return row;
   }
 
-  async deleteSlot(id: string): Promise<void> {
-    await this.repository.findSlotById(id);
+  async deleteSlot(actor: JwtPayload, id: string): Promise<void> {
+    const existing = await this.repository.findSlotById(id);
+    if (!existing) {
+      throw new NotFoundException('Availability slot not found');
+    }
+    await this.scheduleAccess.assertCanWriteTeacherSchedule(actor, existing.teacherId);
     await this.repository.deleteSlot(id);
+  }
+
+  async replaceTeacherAvailability(
+    actor: JwtPayload,
+    teacherId: string,
+    slots: AvailabilitySlotItemDto[],
+  ): Promise<TeacherScheduleInfo> {
+    await this.scheduleAccess.assertCanWriteTeacherSchedule(actor, teacherId);
+    await this.assertTeacherExists(teacherId);
+
+    const normalized = (slots ?? []).map((slot) => {
+      this.assertValidTimeRange(slot.from, slot.to);
+      return {
+        dayOfWeek: slot.day,
+        timeFrom: this.normalizeTime(slot.from),
+        timeTo: this.normalizeTime(slot.to),
+      };
+    });
+
+    await this.repository.replaceSlotsForTeacher(teacherId, normalized);
+    return this.getTeacherSchedule(actor, teacherId);
   }
 
   async filterSlots(
@@ -106,6 +163,57 @@ export class ScheduleService {
     await this.scheduleAccess.assertCanAccessTeacherSchedule(actor, teacherId);
     await this.assertTeacherExists(teacherId);
     return this.evaluateAvailability(teacherId, date, startTime, duration);
+  }
+
+  /** Same rules as lesson creation — for advisory available-teachers list. */
+  isTeacherFreeForSlot(
+    slots: AvailabilitySlot[],
+    date: string,
+    startTime: string,
+    duration: number,
+  ): boolean {
+    if (slots.length === 0) {
+      return true;
+    }
+    const dayOfWeek = this.dayIndexFromDate(date);
+    const slotsForDay = slots.filter((slot) => slot.day === dayOfWeek);
+    if (slotsForDay.length === 0) {
+      return false;
+    }
+    const timeFrom = this.normalizeTime(startTime);
+    const timeTo = this.addMinutesToTime(timeFrom, Number(duration) || 60);
+    return slotsForDay.some((slot) =>
+      this.rangeContained(
+        timeFrom,
+        timeTo,
+        this.normalizeTime(slot.from),
+        this.normalizeTime(slot.to),
+      ),
+    );
+  }
+
+  async loadSlotsForTeacher(teacherId: string): Promise<AvailabilitySlot[]> {
+    return this.loadSlots(teacherId);
+  }
+
+  async loadSlotsForTeachers(
+    teacherIds: string[],
+  ): Promise<Map<string, AvailabilitySlot[]>> {
+    const rows = await this.repository.findSlotsByTeacherIds(teacherIds);
+    const map = new Map<string, AvailabilitySlot[]>();
+    for (const id of teacherIds) {
+      map.set(id, []);
+    }
+    for (const row of rows) {
+      const list = map.get(row.teacherId) ?? [];
+      list.push({
+        day: row.dayOfWeek,
+        from: this.formatTimeValue(row.timeFrom),
+        to: this.formatTimeValue(row.timeTo),
+      });
+      map.set(row.teacherId, list);
+    }
+    return map;
   }
 
   private async evaluateAvailability(
@@ -210,6 +318,38 @@ export class ScheduleService {
     }
   }
 
+  /**
+   * Ensures none of the given students already have a lesson overlapping the slot.
+   */
+  async assertNoStudentScheduleConflicts(
+    studentIds: string[],
+    date: string,
+    startTime: string,
+    duration: number,
+    excludeLessonId?: string,
+  ): Promise<void> {
+    const uniqueIds = [...new Set(studentIds.filter(Boolean))];
+    if (uniqueIds.length === 0) {
+      return;
+    }
+
+    const timeFrom = this.normalizeTime(startTime);
+    const timeTo = this.addMinutesToTime(timeFrom, Number(duration) || 60);
+    const lessons = await this.repository.findLessonsForStudentsOnDate(
+      uniqueIds,
+      date,
+      excludeLessonId,
+    );
+
+    for (const lesson of lessons) {
+      const lessonFrom = this.normalizeTime(lesson.startTime);
+      const lessonTo = this.addMinutesToTime(lessonFrom, lesson.duration || 60);
+      if (this.rangesOverlap(timeFrom, timeTo, lessonFrom, lessonTo)) {
+        throw new BadRequestException(STUDENT_CONFLICT_MESSAGE);
+      }
+    }
+  }
+
   async createLessonBooking(params: {
     teacherId: string;
     lessonId: string;
@@ -227,6 +367,14 @@ export class ScheduleService {
       timeTo,
       status: 'active',
     });
+  }
+
+  private assertValidTimeRange(timeFrom: string, timeTo: string): void {
+    const from = this.parseTimeToMinutes(timeFrom);
+    const to = this.parseTimeToMinutes(timeTo);
+    if (from >= to) {
+      throw new BadRequestException('timeFrom must be earlier than timeTo');
+    }
   }
 
   private async assertTeacherExists(teacherId: string): Promise<void> {

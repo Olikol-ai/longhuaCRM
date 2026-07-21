@@ -16,7 +16,7 @@ export const STATUS_LABELS = {
 const FORMAT_LABELS = { online: "Дистанционное", offline: "Очное" };
 
 const statusColors = {
-  planned: "bg-sky-100 text-sky-700",
+  planned: "bg-brand-muted text-brand",
   completed: "bg-emerald-100 text-emerald-700",
   cancelled: "bg-red-100 text-red-500",
   rescheduled: "bg-amber-100 text-amber-700",
@@ -35,10 +35,24 @@ export default function LessonDetailModal({ lesson, teachers, students, isAdmin,
   const handleSave = () => {
     const primaryStudentId =
       form.primary_student_id || form.student_id || "";
-    if (!isGroupLesson && !primaryStudentId) {
+    if (!isGroupLesson && !primaryStudentId && isAdmin) {
       alert("Выберите ученика для индивидуального урока");
       return;
     }
+
+    // Teachers may only reschedule time / room / notes / link (ACL enforces the same on API).
+    if (isTeacher && !isAdmin) {
+      onUpdate(lesson.id, {
+        date: form.date,
+        start_time: form.start_time,
+        duration: form.duration,
+        room: form.room,
+        meeting_link: form.meeting_link,
+        notes: form.notes,
+      });
+      return;
+    }
+
     onUpdate(lesson.id, {
       teacher_id: form.teacher_id,
       date: form.date,
@@ -46,6 +60,7 @@ export default function LessonDetailModal({ lesson, teachers, students, isAdmin,
       duration: form.duration,
       status: form.status,
       lesson_format: form.lesson_format,
+      room: form.room,
       meeting_link: form.meeting_link,
       notes: form.notes,
       lesson_type: isGroupLesson ? "group" : "individual",
@@ -65,20 +80,25 @@ export default function LessonDetailModal({ lesson, teachers, students, isAdmin,
       <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
         <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] flex flex-col">
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
-            <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Редактировать урок</h3>
+            <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">
+              {isTeacher && !isAdmin ? "Изменить занятие" : "Редактировать урок"}
+            </h3>
             <button onClick={() => setEditing(false)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
               <X className="w-4 h-4 text-slate-500 dark:text-slate-400" />
             </button>
           </div>
           <div className="p-6 space-y-4 overflow-y-auto flex-1">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {isAdmin && (
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Преподаватель</label>
                 <select value={form.teacher_id} onChange={e => set("teacher_id", e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400">
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40">
                   {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </div>
+              )}
+              {isAdmin && (
               <div className="col-span-2">
                 {isGroupLesson ? (
                   <>
@@ -93,7 +113,7 @@ export default function LessonDetailModal({ lesson, teachers, students, isAdmin,
                     <select
                       value={currentStudentId}
                       onChange={(e) => set("primary_student_id", e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
                     >
                       <option value="">Выбрать ученика</option>
                       {students.filter((s) => s.status !== "inactive").map((s) => (
@@ -103,48 +123,75 @@ export default function LessonDetailModal({ lesson, teachers, students, isAdmin,
                   </>
                 )}
               </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Дата</label>
                 <input type="date" value={form.date} onChange={e => set("date", e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Время начала</label>
-                <input type="time" value={form.start_time} onChange={e => set("start_time", e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+                <input type="time" value={String(form.start_time || "").slice(0, 5)} onChange={e => set("start_time", e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Длительность (мин)</label>
                 <select value={form.duration} onChange={e => set("duration", +e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400">
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40">
                   {[30, 45, 60, 90, 120].map(d => <option key={d} value={d}>{d} мин</option>)}
                 </select>
               </div>
               <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Кабинет</label>
+                <input
+                  value={form.room || ""}
+                  onChange={(e) => set("room", e.target.value)}
+                  placeholder="Например, 204"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
+                />
+              </div>
+              {isAdmin && (
+              <div>
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Статус</label>
                 <select value={form.status} onChange={e => set("status", e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400">
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40">
                   {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </div>
+              )}
+              {isAdmin && (
               <div>
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Формат</label>
                 <select value={form.lesson_format || "online"} onChange={e => set("lesson_format", e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400">
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40">
                   <option value="online">Дистанционное</option>
                   <option value="offline">Очное</option>
                 </select>
               </div>
+              )}
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Ссылка на встречу</label>
-                <input value={form.meeting_link || ""} onChange={e => set("meeting_link", e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Ссылка на онлайн-занятие</label>
+                <input
+                  value={form.meeting_link || ""}
+                  onChange={(e) => set("meeting_link", e.target.value)}
+                  placeholder="Zoom / Google Meet / Teams"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Комментарий</label>
+                <textarea
+                  value={form.notes || ""}
+                  onChange={(e) => set("notes", e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
+                />
               </div>
             </div>
           </div>
           <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex-shrink-0">
             <button onClick={() => setEditing(false)} className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg">Отмена</button>
-            <button onClick={handleSave} className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Сохранить</button>
+            <button onClick={handleSave} className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90">Сохранить</button>
           </div>
         </div>
       </div>
@@ -159,22 +206,27 @@ export default function LessonDetailModal({ lesson, teachers, students, isAdmin,
             <span className={`text-xs font-bold uppercase px-2 py-1 rounded-lg ${statusColors[lesson.status] || statusColors.planned}`}>
               {STATUS_LABELS[lesson.status] || lesson.status}
             </span>
-            <span className={`text-xs font-medium px-2 py-1 rounded-lg ${lesson.lesson_format === "offline" ? "bg-orange-50 text-orange-700" : "bg-blue-50 text-blue-700"}`}>
+            <span className={`text-xs font-medium px-2 py-1 rounded-lg ${lesson.lesson_format === "offline" ? "bg-orange-50 text-orange-700" : "bg-brand-soft text-brand"}`}>
               {FORMAT_LABELS[lesson.lesson_format] || "Дистанционное"}
             </span>
           </div>
           <div className="flex gap-1">
-            {isAdmin && (
-              <>
-                <button onClick={() => setEditing(true)} className="p-1.5 hover:bg-indigo-50 hover:text-indigo-600 text-slate-400 dark:text-slate-500 rounded-lg">
-                  <Edit2 className="w-4 h-4" />
-                </button>
-                <button onClick={() => onDelete(lesson.id)} className="p-1.5 hover:bg-red-50 hover:text-red-500 text-slate-400 dark:text-slate-500 rounded-lg">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </>
+            {(isAdmin || (isTeacher && lesson.status === "planned")) && (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="p-1.5 hover:bg-brand-soft hover:text-brand text-slate-400 dark:text-slate-500 rounded-lg"
+                title="Перенести / изменить"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
             )}
-            <button onClick={onClose} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-lg">
+            {isAdmin && (
+              <button type="button" onClick={() => onDelete(lesson.id)} className="p-1.5 hover:bg-red-50 hover:text-red-500 text-slate-400 dark:text-slate-500 rounded-lg">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+            <button type="button" onClick={onClose} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-lg">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -209,11 +261,22 @@ export default function LessonDetailModal({ lesson, teachers, students, isAdmin,
               )}
             </div>
           </div>
+          {lesson.room && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-600 dark:text-slate-300">Кабинет: {lesson.room}</span>
+            </div>
+          )}
           {lesson.meeting_link && (
             <a href={lesson.meeting_link} target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-2 px-3 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-sm font-medium hover:bg-indigo-100 transition-colors">
+              className="flex items-center gap-2 px-3 py-2 bg-brand-soft text-brand rounded-xl text-sm font-medium hover:bg-brand-muted transition-colors">
               <Video className="w-4 h-4" /> Войти на встречу
             </a>
+          )}
+          {lesson.notes && (
+            <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3">
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Комментарий</p>
+              <p className="text-sm text-slate-700 dark:text-slate-200 mt-0.5 whitespace-pre-wrap">{lesson.notes}</p>
+            </div>
           )}
           {lesson.is_recurring && (
             <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">

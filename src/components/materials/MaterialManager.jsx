@@ -197,7 +197,7 @@ export default function MaterialManager() {
   if (loading || isLoadingAuth) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand" />
       </div>
     );
   }
@@ -208,7 +208,7 @@ export default function MaterialManager() {
         <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-6 text-center space-y-3">
           <h1 className="text-xl font-semibold text-foreground">Не удалось открыть материалы</h1>
           <p className="text-sm text-muted-foreground">{loadError}</p>
-          <Button onClick={() => { setLoading(true); loadData(); }} className="bg-indigo-600 hover:bg-indigo-700">
+          <Button onClick={() => { setLoading(true); loadData(); }} className="bg-primary hover:bg-primary/90">
             Повторить
           </Button>
         </div>
@@ -235,7 +235,7 @@ export default function MaterialManager() {
             </Button>
           )}
           {canCreateMaterials && (
-            <Button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
+            <Button onClick={openCreate} className="bg-primary hover:bg-primary/90 gap-2">
               <Plus className="h-4 w-4" />
               Добавить материал
             </Button>
@@ -299,12 +299,12 @@ export default function MaterialManager() {
           </div>
 
           {selectedIds.size > 0 && canAccess && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/30 px-4 py-3">
-              <span className="text-sm text-indigo-800 dark:text-indigo-200">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/30 dark:border-brand/50 bg-brand-soft/50 dark:bg-brand-soft/30 px-4 py-3">
+              <span className="text-sm text-brand-hover dark:text-brand">
                 Выбрано: {selectedIds.size}
               </span>
               <div className="flex gap-2">
-                <Button onClick={() => setShowGrant(true)} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
+                <Button onClick={() => setShowGrant(true)} className="bg-primary hover:bg-primary/90 gap-2">
                   <Lock className="h-4 w-4" />
                   Предоставить доступ
                 </Button>

@@ -158,7 +158,7 @@ export default function AssessmentBlueprintEdit() {
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand" />
       </div>
     );
   }
@@ -182,7 +182,7 @@ export default function AssessmentBlueprintEdit() {
         <div>
           <Link
             to={createPageUrl('AssessmentBlueprints')}
-            className="text-xs text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400"
+            className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
           >
             ← Структура экзамена
           </Link>
@@ -214,7 +214,7 @@ export default function AssessmentBlueprintEdit() {
                 Сохранить
               </Button>
               <Button
-                className="bg-indigo-600 hover:bg-indigo-700"
+                className="bg-primary hover:bg-primary/90"
                 size="sm"
                 disabled={saving || !publishGate.ok}
                 onClick={handlePublish}

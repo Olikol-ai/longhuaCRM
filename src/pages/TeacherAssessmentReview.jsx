@@ -11,7 +11,7 @@ export default function TeacherAssessmentReview() {
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand" />
       </div>
     );
   }
@@ -22,7 +22,7 @@ export default function TeacherAssessmentReview() {
         <div>
           <Link
             to={createPageUrl('TeacherAssessment')}
-            className="text-xs text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400"
+            className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
           >
             ← Мои экзамены
           </Link>
@@ -91,7 +91,7 @@ export default function TeacherAssessmentReview() {
                     : 'Есть задания на проверку'}
                 </p>
               </div>
-              <Button asChild className="bg-indigo-600 hover:bg-indigo-700 shrink-0">
+              <Button asChild className="bg-primary hover:bg-primary/90 shrink-0">
                 <Link
                   to={`${createPageUrl('TeacherAssessmentReviewDetail')}?id=${encodeURIComponent(item.id)}`}
                 >

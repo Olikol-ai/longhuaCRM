@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from '@/api';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,7 @@ import { ru } from "date-fns/locale";
 import { resolveLessonTeacherLabel } from "@/lib/teacherLabels";
 
 const STATUS_BG = {
-  planned: "bg-indigo-500",
+  planned: "bg-brand",
   completed: "bg-emerald-500",
   cancelled: "bg-red-400",
   rescheduled: "bg-amber-500",
@@ -42,7 +43,7 @@ const STATUS_BG = {
   missed_no_notice: "bg-red-700",
 };
 const STATUS_BORDER = {
-  planned: "border-l-indigo-500",
+  planned: "border-l-brand",
   completed: "border-l-emerald-500",
   cancelled: "border-l-red-400",
   rescheduled: "border-l-amber-500",
@@ -62,6 +63,8 @@ const WEEK_DAYS_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
 export default function StudentLessons() {
   const { user, isLoadingAuth } = useAuth();
+  const [searchParams] = useSearchParams();
+  const highlightLessonId = searchParams.get("lesson");
   const [lessons, setLessons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -79,6 +82,19 @@ export default function StudentLessons() {
     }
     loadData();
   }, [user?.id, isLoadingAuth]);
+
+  useEffect(() => {
+    if (!highlightLessonId || loading || !lessons.length) return;
+    const target = lessons.find((l) => l.id === highlightLessonId);
+    if (!target) return;
+    setViewMode("list");
+    setFilter("all");
+    try {
+      setCurrentDate(new Date(target.date));
+    } catch {
+      /* ignore invalid date */
+    }
+  }, [highlightLessonId, loading, lessons]);
 
   const loadData = async () => {
     if (!user) return;
@@ -131,7 +147,7 @@ export default function StudentLessons() {
   if (loading || isLoadingAuth) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand" />
       </div>
     );
   }
@@ -160,7 +176,7 @@ export default function StudentLessons() {
               key={v.id}
               onClick={() => { setViewMode(v.id); setSelectedDay(null); }}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                viewMode === v.id ? "bg-white dark:bg-slate-900 text-indigo-700 shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                viewMode === v.id ? "bg-white dark:bg-slate-900 text-brand shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
               }`}
             >
               <v.icon className="h-3.5 w-3.5" />
@@ -211,12 +227,12 @@ export default function StudentLessons() {
                     key={i}
                     onClick={() => setSelectedDay(isSelected ? null : day)}
                     className={`min-h-[80px] p-2 border-b border-r border-slate-100 dark:border-slate-800 cursor-pointer transition-colors
-                      ${isSelected ? "bg-indigo-50 dark:bg-indigo-950/40" : "hover:bg-slate-50 dark:hover:bg-slate-800"}
+                      ${isSelected ? "bg-brand-soft dark:bg-brand-soft/40" : "hover:bg-slate-50 dark:hover:bg-slate-800"}
                       ${!inMonth ? "opacity-40" : ""}
                     `}
                   >
                     <div className={`text-xs font-semibold mb-1 w-6 h-6 flex items-center justify-center rounded-full
-                      ${isToday(day) ? "bg-indigo-600 text-white" : "text-slate-700 dark:text-slate-300"}
+                      ${isToday(day) ? "bg-primary text-primary-foreground" : "text-slate-700 dark:text-slate-300"}
                     `}>
                       {format(day, "d")}
                     </div>
@@ -252,7 +268,7 @@ export default function StudentLessons() {
               ) : (
                 <div className="space-y-2">
                   {selectedDayLessons.map((lesson) => (
-                    <LessonCard key={lesson.id} lesson={lesson} />
+                    <LessonCard key={lesson.id} lesson={lesson} highlighted={lesson.id === highlightLessonId} />
                   ))}
                 </div>
               )}
@@ -284,10 +300,10 @@ export default function StudentLessons() {
               const dayStr = format(day, "yyyy-MM-dd");
               const dayLessons = getLessonsForDay(dayStr);
               return (
-                <div key={i} className={`rounded-2xl border p-3 ${isToday(day) ? "border-indigo-300 bg-indigo-50/50 dark:border-indigo-700 dark:bg-indigo-950/40" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"}`}>
+                <div key={i} className={`rounded-2xl border p-3 ${isToday(day) ? "border-brand/40 bg-brand-soft/50 dark:border-brand/40 dark:bg-brand-soft/40" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"}`}>
                   <div className="text-center mb-3">
                     <p className="text-[11px] text-slate-400 uppercase font-medium">{WEEK_DAYS_RU[i]}</p>
-                    <div className={`text-xl font-bold mx-auto mt-0.5 w-8 h-8 flex items-center justify-center rounded-full ${isToday(day) ? "bg-indigo-600 text-white" : "text-slate-900 dark:text-white"}`}>
+                    <div className={`text-xl font-bold mx-auto mt-0.5 w-8 h-8 flex items-center justify-center rounded-full ${isToday(day) ? "bg-primary text-primary-foreground" : "text-slate-900 dark:text-white"}`}>
                       {format(day, "d")}
                     </div>
                   </div>
@@ -308,7 +324,7 @@ export default function StudentLessons() {
                               href={lesson.meeting_link}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-[10px] text-indigo-600 hover:underline mt-1"
+                              className="inline-flex items-center gap-1 text-[10px] text-brand hover:underline mt-1"
                             >
                               <Video className="h-2.5 w-2.5" /> Войти
                             </a>
@@ -336,7 +352,7 @@ export default function StudentLessons() {
                   key={f}
                   onClick={() => setFilter(f)}
                   className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                    filter === f ? "bg-white dark:bg-slate-900 text-indigo-700 shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                    filter === f ? "bg-white dark:bg-slate-900 text-brand shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                   }`}
                 >
                   {label}
@@ -358,7 +374,7 @@ export default function StudentLessons() {
           ) : (
             <div className="space-y-2">
               {listLessons.map((lesson) => (
-                <LessonCard key={lesson.id} lesson={lesson} />
+                <LessonCard key={lesson.id} lesson={lesson} highlighted={lesson.id === highlightLessonId} />
               ))}
             </div>
           )}
@@ -368,9 +384,14 @@ export default function StudentLessons() {
   );
 }
 
-function LessonCard({ lesson }) {
+function LessonCard({ lesson, highlighted = false }) {
   return (
-    <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white dark:bg-slate-900 rounded-xl border-l-4 border border-slate-200 dark:border-slate-700 hover:shadow-sm transition-all ${STATUS_BORDER[lesson.status] || "border-l-slate-300"}`}>
+    <div
+      id={highlighted ? `lesson-${lesson.id}` : undefined}
+      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white dark:bg-slate-900 rounded-xl border-l-4 border border-slate-200 dark:border-slate-700 hover:shadow-sm transition-all ${STATUS_BORDER[lesson.status] || "border-l-slate-300"} ${
+        highlighted ? "ring-2 ring-brand/40 bg-brand-soft/30 dark:bg-brand-soft/20" : ""
+      }`}
+    >
       <div className="flex items-center gap-4">
         <div className="text-center min-w-[56px] bg-slate-50 dark:bg-slate-800/60 rounded-xl py-2">
           <p className="text-[10px] text-slate-400 uppercase font-medium">
@@ -391,7 +412,7 @@ function LessonCard({ lesson }) {
         </div>
       </div>
       <div className="flex items-center gap-3 ml-auto sm:ml-0">
-        <Badge className={`text-[11px] ${lesson.status === "planned" ? "bg-blue-50 text-blue-700" : lesson.status === "completed" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`} variant="outline">
+        <Badge className={`text-[11px] ${lesson.status === "planned" ? "bg-brand-soft text-brand" : lesson.status === "completed" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`} variant="outline">
           {STATUS_LABELS[lesson.status] || 'Статус неизвестен'}
         </Badge>
         {lesson.meeting_link && lesson.status === "planned" && (
@@ -399,7 +420,7 @@ function LessonCard({ lesson }) {
             href={lesson.meeting_link}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 rounded-lg text-xs font-medium hover:bg-indigo-100 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-soft dark:bg-brand-soft/40 text-brand rounded-lg text-xs font-medium hover:bg-brand-muted transition-colors"
           >
             <Video className="h-3.5 w-3.5" /> Войти
           </a>

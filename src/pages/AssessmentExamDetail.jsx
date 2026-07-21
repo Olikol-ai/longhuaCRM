@@ -203,7 +203,7 @@ export default function AssessmentExamDetail() {
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand" />
       </div>
     );
   }
@@ -227,7 +227,7 @@ export default function AssessmentExamDetail() {
         <div>
           <Link
             to={createPageUrl('AssessmentExams')}
-            className="text-xs text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400"
+            className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
           >
             ← Экзамены
           </Link>
@@ -257,7 +257,7 @@ export default function AssessmentExamDetail() {
                 Сохранить
               </Button>
               <Button
-                className="bg-indigo-600 hover:bg-indigo-700"
+                className="bg-primary hover:bg-primary/90"
                 size="sm"
                 disabled={saving}
                 onClick={handlePublish}
@@ -381,7 +381,7 @@ export default function AssessmentExamDetail() {
             <label key={key} className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
               <input
                 type="checkbox"
-                className="accent-indigo-600"
+                className="accent-brand"
                 checked={Boolean(rule[key])}
                 onChange={(e) =>
                   setRule((prev) => ({ ...prev, [key]: e.target.checked }))
@@ -420,7 +420,7 @@ export default function AssessmentExamDetail() {
                     key={q.id || q.snapshot_id || idx}
                     className="rounded-xl bg-slate-50 dark:bg-slate-800/50 px-3 py-2 text-sm"
                   >
-                    <span className="text-xs text-indigo-600 dark:text-indigo-400 mr-2">
+                    <span className="text-xs text-brand dark:text-brand mr-2">
                       {idx + 1}.
                     </span>
                     <span className="text-slate-800 dark:text-slate-100">

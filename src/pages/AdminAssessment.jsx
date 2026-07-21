@@ -75,7 +75,7 @@ export default function AdminAssessment() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 mb-1">
+          <div className="flex items-center gap-2 text-brand dark:text-brand mb-1">
             <ClipboardList className="h-5 w-5" />
             <span className="text-xs font-semibold uppercase tracking-wide">Экзамены</span>
           </div>
@@ -83,7 +83,7 @@ export default function AdminAssessment() {
             Панель экзаменов
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Банки, вопросы, экзамены и результаты Longhua Chinese
+            Банки, вопросы, экзамены и результаты Longhua Academy
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => reload()} disabled={loading}>
@@ -104,7 +104,7 @@ export default function AdminAssessment() {
 
       {loading ? (
         <div className="flex justify-center py-16">
-          <Loader2 className="h-7 w-7 animate-spin text-indigo-600" />
+          <Loader2 className="h-7 w-7 animate-spin text-brand" />
         </div>
       ) : (
         <>
@@ -113,9 +113,9 @@ export default function AdminAssessment() {
               label="Вопросы"
               value={stats.questions}
               icon={FileQuestion}
-              color="indigo"
+              color="brand"
             />
-            <StatCard label="Экзамены" value={stats.exams} icon={BookOpen} color="sky" />
+            <StatCard label="Экзамены" value={stats.exams} icon={BookOpen} color="muted" />
             <StatCard
               label="Активные назначения"
               value={stats.activeAssignments}
@@ -145,7 +145,7 @@ export default function AdminAssessment() {
               </h2>
               <Link
                 to={createPageUrl('AssessmentQuestions')}
-                className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+                className="text-xs font-medium text-brand dark:text-brand hover:underline"
               >
                 К вопросам
               </Link>

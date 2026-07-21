@@ -66,7 +66,7 @@ export default function StudentExams() {
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand" />
       </div>
     );
   }
@@ -77,7 +77,7 @@ export default function StudentExams() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Мои экзамены</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Назначенные экзамены Longhua Chinese — прохождение и результаты
+            Назначенные экзамены Longhua Academy — прохождение и результаты
           </p>
         </div>
         <Button
@@ -106,11 +106,11 @@ export default function StudentExams() {
 
       {!error && cards.length === 0 && (
         <div
-          className="relative overflow-hidden rounded-3xl border border-dashed border-indigo-200 dark:border-indigo-900/60 bg-gradient-to-br from-indigo-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-950 dark:to-indigo-950/40 p-10 sm:p-14 text-center space-y-4"
+          className="relative overflow-hidden rounded-3xl border border-dashed border-brand/30 dark:border-brand/40 bg-gradient-to-br from-brand-soft via-white to-slate-50 dark:from-slate-900 dark:via-slate-950 dark:to-brand-soft/40 p-10 sm:p-14 text-center space-y-4"
           data-testid="student-exams-empty"
         >
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-950/60">
-            <ClipboardList className="h-10 w-10 text-indigo-600 dark:text-indigo-300" />
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-brand-muted dark:bg-brand-soft/60">
+            <ClipboardList className="h-10 w-10 text-brand dark:text-brand" />
           </div>
           <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
             Пока вам не назначено ни одного экзамена.

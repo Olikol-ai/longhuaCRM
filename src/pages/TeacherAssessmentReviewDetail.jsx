@@ -201,7 +201,7 @@ export default function TeacherAssessmentReviewDetail() {
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand" />
       </div>
     );
   }
@@ -224,7 +224,7 @@ export default function TeacherAssessmentReviewDetail() {
       <div>
         <Link
           to={createPageUrl('TeacherAssessmentReview')}
-          className="text-xs text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400"
+          className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
         >
           ← Работы на проверку
         </Link>
@@ -291,7 +291,7 @@ export default function TeacherAssessmentReviewDetail() {
                         key={aid}
                         className={`rounded-lg border px-3 py-2 text-sm ${
                           isSelected
-                            ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/40'
+                            ? 'border-brand/40 bg-brand-soft dark:bg-brand-soft/40'
                             : 'border-slate-200 dark:border-slate-700'
                         }`}
                       >
@@ -356,7 +356,7 @@ export default function TeacherAssessmentReviewDetail() {
       </div>
 
       {!isFinalized && (
-        <div className="sticky bottom-0 -mx-4 sm:mx-0 border-t border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur px-4 py-3 flex flex-wrap gap-2 justify-end">
+        <div className="sticky bottom-0 -mx-4 sm:mx-0 border-t border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur px-4 py-3 safe-pb flex flex-wrap gap-2 justify-end">
           <Button asChild variant="outline">
             <Link to={createPageUrl('TeacherAssessmentReview')}>Назад</Link>
           </Button>
@@ -375,7 +375,7 @@ export default function TeacherAssessmentReviewDetail() {
             )}
           </Button>
           <Button
-            className="bg-indigo-600 hover:bg-indigo-700"
+            className="bg-primary hover:bg-primary/90"
             disabled={saving || finalizing || manualItems.length === 0}
             onClick={handleFinalize}
           >

@@ -1,11 +1,17 @@
 import { ConflictException, Injectable } from '@nestjs/common';
+import { AssessmentAccessService } from '../../../common/access/assessment-access.service';
+import { JwtPayload } from '../../auth/auth.service';
 import {
   AssessmentAnswerEntity,
   AssessmentQuestionAttachmentEntity,
   AssessmentQuestionEntity,
 } from '../entities';
 import { AttachmentKind, ContentLifecycleStatus, QuestionType } from '../enums';
-import { AssessmentBankRepository, AssessmentQuestionRepository } from '../repositories';
+import {
+  AssessmentBankRepository,
+  AssessmentExamRepository,
+  AssessmentQuestionRepository,
+} from '../repositories';
 import { AssessmentContentGuard } from './assessment-content.guard';
 
 export type AnswerInput = {
@@ -59,7 +65,9 @@ export class QuestionAuthoringService {
   constructor(
     private readonly questions: AssessmentQuestionRepository,
     private readonly banks: AssessmentBankRepository,
+    private readonly exams: AssessmentExamRepository,
     private readonly guard: AssessmentContentGuard,
+    private readonly access: AssessmentAccessService,
   ) {}
 
   findById(id: string): Promise<AssessmentQuestionEntity | null> {
@@ -177,10 +185,40 @@ export class QuestionAuthoringService {
     return this.guard.requireFound(updated, 'Question');
   }
 
-  async deleteDraft(id: string): Promise<void> {
+  /**
+   * Delete a question (admin or author only).
+   *
+   * - Not linked to any Exam → physical delete (answers/topics/attachments cascade).
+   * - Linked to Exam(s) → soft-delete via Archive so Snapshot/Attempt history and
+   *   exam_questions RESTRICT FK stay intact.
+   * Snapshots store stem/answers immutably and do not FK to live questions.
+   */
+  async deleteQuestion(actor: JwtPayload, id: string): Promise<{ mode: 'hard' | 'soft' }> {
     const question = this.guard.requireFound(await this.questions.findById(id), 'Question');
-    this.guard.assertDraft(question.status, 'Question');
-    await this.questions.delete(id);
+    this.access.assertCanDeleteQuestion(actor, question);
+
+    const usedInExams = await this.exams.isQuestionUsedInExams(id);
+    if (usedInExams) {
+      if (question.status !== ContentLifecycleStatus.Archived) {
+        await this.questions.update(id, {
+          status: ContentLifecycleStatus.Archived,
+        });
+      }
+      return { mode: 'soft' };
+    }
+
+    try {
+      await this.questions.delete(id);
+      return { mode: 'hard' };
+    } catch {
+      // Race: question linked to an exam between check and delete (RESTRICT).
+      if (question.status !== ContentLifecycleStatus.Archived) {
+        await this.questions.update(id, {
+          status: ContentLifecycleStatus.Archived,
+        });
+      }
+      return { mode: 'soft' };
+    }
   }
 
   async addAttachment(

@@ -81,6 +81,7 @@ export class TeachersService {
 
   /**
    * Advisory list of active teachers free for the given slot (interval overlap).
+   * Uses saved Teacher Availability + excludes teachers with overlapping lessons.
    * Does not enforce booking rules — creation still uses existing schedule checks.
    */
   async findAvailableForSlot(params: {
@@ -127,13 +128,28 @@ export class TeachersService {
       }
     }
 
-    return activeTeachers
-      .filter((teacher) => !busyTeacherIds.has(teacher.id))
-      .map((teacher) => ({
-        id: teacher.id,
-        name: teacher.name,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    const slotsByTeacher = await this.scheduleService.loadSlotsForTeachers(teacherIds);
+
+    const freeTeachers: AvailableTeacherHint[] = [];
+    for (const teacher of activeTeachers) {
+      if (busyTeacherIds.has(teacher.id)) {
+        continue;
+      }
+      const availabilitySlots = slotsByTeacher.get(teacher.id) ?? [];
+      if (
+        !this.scheduleService.isTeacherFreeForSlot(
+          availabilitySlots,
+          date,
+          startTime,
+          duration,
+        )
+      ) {
+        continue;
+      }
+      freeTeachers.push({ id: teacher.id, name: teacher.name });
+    }
+
+    return freeTeachers.sort((a, b) => a.name.localeCompare(b.name, 'ru'));
   }
 
   /** Prefer linked User.telegram_id for API responses (source of truth). */

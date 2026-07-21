@@ -1,3 +1,5 @@
+import { StreamableFile } from '@nestjs/common';
+
 /** Convert camelCase keys to snake_case for API responses (frontend contract). */
 export function camelToSnake(key: string): string {
   return key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
@@ -59,6 +61,8 @@ export function entityToApiRecord(
 ): unknown {
   if (value === null || value === undefined) return value;
   if (value instanceof Date) return value.toISOString();
+  if (value instanceof StreamableFile) return value;
+  if (Buffer.isBuffer(value)) return value;
   if (Array.isArray(value)) return value.map((item) => entityToApiRecord(item, seen));
   if (typeof value !== 'object') return value;
 
@@ -73,7 +77,18 @@ export function entityToApiRecord(
     if (key === 'passwordHash' || key === 'verificationCodeHash') continue;
     if (key === 'assignedTeacher') continue;
     if (key === 'folder' || key === 'material' || key === 'lesson') continue;
-    if (key === 'teacher' || key === 'primaryStudent' || key === 'group' || key === 'series') {
+    /**
+     * Skip nested TypeORM relation objects when the FK id is already present
+     * (avoids circular dumps on Lesson/GroupMember/etc.).
+     * Do NOT skip intentional payload fields like GroupsService.getWorkspace().group
+     * where the parent object has no groupId/seriesId/teacherId FK.
+     */
+    if (
+      (key === 'group' && ('groupId' in record || 'group_id' in record))
+      || (key === 'series' && ('seriesId' in record || 'series_id' in record))
+      || (key === 'teacher' && ('teacherId' in record || 'teacher_id' in record))
+      || (key === 'primaryStudent' && ('primaryStudentId' in record || 'primary_student_id' in record))
+    ) {
       continue;
     }
     if (key.startsWith('__')) continue;

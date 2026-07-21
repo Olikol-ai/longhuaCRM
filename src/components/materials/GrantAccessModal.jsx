@@ -146,7 +146,7 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
     return (
       <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
         <Card className="p-8">
-          <Loader2 className="h-6 w-6 animate-spin text-indigo-600 mx-auto" />
+          <Loader2 className="h-6 w-6 animate-spin text-brand mx-auto" />
         </Card>
       </div>
     );
@@ -194,7 +194,7 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
                     key={mat.id}
                     className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
                       isSelected
-                        ? "bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800"
+                        ? "bg-brand-soft dark:bg-brand-soft/40 border border-brand/30 dark:border-brand/50"
                         : "hover:bg-muted/30"
                     }`}
                   >
@@ -202,7 +202,7 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggleMaterial(mat.id)}
-                      className="w-4 h-4 rounded accent-indigo-600"
+                      className="w-4 h-4 rounded accent-brand"
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground">{mat.title}</p>
@@ -230,7 +230,7 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
                       }}
                       className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
                         targetType === tab.id
-                          ? "bg-indigo-600 text-white"
+                          ? "bg-primary text-primary-foreground"
                           : "bg-muted text-muted-foreground hover:bg-muted/80"
                       }`}
                     >
@@ -261,7 +261,7 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
                       checked={selectedTargets.has(item.id)}
                       disabled={item.disabled}
                       onChange={() => toggleTarget(item.id)}
-                      className="w-4 h-4 rounded accent-indigo-600"
+                      className="w-4 h-4 rounded accent-brand"
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground">{item.title}</p>
@@ -289,7 +289,7 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
             <Button
               onClick={() => setStep(2)}
               disabled={selectedMaterials.size === 0}
-              className="flex-1 bg-indigo-600 hover:bg-indigo-700"
+              className="flex-1 bg-primary hover:bg-primary/90"
             >
               Далее
             </Button>
@@ -297,7 +297,7 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
             <Button
               onClick={handleSave}
               disabled={selectedTargets.size === 0 || saving}
-              className="flex-1 bg-indigo-600 hover:bg-indigo-700"
+              className="flex-1 bg-primary hover:bg-primary/90"
             >
               {saving ? (
                 <>

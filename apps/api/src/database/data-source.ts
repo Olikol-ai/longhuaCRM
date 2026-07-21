@@ -28,6 +28,8 @@ import { CourseTemplateSortOrder1740400000000 } from './migrations/1740400000000
 import { AssessmentSchema1740500000000 } from './migrations/1740500000000-AssessmentSchema';
 import { CertificateAssessmentSource1740600000000 } from './migrations/1740600000000-CertificateAssessmentSource';
 import { AssessmentAnswerReviewMeta1740700000000 } from './migrations/1740700000000-AssessmentAnswerReviewMeta';
+import { PendingRegistrationInviteLinkId1740800000000 } from './migrations/1740800000000-PendingRegistrationInviteLinkId';
+import { LessonRoomColumn1740900000000 } from './migrations/1740900000000-LessonRoomColumn';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -59,6 +61,8 @@ export default new DataSource({
     AssessmentSchema1740500000000,
     CertificateAssessmentSource1740600000000,
     AssessmentAnswerReviewMeta1740700000000,
+    PendingRegistrationInviteLinkId1740800000000,
+    LessonRoomColumn1740900000000,
   ],
   synchronize: false,
 });

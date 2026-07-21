@@ -120,7 +120,7 @@ export default function ExamTemplateFormDialog({
             Отмена
           </Button>
           <Button
-            className="bg-indigo-600 hover:bg-indigo-700"
+            className="bg-primary hover:bg-primary/90"
             onClick={handleSave}
             disabled={saving}
           >

@@ -85,6 +85,26 @@ export class AssessmentAccessService {
     throw new ForbiddenException('Forbidden: cannot manage assessment content');
   }
 
+  /**
+   * Question delete: admin or the user who created the question.
+   */
+  assertCanDeleteQuestion(
+    actor: DomainAccessActor,
+    question: { createdByUserId: string | null },
+  ): void {
+    if (this.isAdmin(actor)) {
+      return;
+    }
+    if (
+      this.isTeacher(actor) &&
+      question.createdByUserId &&
+      question.createdByUserId === actor.sub
+    ) {
+      return;
+    }
+    throw new ForbiddenException('Forbidden');
+  }
+
   // ─── Exam ───────────────────────────────────────────────────────────────
 
   async assertCanReadExam(actor: DomainAccessActor, examId: string): Promise<AssessmentExamEntity> {

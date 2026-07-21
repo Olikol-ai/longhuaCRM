@@ -1,5 +1,5 @@
 /**
- * Belarus / Russian UX formatters for Longhua CRM.
+ * Belarus / Russian UX formatters for Longhua Academy.
  * Currency: BYN. Dates: DD.MM.YYYY. Time: 24h.
  */
 

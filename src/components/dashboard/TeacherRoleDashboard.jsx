@@ -18,7 +18,7 @@ const STATUS_LABELS = {
 const statusBadge = {
   completed: "bg-emerald-100 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400",
   cancelled: "bg-red-100 text-red-500 dark:bg-red-950/50 dark:text-red-400",
-  planned: "bg-sky-100 text-sky-600 dark:bg-sky-950/50 dark:text-sky-400",
+  planned: "bg-brand-muted text-brand dark:bg-brand-soft/50 dark:text-brand",
 };
 
 export default function TeacherRoleDashboard({ user }) {
@@ -76,8 +76,8 @@ export default function TeacherRoleDashboard({ user }) {
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <StatCard label="Уроков сегодня" value={todayLessons.length} icon={CalendarDays} color="indigo" />
-        <StatCard label="Предстоящие" value={upcomingLessons.length} icon={Clock} color="violet" />
+        <StatCard label="Уроков сегодня" value={todayLessons.length} icon={CalendarDays} color="brand" />
+        <StatCard label="Предстоящие" value={upcomingLessons.length} icon={Clock} color="muted" />
         <StatCard label="Завершено" value={completedThisMonth} icon={CheckCircle2} color="emerald" />
       </div>
 
@@ -106,7 +106,7 @@ export default function TeacherRoleDashboard({ user }) {
                     </span>
                     {lesson.meeting_link && (
                       <a href={lesson.meeting_link} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 flex items-center gap-1">
+                        className="text-xs text-brand dark:text-brand hover:text-brand dark:hover:text-brand flex items-center gap-1">
                         <Video className="w-3 h-3" /> Войти
                       </a>
                     )}
@@ -157,7 +157,7 @@ export default function TeacherRoleDashboard({ user }) {
             upcomingLessons.map(lesson => (
               <div key={lesson.id} className="flex items-center gap-3 px-4 py-3">
                 <div className="text-center w-10 flex-shrink-0">
-                  <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400">{format(parseISO(lesson.date), "d")}</p>
+                  <p className="text-xs font-bold text-brand dark:text-brand">{format(parseISO(lesson.date), "d")}</p>
                   <p className="text-[10px] text-muted-foreground">{format(parseISO(lesson.date), "LLL", { locale: ru })}</p>
                 </div>
                 <div className="w-px h-8 bg-border" />
@@ -169,7 +169,7 @@ export default function TeacherRoleDashboard({ user }) {
                 </div>
                 {lesson.meeting_link && (
                   <a href={lesson.meeting_link} target="_blank" rel="noopener noreferrer"
-                    className="text-xs text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 flex items-center gap-1">
+                    className="text-xs text-brand dark:text-brand hover:text-brand dark:hover:text-brand flex items-center gap-1">
                     <Video className="w-3 h-3" /> Войти
                   </a>
                 )}

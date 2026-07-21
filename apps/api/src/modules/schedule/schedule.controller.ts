@@ -3,9 +3,12 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -16,6 +19,7 @@ import { JwtPayload } from '../auth/auth.service';
 import { CheckAvailabilityDto } from './dto/check-availability.dto';
 import { CreateAvailabilitySlotDto } from './dto/create-availability-slot.dto';
 import { FilterQueryDto } from './dto/filter-query.dto';
+import { ReplaceAvailabilitySlotsDto } from './dto/replace-availability-slots.dto';
 import { UpdateAvailabilitySlotDto } from './dto/update-availability-slot.dto';
 import { ScheduleService } from './schedule.service';
 
@@ -51,6 +55,34 @@ export class ScheduleController {
     return this.scheduleService.getTeacherSchedule(user, teacherId);
   }
 
+  /**
+   * Atomic replace of a teacher's weekly availability slots.
+   * POST (not PUT): some reverse proxies / Cloudflare paths drop or stall PUT.
+   * Ownership enforced in service.
+   */
+  @Post('teachers/:teacherId/availability/replace')
+  @HttpCode(HttpStatus.OK)
+  @Roles('admin', 'teacher')
+  replaceTeacherAvailability(
+    @CurrentUser() user: JwtPayload,
+    @Param('teacherId') teacherId: string,
+    @Body() dto: ReplaceAvailabilitySlotsDto,
+  ) {
+    return this.scheduleService.replaceTeacherAvailability(user, teacherId, dto.slots ?? []);
+  }
+
+  /** @deprecated Prefer POST .../availability/replace — kept for local clients. */
+  @Put('teachers/:teacherId/availability')
+  @HttpCode(HttpStatus.OK)
+  @Roles('admin', 'teacher')
+  replaceTeacherAvailabilityPut(
+    @CurrentUser() user: JwtPayload,
+    @Param('teacherId') teacherId: string,
+    @Body() dto: ReplaceAvailabilitySlotsDto,
+  ) {
+    return this.scheduleService.replaceTeacherAvailability(user, teacherId, dto.slots ?? []);
+  }
+
   @Post('teachers/:teacherId/check-availability')
   @Roles('admin', 'teacher', 'student')
   checkTeacherAvailability(
@@ -75,20 +107,24 @@ export class ScheduleController {
   }
 
   @Post()
-  @Roles('admin')
-  createSlot(@Body() dto: CreateAvailabilitySlotDto) {
-    return this.scheduleService.createSlot(dto);
+  @Roles('admin', 'teacher')
+  createSlot(@CurrentUser() user: JwtPayload, @Body() dto: CreateAvailabilitySlotDto) {
+    return this.scheduleService.createSlot(user, dto);
   }
 
   @Patch(':id')
-  @Roles('admin')
-  updateSlot(@Param('id') id: string, @Body() dto: UpdateAvailabilitySlotDto) {
-    return this.scheduleService.updateSlot(id, dto);
+  @Roles('admin', 'teacher')
+  updateSlot(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateAvailabilitySlotDto,
+  ) {
+    return this.scheduleService.updateSlot(user, id, dto);
   }
 
   @Delete(':id')
-  @Roles('admin')
-  deleteSlot(@Param('id') id: string) {
-    return this.scheduleService.deleteSlot(id);
+  @Roles('admin', 'teacher')
+  deleteSlot(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.scheduleService.deleteSlot(user, id);
   }
 }

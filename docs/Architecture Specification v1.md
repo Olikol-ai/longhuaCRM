@@ -1,7 +1,8 @@
 # LonghuaCRM Architecture Specification v1
 
-> Версия: 1.0
-> Статус: Draft (в разработке)
+> Версия: 1.1  
+> Статус: Active principles (storage section updated 2026-07-21)  
+> Current storage detail: [architecture/storage-policy.md](./architecture/storage-policy.md)
 
 ---
 
@@ -38,7 +39,7 @@ LonghuaCRM — коммерческая CRM-платформа для управ
 * PostgreSQL является единственным источником данных.
 * Все изменения структуры базы данных выполняются через миграции.
 * Все основные бизнес-сущности должны храниться в отдельных таблицах.
-* Использование json/jsonb допускается только для динамических данных, которые невозможно заранее описать структурой таблиц.
+* **JSONB не используется для стабильных бизнес-сущностей.** Устаревшие схемы `data jsonb` / `slots jsonb` удалены.
 
 ---
 
@@ -55,12 +56,13 @@ Backend
 Frontend
 
 * React
-* TypeScript
+* TypeScript / JavaScript (Vite SPA)
 
 Интеграции
 
 * Telegram Bot API
 * Webhooks
+* Alfa Bank (опционально)
 
 ---
 
@@ -70,23 +72,7 @@ Backend разделяется на независимые модули.
 
 Каждый модуль отвечает только за свою область ответственности.
 
-Предварительный список модулей:
-
-* Auth
-* Users
-* Teachers
-* Students
-* Groups
-* Lessons
-* Schedule
-* Payments
-* Homework
-* Materials
-* Notifications
-* Telegram
-* Files
-* Settings
-* Audit
+Актуальный список модулей — в [Architecture.md](./Architecture.md) (`app.module.ts`).
 
 ---
 
@@ -96,31 +82,20 @@ Backend разделяется на независимые модули.
 
 Не допускается объединение нескольких различных сущностей в одно jsonb-поле.
 
-Правильный пример:
+### Текущее состояние (2026)
 
-Student
+| Область | Как хранится |
+|---------|----------------|
+| CRM (User, Student, Teacher, Lesson, Payment, …) | Реляционные таблицы |
+| Teacher availability | `teacher_availability_slots` (+ bookings) |
+| Assessment attempts | Snapshot-таблицы `assessment_*_snapshots` |
+| Settings | `app_settings` key/`text` value |
 
-Teacher
+**В live schema нет колонок `json` / `jsonb`.**
 
-Lesson
+jsonb *теоретически* допускается только для динамических небизнес-payload (метаданные, сырой Telegram Update при необходимости архивации). Сейчас такие колонки не введены.
 
-Payment
-
-Group
-
-Schedule
-
-Каждая из перечисленных сущностей должна иметь отдельную таблицу.
-
-jsonb допускается использовать только для:
-
-* пользовательских настроек;
-* метаданных;
-* временных данных;
-* логов;
-* Telegram Update (при необходимости хранения исходного объекта).
-
----
+Подробности: [architecture/storage-policy.md](./architecture/storage-policy.md).
 
 # 7. Domain Model
 

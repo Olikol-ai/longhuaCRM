@@ -14,7 +14,7 @@ export default function ExamProgress({ current, total, answeredCount }) {
       </div>
       <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
         <div
-          className="h-full rounded-full bg-indigo-600 dark:bg-indigo-500 transition-all duration-300"
+          className="h-full rounded-full bg-brand dark:bg-brand transition-all duration-300"
           style={{ width: `${pct}%` }}
         />
       </div>

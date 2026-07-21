@@ -1,6 +1,6 @@
-# Longhua CRM
+# Longhua Academy
 
-CRM-платформа для языковой школы **Longhua Chinese**: ученики, преподаватели, расписание, платежи, сертификаты, материалы.
+Образовательная платформа **Longhua Academy**: ученики, преподаватели, расписание, платежи, сертификаты, материалы.
 
 | Слой | Стек |
 |------|------|
@@ -88,4 +88,4 @@ GET /api/health/ready  — readiness + database
 
 ## Лицензия
 
-Private — Longhua Chinese.
+Private — Longhua Academy.

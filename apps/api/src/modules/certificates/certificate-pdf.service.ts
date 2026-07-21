@@ -21,31 +21,88 @@ export type CertificatePdfPayload = {
   verificationUrl: string;
 };
 
+/** Fields drawn onto the parchment template (visual layer only). */
+export type CertificatePdfRenderInput = {
+  registrationNumber: string;
+  blankSeries: string | null;
+  blankNumber: string | null;
+  issueDate: string | null;
+  studentName: string;
+  courseName: string;
+  /** Optional exam/course result line (e.g. level). Omitted when empty. */
+  resultLabel?: string | null;
+  verificationUrl: string;
+  directorName?: string;
+  organization?: string;
+  teacherLabel?: string;
+};
+
 const DISCLAIMER =
   'Данный сертификат не является сертификатом государственного образца и не предоставляет преимуществ, предусмотренных законодательством.';
 
-/** Palette tuned to the Longhua Chinese parchment template. */
+/** Palette tuned to the Longhua Academy parchment template. */
 const COLORS = {
   ink: '#2a1710',
-  muted: '#6b4a3a',
-  soft: '#8a6a58',
+  muted: '#5c4034',
+  soft: '#7a5a4a',
   accent: '#9b1c1c',
   seal: '#b91c1c',
   paperTint: '#f7efe3',
+  paperSolid: '#faf3e8',
   qrLight: '#fffdf8',
+  line: '#c4a484',
 };
 
-type FontPair = { regular: string; bold: string };
+/**
+ * Safe zones for certificate-bg.png (A4 portrait, points).
+ * Artwork: red seal + knot at top; plum blossom top-right;
+ * ink landscape (pagoda / Great Wall) occupies roughly the lower third.
+ * All dynamic text stays in the clear parchment band between them.
+ */
+const LAYOUT = {
+  contentLeft: 78,
+  contentRight: 78,
+  /**
+   * Below red seal + baked-in knot divider in certificate-bg.png.
+   * After full-page stretch the knot sits near y≈195–205 — brand must clear it.
+   */
+  brandY: 222,
+  titleY: 268,
+  bodyStartY: 312,
+  /** Hard stop before landscape mist / pagoda silhouettes. */
+  contentMaxBottom: 520,
+  footerTop: 528,
+  footerPanelHeight: 140,
+  qrSize: 62,
+} as const;
 
-function resolveCyrillicFonts(): FontPair {
+type FontPair = {
+  regular: string;
+  bold: string;
+  /** Required for .ttc collections (PDFKit + fontkit). */
+  regularFace?: string;
+  boldFace?: string;
+};
+
+/**
+ * Prefer CJK-capable fonts so Cyrillic, Latin and Chinese names all render.
+ * Times/Georgia lack CJK glyphs and show tofu / overlap artifacts.
+ */
+function resolveCertificateFonts(): FontPair {
   const candidates: FontPair[] = [
     {
-      regular: 'C:\\Windows\\Fonts\\times.ttf',
-      bold: 'C:\\Windows\\Fonts\\timesbd.ttf',
+      regular: 'C:\\Windows\\Fonts\\msyh.ttc',
+      bold: 'C:\\Windows\\Fonts\\msyhbd.ttc',
+      regularFace: 'MicrosoftYaHei',
+      boldFace: 'MicrosoftYaHei-Bold',
     },
     {
-      regular: 'C:\\Windows\\Fonts\\georgia.ttf',
-      bold: 'C:\\Windows\\Fonts\\georgiab.ttf',
+      regular: 'C:\\Windows\\Fonts\\malgun.ttf',
+      bold: 'C:\\Windows\\Fonts\\malgunbd.ttf',
+    },
+    {
+      regular: 'C:\\Windows\\Fonts\\simsunb.ttf',
+      bold: 'C:\\Windows\\Fonts\\simsunb.ttf',
     },
     {
       regular: 'C:\\Windows\\Fonts\\arial.ttf',
@@ -56,8 +113,14 @@ function resolveCyrillicFonts(): FontPair {
       bold: 'C:\\Windows\\Fonts\\segoeuib.ttf',
     },
     {
-      regular: '/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf',
-      bold: '/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf',
+      regular: '/usr/share/fonts/truetype/noto/NotoSansSC-Regular.otf',
+      bold: '/usr/share/fonts/truetype/noto/NotoSansSC-Bold.otf',
+    },
+    {
+      regular: '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+      bold: '/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc',
+      regularFace: 'NotoSansCJKsc-Regular',
+      boldFace: 'NotoSansCJKsc-Bold',
     },
     {
       regular: '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
@@ -76,15 +139,13 @@ function resolveCyrillicFonts(): FontPair {
   }
 
   throw new BadRequestException(
-    'Не найден шрифт с поддержкой кириллицы для PDF сертификата',
+    'Не найден шрифт с поддержкой кириллицы/CJK для PDF сертификата',
   );
 }
 
 function resolveCertificateBackground(): string {
   const candidates = [
-    // Compiled Nest output: dist/modules/certificates → dist/assets/...
     join(__dirname, '../../assets/certificates/certificate-bg.png'),
-    // Source tree while developing / tests
     join(__dirname, '../../../src/assets/certificates/certificate-bg.png'),
     join(process.cwd(), 'src/assets/certificates/certificate-bg.png'),
     join(process.cwd(), 'apps/api/src/assets/certificates/certificate-bg.png'),
@@ -111,6 +172,454 @@ function formatIssueDate(value: string | null | undefined): string {
   if (Number.isNaN(parsed.getTime())) return value;
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${pad(parsed.getDate())}.${pad(parsed.getMonth() + 1)}.${parsed.getFullYear()}`;
+}
+
+function quoteCourseName(courseName: string): string {
+  const trimmed = courseName.trim();
+  if (/^[«"“]/.test(trimmed) || /[»"”]$/.test(trimmed)) {
+    return trimmed;
+  }
+  return `«${trimmed}»`;
+}
+
+function fitFontSize(
+  doc: InstanceType<typeof PDFDocument>,
+  text: string,
+  font: string,
+  maxWidth: number,
+  preferred: number,
+  min: number,
+): number {
+  let size = preferred;
+  while (size > min) {
+    doc.font(font).fontSize(size);
+    if (doc.widthOfString(text) <= maxWidth) {
+      return size;
+    }
+    size -= 1;
+  }
+  return min;
+}
+
+/** Shrink until wrapped text fits within maxHeight (for long course titles). */
+function fitFontSizeForWrapped(
+  doc: InstanceType<typeof PDFDocument>,
+  text: string,
+  font: string,
+  maxWidth: number,
+  maxHeight: number,
+  preferred: number,
+  min: number,
+): number {
+  let size = preferred;
+  while (size > min) {
+    doc.font(font).fontSize(size);
+    const height = doc.heightOfString(text, { width: maxWidth, lineGap: 3 });
+    if (height <= maxHeight) {
+      return size;
+    }
+    size -= 1;
+  }
+  return min;
+}
+
+/**
+ * Pure visual renderer — used by CertificatePdfService and sample scripts.
+ * Does not touch API / ACL / numbering business logic.
+ */
+export async function renderCertificatePdfBuffer(
+  input: CertificatePdfRenderInput,
+): Promise<Buffer> {
+  const fonts = resolveCertificateFonts();
+  const backgroundPath = resolveCertificateBackground();
+  const qrDataUrl = await QRCode.toDataURL(input.verificationUrl, {
+    margin: 1,
+    width: 160,
+    color: { dark: COLORS.ink, light: COLORS.qrLight },
+    errorCorrectionLevel: 'M',
+  });
+  const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, '');
+
+  const directorName = input.directorName?.trim() || 'Янчиленко И.А.';
+  const organization = input.organization?.trim() || 'ЧУП «ДатаВэйв Солюшнс»';
+  const teacherLabel = input.teacherLabel?.trim() || 'Преподаватель';
+  const resultLabel = input.resultLabel?.trim() || '';
+
+  return new Promise<Buffer>((resolve, reject) => {
+    const doc = new PDFDocument({
+      size: 'A4',
+      margins: { top: 0, bottom: 0, left: 0, right: 0 },
+      info: {
+        Title: `Сертификат ${input.registrationNumber}`,
+        Author: 'Longhua Academy',
+      },
+    });
+    const chunks: Buffer[] = [];
+    doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    if (fonts.regularFace) {
+      doc.registerFont('CertRegular', fonts.regular, fonts.regularFace);
+    } else {
+      doc.registerFont('CertRegular', fonts.regular);
+    }
+    if (fonts.boldFace) {
+      doc.registerFont('CertBold', fonts.bold, fonts.boldFace);
+    } else {
+      doc.registerFont('CertBold', fonts.bold);
+    }
+
+    const pageWidth = doc.page.width;
+    const pageHeight = doc.page.height;
+    const contentLeft = LAYOUT.contentLeft;
+    const contentWidth = pageWidth - LAYOUT.contentLeft - LAYOUT.contentRight;
+
+    // Full-bleed parchment artwork (border, seal, landscape already in PNG).
+    doc.image(backgroundPath, 0, 0, {
+      width: pageWidth,
+      height: pageHeight,
+    });
+
+    // ── Top brand (under seal + knot, not over them) ──────────────────────
+    let y: number = LAYOUT.brandY;
+    doc
+      .fillColor(COLORS.accent)
+      .font('CertBold')
+      .fontSize(12)
+      .text('LONGHUA ACADEMY', contentLeft, y, {
+        width: contentWidth,
+        align: 'center',
+        lineBreak: false,
+      });
+
+    y += 18;
+    doc
+      .fillColor(COLORS.soft)
+      .font('CertRegular')
+      .fontSize(9)
+      .text('Образовательная академия', contentLeft, y, {
+        width: contentWidth,
+        align: 'center',
+        lineBreak: false,
+      });
+
+    // ── Title ─────────────────────────────────────────────────────────────
+    y = Math.max(y + 26, LAYOUT.titleY);
+    doc
+      .fillColor(COLORS.ink)
+      .font('CertBold')
+      .fontSize(30)
+      .text('СЕРТИФИКАТ', contentLeft, y, {
+        width: contentWidth,
+        align: 'center',
+        lineBreak: false,
+      });
+
+    y += 38;
+    drawOrnament(doc, pageWidth / 2, y);
+
+    // Soft parchment plate behind body/meta only — must not cover the title.
+    const plateTop = LAYOUT.bodyStartY - 6;
+    const plateBottom = LAYOUT.contentMaxBottom + 8;
+    doc.save();
+    doc
+      .roundedRect(contentLeft - 10, plateTop, contentWidth + 20, plateBottom - plateTop, 10)
+      .fillOpacity(0.72)
+      .fill(COLORS.paperSolid);
+    doc.restore();
+
+    // Meta lines reserved at the bottom of the content plate (never pulled upward).
+    const metaLines = [
+      `Дата выдачи: ${formatIssueDate(input.issueDate)}`,
+    ];
+    if (resultLabel) {
+      metaLines.push(resultLabel);
+    }
+    metaLines.push(`Номер сертификата: ${input.registrationNumber || '—'}`);
+    const blankBits = [
+      input.blankSeries ? `Серия: ${input.blankSeries}` : '',
+      input.blankNumber ? `№ бланка: ${input.blankNumber}` : '',
+    ]
+      .filter(Boolean)
+      .join('    ·    ');
+    if (blankBits) {
+      metaLines.push(blankBits);
+    }
+    const metaLineH = 15;
+    const metaBlockH = metaLines.length * metaLineH;
+    const metaTop = LAYOUT.contentMaxBottom - metaBlockH;
+    const bodyBottomLimit = metaTop - 12;
+
+    // ── Body (flows downward; stops above reserved meta band) ─────────────
+    y = LAYOUT.bodyStartY;
+
+    doc
+      .fillColor(COLORS.muted)
+      .font('CertRegular')
+      .fontSize(12)
+      .text('Настоящий сертификат подтверждает, что', contentLeft, y, {
+        width: contentWidth,
+        align: 'center',
+        lineBreak: false,
+      });
+
+    y = doc.y + 14;
+    const nameMaxWidth = contentWidth - 20;
+    const nameSize = fitFontSize(
+      doc,
+      input.studentName,
+      'CertBold',
+      nameMaxWidth,
+      input.studentName.length > 40 ? 18 : 22,
+      12,
+    );
+    doc
+      .fillColor(COLORS.ink)
+      .font('CertBold')
+      .fontSize(nameSize)
+      .text(input.studentName, contentLeft + 10, y, {
+        width: nameMaxWidth,
+        align: 'center',
+        lineGap: 3,
+      });
+
+    const nameUnderlineY = doc.y + 8;
+    doc
+      .moveTo(pageWidth / 2 - 100, nameUnderlineY)
+      .lineTo(pageWidth / 2 + 100, nameUnderlineY)
+      .lineWidth(0.7)
+      .strokeColor(COLORS.accent)
+      .stroke();
+
+    y = nameUnderlineY + 14;
+    doc
+      .fillColor(COLORS.muted)
+      .font('CertRegular')
+      .fontSize(11)
+      .text('успешно завершил(а) курс / экзамен', contentLeft, y, {
+        width: contentWidth,
+        align: 'center',
+        lineBreak: false,
+      });
+
+    y = doc.y + 10;
+    const courseText = quoteCourseName(input.courseName);
+    const courseMaxHeight = Math.max(20, bodyBottomLimit - y);
+    const courseSize = fitFontSizeForWrapped(
+      doc,
+      courseText,
+      'CertBold',
+      contentWidth - 24,
+      Math.min(48, courseMaxHeight),
+      courseText.length > 50 ? 12 : 14,
+      8,
+    );
+    // Only draw course if there is still room above the reserved meta band.
+    if (y < bodyBottomLimit - 8) {
+      doc
+        .fillColor(COLORS.ink)
+        .font('CertBold')
+        .fontSize(courseSize)
+        .text(courseText, contentLeft + 12, y, {
+          width: contentWidth - 24,
+          align: 'center',
+          lineGap: 3,
+          height: Math.min(48, courseMaxHeight),
+          ellipsis: true,
+        });
+    }
+
+    // ── Meta block in reserved band (always below body) ───────────────────
+    let metaY = metaTop;
+    for (const line of metaLines) {
+      const metaSize = fitFontSize(doc, line, 'CertRegular', contentWidth, 10, 7);
+      doc
+        .fillColor(COLORS.muted)
+        .font('CertRegular')
+        .fontSize(metaSize)
+        .text(line, contentLeft, metaY, {
+          width: contentWidth,
+          align: 'center',
+          lineBreak: false,
+        });
+      metaY += metaLineH;
+    }
+
+    // ── Footer panel: QR + signatures over landscape mist ─────────────────
+    const footerTop = LAYOUT.footerTop;
+    const panelX = 56;
+    const panelW = pageWidth - 112;
+    const panelH = LAYOUT.footerPanelHeight;
+
+    doc.save();
+    doc
+      .roundedRect(panelX, footerTop, panelW, panelH, 8)
+      .fillOpacity(0.92)
+      .fill(COLORS.paperSolid);
+    doc.restore();
+    doc
+      .roundedRect(panelX, footerTop, panelW, panelH, 8)
+      .lineWidth(0.6)
+      .strokeColor(COLORS.line)
+      .stroke();
+
+    const qrSize = LAYOUT.qrSize;
+    const qrX = panelX + 16;
+    const qrY = footerTop + 12;
+
+    doc
+      .roundedRect(qrX - 4, qrY - 4, qrSize + 8, qrSize + 8, 4)
+      .fill(COLORS.qrLight);
+    doc.image(Buffer.from(qrBase64, 'base64'), qrX, qrY, { width: qrSize });
+    doc
+      .fillColor(COLORS.soft)
+      .font('CertRegular')
+      .fontSize(7)
+      .text('Проверка подлинности', qrX - 6, qrY + qrSize + 6, {
+        width: qrSize + 12,
+        align: 'center',
+      });
+
+    const signsLeft = qrX + qrSize + 28;
+    const signsWidth = panelX + panelW - signsLeft - 12;
+    const colGap = 16;
+    const colWidth = (signsWidth - colGap) / 2;
+
+    drawSignatureColumn(doc, {
+      x: signsLeft,
+      y: footerTop + 14,
+      width: colWidth,
+      role: teacherLabel.toUpperCase(),
+      name: '',
+      organization: '',
+      showName: false,
+    });
+
+    drawSignatureColumn(doc, {
+      x: signsLeft + colWidth + colGap,
+      y: footerTop + 14,
+      width: colWidth,
+      role: 'ДИРЕКТОР',
+      name: directorName,
+      organization,
+      showName: true,
+    });
+
+    // Disclaimer inside the panel (keeps landscape art clean below).
+    const disclaimerY = footerTop + panelH - 34;
+    doc
+      .moveTo(panelX + 14, disclaimerY - 6)
+      .lineTo(panelX + panelW - 14, disclaimerY - 6)
+      .lineWidth(0.4)
+      .strokeColor(COLORS.line)
+      .stroke();
+    doc
+      .fillColor(COLORS.soft)
+      .font('CertRegular')
+      .fontSize(6.5)
+      .text(DISCLAIMER, panelX + 12, disclaimerY, {
+        width: panelW - 24,
+        align: 'center',
+        lineGap: 1.2,
+      });
+
+    doc.end();
+  });
+}
+
+function drawSignatureColumn(
+  doc: InstanceType<typeof PDFDocument>,
+  opts: {
+    x: number;
+    y: number;
+    width: number;
+    role: string;
+    name: string;
+    organization: string;
+    showName: boolean;
+  },
+): void {
+  const { x, y, width, role, name, organization, showName } = opts;
+
+  // Role
+  doc
+    .fillColor(COLORS.soft)
+    .font('CertRegular')
+    .fontSize(8)
+    .text(role, x, y, {
+      width,
+      align: 'center',
+      lineBreak: false,
+    });
+
+  let cursor = y + 12;
+
+  if (organization) {
+    const orgSize = fitFontSize(doc, organization, 'CertRegular', width - 4, 7, 6);
+    doc
+      .fillColor(COLORS.muted)
+      .font('CertRegular')
+      .fontSize(orgSize)
+      .text(organization, x, cursor, {
+        width,
+        align: 'center',
+        height: 16,
+        ellipsis: true,
+      });
+    cursor += 18;
+  } else {
+    cursor += 8;
+  }
+
+  // Open space for handwritten signature; printed name sits clearly below.
+  const lineY = cursor + 12;
+  doc
+    .moveTo(x + 10, lineY)
+    .lineTo(x + width - 10, lineY)
+    .lineWidth(0.55)
+    .strokeColor(COLORS.soft)
+    .stroke();
+
+  if (showName && name) {
+    const nameSize = fitFontSize(doc, name, 'CertBold', width - 4, 9, 7);
+    doc
+      .fillColor(COLORS.accent)
+      .font('CertBold')
+      .fontSize(nameSize)
+      .text(name, x, lineY + 14, {
+        width,
+        align: 'center',
+        lineBreak: false,
+      });
+  }
+}
+
+function drawOrnament(
+  doc: InstanceType<typeof PDFDocument>,
+  centerX: number,
+  y: number,
+): void {
+  const half = 48;
+  doc
+    .moveTo(centerX - half, y)
+    .lineTo(centerX - 8, y)
+    .lineWidth(0.8)
+    .strokeColor(COLORS.accent)
+    .stroke();
+  doc
+    .moveTo(centerX + 8, y)
+    .lineTo(centerX + half, y)
+    .lineWidth(0.8)
+    .strokeColor(COLORS.accent)
+    .stroke();
+  doc
+    .save()
+    .translate(centerX, y)
+    .rotate(45)
+    .rect(-2.8, -2.8, 5.6, 5.6)
+    .fill(COLORS.seal)
+    .restore();
 }
 
 @Injectable()
@@ -150,233 +659,14 @@ export class CertificatePdfService {
     const courseName = course?.name || certificate.courseId;
 
     const verificationUrl = this.buildVerificationUrl(certificate.id);
-    const qrDataUrl = await QRCode.toDataURL(verificationUrl, {
-      margin: 1,
-      width: 180,
-      color: { dark: COLORS.ink, light: COLORS.qrLight },
-      errorCorrectionLevel: 'M',
-    });
-    const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, '');
-    const fonts = resolveCyrillicFonts();
-    const backgroundPath = resolveCertificateBackground();
-
-    const buffer = await new Promise<Buffer>((resolve, reject) => {
-      const doc = new PDFDocument({
-        size: 'A4',
-        margins: { top: 0, bottom: 0, left: 0, right: 0 },
-        info: {
-          Title: `Сертификат ${certificate.registrationNumber}`,
-          Author: 'Longhua Chinese',
-        },
-      });
-      const chunks: Buffer[] = [];
-      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
-      doc.on('error', reject);
-
-      doc.registerFont('CertRegular', fonts.regular);
-      doc.registerFont('CertBold', fonts.bold);
-
-      const pageWidth = doc.page.width;
-      const pageHeight = doc.page.height;
-
-      // Template already has border, seal and landscape — use full page as canvas.
-      doc.image(backgroundPath, 0, 0, {
-        width: pageWidth,
-        height: pageHeight,
-      });
-
-      const contentLeft = 72;
-      const contentWidth = pageWidth - contentLeft * 2;
-
-      // School name under the red seal (seal itself is in the artwork).
-      let y = 168;
-      doc
-        .fillColor(COLORS.accent)
-        .font('CertBold')
-        .fontSize(12)
-        .text('LONGHUA CHINESE', contentLeft, y, {
-          width: contentWidth,
-          align: 'center',
-          characterSpacing: 4,
-        });
-
-      y += 22;
-      doc
-        .fillColor(COLORS.soft)
-        .font('CertRegular')
-        .fontSize(9)
-        .text('Школа китайского языка', contentLeft, y, {
-          width: contentWidth,
-          align: 'center',
-          characterSpacing: 1.2,
-        });
-
-      y += 46;
-      doc
-        .fillColor(COLORS.ink)
-        .font('CertBold')
-        .fontSize(36)
-        .text('СЕРТИФИКАТ', contentLeft, y, {
-          width: contentWidth,
-          align: 'center',
-          characterSpacing: 5,
-        });
-
-      y += 52;
-      this.drawOrnament(doc, pageWidth / 2, y);
-
-      y += 28;
-      doc
-        .fillColor(COLORS.muted)
-        .font('CertRegular')
-        .fontSize(12)
-        .text('настоящим подтверждается, что', contentLeft, y, {
-          width: contentWidth,
-          align: 'center',
-        });
-
-      y += 34;
-      doc
-        .fillColor(COLORS.ink)
-        .font('CertBold')
-        .fontSize(studentName.length > 28 ? 20 : 24)
-        .text(studentName, contentLeft + 8, y, {
-          width: contentWidth - 16,
-          align: 'center',
-        });
-
-      // Soft underline under the name
-      const nameBottom = doc.y + 6;
-      doc
-        .moveTo(pageWidth / 2 - 110, nameBottom)
-        .lineTo(pageWidth / 2 + 110, nameBottom)
-        .lineWidth(0.8)
-        .strokeColor(COLORS.accent)
-        .stroke();
-
-      y = nameBottom + 22;
-      doc
-        .fillColor(COLORS.muted)
-        .font('CertRegular')
-        .fontSize(12)
-        .text('успешно завершил(а) курс', contentLeft, y, {
-          width: contentWidth,
-          align: 'center',
-        });
-
-      y += 28;
-      doc
-        .fillColor(COLORS.ink)
-        .font('CertBold')
-        .fontSize(courseName.length > 42 ? 13 : 15)
-        .text(`«${courseName}»`, contentLeft + 12, y, {
-          width: contentWidth - 24,
-          align: 'center',
-        });
-
-      y += 40;
-      this.drawOrnament(doc, pageWidth / 2, y);
-
-      const issueDate = formatIssueDate(certificate.issueDate);
-      const metaBlockTop = Math.min(y + 34, 470);
-      const metaLines = [
-        `Серия бланка: ${certificate.blankSeries || '—'}    ·    № бланка: ${certificate.blankNumber || '—'}`,
-        `Дата выдачи: ${issueDate}`,
-        `Регистрационный номер: ${certificate.registrationNumber || '—'}`,
-      ];
-
-      let metaY = metaBlockTop;
-      for (const line of metaLines) {
-        doc
-          .fillColor(COLORS.muted)
-          .font('CertRegular')
-          .fontSize(10)
-          .text(line, contentLeft, metaY, {
-            width: contentWidth,
-            align: 'center',
-          });
-        metaY += 18;
-      }
-
-      // QR + authenticity note + director signature — kept above the landscape art.
-      const footerTop = 575;
-      const qrSize = 78;
-      const qrX = contentLeft + 6;
-      const qrY = footerTop;
-
-      doc
-        .roundedRect(qrX - 6, qrY - 6, qrSize + 12, qrSize + 12, 6)
-        .fill(COLORS.qrLight);
-      doc
-        .roundedRect(qrX - 6, qrY - 6, qrSize + 12, qrSize + 12, 6)
-        .lineWidth(0.8)
-        .strokeColor(COLORS.accent)
-        .stroke();
-      doc.image(Buffer.from(qrBase64, 'base64'), qrX, qrY, { width: qrSize });
-
-      doc
-        .fillColor(COLORS.soft)
-        .font('CertRegular')
-        .fontSize(7.5)
-        .text('Проверка по QR-коду', qrX - 8, qrY + qrSize + 10, {
-          width: qrSize + 16,
-          align: 'center',
-        });
-
-      const signX = qrX + qrSize + 36;
-      const signWidth = contentLeft + contentWidth - signX;
-      doc
-        .fillColor(COLORS.soft)
-        .font('CertRegular')
-        .fontSize(8)
-        .text('ДИРЕКТОР', signX, qrY + 4, {
-          width: signWidth,
-          align: 'center',
-          characterSpacing: 1.5,
-        });
-      doc
-        .fillColor(COLORS.ink)
-        .font('CertBold')
-        .fontSize(11)
-        .text('ЧУП «ДатаВэйв Солюшнс»', signX, qrY + 22, {
-          width: signWidth,
-          align: 'center',
-        });
-      doc
-        .fillColor(COLORS.accent)
-        .font('CertBold')
-        .fontSize(14)
-        .text('Янчиленко И.А.', signX, qrY + 46, {
-          width: signWidth,
-          align: 'center',
-        });
-      doc
-        .moveTo(signX + 28, qrY + 68)
-        .lineTo(signX + signWidth - 28, qrY + 68)
-        .lineWidth(0.7)
-        .strokeColor(COLORS.soft)
-        .stroke();
-
-      // Soft translucent bar for the disclaimer over the landscape.
-      const disclaimerTop = pageHeight - 52;
-      doc.save();
-      doc
-        .rect(48, disclaimerTop - 6, pageWidth - 96, 34)
-        .fillOpacity(0.72)
-        .fill(COLORS.paperTint);
-      doc.restore();
-      doc
-        .fillColor(COLORS.soft)
-        .font('CertRegular')
-        .fontSize(7)
-        .text(DISCLAIMER, 58, disclaimerTop, {
-          width: pageWidth - 116,
-          align: 'center',
-          lineGap: 1.5,
-        });
-
-      doc.end();
+    const buffer = await renderCertificatePdfBuffer({
+      registrationNumber: certificate.registrationNumber,
+      blankSeries: certificate.blankSeries,
+      blankNumber: certificate.blankNumber,
+      issueDate: certificate.issueDate,
+      studentName,
+      courseName,
+      verificationUrl,
     });
 
     return {
@@ -384,34 +674,6 @@ export class CertificatePdfService {
       filename: `certificate-${certificate.registrationNumber}.pdf`,
       verificationUrl,
     };
-  }
-
-  private drawOrnament(
-    doc: InstanceType<typeof PDFDocument>,
-    centerX: number,
-    y: number,
-  ): void {
-    const half = 54;
-    doc
-      .moveTo(centerX - half, y)
-      .lineTo(centerX - 10, y)
-      .lineWidth(0.9)
-      .strokeColor(COLORS.accent)
-      .stroke();
-    doc
-      .moveTo(centerX + 10, y)
-      .lineTo(centerX + half, y)
-      .lineWidth(0.9)
-      .strokeColor(COLORS.accent)
-      .stroke();
-    // Small diamond / knot mark in the middle
-    doc
-      .save()
-      .translate(centerX, y)
-      .rotate(45)
-      .rect(-3.2, -3.2, 6.4, 6.4)
-      .fill(COLORS.seal)
-      .restore();
   }
 
   private buildVerificationUrl(certificateId: string): string {

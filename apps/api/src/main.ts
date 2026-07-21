@@ -48,7 +48,7 @@ async function bootstrap() {
 
   if (nodeEnv !== 'production') {
     const swaggerConfig = new DocumentBuilder()
-      .setTitle('LongHua CRM API')
+      .setTitle('Longhua Academy API')
       .setDescription('API documentation including Assessment')
       .setVersion('1.0')
       .addBearerAuth()
@@ -59,7 +59,7 @@ async function bootstrap() {
 
   await app.listen(port);
   Logger.log(
-    `Longhua CRM API (${nodeEnv}) on http://localhost:${port} [log=${logLevel}]`,
+    `Longhua Academy API (${nodeEnv}) on http://localhost:${port} [log=${logLevel}]`,
     'Bootstrap',
   );
 }

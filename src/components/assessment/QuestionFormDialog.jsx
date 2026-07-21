@@ -253,7 +253,7 @@ export default function QuestionFormDialog({
 
         {loadingDetail ? (
           <div className="flex justify-center py-10">
-            <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+            <Loader2 className="h-6 w-6 animate-spin text-brand" />
           </div>
         ) : (
           <div className="space-y-4 py-1">
@@ -365,7 +365,7 @@ export default function QuestionFormDialog({
                           type === 'multiple_choice' ? 'checkbox' : 'radio'
                         }
                         name="correct-answer"
-                        className="mt-2.5 accent-indigo-600"
+                        className="mt-2.5 accent-brand"
                         checked={Boolean(row.is_correct)}
                         onChange={(e) =>
                           setAnswerField(index, 'is_correct', e.target.checked)
@@ -486,7 +486,7 @@ export default function QuestionFormDialog({
           </Button>
           {!readOnly && (
             <Button
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-primary hover:bg-primary/90"
               onClick={handleSave}
               disabled={saving || loadingDetail || uploading}
             >

@@ -1,12 +1,11 @@
 # LongHua Assessment — Domain Model
 
-Status: **Entity + migration created** (`1740500000000-AssessmentSchema`)  
+Status: **implemented** (`1740500000000-AssessmentSchema` + follow-up migrations)  
 Module: `apps/api/src/modules/assessment`  
 Related: [architecture.md](./architecture.md), [state-machine.md](./state-machine.md), [api-contract.md](./api-contract.md)  
-Updated: Bank entity, Assignment.status, ResultBreakdown, AttemptAnswerSelection
+Storage policy: [../architecture/storage-policy.md](../architecture/storage-policy.md)
 
-Этот документ фиксирует предметную модель перед реализацией БД.  
-После согласования можно переходить к TypeORM Entity и миграциям `assessment_*`.
+Snapshot strategy uses **relational tables** (`assessment_question_snapshots`, `assessment_answer_snapshots`, …) — not JSONB documents.
 
 ---
 
@@ -17,7 +16,7 @@ LongHua Assessment — bounded context внутри LongHuaCRM для:
 - банка вопросов и шаблонов экзаменов;
 - генерации конкретных экзаменов по правилам (Blueprint);
 - назначения экзаменов аудитории (ученики, группы, курсы, преподаватели, публичные тесты);
-- прохождения попыток с неизменяемым снимком содержания;
+- прохождения попыток с неизменяемым **реляционным** снимком содержания;
 - **персистентного** хранения итогов (Result не пересчитывается «на лету» как единственный источник правды).
 
 CRM остаётся источником правды о людях, курсах, группах и платежах.
@@ -28,8 +27,8 @@ CRM остаётся источником правды о людях, курса
 
 ### 2.1. Assessment владеет
 
-| Сущность | Таблица (будущая) | Ответственность |
-|----------|------------------|-----------------|
+| Сущность | Таблица | Ответственность |
+|----------|--------|-----------------|
 | Topic | `assessment_topics` | Таксономия / теги навыков |
 | **AssessmentBank** | `assessment_banks` | Контейнер банка вопросов (API `/banks`) |
 | Question | `assessment_questions` | Вопрос банка (stem, тип, баллы, сложность) |
@@ -46,7 +45,7 @@ CRM остаётся источником правды о людях, курса
 | QuestionSnapshot | `assessment_question_snapshots` | Снимок вопроса на момент Attempt |
 | AnswerSnapshot | `assessment_answer_snapshots` | Снимок вариантов ответа |
 | AttemptAnswer | `assessment_attempt_answers` | Ответ участника в попытке |
-| AttemptAnswerSelection | `assessment_attempt_answer_selections` | Выбранные варианты (нормализованно, не uuid[]) |
+| AttemptAnswerSelection | `assessment_attempt_answer_selections` | Выбранные варианты (нормализованно, не jsonb) |
 | Result | `assessment_results` | Полный сохранённый итог попытки |
 | ResultBreakdown | `assessment_result_breakdowns` | Разбивка итога по секциям |
 

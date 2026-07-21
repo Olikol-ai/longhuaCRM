@@ -81,7 +81,7 @@ export default function CertificateVerify() {
             className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-900 dark:text-white"
             style={{ fontFamily: '"Cormorant Garamond", Georgia, serif' }}
           >
-            Longhua Chinese
+            Longhua Academy
           </p>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Проверка подлинности сертификата</p>
         </header>
@@ -214,7 +214,7 @@ export default function CertificateVerify() {
         <p className="mt-8 text-center text-xs text-slate-500 dark:text-slate-400">
           Официальная проверка реестра сертификатов{' '}
           <Link to="/login" className="font-medium text-slate-700 dark:text-slate-300 underline-offset-2 hover:underline">
-            Longhua Chinese
+            Longhua Academy
           </Link>
         </p>
       </div>

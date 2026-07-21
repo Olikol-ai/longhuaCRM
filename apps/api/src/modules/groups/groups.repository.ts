@@ -46,6 +46,13 @@ export class GroupsRepository {
     return this.memberRepo.findOne({ where: { id } });
   }
 
+  findMemberByGroupAndStudent(
+    groupId: string,
+    studentId: string,
+  ): Promise<GroupMemberEntity | null> {
+    return this.memberRepo.findOne({ where: { groupId, studentId } });
+  }
+
   saveMember(entity: Partial<GroupMemberEntity>): Promise<GroupMemberEntity> {
     return this.memberRepo.save(this.memberRepo.create(entity));
   }

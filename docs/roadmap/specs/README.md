@@ -1,6 +1,10 @@
+> **HISTORICAL / COMPLETED (JSONB migration finished).**  
+> Specs below planned the move off `data jsonb` / `slots jsonb`. That work is done.  
+> **Current:** [Database.md](../../Database.md), [storage-policy.md](../../architecture/storage-policy.md).
+
 # Технические спецификации этапов рефакторинга
 
-Подробные spec-документы для каждого этапа из [refactor-roadmap.md](../refactor-roadmap.md).
+Подробные spec-документы для каждого этапа из [refactor-roadmap.md](../refactor-roadmap.md) (**архив плана**, не текущая схема).
 
 | Spec | Этап | Файл roadmap |
 |------|------|--------------|
@@ -13,4 +17,4 @@
 | [07-testing-spec.md](./07-testing-spec.md) | Testing strategy | [07-testing.md](../07-testing.md) |
 | [08-final-cleanup-spec.md](./08-final-cleanup-spec.md) | Legacy cleanup | [08-final-cleanup.md](../08-final-cleanup.md) |
 
-**Правило:** перед работой по этапу читать только соответствующий spec + audit-файлы из [docs/audit/](../../audit/).
+**Правило:** для текущей архитектуры читать [Database.md](../../Database.md) и [Architecture.md](../../Architecture.md), а не эти specs как source of truth.

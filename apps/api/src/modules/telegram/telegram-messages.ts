@@ -36,7 +36,7 @@ export const TELEGRAM_CB = {
 
 export const TELEGRAM_MSG = {
   startLinked:
-    '✅ Longhua CRM подключён\n\nВыберите действие в меню ниже:',
+    '✅ Longhua Academy подключён\n\nВыберите действие в меню ниже:',
   startNotLinked:
     'Здравствуйте!\n\nTelegram ещё не подключён.\nОткройте профиль в личном кабинете и нажмите «Привязать Telegram».',
   linkFailed:

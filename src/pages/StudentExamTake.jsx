@@ -128,7 +128,7 @@ export default function StudentExamTake() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3">
-        <Loader2 className="h-7 w-7 animate-spin text-indigo-600" />
+        <Loader2 className="h-7 w-7 animate-spin text-brand" />
         <p className="text-sm text-slate-500">Загрузка экзамена…</p>
       </div>
     );
@@ -180,7 +180,7 @@ export default function StudentExamTake() {
             <div className="min-w-0">
               <Link
                 to={createPageUrl('StudentExams')}
-                className="text-xs text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400"
+                className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
               >
                 ← Мои экзамены
               </Link>
@@ -259,7 +259,7 @@ export default function StudentExamTake() {
           </div>
 
           <Button
-            className="bg-indigo-600 hover:bg-indigo-700 w-full sm:w-auto"
+            className="bg-primary hover:bg-primary/90 w-full sm:w-auto"
             disabled={submitting}
             onClick={() => setConfirmSubmit(true)}
           >
@@ -281,7 +281,7 @@ export default function StudentExamTake() {
           role="dialog"
           aria-modal="true"
         >
-          <div className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl bg-white dark:bg-slate-900 p-5 sm:p-6 space-y-4 shadow-xl">
+          <div className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl bg-white dark:bg-slate-900 p-5 sm:p-6 space-y-4 shadow-xl safe-pb sm:pb-6">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
               Завершить экзамен?
             </h2>
@@ -294,7 +294,7 @@ export default function StudentExamTake() {
                 Отмена
               </Button>
               <Button
-                className="bg-indigo-600 hover:bg-indigo-700"
+                className="bg-primary hover:bg-primary/90"
                 disabled={submitting}
                 onClick={handleManualSubmit}
               >

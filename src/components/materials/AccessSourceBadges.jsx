@@ -1,9 +1,9 @@
 import React from "react";
 
 const SOURCE_STYLES = {
-  personal: "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800",
+  personal: "bg-brand-soft text-brand border-brand/30 dark:bg-brand-soft/40 dark:text-brand dark:border-brand/40",
   course: "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
-  group: "bg-sky-50 text-sky-800 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800",
+  group: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
 };
 
 /**

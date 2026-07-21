@@ -27,7 +27,11 @@
     "seed:assessment-demo": "npm run seed:assessment-demo --prefix apps/api -- --yes",
     "test:unit": "node --test src/lib/materialMeta.test.js src/lib/forgotPasswordUi.test.js src/lib/lessonPayload.test.js src/lib/passwordPolicy.test.js src/lib/certificatesPayload.test.js src/lib/time-slots.test.js",
     "test:browser": "playwright test",
-    "test:browser:report": "node e2e/browser/merge-audit-report.mjs"
+    "test:browser:report": "node e2e/browser/merge-audit-report.mjs",
+    "mobile": "npm run start --prefix apps/mobile",
+    "mobile:android": "npm run android --prefix apps/mobile",
+    "mobile:ios": "npm run ios --prefix apps/mobile",
+    "mobile:prebuild": "npm run prebuild --prefix apps/mobile"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^17.0.0",

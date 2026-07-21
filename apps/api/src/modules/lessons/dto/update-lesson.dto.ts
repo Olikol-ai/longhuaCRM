@@ -91,5 +91,9 @@ export class UpdateLessonDto {
 
   @IsOptional()
   @IsString()
+  room?: string;
+
+  @IsOptional()
+  @IsString()
   notes?: string;
 }

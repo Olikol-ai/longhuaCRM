@@ -3,7 +3,7 @@ import { api } from '@/api';
 import { Send, Save, CheckCircle2, TestTube, Info, Eye, Webhook, RefreshCw } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
-const fieldCls = "w-full px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500/20";
+const fieldCls = "w-full px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-brand/20";
 const fieldMono = `${fieldCls} font-mono`;
 const btnOutline = "px-3 py-2 text-xs font-medium border border-border rounded-lg hover:bg-muted text-muted-foreground flex items-center gap-1.5";
 
@@ -96,8 +96,8 @@ export default function TelegramSettings() {
       case "lesson_reminder": return `⏰ Напоминание об уроке\n\nУважаемый(ая) ${name}, напоминаем, что у вас скоро занятие по китайскому языку! Не забудьте подключиться вовремя.`;
       case "balance_low": return `⚠️ Низкий баланс\n\nУважаемый(ая) ${name}, на вашем балансе осталось мало уроков. Рекомендуем пополнить баланс, чтобы не прерывать обучение.`;
       case "payment_received": return `💳 Платёж получен\n\nУважаемый(ая) ${name}, ваш платёж успешно зачислен. Баланс уроков пополнен.`;
-      case "welcome": return `🎉 Добро пожаловать в Longhua Chinese!\n\nУважаемый(ая) ${name}, рады приветствовать вас! Ваш аккаунт активирован. Желаем успехов в изучении китайского языка!`;
-      default: return testTarget.customMsg || "✅ Тестовое уведомление Longhua CRM успешно отправлено.";
+      case "welcome": return `🎉 Добро пожаловать в Longhua Academy!\n\nУважаемый(ая) ${name}, рады приветствовать вас! Ваш аккаунт активирован. Желаем успехов в изучении китайского языка!`;
+      default: return testTarget.customMsg || "✅ Тестовое уведомление Longhua Academy успешно отправлено.";
     }
   };
 
@@ -154,8 +154,8 @@ export default function TelegramSettings() {
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-950/50 flex items-center justify-center">
-          <Send className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+        <div className="w-10 h-10 rounded-xl bg-brand-muted dark:bg-brand-soft/50 flex items-center justify-center">
+          <Send className="w-5 h-5 text-brand dark:text-brand" />
         </div>
         <div>
           <h2 className="text-xl font-bold text-foreground">Telegram Bot</h2>
@@ -180,14 +180,14 @@ export default function TelegramSettings() {
           <>
             <p className="text-xs text-muted-foreground">
               Создайте бота через{" "}
-              <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline font-medium">@BotFather</a>
+              <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="text-brand hover:underline font-medium">@BotFather</a>
               {" "}и вставьте полученный токен ниже.
             </p>
             <input type="text" value={token} onChange={e => setToken(e.target.value)}
               placeholder="1234567890:ABCdefGHIjklMNOpqrSTUvwxYZ" className={fieldMono} />
             <div className="flex gap-2">
               <button onClick={saveToken} disabled={saving || !token.trim()}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50">
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50">
                 {saving ? "Сохранение..." : <><Save className="w-4 h-4" /> Сохранить токен</>}
               </button>
               {showInput && savedMasked && (
@@ -302,7 +302,7 @@ export default function TelegramSettings() {
         )}
 
         <button onClick={sendTest} disabled={!testTarget.id || testing || !selectedTelegramId}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors">
           <TestTube className="w-4 h-4" />
           {testing ? "Отправка..." : "Отправить тест"}
         </button>
@@ -324,7 +324,7 @@ export default function TelegramSettings() {
               setTesting(false);
             }}
             disabled={!testTarget.id || testing || !selectedTelegramId}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
           >
             Отправить тестовое подтверждение урока
           </button>
@@ -368,9 +368,9 @@ export default function TelegramSettings() {
         </ol>
       </div>
 
-      <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 rounded-xl p-4 flex gap-3">
-        <Info className="w-4 h-4 text-blue-500 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-        <p className="text-xs text-blue-700 dark:text-blue-300">
+      <div className="bg-brand-soft dark:bg-brand-soft/30 border border-brand/20 dark:border-brand/40 rounded-xl p-4 flex gap-3">
+        <Info className="w-4 h-4 text-brand dark:text-brand flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-brand dark:text-brand">
           Токен бота доступен только администратору. Уведомления уходят пользователям с привязанным Telegram.
         </p>
       </div>

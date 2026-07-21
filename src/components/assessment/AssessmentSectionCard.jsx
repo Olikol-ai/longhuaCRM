@@ -20,7 +20,7 @@ export default function AssessmentSectionCard({
           className={`h-10 w-10 rounded-xl flex items-center justify-center ring-1 ${
             soon
               ? 'bg-slate-100 dark:bg-slate-800 ring-slate-200 dark:ring-slate-700'
-              : 'bg-indigo-50 dark:bg-indigo-950/40 ring-indigo-100 dark:ring-indigo-900/50'
+              : 'bg-brand-soft dark:bg-brand-soft/40 ring-brand/20 dark:ring-brand/30'
           }`}
         >
           {Icon ? (
@@ -28,7 +28,7 @@ export default function AssessmentSectionCard({
               className={`h-5 w-5 ${
                 soon
                   ? 'text-slate-400'
-                  : 'text-indigo-600 dark:text-indigo-400'
+                  : 'text-brand dark:text-brand'
               }`}
             />
           ) : null}
@@ -39,7 +39,7 @@ export default function AssessmentSectionCard({
             Скоро
           </span>
         ) : (
-          <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-indigo-500 transition-colors" />
+          <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-brand transition-colors" />
         )}
       </div>
       <div className="mt-3 space-y-1">
@@ -54,7 +54,7 @@ export default function AssessmentSectionCard({
   const className = `group rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/80 p-4 sm:p-5 text-left transition-shadow ${
     soon
       ? 'opacity-70 cursor-not-allowed'
-      : 'hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-700'
+      : 'hover:shadow-md hover:border-brand/40 dark:hover:border-brand/40'
   }`;
 
   if (soon || !page) {

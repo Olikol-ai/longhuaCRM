@@ -101,7 +101,7 @@ export class TelegramAdminController {
   async sendTest(@Body() body: SendTestTelegramDto) {
     const message =
       (body.message ?? '').trim() ||
-      '✅ Тестовое уведомление Longhua CRM успешно отправлено.';
+      '✅ Тестовое уведомление Longhua Academy успешно отправлено.';
 
     const target =
       body.targetType === 'student'

@@ -19,7 +19,7 @@ export function ThemeProvider({ children }) {
     }
     localStorage.setItem("theme", theme);
 
-    const themeColor = theme === "dark" ? "#0f172a" : "#ffffff";
+    const themeColor = theme === "dark" ? "#1A1212" : "#8B1A1A";
     document.querySelectorAll('meta[name="theme-color"]').forEach((el) => {
       el.setAttribute("content", themeColor);
     });

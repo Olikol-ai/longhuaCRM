@@ -216,7 +216,7 @@ export default function Certificates() {
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand" />
       </div>
     );
   }
@@ -339,7 +339,7 @@ export default function Certificates() {
             type="button"
             onClick={handleCreate}
             disabled={creating}
-            className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 gap-2"
+            className="w-full sm:w-auto bg-primary hover:bg-primary/90 gap-2"
             data-testid="cert-create-draft"
           >
             {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
@@ -365,7 +365,7 @@ export default function Certificates() {
           >
             <div>
               <p className="font-semibold flex items-center gap-2">
-                <Award className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> {cert.registration_number}
+                <Award className="w-4 h-4 text-brand dark:text-brand" /> {cert.registration_number}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 {studentName(cert.student_id)} · {courseName(cert.course_id)} ·{' '}

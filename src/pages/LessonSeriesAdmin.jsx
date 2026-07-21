@@ -71,7 +71,7 @@ export default function LessonSeriesAdmin() {
           <option value="biweekly">Раз в 2 недели</option>
         </select>
         <input type="number" className="border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground" placeholder="Всего уроков" value={form.total_lessons} onChange={(e) => setForm({ ...form, total_lessons: Number(e.target.value) })} />
-        <button onClick={handleCreate} className="md:col-span-3 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm">
+        <button onClick={handleCreate} className="md:col-span-3 flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm">
           <Plus className="w-4 h-4" /> Создать серию
         </button>
       </div>

@@ -385,7 +385,7 @@ describeE2E('Telegram link sync + admin status + confirmations (e2e)', () => {
       mockTelegram.sentMessages.some(
         (m) =>
           m.chatId === chatId
-          && m.text.includes('Тестовое уведомление Longhua CRM'),
+          && m.text.includes('Тестовое уведомление Longhua Academy'),
       ),
     ).toBe(true);
 
@@ -399,7 +399,7 @@ describeE2E('Telegram link sync + admin status + confirmations (e2e)', () => {
     });
     expect(
       mockTelegram.sentMessages.some((m) =>
-        m.text.includes('✅ Longhua CRM подключён'),
+        m.text.includes('✅ Longhua Academy подключён'),
       ),
     ).toBe(true);
   });
@@ -497,7 +497,7 @@ describeE2E('Telegram link sync + admin status + confirmations (e2e)', () => {
       },
     });
     expect(
-      mockTelegram.sentMessages.some((m) => m.text.includes('✅ Longhua CRM подключён')),
+      mockTelegram.sentMessages.some((m) => m.text.includes('✅ Longhua Academy подключён')),
     ).toBe(true);
     expect(
       mockTelegram.sentMessages.some(
@@ -510,7 +510,7 @@ describeE2E('Telegram link sync + admin status + confirmations (e2e)', () => {
     expect(
       mockTelegram.sentMessages.some(
         (m) =>
-          m.text.includes('✅ Longhua CRM подключён')
+          m.text.includes('✅ Longhua Academy подключён')
           && m.options?.replyMarkup
           && 'inline_keyboard' in m.options.replyMarkup
           && m.options.replyMarkup.inline_keyboard.some((row) =>
