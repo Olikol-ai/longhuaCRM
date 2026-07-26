@@ -1,53 +1,16 @@
-import {
-  canSyncLinkedUser,
-  isBlankStudentName,
-  resolveRepairNameParts,
-  RepairStudentUserNameSync1741300000000,
-} from './1741300000000-RepairStudentUserNameSync';
+import { RepairStudentUserNameSync1741300000000 } from './migrations/1741300000000-RepairStudentUserNameSync';
 
-describe('RepairStudentUserNameSync helpers', () => {
-  it('treats null/empty/whitespace student name as blank', () => {
-    expect(isBlankStudentName(null)).toBe(true);
-    expect(isBlankStudentName('')).toBe(true);
-    expect(isBlankStudentName('   ')).toBe(true);
-    expect(isBlankStudentName('Бабаева Наталья')).toBe(false);
-  });
-
-  it('returns null parts for nameless student (must not sync User)', () => {
-    expect(resolveRepairNameParts(null)).toBeNull();
-    expect(resolveRepairNameParts('')).toBeNull();
-    expect(resolveRepairNameParts('  ')).toBeNull();
-    expect(canSyncLinkedUser({ firstName: '', lastName: '' })).toBe(false);
-  });
-
-  it('parses Student.name and allows user sync only when firstName is non-empty', () => {
-    expect(resolveRepairNameParts('Бабаева Наталья')).toEqual({
-      lastName: 'Бабаева',
-      firstName: 'Наталья',
-    });
-    expect(canSyncLinkedUser({ firstName: 'Наталья', lastName: 'Бабаева' })).toBe(
-      true,
-    );
-
-    // Single-token name lands in firstName — safe for users.first_name NOT NULL.
-    expect(resolveRepairNameParts('Наталья')).toEqual({
-      firstName: 'Наталья',
-      lastName: '',
-    });
-    expect(canSyncLinkedUser({ firstName: 'Наталья', lastName: '' })).toBe(true);
-
-    // lastName-only must not overwrite users.first_name with empty.
-    expect(canSyncLinkedUser({ firstName: '', lastName: 'Бабаева' })).toBe(false);
-  });
-});
-
+/**
+ * Kept outside database/migrations/ so TypeORM glob
+ * `migrations/*{.ts,.js}` does not load this file as a migration.
+ */
 describe('RepairStudentUserNameSync migration (empty name)', () => {
   it('skips students without name and never writes empty users.first_name', async () => {
     const executed: Array<{ sql: string; params?: unknown[] }> = [];
     const queryRunner = {
       query: async (sql: string, params?: unknown[]) => {
         executed.push({ sql, params });
-        if (sql.includes('TRIM(COALESCE(s.name, \'\')) = \'\'')) {
+        if (sql.includes("TRIM(COALESCE(s.name, '')) = ''")) {
           return [
             {
               id: 'student-empty',
@@ -56,7 +19,7 @@ describe('RepairStudentUserNameSync migration (empty name)', () => {
             },
           ];
         }
-        if (sql.includes('TRIM(COALESCE(s.name, \'\')) <> \'\'')) {
+        if (sql.includes("TRIM(COALESCE(s.name, '')) <> ''")) {
           return [
             {
               id: 'student-empty-in-conflicts',
@@ -100,17 +63,24 @@ describe('RepairStudentUserNameSync migration (empty name)', () => {
       expect(update.params?.[1]).not.toBe('');
     }
 
-    // Blank-name conflict row must not produce a users UPDATE.
     expect(
       userUpdates.some((entry) => entry.params?.[0] === 'user-2'),
     ).toBe(false);
 
-    // Valid conflict still syncs linked user with non-empty first_name.
     const okUserUpdate = userUpdates.find(
       (entry) => entry.params?.[0] === 'user-ok',
     );
     expect(okUserUpdate).toBeTruthy();
     expect(okUserUpdate?.params?.[1]).toBe('Наталья');
     expect(okUserUpdate?.params?.[2]).toBe('Бабаева');
+  });
+
+  it('exports only the migration class (TypeORM-safe)', async () => {
+    const mod = await import('./migrations/1741300000000-RepairStudentUserNameSync');
+    const exportKeys = Object.keys(mod).sort();
+    expect(exportKeys).toEqual(['RepairStudentUserNameSync1741300000000']);
+    expect(typeof mod.RepairStudentUserNameSync1741300000000).toBe('function');
+    const instance = new mod.RepairStudentUserNameSync1741300000000();
+    expect(instance.name).toBe('RepairStudentUserNameSync1741300000000');
   });
 });

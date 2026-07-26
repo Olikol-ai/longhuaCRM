@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export type StudentNameConflictRow = {
+type StudentNameConflictRow = {
   id: string;
   user_id: string | null;
   email: string | null;
@@ -12,7 +12,7 @@ export type StudentNameConflictRow = {
   user_last_name: string | null;
 };
 
-export function splitDisplayName(name: string): { firstName: string; lastName: string } {
+function splitDisplayName(name: string): { firstName: string; lastName: string } {
   const parts = String(name ?? '')
     .trim()
     .split(/\s+/)
@@ -30,7 +30,7 @@ export function splitDisplayName(name: string): { firstName: string; lastName: s
 }
 
 /** Empty / whitespace-only Student.name must never drive User sync. */
-export function isBlankStudentName(name: string | null | undefined): boolean {
+function isBlankStudentName(name: string | null | undefined): boolean {
   return String(name ?? '').trim() === '';
 }
 
@@ -38,7 +38,7 @@ export function isBlankStudentName(name: string | null | undefined): boolean {
  * Resolve repair parts from Student.name (SSOT).
  * Returns null when name is blank or yields no usable parts.
  */
-export function resolveRepairNameParts(
+function resolveRepairNameParts(
   name: string | null | undefined,
 ): { firstName: string; lastName: string } | null {
   if (isBlankStudentName(name)) {
@@ -54,7 +54,7 @@ export function resolveRepairNameParts(
 /**
  * users.first_name is NOT NULL — never sync when resolved firstName is empty.
  */
-export function canSyncLinkedUser(parts: {
+function canSyncLinkedUser(parts: {
   firstName: string;
   lastName: string;
 }): boolean {
@@ -70,6 +70,9 @@ export function canSyncLinkedUser(parts: {
  * Idempotent: re-running skips rows that already match.
  * Safe on legacy data: blank Student.name is logged and skipped (never writes
  * NULL/empty into users.first_name).
+ *
+ * IMPORTANT: only this class may be exported from this file. TypeORM
+ * buildMigrations() instantiates every export with `new`.
  */
 export class RepairStudentUserNameSync1741300000000 implements MigrationInterface {
   name = 'RepairStudentUserNameSync1741300000000';
