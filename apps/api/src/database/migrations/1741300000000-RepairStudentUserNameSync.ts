@@ -1,9 +1,10 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-type StudentNameConflictRow = {
+export type StudentNameConflictRow = {
   id: string;
   user_id: string | null;
-  name: string;
+  email: string | null;
+  name: string | null;
   first_name: string | null;
   last_name: string | null;
   composed: string | null;
@@ -11,7 +12,7 @@ type StudentNameConflictRow = {
   user_last_name: string | null;
 };
 
-function splitDisplayName(name: string): { firstName: string; lastName: string } {
+export function splitDisplayName(name: string): { firstName: string; lastName: string } {
   const parts = String(name ?? '')
     .trim()
     .split(/\s+/)
@@ -28,21 +29,73 @@ function splitDisplayName(name: string): { firstName: string; lastName: string }
   };
 }
 
+/** Empty / whitespace-only Student.name must never drive User sync. */
+export function isBlankStudentName(name: string | null | undefined): boolean {
+  return String(name ?? '').trim() === '';
+}
+
+/**
+ * Resolve repair parts from Student.name (SSOT).
+ * Returns null when name is blank or yields no usable parts.
+ */
+export function resolveRepairNameParts(
+  name: string | null | undefined,
+): { firstName: string; lastName: string } | null {
+  if (isBlankStudentName(name)) {
+    return null;
+  }
+  const parsed = splitDisplayName(String(name).trim());
+  if (!parsed.firstName && !parsed.lastName) {
+    return null;
+  }
+  return parsed;
+}
+
+/**
+ * users.first_name is NOT NULL — never sync when resolved firstName is empty.
+ */
+export function canSyncLinkedUser(parts: {
+  firstName: string;
+  lastName: string;
+}): boolean {
+  return String(parts.firstName ?? '').trim().length > 0;
+}
+
 /**
  * RepairStudentUserNameSync
  *
  * Student.name is SSOT for display. Re-derive students.first_name/last_name
  * from name when they diverge, then align linked users.first_name/last_name.
- * Logs every conflict found.
+ *
+ * Idempotent: re-running skips rows that already match.
+ * Safe on legacy data: blank Student.name is logged and skipped (never writes
+ * NULL/empty into users.first_name).
  */
 export class RepairStudentUserNameSync1741300000000 implements MigrationInterface {
   name = 'RepairStudentUserNameSync1741300000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    const emptyNameRows = (await queryRunner.query(`
+      SELECT s.id, s.email, s.user_id
+      FROM students s
+      WHERE TRIM(COALESCE(s.name, '')) = ''
+    `)) as Array<{ id: string; email: string | null; user_id: string | null }>;
+
+    for (const row of emptyNameRows) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[RepairStudentUserNameSync] skip empty name` +
+          ` student=${row.id}` +
+          ` email=${row.email ?? ''}` +
+          ` user_id=${row.user_id ?? ''}`,
+      );
+    }
+
     const rows = (await queryRunner.query(`
       SELECT
         s.id,
         s.user_id,
+        s.email,
         TRIM(s.name) AS name,
         s.first_name,
         s.last_name,
@@ -82,56 +135,116 @@ export class RepairStudentUserNameSync1741300000000 implements MigrationInterfac
 
     // eslint-disable-next-line no-console
     console.warn(
-      `[RepairStudentUserNameSync] found ${rows.length} student/user name conflict(s)`,
+      `[RepairStudentUserNameSync] found ${rows.length} student/user name conflict(s)` +
+        `; empty-name skipped=${emptyNameRows.length}`,
     );
 
     for (const row of rows) {
-      const displayName = String(row.name ?? '').trim();
-      const composed = String(row.composed ?? '').trim();
-      const nameMismatch = Boolean(displayName && composed && displayName !== composed);
-      const parsed = nameMismatch
-        ? splitDisplayName(displayName)
-        : {
-            firstName: String(row.first_name ?? '').trim(),
-            lastName: String(row.last_name ?? '').trim(),
-          };
-
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[RepairStudentUserNameSync] conflict student=${row.id}` +
-          ` name="${displayName}"` +
-          ` composed="${composed}"` +
-          ` parts="${row.last_name ?? ''} ${row.first_name ?? ''}"` +
-          ` user="${row.user_last_name ?? ''} ${row.user_first_name ?? ''}"` +
-          ` → fix last="${parsed.lastName}" first="${parsed.firstName}"`,
-      );
-
-      if (nameMismatch) {
-        await queryRunner.query(
-          `
-            UPDATE students
-            SET first_name = $2,
-                last_name = $3,
-                updated_at = NOW()
-            WHERE id = $1
-          `,
-          [row.id, parsed.firstName || null, parsed.lastName || null],
-        );
-      }
-
-      if (row.user_id) {
-        await queryRunner.query(
-          `
-            UPDATE users
-            SET first_name = $2,
-                last_name = $3,
-                updated_date = NOW()
-            WHERE id = $1
-          `,
-          [row.user_id, parsed.firstName || null, parsed.lastName || null],
+      try {
+        await this.repairRow(queryRunner, row);
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[RepairStudentUserNameSync] continue after error` +
+            ` student=${row.id}` +
+            ` email=${row.email ?? ''}` +
+            ` error=${(error as Error).message}`,
         );
       }
     }
+  }
+
+  private async repairRow(
+    queryRunner: QueryRunner,
+    row: StudentNameConflictRow,
+  ): Promise<void> {
+    if (isBlankStudentName(row.name)) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[RepairStudentUserNameSync] skip empty name` +
+          ` student=${row.id}` +
+          ` email=${row.email ?? ''}`,
+      );
+      return;
+    }
+
+    const parsed = resolveRepairNameParts(row.name);
+    if (!parsed) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[RepairStudentUserNameSync] skip unparseable name` +
+          ` student=${row.id}` +
+          ` email=${row.email ?? ''}` +
+          ` name="${row.name ?? ''}"`,
+      );
+      return;
+    }
+
+    const displayName = String(row.name).trim();
+    const composed = String(row.composed ?? '').trim();
+    const studentPartsMismatch =
+      composed !== displayName
+      || String(row.first_name ?? '').trim() !== parsed.firstName
+      || String(row.last_name ?? '').trim() !== parsed.lastName;
+
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[RepairStudentUserNameSync] conflict student=${row.id}` +
+        ` email=${row.email ?? ''}` +
+        ` name="${displayName}"` +
+        ` composed="${composed}"` +
+        ` parts="${row.last_name ?? ''} ${row.first_name ?? ''}"` +
+        ` user="${row.user_last_name ?? ''} ${row.user_first_name ?? ''}"` +
+        ` → fix last="${parsed.lastName}" first="${parsed.firstName}"`,
+    );
+
+    if (studentPartsMismatch) {
+      await queryRunner.query(
+        `
+          UPDATE students
+          SET first_name = $2,
+              last_name = NULLIF($3, ''),
+              updated_at = NOW()
+          WHERE id = $1
+            AND (
+              TRIM(COALESCE(first_name, '')) IS DISTINCT FROM $2
+              OR TRIM(COALESCE(last_name, '')) IS DISTINCT FROM $3
+            )
+        `,
+        [row.id, parsed.firstName || null, parsed.lastName],
+      );
+    }
+
+    if (!row.user_id) {
+      return;
+    }
+
+    if (!canSyncLinkedUser(parsed)) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[RepairStudentUserNameSync] skip user sync (empty first_name)` +
+          ` student=${row.id}` +
+          ` email=${row.email ?? ''}` +
+          ` user_id=${row.user_id}` +
+          ` name="${displayName}"`,
+      );
+      return;
+    }
+
+    await queryRunner.query(
+      `
+        UPDATE users
+        SET first_name = $2,
+            last_name = $3,
+            updated_date = NOW()
+        WHERE id = $1
+          AND (
+            TRIM(COALESCE(first_name, '')) IS DISTINCT FROM $2
+            OR TRIM(COALESCE(last_name, '')) IS DISTINCT FROM $3
+          )
+      `,
+      [row.user_id, parsed.firstName, parsed.lastName],
+    );
   }
 
   public async down(_queryRunner: QueryRunner): Promise<void> {
