@@ -23,6 +23,7 @@ import {
   TELEGRAM_MSG,
 } from '../telegram/telegram-messages';
 import { TelegramGateway } from '../telegram/telegram.gateway';
+import { formatStudentProfileDisplayName } from '../users/display-name.util';
 import { UserEntity } from '../users/entities/user.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
@@ -594,7 +595,9 @@ export class LessonConfirmationService {
     }
 
     const payload = {
-      student: student?.name?.trim() || 'Ученик',
+      student: student
+        ? formatStudentProfileDisplayName(student) || '—'
+        : '—',
       date: lesson.date || '—',
       time: formatLessonTime(lesson.startTime),
     };

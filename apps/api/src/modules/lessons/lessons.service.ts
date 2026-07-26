@@ -39,6 +39,7 @@ import {
   LessonUpdatedChangedField,
   LessonUpdatedPayload,
 } from './events/lesson.events';
+import { formatStudentProfileDisplayName } from '../users/display-name.util';
 import { LessonsRepository } from './lessons.repository';
 
 /** Terminal lesson statuses a teacher cannot change again after confirming. */
@@ -668,10 +669,7 @@ export class LessonsService {
         : [];
     const studentNameById = new Map(
       students.map((student) => {
-        const last = (student.lastName ?? '').trim();
-        const first = (student.firstName ?? '').trim();
-        const fromParts = [last, first].filter(Boolean).join(' ').trim();
-        const label = fromParts || student.name?.trim() || '';
+        const label = formatStudentProfileDisplayName(student);
         return [student.id, label] as const;
       }),
     );
@@ -984,7 +982,7 @@ export class LessonsService {
     return this.attachAttendanceStudentNames(rows);
   }
 
-  /** Attach studentName (first+last) for FE attendance panel — no legacy fallbacks. */
+  /** Attach studentName from live Student.name (SSOT) for FE attendance panel. */
   private async attachAttendanceStudentNames(
     rows: AttendanceEntity[],
   ): Promise<AttendanceEntity[]> {
@@ -1004,12 +1002,10 @@ export class LessonsService {
       select: ['id', 'name', 'firstName', 'lastName'],
     });
     const labelById = new Map(
-      students.map((student) => {
-        const last = (student.lastName ?? '').trim();
-        const first = (student.firstName ?? '').trim();
-        const fromParts = [last, first].filter(Boolean).join(' ').trim();
-        return [student.id, fromParts || student.name?.trim() || ''] as const;
-      }),
+      students.map((student) => [
+        student.id,
+        formatStudentProfileDisplayName(student),
+      ]),
     );
     for (const row of rows) {
       const label = row.studentId ? labelById.get(row.studentId) || '' : '';

@@ -227,10 +227,16 @@ export function resultBadgeClass(status) {
 
 export function displayPersonName(row) {
   if (!row) return '—';
-  if (row.last_name || row.first_name) {
-    return [row.last_name, row.first_name].filter(Boolean).join(' ');
+  const name = String(row.name ?? row.full_name ?? row.fullName ?? '').trim();
+  if (name) {
+    return name;
   }
-  return row.full_name || row.name || row.email || row.id || '—';
+  if (row.last_name || row.first_name || row.lastName || row.firstName) {
+    return [row.last_name ?? row.lastName, row.first_name ?? row.firstName]
+      .filter(Boolean)
+      .join(' ');
+  }
+  return row.email || row.id || '—';
 }
 
 export function toDatetimeLocalValue(iso) {

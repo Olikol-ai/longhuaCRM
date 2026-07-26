@@ -33,6 +33,7 @@ import { LessonRoomColumn1740900000000 } from './migrations/1740900000000-Lesson
 import { RepairIndividualLessonAttendance1741000000000 } from './migrations/1741000000000-RepairIndividualLessonAttendance';
 import { RepairCompletedIndividualAttendance1741100000000 } from './migrations/1741100000000-RepairCompletedIndividualAttendance';
 import { RepairLessonAttendanceData1741200000000 } from './migrations/1741200000000-RepairLessonAttendanceData';
+import { RepairStudentUserNameSync1741300000000 } from './migrations/1741300000000-RepairStudentUserNameSync';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -69,6 +70,7 @@ export default new DataSource({
     RepairIndividualLessonAttendance1741000000000,
     RepairCompletedIndividualAttendance1741100000000,
     RepairLessonAttendanceData1741200000000,
+    RepairStudentUserNameSync1741300000000,
   ],
   synchronize: false,
 });

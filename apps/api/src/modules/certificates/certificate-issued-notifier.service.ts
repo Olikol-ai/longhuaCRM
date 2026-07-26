@@ -6,6 +6,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { CourseTemplateEntity } from '../courses/entities/course-template.entity';
 import { StudentEntity } from '../students/entities/student.entity';
+import { formatStudentProfileDisplayName } from '../users/display-name.util';
 import { UserEntity } from '../users/entities/user.entity';
 import { CertificateEntity } from './entities/certificate.entity';
 
@@ -70,9 +71,7 @@ export class CertificateIssuedNotifier {
         linkedUser?.telegramId?.trim() || student.telegramId?.trim() || '';
 
       const studentName =
-        student.name?.trim() ||
-        [student.lastName, student.firstName].filter(Boolean).join(' ').trim() ||
-        'ученик';
+        formatStudentProfileDisplayName(student) || 'ученик';
       const courseName = course?.name?.trim() || 'курс';
       const series = certificate.blankSeries || '—';
       const number = certificate.blankNumber || '—';

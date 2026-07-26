@@ -72,6 +72,7 @@ export default function StudentCertificates() {
   };
 
   const studentName =
+    me?.name ||
     me?.full_name ||
     [me?.last_name, me?.first_name].filter(Boolean).join(' ') ||
     me?.email ||

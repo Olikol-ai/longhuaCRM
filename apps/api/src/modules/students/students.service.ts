@@ -82,7 +82,9 @@ export class StudentsService {
       normalized.lastName !== undefined;
 
     if (nameTouched) {
-      this.roleEntitySync.normalizeStudentNameFields(row);
+      // Admin-edited `name` is SSOT — re-split first/last so schedule labels stay in sync.
+      const nameIsSource = normalized.name !== undefined;
+      this.roleEntitySync.normalizeStudentNameFields(row, { nameIsSource });
       const saved = await this.repository.update(id, {
         name: row.name,
         firstName: row.firstName,

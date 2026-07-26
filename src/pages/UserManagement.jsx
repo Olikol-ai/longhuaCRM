@@ -111,9 +111,10 @@ function ConfirmDeleteModal({ user, onConfirm, onCancel }) {
         <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 text-center mb-1">Удалить пользователя?</h3>
         <p className="text-sm text-slate-500 dark:text-slate-400 text-center mb-6">
           <span className="font-semibold text-slate-700 dark:text-slate-300">{
-            user.first_name && user.last_name 
-              ? `${user.last_name} ${user.first_name}`
-              : user.full_name || user.email
+            user.full_name
+              || (user.first_name && user.last_name
+                ? `${user.last_name} ${user.first_name}`
+                : user.email)
           }</span> будет удалён безвозвратно.
         </p>
         <div className="flex gap-3">
@@ -170,10 +171,14 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
   const pendingCount = entries.filter((u) => displayRole(u.role) === "pending").length;
 
   const getFullName = (entry) => {
+    // Prefer composed full_name / Student.name from directory API (SSOT).
+    if (entry.full_name) {
+      return entry.full_name;
+    }
     if (entry.first_name && entry.last_name) {
       return `${entry.last_name} ${entry.first_name}`;
     }
-    return entry.full_name || entry.email || 'Без имени';
+    return entry.email || 'Без имени';
   };
 
   const filtered = entries.filter((u) => {

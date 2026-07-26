@@ -1,3 +1,4 @@
+import { formatStudentProfileDisplayName } from './display-name.util';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { UserEntity } from './entities/user.entity';
@@ -10,13 +11,46 @@ export function userToDirectoryEntry(
   student: StudentEntity | null,
   teacher: TeacherEntity | null,
 ): Record<string, unknown> {
+  const base = userToRecord(user);
+
+  // Student.name is SSOT for student-facing directory labels.
+  if (student) {
+    const display = formatStudentProfileDisplayName(student);
+    return {
+      ...base,
+      first_name: student.firstName ?? base.first_name,
+      last_name: student.lastName ?? base.last_name,
+      full_name: display || base.full_name,
+      entry_type: 'account' as DirectoryEntryType,
+      has_account: true,
+      user_id: user.id,
+      student_profile_id: student.id,
+      teacher_profile_id: teacher?.id ?? null,
+    };
+  }
+
+  if (teacher) {
+    const display = String(teacher.name ?? '').trim();
+    return {
+      ...base,
+      first_name: teacher.firstName ?? base.first_name,
+      last_name: teacher.lastName ?? base.last_name,
+      full_name: display || base.full_name,
+      entry_type: 'account' as DirectoryEntryType,
+      has_account: true,
+      user_id: user.id,
+      student_profile_id: null,
+      teacher_profile_id: teacher.id,
+    };
+  }
+
   return {
-    ...userToRecord(user),
+    ...base,
     entry_type: 'account' as DirectoryEntryType,
     has_account: true,
     user_id: user.id,
-    student_profile_id: student?.id ?? null,
-    teacher_profile_id: teacher?.id ?? null,
+    student_profile_id: null,
+    teacher_profile_id: null,
   };
 }
 
@@ -33,7 +67,7 @@ export function studentProfileToDirectoryEntry(student: StudentEntity): Record<s
     status: student.status,
     first_name: student.firstName ?? '',
     last_name: student.lastName ?? '',
-    full_name: student.name,
+    full_name: formatStudentProfileDisplayName(student) || student.name,
     phone: student.phone ?? '',
     telegram_id: student.telegramId ?? '',
     telegram_username: student.telegramUsername ?? '',

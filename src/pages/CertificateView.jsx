@@ -56,7 +56,8 @@ export default function CertificateView() {
           const me = await api.auth.me().catch(() => null);
           if (!cancelled) {
             setStudentName(
-              me?.full_name ||
+              me?.name ||
+                me?.full_name ||
                 [me?.last_name, me?.first_name].filter(Boolean).join(' ') ||
                 me?.email ||
                 '',

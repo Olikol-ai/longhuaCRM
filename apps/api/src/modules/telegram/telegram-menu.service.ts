@@ -7,6 +7,7 @@ import { LessonEntity } from '../lessons/entities/lesson.entity';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { UserEntity } from '../users/entities/user.entity';
+import { formatStudentProfileDisplayName } from '../users/display-name.util';
 import { UsersRepository } from '../users/users.repository';
 import {
   backInlineKeyboard,
@@ -315,7 +316,7 @@ export class TelegramMenuService {
       where: { id: In(studentIds) },
     });
     const byId = new Map(
-      students.map((s) => [s.id, (s.name ?? '').trim()] as const),
+      students.map((s) => [s.id, formatStudentProfileDisplayName(s)] as const),
     );
     const names = studentIds
       .map((id) => byId.get(id) || '')

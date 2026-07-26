@@ -37,18 +37,45 @@ export function composeDisplayName(
 }
 
 /**
+ * Student UI display name: Student.name is SSOT.
+ * Do not prefer stale first/last over an admin-edited name.
+ */
+export function formatStudentProfileDisplayName(student: {
+  name?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+}): string {
+  const name = String(student.name ?? '').trim();
+  if (name) {
+    return name;
+  }
+  return composeDisplayName(student.firstName, student.lastName, '');
+}
+
+/**
  * Resolve first/last/name from a partial profile update.
  * Prefer explicit first/last; otherwise parse the composed `name` field.
+ * When `nameIsSource` is true (admin edited Student.name), always re-split
+ * first/last from name so stale parts cannot win.
  */
 export function resolveNameParts(input: {
   name?: string | null;
   firstName?: string | null;
   lastName?: string | null;
   emailFallback?: string | null;
+  nameIsSource?: boolean;
 }): { name: string; firstName: string; lastName: string } {
   let firstName = String(input.firstName ?? '').trim();
   let lastName = String(input.lastName ?? '').trim();
   let name = String(input.name ?? '').trim();
+
+  if (input.nameIsSource && name) {
+    const parsed = splitDisplayName(name);
+    firstName = parsed.firstName;
+    lastName = parsed.lastName;
+    name = composeDisplayName(firstName, lastName, name);
+    return { name, firstName, lastName };
+  }
 
   if (name && (!firstName || !lastName)) {
     const parsed = splitDisplayName(name);

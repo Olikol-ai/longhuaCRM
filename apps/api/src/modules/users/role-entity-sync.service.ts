@@ -117,11 +117,13 @@ export class RoleEntitySyncService {
       return;
     }
 
+    // Student.name is SSOT — never let stale first/last overwrite the display name.
     const parts = resolveNameParts({
       name: student.name,
       firstName: student.firstName,
       lastName: student.lastName,
       emailFallback: student.email,
+      nameIsSource: Boolean(String(student.name ?? '').trim()),
     });
 
     const user = await this.userRepo.findOne({ where: { id: student.userId } });
@@ -212,13 +214,18 @@ export class RoleEntitySyncService {
 
   /**
    * Normalize student name / firstName / lastName on the entity before save+user sync.
+   * When `nameIsSource` is true, Student.name wins and first/last are re-derived.
    */
-  normalizeStudentNameFields(student: StudentEntity): StudentEntity {
+  normalizeStudentNameFields(
+    student: StudentEntity,
+    options?: { nameIsSource?: boolean },
+  ): StudentEntity {
     const parts = resolveNameParts({
       name: student.name,
       firstName: student.firstName,
       lastName: student.lastName,
       emailFallback: student.email,
+      nameIsSource: options?.nameIsSource,
     });
     student.name = parts.name || student.name;
     student.firstName = parts.firstName || student.firstName;
@@ -337,6 +344,9 @@ export class RoleEntitySyncService {
     payload: Partial<StudentEntity>,
   ): Promise<StudentEntity> {
     Object.assign(row, payload);
+    this.normalizeStudentNameFields(row, {
+      nameIsSource: Boolean(String(row.name ?? '').trim()),
+    });
     return studentRepo.save(row);
   }
 
@@ -357,6 +367,9 @@ export class RoleEntitySyncService {
     const row = studentRepo.create({
       id: idInput ? String(idInput) : randomUUID(),
       ...payload,
+    });
+    this.normalizeStudentNameFields(row, {
+      nameIsSource: Boolean(String(row.name ?? '').trim()),
     });
     return studentRepo.save(row);
   }

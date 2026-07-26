@@ -7,6 +7,7 @@ import { NotificationsService } from '../../notifications/notifications.service'
 import { TelegramService } from '../../telegram/telegram.service';
 import { StudentEntity } from '../../students/entities/student.entity';
 import { TeacherEntity } from '../../teachers/entities/teacher.entity';
+import { formatStudentProfileDisplayName } from '../../users/display-name.util';
 import { UserEntity } from '../../users/entities/user.entity';
 import { AssessmentExamEntity } from '../entities/assessment-exam.entity';
 import { AssessmentResultEntity } from '../entities/assessment-result.entity';
@@ -170,10 +171,7 @@ export class AssessmentReviewNotifier {
 
     const exam = await this.exams.findOne({ where: { id: result.examId } });
     const examName = exam?.name?.trim() || 'Экзамен';
-    const studentName =
-      student.name?.trim() ||
-      [student.lastName, student.firstName].filter(Boolean).join(' ').trim() ||
-      'Ученик';
+    const studentName = formatStudentProfileDisplayName(student) || 'Ученик';
 
     const manualCount = await this.countManualQuestions(attempt.id);
     const reviewUrl = this.buildReviewUrl(result.id);

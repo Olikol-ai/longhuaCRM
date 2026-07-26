@@ -13,6 +13,7 @@ import { Repository } from 'typeorm';
 import { DOWNLOADABLE_CERTIFICATE_STATUSES } from './certificate-lifecycle';
 import { CourseTemplateEntity } from '../courses/entities/course-template.entity';
 import { StudentEntity } from '../students/entities/student.entity';
+import { formatStudentProfileDisplayName } from '../users/display-name.util';
 import { CertificateEntity } from './entities/certificate.entity';
 
 export type CertificatePdfPayload = {
@@ -653,9 +654,11 @@ export class CertificatePdfService {
     ]);
 
     const studentName =
-      student?.name ||
-      [student?.lastName, student?.firstName].filter(Boolean).join(' ') ||
-      certificate.studentId;
+      formatStudentProfileDisplayName({
+        name: student?.name,
+        firstName: student?.firstName,
+        lastName: student?.lastName,
+      }) || certificate.studentId;
     const courseName = course?.name || certificate.courseId;
 
     const verificationUrl = this.buildVerificationUrl(certificate.id);

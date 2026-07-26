@@ -13,7 +13,7 @@ import LessonDetailModal from "../components/schedule/LessonDetailModal";
 import { createWeeklyLessonSeries } from "@/lib/recurring-lessons";
 import { DAY_HOURS } from "@/lib/time-slots";
 import { resolveLessonTeacherLabel } from "@/lib/teacherLabels";
-import { resolveLessonStudentLabel } from "@/lib/studentLabels";
+import { resolveLessonStudentLabel, resolveLessonStudentNames } from "@/lib/studentLabels";
 
 export default function Schedule() {
   const [view, setView] = useState("month");
@@ -279,9 +279,10 @@ const STATUS_LABELS = {
 
 function LessonChip({ lesson, teachers, students, onClick }) {
   const teacherLabel = resolveLessonTeacherLabel(lesson, teachers);
+  const names = resolveLessonStudentNames(lesson, students);
   const studentLabel = resolveLessonStudentLabel(lesson, students);
-  const displayName = lesson.student_names?.length > 1
-    ? `${lesson.student_names[0]} +${lesson.student_names.length - 1}`
+  const displayName = names.length > 1
+    ? `${names[0]} +${names.length - 1}`
     : studentLabel;
   const formatIcon = lesson.lesson_format === "offline" ? "🏫" : "💻";
   return (
