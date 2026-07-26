@@ -30,6 +30,9 @@ import { CertificateAssessmentSource1740600000000 } from './migrations/174060000
 import { AssessmentAnswerReviewMeta1740700000000 } from './migrations/1740700000000-AssessmentAnswerReviewMeta';
 import { PendingRegistrationInviteLinkId1740800000000 } from './migrations/1740800000000-PendingRegistrationInviteLinkId';
 import { LessonRoomColumn1740900000000 } from './migrations/1740900000000-LessonRoomColumn';
+import { RepairIndividualLessonAttendance1741000000000 } from './migrations/1741000000000-RepairIndividualLessonAttendance';
+import { RepairCompletedIndividualAttendance1741100000000 } from './migrations/1741100000000-RepairCompletedIndividualAttendance';
+import { RepairLessonAttendanceData1741200000000 } from './migrations/1741200000000-RepairLessonAttendanceData';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -63,6 +66,9 @@ export default new DataSource({
     AssessmentAnswerReviewMeta1740700000000,
     PendingRegistrationInviteLinkId1740800000000,
     LessonRoomColumn1740900000000,
+    RepairIndividualLessonAttendance1741000000000,
+    RepairCompletedIndividualAttendance1741100000000,
+    RepairLessonAttendanceData1741200000000,
   ],
   synchronize: false,
 });

@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource, EntityManager, FindOptionsWhere } from 'typeorm';
+import { DataSource, EntityManager, FindOptionsWhere, In } from 'typeorm';
 import { LessonAccessService } from '../../common/access/lesson-access.service';
 import { TeacherAccessService } from '../../common/access/teacher-access.service';
 import { normalizeRole } from '../../common/constants/roles';
@@ -86,7 +86,7 @@ export class LessonsService {
     if (!row) {
       throw new NotFoundException('Lesson not found');
     }
-    return this.attachDisplayNames([row])[0];
+    return (await this.attachDisplayNames([row]))[0];
   }
 
   /**
@@ -237,7 +237,7 @@ export class LessonsService {
     });
 
     const withNames = await this.repository.findById(created.id);
-    return this.attachDisplayNames([withNames ?? created])[0];
+    return (await this.attachDisplayNames([withNames ?? created]))[0];
   }
 
   private normalizeCreateLessonDto(dto: CreateLessonDto): CreateLessonDto {
@@ -313,7 +313,7 @@ export class LessonsService {
       });
       if (completed) {
         const withNames = await this.repository.findById(completed.id);
-        return this.attachDisplayNames([withNames ?? completed])[0];
+        return (await this.attachDisplayNames([withNames ?? completed]))[0];
       }
       throw new NotFoundException('Lesson not found');
     }
@@ -393,6 +393,17 @@ export class LessonsService {
     const row = await this.repository.update(id, lessonFields as UpdateLessonDto);
     if (!row) {
       throw new NotFoundException('Lesson not found');
+    }
+
+    const nextPrimaryStudentId =
+      (payload.primaryStudentId as string | undefined) ?? before.primaryStudentId;
+    const primaryReassigned =
+      Boolean(nextPrimaryStudentId) &&
+      nextPrimaryStudentId !== before.primaryStudentId &&
+      !row.groupId &&
+      (row.lessonType === 'individual' || !row.groupId);
+    if (primaryReassigned && nextPrimaryStudentId) {
+      await this.syncIndividualLessonAttendance(row.id, nextPrimaryStudentId);
     }
 
     // UI cancels via PATCH { status: 'cancelled' } (not /cancel). Always free the booking
@@ -512,7 +523,7 @@ export class LessonsService {
     ) {
       await this.studentBalanceService.handleLessonStatusUpdate(id, payload.status);
     }
-    return this.attachDisplayNames([row])[0];
+    return (await this.attachDisplayNames([row]))[0];
   }
 
   private collectLessonInfoChanges(
@@ -616,23 +627,87 @@ export class LessonsService {
   }
 
   /**
-   * Attach teacher_name / student_name from relations for FE display.
-   * Relations are cleared from the payload to keep the API surface flat.
+   * Attach teacher/student display fields for FE.
+   * student_ids / student_names come from attendance (LessonStudent link),
+   * with individual primaryStudent as fallback when attendance is empty.
    */
-  private attachDisplayNames(lessons: LessonEntity[]): LessonEntity[] {
+  private async attachDisplayNames(lessons: LessonEntity[]): Promise<LessonEntity[]> {
+    if (lessons.length === 0) {
+      return lessons;
+    }
+
+    const lessonIds = lessons.map((lesson) => lesson.id);
+    const attendanceRows = await this.dataSource.getRepository(AttendanceEntity).find({
+      where: { lessonId: In(lessonIds) },
+    });
+
+    const studentIdsByLesson = new Map<string, string[]>();
+    for (const row of attendanceRows) {
+      if (!row.studentId) continue;
+      const list = studentIdsByLesson.get(row.lessonId) ?? [];
+      if (!list.includes(row.studentId)) {
+        list.push(row.studentId);
+      }
+      studentIdsByLesson.set(row.lessonId, list);
+    }
+
+    const allStudentIds = [
+      ...new Set([
+        ...attendanceRows.map((row) => row.studentId).filter((id): id is string => Boolean(id)),
+        ...lessons
+          .map((lesson) => lesson.primaryStudentId)
+          .filter((id): id is string => Boolean(id)),
+      ]),
+    ];
+    const students =
+      allStudentIds.length > 0
+        ? await this.dataSource.getRepository(StudentEntity).find({
+            where: { id: In(allStudentIds) },
+            select: ['id', 'name', 'firstName', 'lastName'],
+          })
+        : [];
+    const studentNameById = new Map(
+      students.map((student) => {
+        const last = (student.lastName ?? '').trim();
+        const first = (student.firstName ?? '').trim();
+        const fromParts = [last, first].filter(Boolean).join(' ').trim();
+        const label = fromParts || student.name?.trim() || '';
+        return [student.id, label] as const;
+      }),
+    );
+
     return lessons.map((lesson) => {
       const teacherName = lesson.teacher?.name?.trim() || null;
+      let participantIds = studentIdsByLesson.get(lesson.id) ?? [];
+      if (
+        participantIds.length === 0 &&
+        lesson.primaryStudentId &&
+        !lesson.groupId
+      ) {
+        participantIds = [lesson.primaryStudentId];
+      }
+
+      const studentNames = participantIds
+        .map((id) => studentNameById.get(id) || '')
+        .filter(Boolean);
       const studentName =
-        lesson.primaryStudent?.name?.trim() ||
-        lesson.group?.name?.trim() ||
-        null;
+        studentNames.length > 0
+          ? studentNames.join(', ')
+          : lesson.primaryStudent?.name?.trim() ||
+            lesson.group?.name?.trim() ||
+            null;
 
       delete lesson.teacher;
       delete lesson.primaryStudent;
       delete lesson.group;
       delete lesson.series;
 
-      Object.assign(lesson, { teacherName, studentName });
+      Object.assign(lesson, {
+        teacherName,
+        studentName,
+        studentIds: participantIds,
+        studentNames,
+      });
       return lesson;
     });
   }
@@ -646,7 +721,62 @@ export class LessonsService {
       throw new NotFoundException('Lesson not found');
     }
     const withNames = await this.repository.findById(completed.id);
-    return this.attachDisplayNames([withNames ?? completed])[0];
+    return (await this.attachDisplayNames([withNames ?? completed]))[0];
+  }
+
+  /**
+   * Keep attendance.student_id aligned with primaryStudentId for individual lessons.
+   * Prevents stale "wrong student" rows after reassignment (balance + UI labels).
+   */
+  private async syncIndividualLessonAttendance(
+    lessonId: string,
+    primaryStudentId: string,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const run = async (em: EntityManager) => {
+      const attendanceRepo = em.getRepository(AttendanceEntity);
+      const rows = await attendanceRepo.find({ where: { lessonId } });
+      const matching = rows.find((row) => row.studentId === primaryStudentId);
+
+      if (matching) {
+        for (const row of rows) {
+          if (row.id !== matching.id) {
+            await attendanceRepo.delete({ id: row.id });
+          }
+        }
+        return;
+      }
+
+      if (rows.length === 1) {
+        rows[0].studentId = primaryStudentId;
+        await attendanceRepo.save(rows[0]);
+        return;
+      }
+
+      if (rows.length > 1) {
+        const [keep, ...rest] = rows;
+        keep.studentId = primaryStudentId;
+        await attendanceRepo.save(keep);
+        for (const row of rest) {
+          await attendanceRepo.delete({ id: row.id });
+        }
+        return;
+      }
+
+      await attendanceRepo.save(
+        attendanceRepo.create({
+          lessonId,
+          studentId: primaryStudentId,
+          attendanceStatus: 'enrolled',
+        }),
+      );
+    };
+
+    if (manager) {
+      await run(manager);
+      return;
+    }
+    await this.dataSource.transaction(run);
   }
 
   /**
@@ -673,6 +803,20 @@ export class LessonsService {
       // Only planned lessons may enter the completion pipeline (balance + TeacherPayment).
       if (lesson.status !== 'planned') {
         throw new ConflictException('Lesson is already finalized');
+      }
+
+      if (
+        lesson.lessonType === 'individual' &&
+        !lesson.groupId &&
+        lesson.primaryStudentId
+      ) {
+        await this.syncIndividualLessonAttendance(
+          lesson.id,
+          lesson.primaryStudentId,
+          manager,
+        );
+      } else if (lesson.groupId) {
+        await this.syncGroupLessonAttendance(lesson.id, lesson.groupId, manager);
       }
 
       lesson.status = 'completed';
@@ -830,7 +974,137 @@ export class LessonsService {
     where: Record<string, unknown>,
   ): Promise<AttendanceEntity[]> {
     const scoped = await this.lessonAccess.scopeAttendanceFilter(actor, where);
-    return this.repository.filterAttendance(scoped as FindOptionsWhere<AttendanceEntity>);
+    const lessonId = this.extractScopedLessonId(scoped);
+    if (lessonId) {
+      await this.reconcileLessonAttendanceParticipants(lessonId);
+    }
+    const rows = await this.repository.filterAttendance(
+      scoped as FindOptionsWhere<AttendanceEntity>,
+    );
+    return this.attachAttendanceStudentNames(rows);
+  }
+
+  /** Attach studentName (first+last) for FE attendance panel — no legacy fallbacks. */
+  private async attachAttendanceStudentNames(
+    rows: AttendanceEntity[],
+  ): Promise<AttendanceEntity[]> {
+    if (rows.length === 0) {
+      return rows;
+    }
+    const ids = [
+      ...new Set(
+        rows.map((row) => row.studentId).filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    if (ids.length === 0) {
+      return rows;
+    }
+    const students = await this.dataSource.getRepository(StudentEntity).find({
+      where: { id: In(ids) },
+      select: ['id', 'name', 'firstName', 'lastName'],
+    });
+    const labelById = new Map(
+      students.map((student) => {
+        const last = (student.lastName ?? '').trim();
+        const first = (student.firstName ?? '').trim();
+        const fromParts = [last, first].filter(Boolean).join(' ').trim();
+        return [student.id, fromParts || student.name?.trim() || ''] as const;
+      }),
+    );
+    for (const row of rows) {
+      const label = row.studentId ? labelById.get(row.studentId) || '' : '';
+      Object.assign(row, { studentName: label || null });
+    }
+    return rows;
+  }
+
+  /**
+   * Align attendance rows with canonical lesson participants before UI/API reads.
+   * Individual: primaryStudentId. Group: current group members.
+   */
+  private async reconcileLessonAttendanceParticipants(lessonId: string): Promise<void> {
+    const lesson = await this.dataSource.getRepository(LessonEntity).findOne({
+      where: { id: lessonId },
+    });
+    if (!lesson) {
+      return;
+    }
+
+    if (lesson.lessonType === 'individual' && !lesson.groupId && lesson.primaryStudentId) {
+      await this.syncIndividualLessonAttendance(lesson.id, lesson.primaryStudentId);
+      return;
+    }
+
+    if (lesson.groupId) {
+      await this.syncGroupLessonAttendance(lesson.id, lesson.groupId);
+    }
+  }
+
+  private extractScopedLessonId(scoped: Record<string, unknown>): string | null {
+    const raw = scoped.lessonId ?? scoped.lesson_id;
+    if (typeof raw === 'string' && raw.trim()) {
+      return raw.trim();
+    }
+    return null;
+  }
+
+  private async syncGroupLessonAttendance(
+    lessonId: string,
+    groupId: string,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const run = async (em: EntityManager) => {
+      const memberIds = [
+        ...new Set(
+          (
+            await em.getRepository(GroupMemberEntity).find({
+              where: { groupId },
+              select: ['studentId'],
+            })
+          )
+            .map((row) => row.studentId)
+            .filter(Boolean),
+        ),
+      ];
+      if (memberIds.length === 0) {
+        return;
+      }
+
+      const attendanceRepo = em.getRepository(AttendanceEntity);
+      const rows = await attendanceRepo.find({ where: { lessonId } });
+      const byStudent = new Map(
+        rows
+          .filter((row) => row.studentId)
+          .map((row) => [row.studentId as string, row] as const),
+      );
+
+      for (const studentId of memberIds) {
+        if (!byStudent.has(studentId)) {
+          await attendanceRepo.save(
+            attendanceRepo.create({
+              lessonId,
+              studentId,
+              attendanceStatus: 'enrolled',
+            }),
+          );
+        }
+      }
+
+      for (const row of rows) {
+        if (row.studentId && !memberIds.includes(row.studentId)) {
+          // Drop stale non-members that are still only enrolled.
+          if (row.attendanceStatus === 'enrolled' && !row.balanceDeducted) {
+            await attendanceRepo.delete({ id: row.id });
+          }
+        }
+      }
+    };
+
+    if (manager) {
+      await run(manager);
+      return;
+    }
+    await this.dataSource.transaction(run);
   }
 
   private async resolveLessonStudentIds(

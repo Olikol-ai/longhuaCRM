@@ -1,12 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
+import { GroupMemberEntity } from '../groups/entities/group-member.entity';
 import { AttendanceEntity } from '../lessons/entities/attendance.entity';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
 import { StudentEntity } from './entities/student.entity';
 
 const BALANCE_DEDUCT_STATUSES = new Set(['completed', 'missed_no_notice']);
 
+/**
+ * Lesson participants for balance (SSOT):
+ * - individual → lesson.primaryStudentId
+ * - group → group_members (LessonStudent sync target)
+ *
+ * attendance_records are used only as the idempotency lock (balance_deducted),
+ * never as the source of which students to charge.
+ */
 @Injectable()
 export class StudentBalanceService {
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
@@ -30,9 +39,9 @@ export class StudentBalanceService {
         return;
       }
 
-      const studentIds = await this.resolveStudentIds(lesson, em);
+      const studentIds = await this.resolveCanonicalStudentIds(lesson, em);
       for (const studentId of studentIds) {
-        const attendance = await attendanceRepo.findOne({
+        let attendance = await attendanceRepo.findOne({
           where: { lessonId, studentId },
           lock: { mode: 'pessimistic_write' },
         });
@@ -41,14 +50,23 @@ export class StudentBalanceService {
           continue;
         }
 
-        if (attendance) {
-          const marked = await attendanceRepo.update(
-            { id: attendance.id, balanceDeducted: false },
-            { balanceDeducted: true },
+        if (!attendance) {
+          attendance = await attendanceRepo.save(
+            attendanceRepo.create({
+              lessonId,
+              studentId,
+              attendanceStatus: 'attended',
+              balanceDeducted: false,
+            }),
           );
-          if (!marked.affected) {
-            continue;
-          }
+        }
+
+        const marked = await attendanceRepo.update(
+          { id: attendance.id, balanceDeducted: false },
+          { balanceDeducted: true },
+        );
+        if (!marked.affected) {
+          continue;
         }
 
         const student = await studentRepo.findOne({
@@ -72,22 +90,24 @@ export class StudentBalanceService {
     await this.dataSource.transaction(run);
   }
 
-  private async resolveStudentIds(
+  private async resolveCanonicalStudentIds(
     lesson: LessonEntity,
     manager: EntityManager,
   ): Promise<string[]> {
-    const rows = await manager.getRepository(AttendanceEntity).find({
-      where: { lessonId: lesson.id },
-    });
-    const ids = rows
-      .map((row) => row.studentId)
-      .filter((id): id is string => Boolean(id));
-    if (ids.length > 0) {
-      return ids;
+    const isIndividual = lesson.lessonType === 'individual' && !lesson.groupId;
+    if (isIndividual) {
+      return lesson.primaryStudentId ? [lesson.primaryStudentId] : [];
     }
-    if (lesson.primaryStudentId) {
-      return [lesson.primaryStudentId];
+
+    if (lesson.groupId) {
+      const members = await manager.getRepository(GroupMemberEntity).find({
+        where: { groupId: lesson.groupId },
+        select: ['studentId'],
+      });
+      return [...new Set(members.map((row) => row.studentId).filter(Boolean))];
     }
-    return [];
+
+    // Defensive: treat as individual if primary is set without group.
+    return lesson.primaryStudentId ? [lesson.primaryStudentId] : [];
   }
 }

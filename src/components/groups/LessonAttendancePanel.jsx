@@ -88,7 +88,7 @@ export default function LessonAttendancePanel({
         >
           <div className="min-w-0 flex-1 basis-[10rem]">
             <p className="text-sm font-medium text-slate-800 dark:text-slate-100 break-words [overflow-wrap:anywhere]">
-              {resolveStudentLabel(row.student_id, students)}
+              {resolveStudentLabel(row.student_id, students, row)}
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-400 break-words">
               {STATUS_LABELS[row.attendance_status] || row.attendance_status}
