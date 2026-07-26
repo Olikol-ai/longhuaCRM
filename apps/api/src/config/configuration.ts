@@ -29,7 +29,7 @@ export default () => ({
     mode: resolveTelegramMode(process.env.TELEGRAM_MODE, process.env.NODE_ENV),
     mock: parseEnvBoolean(process.env.TELEGRAM_MOCK, false),
     botUsername:
-      process.env.TELEGRAM_BOT_USERNAME?.trim() || 'LonghuaChinese_bot',
+      process.env.TELEGRAM_BOT_USERNAME?.trim() || '',
   },
   alfaBank: {
     token: process.env.ALFA_BANK_TOKEN,

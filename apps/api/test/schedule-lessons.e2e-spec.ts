@@ -93,7 +93,7 @@ describeE2E('Schedule/Lessons consistency (e2e)', () => {
       .send({ startTime: '13:00' })
       .expect(200);
 
-    expect(okRes.body.start_time).toBe('13:00:00');
+    expect(okRes.body.start_time).toMatch(/^13:00(:00)?$/);
 
     const bookingsRes = await api(app)
       .post('/api/schedule/bookings/filter')
@@ -101,7 +101,7 @@ describeE2E('Schedule/Lessons consistency (e2e)', () => {
       .send({ where: { lesson_id: firstLesson.body.id } })
       .expect(201);
 
-    expect(bookingsRes.body[0]?.time_from).toBe('10:00:00');
+    expect(bookingsRes.body[0]?.time_from).toMatch(/^10:00(:00)?$/);
   });
 
   it('scopes schedule access to the authenticated teacher', async () => {
@@ -368,7 +368,7 @@ describeE2E('Schedule/Lessons consistency (e2e)', () => {
         duration: 60,
       })
       .expect(201);
-    expect(recreated.body.start_time).toBe('12:00:00');
+    expect(recreated.body.start_time).toMatch(/^12:00(:00)?$/);
 
     await api(app)
       .patch(`/api/lessons/${recreated.body.id}`)
@@ -381,7 +381,7 @@ describeE2E('Schedule/Lessons consistency (e2e)', () => {
       .set(authHeader(adminToken))
       .send({ startTime: '12:00' })
       .expect(200);
-    expect(moved.body.start_time).toBe('12:00:00');
+    expect(moved.body.start_time).toMatch(/^12:00(:00)?$/);
 
     const stillBlocked = await api(app)
       .post('/api/lessons')

@@ -159,7 +159,7 @@ export default function TelegramSettings() {
         </div>
         <div>
           <h2 className="text-xl font-bold text-foreground">Telegram Bot</h2>
-          <p className="text-sm text-muted-foreground">Настройка уведомлений через @LonghuaChinese_bot</p>
+          <p className="text-sm text-muted-foreground">Настройка уведомлений через Telegram-бот</p>
         </div>
       </div>
 

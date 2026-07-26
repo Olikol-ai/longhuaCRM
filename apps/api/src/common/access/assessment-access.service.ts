@@ -86,6 +86,16 @@ export class AssessmentAccessService {
   }
 
   /**
+   * Question mutate (update/publish/archive/attachments/delete): admin or author.
+   */
+  assertCanMutateQuestion(
+    actor: DomainAccessActor,
+    question: { createdByUserId: string | null },
+  ): void {
+    this.assertCanDeleteQuestion(actor, question);
+  }
+
+  /**
    * Question delete: admin or the user who created the question.
    */
   assertCanDeleteQuestion(

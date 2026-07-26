@@ -48,6 +48,11 @@ export class TelegramLinkService {
     await this.usersRepository.save(row);
 
     const botUsername = this.getBotUsername();
+    if (!botUsername) {
+      throw new BadRequestException(
+        'TELEGRAM_BOT_USERNAME is not configured. Set it in the server environment.',
+      );
+    }
     return {
       link: `https://t.me/${botUsername}?start=${token}`,
       expiresAt: expires.toISOString(),
@@ -186,11 +191,11 @@ export class TelegramLinkService {
   }
 
   getBotUsername(): string {
-    return (
+    const configured =
       this.config.get<string>('telegram.botUsername')?.trim()
       || process.env.TELEGRAM_BOT_USERNAME?.trim()
-      || 'LonghuaChinese_bot'
-    );
+      || '';
+    return configured;
   }
 
   async isChatLinked(telegramId: string): Promise<boolean> {

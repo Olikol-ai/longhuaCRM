@@ -104,10 +104,11 @@ export class AssessmentQuestionsController {
   @ApiOperation({ summary: 'Update draft question' })
   @ApiResponse({ status: 200, description: 'Question updated' })
   update(
+    @CurrentUser() user: JwtPayload,
     @Param('questionId', ParseUUIDPipe) questionId: string,
     @Body() dto: UpdateQuestionDto,
   ) {
-    return this.questions.update(questionId, {
+    return this.questions.update(user, questionId, {
       type: dto.type,
       stem: dto.stem,
       points: dto.points,
@@ -142,16 +143,22 @@ export class AssessmentQuestionsController {
   @Roles('admin', 'teacher')
   @ApiOperation({ summary: 'Publish question' })
   @ApiResponse({ status: 200, description: 'Question published' })
-  publish(@Param('questionId', ParseUUIDPipe) questionId: string) {
-    return this.questions.publish(questionId);
+  publish(
+    @CurrentUser() user: JwtPayload,
+    @Param('questionId', ParseUUIDPipe) questionId: string,
+  ) {
+    return this.questions.publish(user, questionId);
   }
 
   @Post(':questionId/archive')
   @Roles('admin', 'teacher')
   @ApiOperation({ summary: 'Archive question' })
   @ApiResponse({ status: 200, description: 'Question archived' })
-  archive(@Param('questionId', ParseUUIDPipe) questionId: string) {
-    return this.questions.archive(questionId);
+  archive(
+    @CurrentUser() user: JwtPayload,
+    @Param('questionId', ParseUUIDPipe) questionId: string,
+  ) {
+    return this.questions.archive(user, questionId);
   }
 
   @Post(':questionId/attachments')
@@ -167,13 +174,14 @@ export class AssessmentQuestionsController {
     }),
   )
   addAttachment(
+    @CurrentUser() user: JwtPayload,
     @Param('questionId', ParseUUIDPipe) questionId: string,
     @Body() dto: CreateAttachmentDto,
     @UploadedFile() file: UploadedFilePayload,
   ) {
     const uploaded = file as UploadedFilePayload & { mimetype?: string };
     const storageKey = this.secureFiles.saveUploadedFile(file);
-    return this.questions.addAttachment(questionId, {
+    return this.questions.addAttachment(user, questionId, {
       kind: dto.kind,
       storageKey,
       mime: uploaded.mimetype ?? null,
@@ -187,9 +195,10 @@ export class AssessmentQuestionsController {
   @ApiOperation({ summary: 'Delete question attachment' })
   @ApiResponse({ status: 204, description: 'Attachment deleted' })
   async removeAttachment(
+    @CurrentUser() user: JwtPayload,
     @Param('questionId', ParseUUIDPipe) questionId: string,
     @Param('attachmentId', ParseUUIDPipe) attachmentId: string,
   ) {
-    await this.questions.removeAttachment(questionId, attachmentId);
+    await this.questions.removeAttachment(user, questionId, attachmentId);
   }
 }

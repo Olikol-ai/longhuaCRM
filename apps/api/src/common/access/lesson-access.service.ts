@@ -169,14 +169,50 @@ export class LessonAccessService {
       if (lessonIds.length === 0) {
         return { lessonId: NO_ACCESS_UUID };
       }
+      const owned = new Set(lessonIds);
       const scoped = filterToEntityWhere(where);
-      if (scoped.lessonId) {
-        return scoped;
+      if (scoped.lessonId != null) {
+        const allowed = this.intersectOwnedLessonIds(scoped.lessonId, owned);
+        if (allowed.length === 0) {
+          return { lessonId: NO_ACCESS_UUID };
+        }
+        return {
+          ...scoped,
+          lessonId: allowed.length === 1 ? allowed[0] : In(allowed),
+        };
       }
       return { ...scoped, lessonId: In(lessonIds) };
     }
 
     throw new ForbiddenException('Forbidden');
+  }
+
+  private intersectOwnedLessonIds(
+    requested: unknown,
+    owned: Set<string>,
+  ): string[] {
+    const ids: string[] = [];
+    if (typeof requested === 'string') {
+      ids.push(requested);
+    } else if (Array.isArray(requested)) {
+      for (const item of requested) {
+        if (typeof item === 'string') ids.push(item);
+      }
+    } else if (
+      requested &&
+      typeof requested === 'object' &&
+      '_value' in (requested as object)
+    ) {
+      const value = (requested as { _value?: unknown })._value;
+      if (typeof value === 'string') {
+        ids.push(value);
+      } else if (Array.isArray(value)) {
+        for (const item of value) {
+          if (typeof item === 'string') ids.push(item);
+        }
+      }
+    }
+    return ids.filter((id) => owned.has(id));
   }
 
   private pickFields<T extends Record<string, unknown>>(

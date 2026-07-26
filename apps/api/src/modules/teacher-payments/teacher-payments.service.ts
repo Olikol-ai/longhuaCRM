@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, FindOptionsWhere, Repository } from 'typeorm';
+import { EntityManager, FindOptionsWhere, In, Repository } from 'typeorm';
 import { filterToEntityWhere } from '../../common/utils/api-record.util';
 import { JwtPayload } from '../auth/auth.service';
 import { TeacherAccessService } from '../../common/access/teacher-access.service';
@@ -9,6 +9,7 @@ import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { TeacherPaymentEntity } from './entities/teacher-payment.entity';
 import { UpdateTeacherPaymentDto } from './dto/update-teacher-payment.dto';
 import { TeacherPaymentsRepository } from './teacher-payments.repository';
+import { aggregateTeacherPaymentsByPeriod } from './teacher-pay-periods';
 
 @Injectable()
 export class TeacherPaymentsService {
@@ -17,6 +18,8 @@ export class TeacherPaymentsService {
     private readonly teacherAccess: TeacherAccessService,
     @InjectRepository(TeacherEntity)
     private readonly teacherRepo: Repository<TeacherEntity>,
+    @InjectRepository(LessonEntity)
+    private readonly lessonRepo: Repository<LessonEntity>,
   ) {}
 
   findAll(): Promise<TeacherPaymentEntity[]> {
@@ -43,6 +46,29 @@ export class TeacherPaymentsService {
       return [];
     }
     return this.repository.filter({ teacherId } as FindOptionsWhere<TeacherPaymentEntity>);
+  }
+
+  /** Payroll periods (15th→14th) for the authenticated teacher — display totals. */
+  async findMyPeriods(actor: JwtPayload) {
+    const payments = await this.findMyPayments(actor);
+    const lessonIds = [
+      ...new Set(
+        payments
+          .map((p) => p.lessonId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const lessonDateById = new Map<string, string>();
+    if (lessonIds.length > 0) {
+      const lessons = await this.lessonRepo.find({
+        where: { id: In(lessonIds) },
+        select: ['id', 'date'],
+      });
+      for (const lesson of lessons) {
+        lessonDateById.set(lesson.id, lesson.date);
+      }
+    }
+    return aggregateTeacherPaymentsByPeriod(payments, lessonDateById);
   }
 
   async update(id: string, dto: UpdateTeacherPaymentDto): Promise<TeacherPaymentEntity> {

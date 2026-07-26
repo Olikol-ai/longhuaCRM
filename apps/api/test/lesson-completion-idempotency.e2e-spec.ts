@@ -69,7 +69,8 @@ describe('Lesson completion idempotency (e2e)', () => {
     const second = await api(app)
       .patch(`/api/lessons/${lessonId}/complete`)
       .set(authHeader(adminToken));
-    expect(second.status).toBe(200);
+    // Already finalized — must not re-run balance / TeacherPayment side effects.
+    expect(second.status).toBe(409);
 
     const studentAfter = await api(app)
       .get(`/api/students/${studentId}`)

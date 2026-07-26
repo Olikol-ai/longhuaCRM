@@ -13,7 +13,7 @@ import { UserEntity } from './entities/user.entity';
 
 export type RoleEntityUserContext = Pick<
   UserEntity,
-  'id' | 'email' | 'firstName' | 'lastName'
+  'id' | 'email' | 'firstName' | 'lastName' | 'phone'
 >;
 
 @Injectable()
@@ -186,12 +186,16 @@ export class RoleEntitySyncService {
     const display = this.displayName(user);
     const firstName = user.firstName || '';
     const lastName = user.lastName || '';
+    const phone = (user.phone ?? '').trim();
+    const email = (user.email ?? '').trim();
 
     const student = await this.studentRepo.findOne({ where: { userId: user.id } });
     if (student) {
       student.name = display;
       student.firstName = firstName || student.firstName;
       student.lastName = lastName || student.lastName;
+      if (email) student.email = email;
+      if (phone !== undefined) student.phone = phone || null;
       await this.studentRepo.save(student);
     }
 
@@ -200,6 +204,8 @@ export class RoleEntitySyncService {
       teacher.name = display;
       teacher.firstName = firstName || teacher.firstName;
       teacher.lastName = lastName || teacher.lastName;
+      if (email) teacher.email = email;
+      if (phone !== undefined) teacher.phone = phone || null;
       await this.teacherRepo.save(teacher);
     }
   }

@@ -572,7 +572,7 @@ export class AuthService {
 
     const saved = await this.usersRepository.save(row);
 
-    if (dto.first_name !== undefined || dto.last_name !== undefined) {
+    if (dto.first_name !== undefined || dto.last_name !== undefined || dto.phone !== undefined) {
       await this.roleEntitySync.syncLinkedProfilesFromUser(saved);
     }
 

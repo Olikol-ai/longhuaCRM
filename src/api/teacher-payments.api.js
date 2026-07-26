@@ -8,4 +8,7 @@ export const teacherPayments = {
   my() {
     return apiFetch('/teacher-payments/my');
   },
+  myPeriods() {
+    return apiFetch('/teacher-payments/my/periods');
+  },
 };

@@ -145,8 +145,13 @@ export class QuestionAuthoringService {
     );
   }
 
-  async update(id: string, input: UpdateQuestionInput): Promise<AssessmentQuestionEntity> {
+  async update(
+    actor: JwtPayload,
+    id: string,
+    input: UpdateQuestionInput,
+  ): Promise<AssessmentQuestionEntity> {
     const question = this.guard.requireFound(await this.questions.findById(id), 'Question');
+    this.access.assertCanMutateQuestion(actor, question);
     this.assertEditable(question);
 
     await this.questions.update(id, {
@@ -167,8 +172,9 @@ export class QuestionAuthoringService {
     return this.guard.requireFound(await this.questions.findByIdWithAnswers(id), 'Question');
   }
 
-  async publish(id: string): Promise<AssessmentQuestionEntity> {
+  async publish(actor: JwtPayload, id: string): Promise<AssessmentQuestionEntity> {
     const question = this.guard.requireFound(await this.questions.findById(id), 'Question');
+    this.access.assertCanMutateQuestion(actor, question);
     this.guard.assertCanPublish(question.status, 'Question');
     const updated = await this.questions.update(id, {
       status: ContentLifecycleStatus.Published,
@@ -176,8 +182,9 @@ export class QuestionAuthoringService {
     return this.guard.requireFound(updated, 'Question');
   }
 
-  async archive(id: string): Promise<AssessmentQuestionEntity> {
+  async archive(actor: JwtPayload, id: string): Promise<AssessmentQuestionEntity> {
     const question = this.guard.requireFound(await this.questions.findById(id), 'Question');
+    this.access.assertCanMutateQuestion(actor, question);
     this.guard.assertCanArchive(question.status, 'Question');
     const updated = await this.questions.update(id, {
       status: ContentLifecycleStatus.Archived,
@@ -222,10 +229,12 @@ export class QuestionAuthoringService {
   }
 
   async addAttachment(
+    actor: JwtPayload,
     questionId: string,
     input: AddAttachmentInput,
   ): Promise<AssessmentQuestionAttachmentEntity> {
     const question = this.guard.requireFound(await this.questions.findById(questionId), 'Question');
+    this.access.assertCanMutateQuestion(actor, question);
     this.assertEditable(question);
 
     const existing = await this.questions.findAttachmentsByQuestionId(questionId);
@@ -239,8 +248,13 @@ export class QuestionAuthoringService {
     });
   }
 
-  async removeAttachment(questionId: string, attachmentId: string): Promise<void> {
+  async removeAttachment(
+    actor: JwtPayload,
+    questionId: string,
+    attachmentId: string,
+  ): Promise<void> {
     const question = this.guard.requireFound(await this.questions.findById(questionId), 'Question');
+    this.access.assertCanMutateQuestion(actor, question);
     this.assertEditable(question);
 
     const attachment = this.guard.requireFound(

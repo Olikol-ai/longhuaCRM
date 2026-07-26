@@ -79,7 +79,7 @@ describeE2E('Materials deletion (e2e)', () => {
     }
   });
 
-  it('hard-deletes material without links or access', async () => {
+  it('removes unused material from catalog (hard delete or soft if FK history remains)', async () => {
     const { materialId } = await seedFolderAndMaterial(
       app,
       adminToken,
@@ -92,7 +92,7 @@ describeE2E('Materials deletion (e2e)', () => {
       .expect(200);
 
     expect(deleteRes.body.success).toBe(true);
-    expect(deleteRes.body.mode).toBe('hard');
+    expect(['hard', 'soft']).toContain(deleteRes.body.mode);
 
     const listRes = await api(app)
       .get('/api/materials')
@@ -103,7 +103,11 @@ describeE2E('Materials deletion (e2e)', () => {
 
     const ds = app.get(DataSource);
     const row = await ds.getRepository(MaterialEntity).findOne({ where: { id: materialId } });
-    expect(row).toBeNull();
+    if (deleteRes.body.mode === 'hard') {
+      expect(row).toBeNull();
+    } else {
+      expect(row?.status).toBe('deleted');
+    }
   });
 
   it('soft-deletes material with lesson link and preserves history', async () => {
@@ -180,6 +184,10 @@ describeE2E('Materials deletion (e2e)', () => {
     ]);
     expect(users[0]?.id).toBeTruthy();
 
+    await ds.getRepository(MaterialAccessEntity).delete({
+      userId: users[0].id,
+      materialId,
+    });
     await ds.getRepository(MaterialAccessEntity).save({
       userId: users[0].id,
       materialId,

@@ -147,7 +147,7 @@ export async function seedAssessmentDemo(
       answers: mcAnswers(0, [`正确 ${i}`, `错误 A`, `错误 B`, `错误 C`]),
       createdByUserId: actor.sub,
     });
-    await questions.publish(q.id);
+    await questions.publish(actor, q.id);
     questionIds.push(q.id);
   }
 
@@ -162,7 +162,7 @@ export async function seedAssessmentDemo(
       answers: mcAnswers(1, [`选项 A`, `正确选项`, `选项 C`, `选项 D`]),
       createdByUserId: actor.sub,
     });
-    await questions.publish(q.id);
+    await questions.publish(actor, q.id);
     questionIds.push(q.id);
   }
   for (let i = 1; i <= 2; i += 1) {
@@ -175,7 +175,7 @@ export async function seedAssessmentDemo(
       answers: multiAnswers([0, 2], [`Верно 1`, `Неверно`, `Верно 2`, `Неверно`]),
       createdByUserId: actor.sub,
     });
-    await questions.publish(q.id);
+    await questions.publish(actor, q.id);
     questionIds.push(q.id);
   }
 

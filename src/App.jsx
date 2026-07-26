@@ -15,6 +15,7 @@ import { ThemeProvider } from '@/lib/ThemeContext';
 import NameFormModal from '@/components/auth/NameFormModal';
 import RoleRouteGuard, { RoleHomeRedirect, OnboardingFallback, RootRedirect } from '@/components/auth/RoleRouteGuard';
 import { AdminRoute, TeacherRoute, StudentRoute } from '@/components/auth/AdminRoute';
+import AppErrorBoundary from '@/components/common/AppErrorBoundary';
 import { ONBOARDING_PATH } from '@/lib/routing';
 
 const UserManagement = lazy(() => import('./pages/UserManagement'));
@@ -112,6 +113,7 @@ const AuthenticatedApp = () => {
   }
 
   return (
+    <AppErrorBoundary>
     <RoleRouteGuard>
       <Suspense fallback={<AuthLoadingScreen />}>
       <Routes>
@@ -178,6 +180,7 @@ const AuthenticatedApp = () => {
       </Routes>
       </Suspense>
     </RoleRouteGuard>
+    </AppErrorBoundary>
   );
 };
 

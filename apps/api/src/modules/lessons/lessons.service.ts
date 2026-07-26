@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -139,10 +140,31 @@ export class LessonsService {
     const created = await this.dataSource.transaction(async (manager) => {
       const teacher = await manager.getRepository(TeacherEntity).findOne({
         where: { id: normalized.teacherId },
+        lock: { mode: 'pessimistic_write' },
       });
       if (!teacher) {
         throw new NotFoundException('Преподаватель не найден');
       }
+
+      // Serialize overlapping creates for the same teacher/students, then re-check.
+      await this.scheduleService.assertNoScheduleConflicts(
+        normalized.teacherId,
+        normalized.date,
+        normalized.startTime,
+        duration,
+      );
+      for (const studentId of createStudentIds) {
+        await manager.getRepository(StudentEntity).findOne({
+          where: { id: studentId },
+          lock: { mode: 'pessimistic_write' },
+        });
+      }
+      await this.scheduleService.assertNoStudentScheduleConflicts(
+        createStudentIds,
+        normalized.date,
+        normalized.startTime,
+        duration,
+      );
 
       if (normalized.groupId) {
         const group = await manager.getRepository(GroupEntity).findOne({
@@ -648,8 +670,9 @@ export class LessonsService {
         return null;
       }
 
-      if (lesson.status === 'completed') {
-        return lesson;
+      // Only planned lessons may enter the completion pipeline (balance + TeacherPayment).
+      if (lesson.status !== 'planned') {
+        throw new ConflictException('Lesson is already finalized');
       }
 
       lesson.status = 'completed';

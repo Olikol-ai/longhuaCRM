@@ -75,9 +75,6 @@ export class LessonConfirmationJobsService {
 
     let sent = 0;
     for (const lesson of windowLessons) {
-      lesson.reminder24hSent = true;
-      await this.lessonRepo.save(lesson);
-
       const teacher = lesson.teacherId
         ? await this.teacherRepo.findOne({ where: { id: lesson.teacherId } })
         : null;
@@ -90,6 +87,7 @@ export class LessonConfirmationJobsService {
         teacher: teacher?.name?.trim() || '—',
       });
 
+      let delivered = 0;
       for (const studentId of studentIds) {
         const chatId = await this.confirmations.resolveStudentTelegramChatId(
           studentId,
@@ -115,11 +113,18 @@ export class LessonConfirmationJobsService {
         const result = await this.gateway.sendMessage(chatId, text);
         if (result.ok) {
           sent += 1;
+          delivered += 1;
         } else {
           this.logger.error(
             `24h reminder failed for student ${studentId}: ${result.error ?? result.description}`,
           );
         }
+      }
+
+      // Mark sent only after at least one successful delivery (or no participants).
+      if (studentIds.length === 0 || delivered > 0) {
+        lesson.reminder24hSent = true;
+        await this.lessonRepo.save(lesson);
       }
     }
 

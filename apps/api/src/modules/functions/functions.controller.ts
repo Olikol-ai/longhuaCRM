@@ -102,7 +102,11 @@ export class FunctionsController {
           userRole: user!.role,
         });
       case 'checkPaymentStatus':
-        return this.alfaBankService.checkPaymentStatus(String(body.orderId));
+        return this.alfaBankService.checkPaymentStatus(
+          String(body.orderId),
+          user!.sub,
+          user!.role,
+        );
       case 'exportBackup':
         return this.jobsService.exportBackup();
       case 'fixWebhook':

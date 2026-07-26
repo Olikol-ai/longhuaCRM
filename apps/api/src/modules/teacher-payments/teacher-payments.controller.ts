@@ -30,6 +30,12 @@ export class TeacherPaymentsController {
     return this.teacherPaymentsService.findMyPayments(user);
   }
 
+  @Get('my/periods')
+  @Roles('admin', 'teacher')
+  findMyPeriods(@CurrentUser() user: JwtPayload) {
+    return this.teacherPaymentsService.findMyPeriods(user);
+  }
+
   @Get()
   @Roles('admin')
   findAll() {

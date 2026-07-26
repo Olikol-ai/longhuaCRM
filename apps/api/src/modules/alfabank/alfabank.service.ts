@@ -521,13 +521,22 @@ export class AlfaBankService {
     };
   }
 
-  /** Legacy RPC: resolve by Alfa orderId, then sync via the same confirm path. */
-  async checkPaymentStatus(orderId: string) {
+  /** Legacy RPC: resolve by Alfa orderId with ownership check, then sync. */
+  async checkPaymentStatus(
+    orderId: string,
+    userId: string,
+    userRole: string,
+  ) {
     const payment = await this.dataSource.getRepository(PaymentEntity).findOne({
       where: { externalId: orderId },
     });
 
     if (payment?.orderNumber) {
+      if (!payment.studentId) {
+        throw new BadRequestException('Payment has no student');
+      }
+      await this.assertStudentAccess(userId, userRole, payment.studentId);
+
       if (payment.status === 'pending') {
         await this.syncPendingPaymentFromAlfa(payment);
       }
@@ -545,15 +554,8 @@ export class AlfaBankService {
       };
     }
 
-    const gateway = await this.fetchAlfaOrderStatus(orderId);
-    return {
-      ok: true,
-      orderId,
-      status: gateway.orderStatus,
-      statusLabel: gateway.statusLabel,
-      isPaid: gateway.isPaid,
-      amount: gateway.amount,
-    };
+    // Unknown orderId — do not leak gateway data to arbitrary clients.
+    throw new NotFoundException('Payment not found');
   }
 
   private async syncPendingPaymentFromAlfa(payment: PaymentEntity): Promise<void> {

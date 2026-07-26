@@ -14,7 +14,6 @@ import { Badge } from "@/components/ui/badge";
 import StatCard from "@/components/dashboard/StatCard";
 import { toast } from "@/components/ui/use-toast";
 import { formatCurrency } from "@/lib/formatters";
-import { aggregateTeacherPaymentsByPeriod } from "@/lib/teacherPayPeriods";
 import { filterLessonsWithinNext48Hours } from "@/lib/teacherUpcomingLessons";
 import {
   AlertDialog,
@@ -38,7 +37,7 @@ export default function TeacherDashboard() {
   const [teacher, setTeacher] = useState(null);
   const [lessons, setLessons] = useState([]);
   const [students, setStudents] = useState([]);
-  const [payments, setPayments] = useState([]);
+  const [paymentPeriods, setPaymentPeriods] = useState([]);
   const [invites, setInvites] = useState([]);
   const [inviteBusy, setInviteBusy] = useState(false);
   const [latestInviteUrl, setLatestInviteUrl] = useState('');
@@ -54,20 +53,15 @@ export default function TeacherDashboard() {
     [invites],
   );
 
-  const paymentPeriods = useMemo(
-    () => aggregateTeacherPaymentsByPeriod(payments, lessons),
-    [payments, lessons],
-  );
-
   const loadData = async () => {
     if (!user) return;
     setLoadError(null);
     try {
-      const [allTeachers, allLessons, allStudents, myPayments, myInvites] = await Promise.all([
+      const [allTeachers, allLessons, allStudents, myPeriods, myInvites] = await Promise.all([
         api.teachers.list(),
         api.lessons.list("-date", 200),
         api.students.list(),
-        api.teacherPayments.my().catch(() => []),
+        api.teacherPayments.myPeriods().catch(() => []),
         api.teacherInvites.list().catch(() => []),
       ]);
       const t = allTeachers.find((x) => x.user_id === user.id || x.email === user.email);
@@ -79,7 +73,7 @@ export default function TeacherDashboard() {
         setLessons([]);
         setStudents([]);
       }
-      setPayments(Array.isArray(myPayments) ? myPayments : []);
+      setPaymentPeriods(Array.isArray(myPeriods) ? myPeriods : []);
       setInvites(Array.isArray(myInvites) ? myInvites : []);
     } catch (err) {
       setLoadError(err?.message || "Не удалось загрузить данные");

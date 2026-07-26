@@ -75,6 +75,7 @@ describe('Production env validation', () => {
         ADMIN_EMAIL: 'admin@example.com',
         MAIL_FROM: 'Longhua <noreply@example.com>',
         CORS_ORIGINS: 'https://crm.example.com',
+        TELEGRAM_ENABLED: false,
       }),
     ).not.toThrow();
   });

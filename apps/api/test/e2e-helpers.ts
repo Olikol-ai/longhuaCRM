@@ -52,6 +52,9 @@ export async function ensureDatabaseReady(): Promise<void> {
 }
 
 export async function createTestApp(options: CreateTestAppOptions = {}): Promise<INestApplication> {
+  if (!process.env.TELEGRAM_BOT_USERNAME?.trim()) {
+    process.env.TELEGRAM_BOT_USERNAME = 'longhua_academy_test_bot';
+  }
   const mockMailSuccess = options.mockMailSuccess ?? true;
   let moduleBuilder: TestingModuleBuilder = Test.createTestingModule({
     imports: [AppModule],
