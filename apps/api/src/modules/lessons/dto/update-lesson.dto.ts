@@ -77,6 +77,21 @@ export class UpdateLessonDto {
   ])
   status?: LessonStatus;
 
+  /**
+   * When completing a lesson (status → completed), choose attendance outcome
+   * for enrolled records. Not persisted on the lesson row.
+   */
+  @IsOptional()
+  @Transform(({ value, obj }) => {
+    const raw =
+      value ??
+      (obj as Record<string, unknown>).completion_attendance ??
+      (obj as Record<string, unknown>).completionAttendance;
+    return raw;
+  })
+  @IsEnum(['attended', 'missed'])
+  completionAttendance?: 'attended' | 'missed';
+
   @IsOptional()
   @IsEnum(['individual', 'group'])
   lessonType?: LessonType;

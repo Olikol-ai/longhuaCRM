@@ -22,6 +22,7 @@ export const TEACHER_SELF_UPDATE_FIELDS = [
 
 export const TEACHER_LESSON_UPDATE_FIELDS = [
   'status',
+  'completionAttendance',
   'notes',
   'meetingLink',
   'room',

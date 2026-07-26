@@ -25,7 +25,7 @@
     "db:restore": "bash scripts/restore-db.sh",
     "test:e2e": "npm run test:e2e --prefix apps/api",
     "seed:assessment-demo": "npm run seed:assessment-demo --prefix apps/api -- --yes",
-    "test:unit": "node --test src/lib/materialMeta.test.js src/lib/forgotPasswordUi.test.js src/lib/lessonPayload.test.js src/lib/passwordPolicy.test.js src/lib/certificatesPayload.test.js src/lib/time-slots.test.js",
+    "test:unit": "node --test src/lib/materialMeta.test.js src/lib/forgotPasswordUi.test.js src/lib/lessonPayload.test.js src/lib/passwordPolicy.test.js src/lib/certificatesPayload.test.js src/lib/time-slots.test.js src/lib/teacherPayPeriods.test.js",
     "test:browser": "playwright test",
     "test:browser:report": "node e2e/browser/merge-audit-report.mjs",
     "mobile": "npm run start --prefix apps/mobile",

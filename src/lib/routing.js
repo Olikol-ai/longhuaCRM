@@ -94,6 +94,7 @@ export function getRequiredRoleForPath(pathname) {
     pathname === '/teacher'
     || pathname === '/TeacherDashboard'
     || pathname === '/TeacherSchedule'
+    || pathname === '/TeacherStudents'
     || pathname === '/TeacherAssessment'
     || pathname === '/TeacherAssessmentReview'
     || pathname === '/TeacherAssessmentReviewDetail'

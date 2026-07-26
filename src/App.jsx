@@ -47,6 +47,7 @@ const TeacherAssessment = lazy(() => import('./pages/TeacherAssessment'));
 const TeacherAssessmentReview = lazy(() => import('./pages/TeacherAssessmentReview'));
 const TeacherAssessmentReviewDetail = lazy(() => import('./pages/TeacherAssessmentReviewDetail'));
 const TeacherAssessmentResults = lazy(() => import('./pages/TeacherAssessmentResults'));
+const TeacherStudents = lazy(() => import('./pages/TeacherStudents'));
 
 /**
  * Route registration: see docs/frontend-routing.md
@@ -131,7 +132,7 @@ const AuthenticatedApp = () => {
 
           if (['Dashboard', 'Schedule', 'StudentDetail'].includes(path)) {
             element = <AdminRoute>{element}</AdminRoute>;
-          } else if (['TeacherDashboard', 'TeacherSchedule', 'TeacherAssessment', 'TeacherAssessmentReview', 'TeacherAssessmentReviewDetail', 'TeacherAssessmentResults'].includes(path)) {
+          } else if (['TeacherDashboard', 'TeacherSchedule', 'TeacherAssessment', 'TeacherAssessmentReview', 'TeacherAssessmentReviewDetail', 'TeacherAssessmentResults', 'TeacherStudents'].includes(path)) {
             element = <TeacherRoute>{element}</TeacherRoute>;
           } else if (['StudentDashboard', 'StudentLessons', 'StudentCertificates', 'StudentExams'].includes(path)) {
             element = <StudentRoute>{element}</StudentRoute>;
@@ -141,6 +142,7 @@ const AuthenticatedApp = () => {
         })}
         <Route path="/AdminLessonMaterials" element={<Navigate to="/MaterialsHub" replace />} />
         <Route path="/MaterialsHub" element={<TeacherRoute><LayoutWrapper currentPageName="MaterialsHub"><MaterialsHub /></LayoutWrapper></TeacherRoute>} />
+        <Route path="/TeacherStudents" element={<TeacherRoute><LayoutWrapper currentPageName="TeacherStudents"><TeacherStudents /></LayoutWrapper></TeacherRoute>} />
         <Route path="/TeacherAssessment" element={<TeacherRoute><LayoutWrapper currentPageName="TeacherAssessment"><TeacherAssessment /></LayoutWrapper></TeacherRoute>} />
         <Route path="/TeacherAssessmentReview" element={<TeacherRoute><LayoutWrapper currentPageName="TeacherAssessment"><TeacherAssessmentReview /></LayoutWrapper></TeacherRoute>} />
         <Route path="/TeacherAssessmentReviewDetail" element={<TeacherRoute><LayoutWrapper currentPageName="TeacherAssessment"><TeacherAssessmentReviewDetail /></LayoutWrapper></TeacherRoute>} />

@@ -11,6 +11,7 @@ import type { TelegramInlineButton } from './telegram.gateway';
 
 export const TELEGRAM_BTN = {
   lessons: '📚 Мои занятия',
+  balance: '💰 Баланс',
   settings: '🔔 Уведомления',
   profile: '👤 Профиль',
   help: '❓ Помощь',
@@ -20,11 +21,13 @@ export const TELEGRAM_BTN = {
   lessonsLegacy: '📚 Мои ближайшие уроки',
   settingsLegacy: '🔔 Настройки уведомлений',
   statusLegacy: '⚙️ Статус подключения',
+  balanceLegacy: '💰 Мой баланс',
 } as const;
 
 export const TELEGRAM_CB = {
   main: 'menu:main',
   lessons: 'menu:lessons',
+  balance: 'menu:balance',
   settings: 'menu:settings',
   profile: 'menu:profile',
   help: 'menu:help',
@@ -58,10 +61,13 @@ export const TELEGRAM_MSG = {
     '',
     '• Уведомления о занятиях приходят автоматически.',
     '• За 3 часа до индивидуального урока можно подтвердить или отменить участие.',
+    '• Баланс уроков — кнопка «Баланс» или команда /balance.',
     '• Настройки уведомлений — кнопка «Уведомления» в главном меню.',
     '',
     'Если Telegram отвязался — привяжите снова в профиле личного кабинета.',
   ].join('\n'),
+  balanceNotStudent:
+    'Баланс доступен только для учеников.\nЕсли вы ученик — обратитесь к администратору.',
 } as const;
 
 export function formatLessonTime(startTime: string | null | undefined): string {
@@ -140,15 +146,44 @@ export function buildTeacherLessonCancelledMessage(input: {
   ].join('\n');
 }
 
+/**
+ * Nearest-lesson card for Telegram «Мои занятия».
+ * Students see the teacher; teachers see the student(s) — never their own name.
+ */
 export function buildNearestLessonCard(input: {
   course: string;
   whenLabel: string;
-  teacher: string;
+  audience: 'student' | 'teacher';
+  /** Teacher name for students; student name(s) for teachers. */
+  counterpartName: string;
+  room?: string | null;
 }): string {
+  const counterpart = (input.counterpartName || '').trim() || '—';
+  const course = (input.course || '').trim() || '—';
+  const room = (input.room ?? '').trim();
+
+  if (input.audience === 'teacher') {
+    const lines = [
+      '📚 Ближайшее занятие',
+      '',
+      `⏰ ${input.whenLabel}`,
+      '',
+      '👨‍🎓 Ученик:',
+      counterpart,
+      '',
+      '📖 Курс:',
+      course,
+    ];
+    if (room) {
+      lines.push('', '🏫 Кабинет:', room);
+    }
+    return lines.join('\n');
+  }
+
   return [
-    `📚 ${input.course}`,
+    `📚 ${course}`,
     `⏰ ${input.whenLabel}`,
-    `👨‍🏫 Преподаватель: ${input.teacher}`,
+    `👨‍🏫 Преподаватель: ${counterpart}`,
   ].join('\n');
 }
 
@@ -168,6 +203,54 @@ export function buildConnectionStatusText(input: {
     lines.push(`Дата: ${input.connectedAt}`);
   }
   return lines.join('\n');
+}
+
+/**
+ * Student lesson balance copy (CRM stores remaining lessons in students.lesson_balance).
+ */
+export function buildBalanceText(input: {
+  lessonBalance: number;
+  updatedAtLabel: string | null;
+}): string {
+  const balance = Number.isFinite(input.lessonBalance)
+    ? Math.trunc(input.lessonBalance)
+    : 0;
+  const amountLabel = formatLessonBalanceAmount(balance);
+
+  if (balance < 0) {
+    return [
+      '⚠️ Ваш баланс:',
+      '',
+      amountLabel,
+      '',
+      'Для продолжения занятий необходимо пополнить баланс.',
+    ].join('\n');
+  }
+
+  if (balance === 0) {
+    return ['Ваш баланс:', '', amountLabel].join('\n');
+  }
+
+  const lines = ['💰 Ваш текущий баланс', '', 'Баланс:', amountLabel];
+  if (input.updatedAtLabel) {
+    lines.push('', 'Последнее обновление:', input.updatedAtLabel);
+  }
+  return lines.join('\n');
+}
+
+/** Russian plural for lesson counts, e.g. "5 уроков", "−1 урок". */
+export function formatLessonBalanceAmount(balance: number): string {
+  const abs = Math.abs(balance);
+  const mod10 = abs % 10;
+  const mod100 = abs % 100;
+  let word = 'уроков';
+  if (mod10 === 1 && mod100 !== 11) {
+    word = 'урок';
+  } else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
+    word = 'урока';
+  }
+  const sign = balance < 0 ? '−' : '';
+  return `${sign}${abs} ${word}`;
 }
 
 export function buildNotificationSettingsText(input: {
@@ -195,6 +278,7 @@ export function mainMenuInlineKeyboard(): {
   return {
     inline_keyboard: [
       [{ text: TELEGRAM_BTN.lessons, callback_data: TELEGRAM_CB.lessons }],
+      [{ text: TELEGRAM_BTN.balance, callback_data: TELEGRAM_CB.balance }],
       [{ text: TELEGRAM_BTN.settings, callback_data: TELEGRAM_CB.settings }],
       [{ text: TELEGRAM_BTN.profile, callback_data: TELEGRAM_CB.profile }],
       [{ text: TELEGRAM_BTN.help, callback_data: TELEGRAM_CB.help }],
@@ -266,13 +350,21 @@ export function resultBackToMenuKeyboard(): {
 
 export function matchMainMenuButton(
   text: string,
-): 'lessons' | 'settings' | 'profile' | 'help' | null {
+): 'lessons' | 'balance' | 'settings' | 'profile' | 'help' | null {
   const trimmed = text.trim();
   if (
     trimmed === TELEGRAM_BTN.lessons
     || trimmed === TELEGRAM_BTN.lessonsLegacy
   ) {
     return 'lessons';
+  }
+  if (
+    trimmed === TELEGRAM_BTN.balance
+    || trimmed === TELEGRAM_BTN.balanceLegacy
+    || trimmed === '/balance'
+    || trimmed.startsWith('/balance@')
+  ) {
+    return 'balance';
   }
   if (
     trimmed === TELEGRAM_BTN.settings

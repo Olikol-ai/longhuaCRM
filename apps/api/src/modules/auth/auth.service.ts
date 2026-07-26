@@ -36,6 +36,8 @@ import { UsersRepository } from '../users/users.repository';
 
 import { UserProfileService } from '../users/user-profile.service';
 
+import { RoleEntitySyncService } from '../users/role-entity-sync.service';
+
 import { userToRecord } from '../users/user.mapper';
 
 import { ForgotPasswordDto, ResetPasswordDto } from './dto/forgot-password.dto';
@@ -139,6 +141,8 @@ export class AuthService {
     private readonly usersRepository: UsersRepository,
 
     private readonly userProfileService: UserProfileService,
+
+    private readonly roleEntitySync: RoleEntitySyncService,
 
     private readonly jwtService: JwtService,
 
@@ -567,6 +571,10 @@ export class AuthService {
 
 
     const saved = await this.usersRepository.save(row);
+
+    if (dto.first_name !== undefined || dto.last_name !== undefined) {
+      await this.roleEntitySync.syncLinkedProfilesFromUser(saved);
+    }
 
     return this.attachProfileFields(authResponse(saved, (u) => this.signToken(u)), saved.id);
 

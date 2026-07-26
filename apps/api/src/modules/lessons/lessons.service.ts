@@ -23,7 +23,10 @@ import { StudentBalanceService } from '../students/student-balance.service';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { TeacherPaymentsService } from '../teacher-payments/teacher-payments.service';
 import { AttendanceEntity } from './entities/attendance.entity';
-import { LessonEntity } from './entities/lesson.entity';
+import {
+  isScheduleOccupyingLessonStatus,
+  LessonEntity,
+} from './entities/lesson.entity';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
@@ -36,6 +39,23 @@ import {
   LessonUpdatedPayload,
 } from './events/lesson.events';
 import { LessonsRepository } from './lessons.repository';
+
+/** Terminal lesson statuses a teacher cannot change again after confirming. */
+const TEACHER_LOCKED_LESSON_STATUSES = new Set([
+  'completed',
+  'cancelled',
+  'missed',
+  'missed_no_notice',
+  'rescheduled',
+]);
+
+/** Attendance statuses a teacher cannot overwrite after confirmation. */
+const TEACHER_LOCKED_ATTENDANCE_STATUSES = new Set([
+  'attended',
+  'missed',
+  'missed_no_notice',
+  'cancelled',
+]);
 
 @Injectable()
 export class LessonsService {
@@ -251,8 +271,24 @@ export class LessonsService {
       payload.status === 'completed' &&
       before.status !== 'completed';
 
+    const completionAttendance: 'attended' | 'missed' =
+      payload.completionAttendance === 'missed' ? 'missed' : 'attended';
+
+    if (
+      normalizeRole(actor.role) === 'teacher' &&
+      TEACHER_LOCKED_LESSON_STATUSES.has(before.status) &&
+      typeof payload.status === 'string' &&
+      payload.status !== before.status
+    ) {
+      throw new ForbiddenException(
+        'Статус занятия уже зафиксирован и не может быть изменён',
+      );
+    }
+
     if (completing) {
-      const completed = await this.finalizeLessonCompletion(id);
+      const completed = await this.finalizeLessonCompletion(id, {
+        attendanceStatus: completionAttendance,
+      });
       if (completed) {
         const withNames = await this.repository.findById(completed.id);
         return this.attachDisplayNames([withNames ?? completed])[0];
@@ -328,19 +364,35 @@ export class LessonsService {
         false;
     }
 
-    const row = await this.repository.update(id, payload as UpdateLessonDto);
+    // completionAttendance is only a completion hint — not a lessons column.
+    const { completionAttendance: _completionAttendance, ...lessonFields } =
+      payload as UpdateLessonDto & { completionAttendance?: 'attended' | 'missed' };
+
+    const row = await this.repository.update(id, lessonFields as UpdateLessonDto);
     if (!row) {
       throw new NotFoundException('Lesson not found');
     }
 
-    if (scheduleSlotChanged) {
+    // UI cancels via PATCH { status: 'cancelled' } (not /cancel). Always free the booking
+    // when the lesson leaves an occupying status, even if date/time did not change.
+    const statusReleasedSlot =
+      typeof payload.status === 'string' &&
+      payload.status !== before.status &&
+      !isScheduleOccupyingLessonStatus(payload.status);
+
+    if (statusReleasedSlot) {
+      await this.dataSource.getRepository(AvailabilityBookingEntity).update(
+        { lessonId: id },
+        { status: 'cancelled' },
+      );
+    } else if (scheduleSlotChanged) {
       const timeFrom = this.scheduleService.normalizeTime(startTime);
       const timeTo = this.scheduleService.addMinutesToTime(timeFrom, duration);
       const bookingUpdate: Partial<AvailabilityBookingEntity> = {
         date,
         timeFrom,
         timeTo,
-        status: nextStatus === 'cancelled' ? 'cancelled' : 'active',
+        status: isScheduleOccupyingLessonStatus(nextStatus) ? 'active' : 'cancelled',
       };
       if (teacherId) {
         bookingUpdate.teacherId = teacherId;
@@ -565,7 +617,9 @@ export class LessonsService {
 
   async complete(actor: JwtPayload, id: string): Promise<LessonEntity> {
     await this.lessonAccess.assertCanWriteLesson(actor, id);
-    const completed = await this.finalizeLessonCompletion(id);
+    const completed = await this.finalizeLessonCompletion(id, {
+      attendanceStatus: 'attended',
+    });
     if (!completed) {
       throw new NotFoundException('Lesson not found');
     }
@@ -573,7 +627,16 @@ export class LessonsService {
     return this.attachDisplayNames([withNames ?? completed])[0];
   }
 
-  private async finalizeLessonCompletion(lessonId: string): Promise<LessonEntity | null> {
+  /**
+   * Single lesson-completion pipeline.
+   * Only the enrolled → attended|missed attendance outcome differs by option.
+   */
+  private async finalizeLessonCompletion(
+    lessonId: string,
+    options?: { attendanceStatus?: 'attended' | 'missed' },
+  ): Promise<LessonEntity | null> {
+    const attendanceStatus = options?.attendanceStatus === 'missed' ? 'missed' : 'attended';
+
     return this.dataSource.transaction(async (manager) => {
       const lessonRepo = manager.getRepository(LessonEntity);
       const lesson = await lessonRepo.findOne({
@@ -592,9 +655,29 @@ export class LessonsService {
       lesson.status = 'completed';
       await lessonRepo.save(lesson);
 
+      const attendanceRepo = manager.getRepository(AttendanceEntity);
+      await attendanceRepo.update(
+        { lessonId, attendanceStatus: 'enrolled' },
+        { attendanceStatus },
+      );
+
       await this.studentBalanceService.handleLessonStatusUpdate(lessonId, 'completed', manager);
       await this.teacherPaymentsService.createForCompletedLesson(lesson, manager);
-      await this.enrollmentProgress.handleLessonCompleted(lessonId, manager);
+
+      if (attendanceStatus === 'missed') {
+        const rows = await attendanceRepo.find({ where: { lessonId } });
+        for (const row of rows) {
+          if (row.studentId && row.attendanceStatus === 'missed') {
+            await this.enrollmentProgress.handleLessonMissed(
+              lessonId,
+              row.studentId,
+              manager,
+            );
+          }
+        }
+      } else {
+        await this.enrollmentProgress.handleLessonCompleted(lessonId, manager);
+      }
 
       return lesson;
     });
@@ -662,6 +745,17 @@ export class LessonsService {
       await this.lessonAccess.assertCanWriteLesson(actor, existing.lessonId);
 
       const previousStatus = existing.attendanceStatus;
+      if (
+        normalizeRole(actor.role) === 'teacher' &&
+        TEACHER_LOCKED_ATTENDANCE_STATUSES.has(previousStatus) &&
+        dto.attendanceStatus !== undefined &&
+        dto.attendanceStatus !== previousStatus
+      ) {
+        throw new ForbiddenException(
+          'Посещаемость уже подтверждена и не может быть изменена',
+        );
+      }
+
       if (dto.attendanceStatus !== undefined) {
         existing.attendanceStatus = dto.attendanceStatus;
       }

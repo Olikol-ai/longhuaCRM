@@ -14,6 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import StatCard from "@/components/dashboard/StatCard";
 import { toast } from "@/components/ui/use-toast";
 import { formatCurrency } from "@/lib/formatters";
+import { aggregateTeacherPaymentsByPeriod } from "@/lib/teacherPayPeriods";
+import { filterLessonsWithinNext48Hours } from "@/lib/teacherUpcomingLessons";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,6 +52,11 @@ export default function TeacherDashboard() {
   const activeInvites = useMemo(
     () => invites.filter(isActiveInvite),
     [invites],
+  );
+
+  const paymentPeriods = useMemo(
+    () => aggregateTeacherPaymentsByPeriod(payments, lessons),
+    [payments, lessons],
   );
 
   const loadData = async () => {
@@ -200,9 +207,7 @@ export default function TeacherDashboard() {
 
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const todayLessons = lessons.filter((l) => l.date === todayStr && l.status !== "cancelled");
-  const upcomingLessons = lessons
-    .filter((l) => l.date >= todayStr && l.status === "planned")
-    .sort((a, b) => `${a.date}${a.start_time}`.localeCompare(`${b.date}${b.start_time}`));
+  const upcomingLessons = filterLessonsWithinNext48Hours(lessons);
   const completedCount = lessons.filter((l) => l.status === "completed").length;
 
   return (
@@ -272,24 +277,22 @@ export default function TeacherDashboard() {
       </Card>
 
       <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Мои выплаты</h2>
-      {payments.length === 0 ? (
+      {paymentPeriods.length === 0 ? (
         <Card className="p-6 text-center border-dashed mb-8">
           <DollarSign className="h-8 w-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
           <p className="text-sm text-slate-500 dark:text-slate-400">Начислений пока нет</p>
         </Card>
       ) : (
         <div className="space-y-2 mb-8">
-          {payments.slice(0, 10).map((row) => (
-            <Card key={row.id} className="p-4 flex items-center justify-between gap-3">
-              <div>
-                <p className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                  <DollarSign className="w-4 h-4" /> {formatCurrency(row.amount)}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{row.status}</p>
-              </div>
-              <Badge variant={row.status === "paid" ? "default" : "secondary"}>
-                {row.status === "paid" ? "Оплачено" : "Ожидает"}
-              </Badge>
+          {paymentPeriods.map((period) => (
+            <Card key={period.key} className="p-4">
+              <p className="text-sm font-medium text-slate-900 dark:text-white">
+                {period.label}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Начислено:</p>
+              <p className="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mt-1">
+                <DollarSign className="w-4 h-4" /> {formatCurrency(period.amount)}
+              </p>
             </Card>
           ))}
         </div>
@@ -299,11 +302,11 @@ export default function TeacherDashboard() {
       {upcomingLessons.length === 0 ? (
         <Card className="p-8 text-center border-dashed">
           <Calendar className="h-8 w-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-          <p className="text-sm text-slate-500 dark:text-slate-400">Предстоящих уроков нет</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">В ближайшие два дня занятий нет.</p>
         </Card>
       ) : (
         <div className="space-y-3">
-          {upcomingLessons.slice(0, 20).map((lesson) => (
+          {upcomingLessons.map((lesson) => (
             <Card key={lesson.id} className="p-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-4">

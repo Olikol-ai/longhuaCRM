@@ -45,6 +45,7 @@ const adminNav = [
 const teacherNav = [
   { name: "Главная", icon: LayoutDashboard, page: "TeacherDashboard" },
   { name: "Моё расписание", icon: Calendar, page: "TeacherSchedule" },
+  { name: "Мои ученики", icon: Users, page: "TeacherStudents" },
   { name: "Экзамены", icon: ClipboardList, page: "TeacherAssessment" },
   { name: "Материалы", icon: BookOpen, page: "MaterialsHub" },
   { name: "Профиль", icon: UserCircle, page: "Profile" },

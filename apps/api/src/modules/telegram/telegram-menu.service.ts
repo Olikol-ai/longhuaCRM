@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { LessonConfirmationService } from '../lesson-confirmations/lesson-confirmation.service';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
 import { StudentEntity } from '../students/entities/student.entity';
@@ -10,6 +10,7 @@ import { UserEntity } from '../users/entities/user.entity';
 import { UsersRepository } from '../users/users.repository';
 import {
   backInlineKeyboard,
+  buildBalanceText,
   buildConnectionStatusText,
   buildNearestLessonCard,
   buildNotificationSettingsText,
@@ -79,15 +80,30 @@ export class TelegramMenuService {
     }
 
     const course = await this.confirmations.resolveLessonCourseTitle(lesson);
-    const teacher = lesson.teacherId
-      ? await this.teacherRepo.findOne({ where: { id: lesson.teacherId } })
-      : null;
+    const teacherProfile = await this.teacherRepo.findOne({
+      where: { userId: user.id },
+    });
+    const isTeacherAudience = Boolean(
+      teacherProfile && lesson.teacherId === teacherProfile.id,
+    );
+
+    let counterpartName = '—';
+    if (isTeacherAudience) {
+      counterpartName = await this.resolveLessonStudentNames(lesson);
+    } else {
+      const teacher = lesson.teacherId
+        ? await this.teacherRepo.findOne({ where: { id: lesson.teacherId } })
+        : null;
+      counterpartName = teacher?.name?.trim() || '—';
+    }
 
     return {
       text: buildNearestLessonCard({
         course,
         whenLabel: this.formatWhenLabel(lesson),
-        teacher: teacher?.name?.trim() || '—',
+        audience: isTeacherAudience ? 'teacher' : 'student',
+        counterpartName,
+        room: lesson.room,
       }),
       options: { replyMarkup: backInlineKeyboard() },
     };
@@ -136,6 +152,46 @@ export class TelegramMenuService {
                 this.config.get<string>('jobs.reminderTimezone') ?? 'Europe/Minsk',
             })
           : null,
+      }),
+      options: { replyMarkup: backInlineKeyboard() },
+    };
+  }
+
+  /**
+   * Reads students.lesson_balance — the same field used by StudentDashboard / payments.
+   * Does not recalculate balance.
+   */
+  async buildBalanceScreen(chatId: string): Promise<TelegramScreenPayload> {
+    const user = await this.resolveUserByChatId(chatId);
+    if (!user) {
+      return {
+        text: TELEGRAM_MSG.notLinkedShort,
+        options: { replyMarkup: backInlineKeyboard() },
+      };
+    }
+
+    const student = await this.studentRepo.findOne({ where: { userId: user.id } });
+    if (!student) {
+      return {
+        text: TELEGRAM_MSG.balanceNotStudent,
+        options: { replyMarkup: backInlineKeyboard() },
+      };
+    }
+
+    const tz = this.config.get<string>('jobs.reminderTimezone') ?? 'Europe/Minsk';
+    const updatedAtLabel = student.updatedAt
+      ? student.updatedAt.toLocaleDateString('ru-RU', {
+          timeZone: tz,
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        })
+      : null;
+
+    return {
+      text: buildBalanceText({
+        lessonBalance: student.lessonBalance ?? 0,
+        updatedAtLabel,
       }),
       options: { replyMarkup: backInlineKeyboard() },
     };
@@ -245,6 +301,27 @@ export class TelegramMenuService {
     if (!raw || typeof raw !== 'object') return null;
     const id = (raw as { message_id?: unknown }).message_id;
     return typeof id === 'number' ? id : null;
+  }
+
+  /** Display names of lesson participants for teacher-facing Telegram copy. */
+  private async resolveLessonStudentNames(lesson: LessonEntity): Promise<string> {
+    const studentIds =
+      await this.confirmations.resolveParticipantStudentIds(lesson);
+    if (studentIds.length === 0) {
+      return '—';
+    }
+
+    const students = await this.studentRepo.find({
+      where: { id: In(studentIds) },
+    });
+    const byId = new Map(
+      students.map((s) => [s.id, (s.name ?? '').trim()] as const),
+    );
+    const names = studentIds
+      .map((id) => byId.get(id) || '')
+      .filter((name) => name.length > 0);
+
+    return names.length > 0 ? names.join('\n') : '—';
   }
 
   private async findNearestLessonForUser(

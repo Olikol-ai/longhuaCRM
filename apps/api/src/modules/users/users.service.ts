@@ -175,6 +175,8 @@ export class UsersService {
 
     if (roleChanged) {
       await this.roleEntitySync.syncAfterRoleChange(saved, saved.role);
+    } else if (dto.firstName !== undefined || dto.lastName !== undefined) {
+      await this.roleEntitySync.syncLinkedProfilesFromUser(saved);
     }
 
     return userToRecord(saved);

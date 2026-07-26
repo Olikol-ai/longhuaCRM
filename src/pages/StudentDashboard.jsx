@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { api } from '@/api';
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -30,7 +30,7 @@ const STATUS_COLORS = {
 };
 
 export default function StudentDashboard() {
-  const { user, isLoadingAuth } = useAuth();
+  const { user, isLoadingAuth, establishSession } = useAuth();
   const [student, setStudent] = useState(null);
   const [lessons, setLessons] = useState([]);
   const [teacher, setTeacher] = useState(null);
@@ -41,6 +41,7 @@ export default function StudentDashboard() {
   const [viewMode, setViewMode] = useState("list"); // "list" | "calendar"
   const [sortAsc, setSortAsc] = useState(true);
   const { theme, toggleTheme } = useTheme();
+  const refreshedSessionRef = useRef(false);
 
   useEffect(() => {
     if (isLoadingAuth) return;
@@ -48,7 +49,15 @@ export default function StudentDashboard() {
       setLoading(false);
       return;
     }
-    loadData();
+
+    const run = async () => {
+      if (!refreshedSessionRef.current) {
+        refreshedSessionRef.current = true;
+        await establishSession?.({ force: true });
+      }
+      await loadData();
+    };
+    void run();
   }, [user?.id, isLoadingAuth]);
 
   const loadData = async () => {

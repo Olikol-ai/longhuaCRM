@@ -5,6 +5,10 @@ import { EntityManager, Repository } from 'typeorm';
 import { filterToEntityWhere } from '../../common/utils/api-record.util';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
+import {
+  composeDisplayName,
+  resolveNameParts,
+} from './display-name.util';
 import { UserEntity } from './entities/user.entity';
 
 export type RoleEntityUserContext = Pick<
@@ -19,6 +23,8 @@ export class RoleEntitySyncService {
     private readonly studentRepo: Repository<StudentEntity>,
     @InjectRepository(TeacherEntity)
     private readonly teacherRepo: Repository<TeacherEntity>,
+    @InjectRepository(UserEntity)
+    private readonly userRepo: Repository<UserEntity>,
   ) {}
 
   /**
@@ -100,6 +106,131 @@ export class RoleEntitySyncService {
     }
 
     return this.insertTeacher(this.teacherRepo, payload, input.id);
+  }
+
+  /**
+   * After admin/teacher edits a Student profile name, keep linked User in sync.
+   * User.firstName/lastName power /auth/me, Profile, and greetings.
+   */
+  async syncLinkedUserFromStudent(student: StudentEntity): Promise<void> {
+    if (!student.userId) {
+      return;
+    }
+
+    const parts = resolveNameParts({
+      name: student.name,
+      firstName: student.firstName,
+      lastName: student.lastName,
+      emailFallback: student.email,
+    });
+
+    const user = await this.userRepo.findOne({ where: { id: student.userId } });
+    if (!user) {
+      return;
+    }
+
+    let changed = false;
+    if (parts.firstName && user.firstName !== parts.firstName) {
+      user.firstName = parts.firstName;
+      changed = true;
+    }
+    if (parts.lastName && user.lastName !== parts.lastName) {
+      user.lastName = parts.lastName;
+      changed = true;
+    }
+    if (changed) {
+      user.updatedDate = new Date();
+      await this.userRepo.save(user);
+    }
+  }
+
+  /**
+   * After admin edits a Teacher profile name, keep linked User in sync.
+   */
+  async syncLinkedUserFromTeacher(teacher: TeacherEntity): Promise<void> {
+    if (!teacher.userId) {
+      return;
+    }
+
+    const parts = resolveNameParts({
+      name: teacher.name,
+      firstName: teacher.firstName,
+      lastName: teacher.lastName,
+      emailFallback: teacher.email,
+    });
+
+    const user = await this.userRepo.findOne({ where: { id: teacher.userId } });
+    if (!user) {
+      return;
+    }
+
+    let changed = false;
+    if (parts.firstName && user.firstName !== parts.firstName) {
+      user.firstName = parts.firstName;
+      changed = true;
+    }
+    if (parts.lastName && user.lastName !== parts.lastName) {
+      user.lastName = parts.lastName;
+      changed = true;
+    }
+    if (changed) {
+      user.updatedDate = new Date();
+      await this.userRepo.save(user);
+    }
+  }
+
+  /**
+   * After User name changes (/auth/me or admin Users), push into role profiles.
+   */
+  async syncLinkedProfilesFromUser(user: RoleEntityUserContext): Promise<void> {
+    const display = this.displayName(user);
+    const firstName = user.firstName || '';
+    const lastName = user.lastName || '';
+
+    const student = await this.studentRepo.findOne({ where: { userId: user.id } });
+    if (student) {
+      student.name = display;
+      student.firstName = firstName || student.firstName;
+      student.lastName = lastName || student.lastName;
+      await this.studentRepo.save(student);
+    }
+
+    const teacher = await this.teacherRepo.findOne({ where: { userId: user.id } });
+    if (teacher) {
+      teacher.name = display;
+      teacher.firstName = firstName || teacher.firstName;
+      teacher.lastName = lastName || teacher.lastName;
+      await this.teacherRepo.save(teacher);
+    }
+  }
+
+  /**
+   * Normalize student name / firstName / lastName on the entity before save+user sync.
+   */
+  normalizeStudentNameFields(student: StudentEntity): StudentEntity {
+    const parts = resolveNameParts({
+      name: student.name,
+      firstName: student.firstName,
+      lastName: student.lastName,
+      emailFallback: student.email,
+    });
+    student.name = parts.name || student.name;
+    student.firstName = parts.firstName || student.firstName;
+    student.lastName = parts.lastName || student.lastName;
+    return student;
+  }
+
+  normalizeTeacherNameFields(teacher: TeacherEntity): TeacherEntity {
+    const parts = resolveNameParts({
+      name: teacher.name,
+      firstName: teacher.firstName,
+      lastName: teacher.lastName,
+      emailFallback: teacher.email,
+    });
+    teacher.name = parts.name || teacher.name;
+    teacher.firstName = parts.firstName || teacher.firstName;
+    teacher.lastName = parts.lastName || teacher.lastName;
+    return teacher;
   }
 
   private async detachTeachersForUser(
@@ -237,10 +368,7 @@ export class RoleEntitySyncService {
   }
 
   private displayName(user: RoleEntityUserContext): string {
-    if (user.firstName && user.lastName) {
-      return `${user.lastName} ${user.firstName}`;
-    }
-    return user.email;
+    return composeDisplayName(user.firstName, user.lastName, user.email);
   }
 
   private normalizeId(value: unknown): string | null {

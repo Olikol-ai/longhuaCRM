@@ -288,4 +288,111 @@ describeE2E('Schedule/Lessons consistency (e2e)', () => {
     expect(created.body.teacher_id).toBe(teacher.teacherId);
     expect(created.body.primary_student_id).toBe(studentRes.body.id);
   });
+
+  it('allows create and reschedule into a slot freed by PATCH status=cancelled', async () => {
+    const teacher = await createTeacherUser(app, adminToken, {
+      email: `schedule-cancel-slot-${randomUUID()}@test.local`,
+      password: 'TestTeacher123!',
+      name: 'Cancel Slot Teacher',
+    });
+
+    const studentA = await api(app)
+      .post('/api/students')
+      .set(authHeader(adminToken))
+      .send({ name: `Cancel Slot A ${randomUUID().slice(0, 8)}` })
+      .expect(201);
+
+    const studentB = await api(app)
+      .post('/api/students')
+      .set(authHeader(adminToken))
+      .send({ name: `Cancel Slot B ${randomUUID().slice(0, 8)}` })
+      .expect(201);
+
+    const lessonDate = futureLessonDate(23);
+    await api(app)
+      .post('/api/schedule')
+      .set(authHeader(adminToken))
+      .send({
+        teacherId: teacher.teacherId,
+        dayOfWeek: dayOfWeekForDate(lessonDate),
+        timeFrom: '09:00',
+        timeTo: '18:00',
+      })
+      .expect(201);
+
+    const cancelledLesson = await api(app)
+      .post('/api/lessons')
+      .set(authHeader(adminToken))
+      .send({
+        teacherId: teacher.teacherId,
+        primaryStudentId: studentA.body.id,
+        date: lessonDate,
+        startTime: '12:00',
+        duration: 60,
+      })
+      .expect(201);
+
+    const otherLesson = await api(app)
+      .post('/api/lessons')
+      .set(authHeader(adminToken))
+      .send({
+        teacherId: teacher.teacherId,
+        primaryStudentId: studentB.body.id,
+        date: lessonDate,
+        startTime: '14:00',
+        duration: 60,
+      })
+      .expect(201);
+
+    await api(app)
+      .patch(`/api/lessons/${cancelledLesson.body.id}`)
+      .set(authHeader(adminToken))
+      .send({ status: 'cancelled' })
+      .expect(200);
+
+    const bookingsRes = await api(app)
+      .post('/api/schedule/bookings/filter')
+      .set(authHeader(adminToken))
+      .send({ where: { lesson_id: cancelledLesson.body.id } })
+      .expect(201);
+    expect(bookingsRes.body[0]?.status).toBe('cancelled');
+
+    const recreated = await api(app)
+      .post('/api/lessons')
+      .set(authHeader(adminToken))
+      .send({
+        teacherId: teacher.teacherId,
+        primaryStudentId: studentA.body.id,
+        date: lessonDate,
+        startTime: '12:00',
+        duration: 60,
+      })
+      .expect(201);
+    expect(recreated.body.start_time).toBe('12:00:00');
+
+    await api(app)
+      .patch(`/api/lessons/${recreated.body.id}`)
+      .set(authHeader(adminToken))
+      .send({ status: 'cancelled' })
+      .expect(200);
+
+    const moved = await api(app)
+      .patch(`/api/lessons/${otherLesson.body.id}`)
+      .set(authHeader(adminToken))
+      .send({ startTime: '12:00' })
+      .expect(200);
+    expect(moved.body.start_time).toBe('12:00:00');
+
+    const stillBlocked = await api(app)
+      .post('/api/lessons')
+      .set(authHeader(adminToken))
+      .send({
+        teacherId: teacher.teacherId,
+        primaryStudentId: studentA.body.id,
+        date: lessonDate,
+        startTime: '12:00',
+        duration: 60,
+      });
+    expect(stillBlocked.status).toBe(400);
+  });
 });

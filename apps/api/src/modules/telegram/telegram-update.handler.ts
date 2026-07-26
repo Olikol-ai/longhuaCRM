@@ -13,6 +13,7 @@ import { TelegramLinkService } from './telegram-link.service';
 
 type MenuAction =
   | 'lessons'
+  | 'balance'
   | 'settings'
   | 'profile'
   | 'help'
@@ -178,6 +179,8 @@ export class TelegramUpdateHandler {
       screen = this.menu.buildMainMenuInlineScreen();
     } else if (action === 'lessons') {
       screen = await this.menu.buildLessonsScreen(chatId);
+    } else if (action === 'balance') {
+      screen = await this.menu.buildBalanceScreen(chatId);
     } else if (action === 'settings') {
       screen = await this.menu.buildSettingsScreen(chatId);
     } else if (action === 'help') {
@@ -238,6 +241,10 @@ export class TelegramUpdateHandler {
     if (data === TELEGRAM_CB.lessons) {
       await this.gateway.answerCallbackQuery(callbackId);
       return this.handleMenuAction(chatId, 'lessons', messageId);
+    }
+    if (data === TELEGRAM_CB.balance) {
+      await this.gateway.answerCallbackQuery(callbackId);
+      return this.handleMenuAction(chatId, 'balance', messageId);
     }
     if (data === TELEGRAM_CB.settings) {
       await this.gateway.answerCallbackQuery(callbackId);

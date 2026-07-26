@@ -15,7 +15,7 @@ import { UsersService } from './users.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([UserEntity, StudentEntity, TeacherEntity]),
-    TeachersModule,
+    forwardRef(() => TeachersModule),
     forwardRef(() => StudentsModule),
   ],
   controllers: [UsersController],

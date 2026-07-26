@@ -7,6 +7,7 @@ import StatCard from "./StatCard";
 import { getGreetingName } from "@/lib/display-name";
 import { Card } from "@/components/ui/card";
 import { resolveLessonStudentLabel } from "@/lib/studentLabels";
+import { filterLessonsWithinNext48Hours } from "@/lib/teacherUpcomingLessons";
 
 const STATUS_LABELS = {
   planned: "Запланировано",
@@ -53,12 +54,7 @@ export default function TeacherRoleDashboard({ user }) {
     try { return isToday(parseISO(l.date)) && l.status !== "cancelled"; } catch { return false; }
   }).sort((a, b) => a.start_time?.localeCompare(b.start_time));
 
-  const upcomingLessons = lessons.filter(l => {
-    try {
-      const d = parseISO(l.date);
-      return d >= new Date() && l.status === "planned";
-    } catch { return false; }
-  }).sort((a, b) => a.date?.localeCompare(b.date) || a.start_time?.localeCompare(b.start_time)).slice(0, 8);
+  const upcomingLessons = filterLessonsWithinNext48Hours(lessons);
 
   const completedThisMonth = lessons.filter(l => l.status === "completed").length;
 
@@ -152,7 +148,7 @@ export default function TeacherRoleDashboard({ user }) {
         </div>
         <div className="divide-y divide-border">
           {upcomingLessons.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-8">Предстоящих уроков нет</p>
+            <p className="text-xs text-muted-foreground text-center py-8">В ближайшие два дня занятий нет.</p>
           ) : (
             upcomingLessons.map(lesson => (
               <div key={lesson.id} className="flex items-center gap-3 px-4 py-3">

@@ -5,6 +5,7 @@ import { TeacherAccessService } from '../../common/access/teacher-access.service
 import { JwtPayload } from '../auth/auth.service';
 import { LessonEntity, LessonStatus } from '../lessons/entities/lesson.entity';
 import { ScheduleService } from '../schedule/schedule.service';
+import { RoleEntitySyncService } from '../users/role-entity-sync.service';
 import { UserEntity } from '../users/entities/user.entity';
 import { TeacherEntity } from './entities/teacher.entity';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
@@ -30,6 +31,7 @@ export class TeachersService {
     private readonly teacherAccess: TeacherAccessService,
     private readonly teacherDeletion: TeacherDeletionService,
     private readonly scheduleService: ScheduleService,
+    private readonly roleEntitySync: RoleEntitySyncService,
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
     @InjectRepository(LessonEntity)
@@ -66,6 +68,24 @@ export class TeachersService {
     if (!row) {
       throw new NotFoundException('Teacher not found');
     }
+
+    const nameTouched =
+      (payload as Record<string, unknown>).name !== undefined ||
+      (payload as Record<string, unknown>).firstName !== undefined ||
+      (payload as Record<string, unknown>).lastName !== undefined;
+
+    if (nameTouched) {
+      this.roleEntitySync.normalizeTeacherNameFields(row);
+      const saved = await this.repository.update(id, {
+        name: row.name,
+        firstName: row.firstName,
+        lastName: row.lastName,
+      });
+      const synced = saved ?? row;
+      await this.roleEntitySync.syncLinkedUserFromTeacher(synced);
+      return synced;
+    }
+
     return row;
   }
 

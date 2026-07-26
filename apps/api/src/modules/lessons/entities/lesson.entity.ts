@@ -13,13 +13,34 @@ import { LessonSeriesEntity } from '../../lesson-series/entities/lesson-series.e
 import { StudentEntity } from '../../students/entities/student.entity';
 import { TeacherEntity } from '../../teachers/entities/teacher.entity';
 
-export type LessonStatus =
-  | 'planned'
-  | 'completed'
-  | 'cancelled'
-  | 'rescheduled'
-  | 'missed'
-  | 'missed_no_notice';
+export const LESSON_STATUSES = [
+  'planned',
+  'completed',
+  'cancelled',
+  'rescheduled',
+  'missed',
+  'missed_no_notice',
+] as const;
+
+export type LessonStatus = (typeof LESSON_STATUSES)[number];
+
+/**
+ * Statuses that occupy teacher/student calendar time for conflict checks.
+ * Cancelled / rescheduled / missed* free the slot and must not block create/reschedule.
+ */
+export const SCHEDULE_OCCUPYING_LESSON_STATUSES = [
+  'planned',
+  'completed',
+] as const satisfies ReadonlyArray<LessonStatus>;
+
+export type ScheduleOccupyingLessonStatus =
+  (typeof SCHEDULE_OCCUPYING_LESSON_STATUSES)[number];
+
+export function isScheduleOccupyingLessonStatus(
+  status: string,
+): status is ScheduleOccupyingLessonStatus {
+  return (SCHEDULE_OCCUPYING_LESSON_STATUSES as readonly string[]).includes(status);
+}
 
 export type LessonFormat = 'online' | 'offline';
 export type LessonType = 'individual' | 'group';
@@ -72,14 +93,7 @@ export class LessonEntity {
 
   @Column({
     type: 'enum',
-    enum: [
-      'planned',
-      'completed',
-      'cancelled',
-      'rescheduled',
-      'missed',
-      'missed_no_notice',
-    ],
+    enum: LESSON_STATUSES,
     default: 'planned',
   })
   status: LessonStatus;

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { GroupEntity } from '../groups/entities/group.entity';
 import { LessonSeriesEntity } from '../lesson-series/entities/lesson-series.entity';
@@ -9,6 +9,7 @@ import { ScheduleModule } from '../schedule/schedule.module';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherPaymentEntity } from '../teacher-payments/entities/teacher-payment.entity';
 import { UserEntity } from '../users/entities/user.entity';
+import { UsersModule } from '../users/users.module';
 import { TeacherEntity } from './entities/teacher.entity';
 import { TeacherInviteLinkEntity } from './entities/teacher-invite-link.entity';
 import { TeacherDeletionService } from './teacher-deletion.service';
@@ -21,6 +22,7 @@ import { TeachersService } from './teachers.service';
 @Module({
   imports: [
     ScheduleModule,
+    forwardRef(() => UsersModule),
     TypeOrmModule.forFeature([
       TeacherEntity,
       TeacherInviteLinkEntity,

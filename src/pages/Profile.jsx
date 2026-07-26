@@ -27,7 +27,7 @@ function isActiveInvite(row) {
 }
 
 export default function Profile() {
-  const { user, isLoadingAuth, checkAppState } = useAuth();
+  const { user, isLoadingAuth, checkAppState, establishSession } = useAuth();
   const [form, setForm] = useState({ full_name: "", email: "", phone: "", birthday: "" });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -38,6 +38,14 @@ export default function Profile() {
   const [inviteUrl, setInviteUrl] = useState('');
   const [inviteBusy, setInviteBusy] = useState(false);
   const pollRef = useRef(null);
+  const refreshedSessionRef = useRef(false);
+
+  // Refresh /auth/me once so admin-renamed FIO appears without re-login.
+  useEffect(() => {
+    if (isLoadingAuth || refreshedSessionRef.current) return;
+    refreshedSessionRef.current = true;
+    void establishSession?.({ force: true });
+  }, [establishSession, isLoadingAuth]);
 
   const loadTelegramStatus = async () => {
     try {

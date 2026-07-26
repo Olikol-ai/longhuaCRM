@@ -75,6 +75,24 @@ export class StudentsService {
     if (!row) {
       throw new NotFoundException('Student not found');
     }
+
+    const nameTouched =
+      normalized.name !== undefined ||
+      normalized.firstName !== undefined ||
+      normalized.lastName !== undefined;
+
+    if (nameTouched) {
+      this.roleEntitySync.normalizeStudentNameFields(row);
+      const saved = await this.repository.update(id, {
+        name: row.name,
+        firstName: row.firstName,
+        lastName: row.lastName,
+      });
+      const synced = saved ?? row;
+      await this.roleEntitySync.syncLinkedUserFromStudent(synced);
+      return synced;
+    }
+
     return row;
   }
 

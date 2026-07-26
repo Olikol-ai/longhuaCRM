@@ -6,7 +6,7 @@ import TeacherAvailabilityTab from "@/components/schedule/TeacherAvailabilityTab
 import { Badge } from "@/components/ui/badge";
 import {
   ChevronLeft, ChevronRight, Loader2, Video, Plus,
-  CheckCircle2, XCircle, Clock, Calendar, List, Sun, Moon,
+  CheckCircle2, XCircle, Calendar, List, Sun, Moon,
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import { resolveLessonStudentLabel } from "@/lib/studentLabels";
@@ -117,11 +117,33 @@ export default function TeacherSchedule() {
     return eachDayOfInterval({ start, end });
   }, [currentDate]);
 
-  const markLesson = async (lesson, status) => {
+  const markLesson = async (lesson, status, completionAttendance = "attended") => {
+    if (status === "completed") {
+      const isAbsent = completionAttendance === "missed";
+      const confirmed = window.confirm(
+        isAbsent
+          ? "Подтвердить, что ученик отсутствовал?\n\nПосле подтверждения изменить отметку будет нельзя."
+          : "Подтвердить посещение занятия?\n\nПосле подтверждения изменить отметку будет нельзя.",
+      );
+      if (!confirmed) return;
+    }
+
     setUpdating(lesson.id);
     try {
-      await api.lessons.update(lesson.id, { status });
+      const payload =
+        status === "completed"
+          ? { status, completion_attendance: completionAttendance }
+          : { status };
+      await api.lessons.update(lesson.id, payload);
       setExpandedLesson(null);
+      toast({
+        title:
+          status === "completed"
+            ? completionAttendance === "missed"
+              ? "Отсутствие зафиксировано."
+              : "Посещение подтверждено."
+            : "Статус занятия обновлён.",
+      });
       await loadData();
     } catch (err) {
       toast({
@@ -161,25 +183,34 @@ export default function TeacherSchedule() {
       (data.start_time != null &&
         String(data.start_time).slice(0, 5) !== String(previous?.start_time || "").slice(0, 5)) ||
       (data.duration != null && Number(data.duration) !== Number(previous?.duration || 60));
+    const attendanceConfirmed = data.status === "completed";
+    const wasAbsent = data.completion_attendance === "missed";
 
     try {
       await api.lessons.update(id, data);
       setViewingLesson(null);
       setExpandedLesson(null);
       toast({
-        title: timeChanged
-          ? "Занятие успешно перенесено."
-          : "Информация о занятии обновлена.",
+        title: attendanceConfirmed
+          ? wasAbsent
+            ? "Отсутствие зафиксировано."
+            : "Посещение подтверждено."
+          : timeChanged
+            ? "Занятие успешно перенесено."
+            : "Информация о занятии обновлена.",
       });
       await loadData();
     } catch (err) {
       toast({
-        title: timeChanged
-          ? "Не удалось перенести занятие"
-          : "Не удалось обновить занятие",
+        title: attendanceConfirmed
+          ? "Не удалось завершить занятие"
+          : timeChanged
+            ? "Не удалось перенести занятие"
+            : "Не удалось обновить занятие",
         description: err?.message || "Проверьте свободный график и пересечения",
         variant: "destructive",
       });
+      throw err;
     }
   };
 
@@ -438,14 +469,13 @@ export default function TeacherSchedule() {
                                 <Calendar className="w-3 h-3" /> Перенести
                               </button>
                               {[
-                                { status: "completed", icon: CheckCircle2, label: "Проведено", cls: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" },
-                                { status: "cancelled", icon: XCircle, label: "Отменить", cls: "bg-red-50 text-red-600 hover:bg-red-100" },
-                                { status: "missed", icon: XCircle, label: "Пропущено", cls: "bg-orange-50 text-orange-600 hover:bg-orange-100" },
-                                { status: "missed_no_notice", icon: Clock, label: "Без предупреждения", cls: "bg-red-50 text-red-700 hover:bg-red-100 border border-red-200" },
-                              ].map(({ status, icon: Icon, label, cls }) => (
+                                { status: "completed", attendance: "attended", icon: CheckCircle2, label: "Ученик присутствовал", cls: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" },
+                                { status: "completed", attendance: "missed", icon: XCircle, label: "Ученик отсутствовал", cls: "bg-orange-50 text-orange-600 hover:bg-orange-100" },
+                                { status: "cancelled", attendance: null, icon: XCircle, label: "Отменить", cls: "bg-red-50 text-red-600 hover:bg-red-100" },
+                              ].map(({ status, attendance, icon: Icon, label, cls }) => (
                                 <button
-                                  key={status}
-                                  onClick={e => { e.stopPropagation(); markLesson(lesson, status); }}
+                                  key={`${status}-${attendance || "none"}`}
+                                  onClick={e => { e.stopPropagation(); markLesson(lesson, status, attendance || "attended"); }}
                                   disabled={updating === lesson.id}
                                   className={`w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium rounded-lg transition-colors disabled:opacity-50 ${cls}`}
                                 >
@@ -568,14 +598,13 @@ function TeacherLessonCard({ lesson, students, expandedLesson, setExpandedLesson
             <Calendar className="w-3.5 h-3.5" /> Перенести
           </button>
           {[
-            { status: "completed", icon: CheckCircle2, label: "Проведено", cls: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60 dark:border-emerald-800" },
-            { status: "cancelled", icon: XCircle, label: "Отменить", cls: "bg-red-50 text-red-600 hover:bg-red-100 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/60 dark:border-red-800" },
-            { status: "missed", icon: XCircle, label: "Пропущено", cls: "bg-orange-50 text-orange-600 hover:bg-orange-100 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:hover:bg-orange-950/60 dark:border-orange-800" },
-            { status: "missed_no_notice", icon: Clock, label: "Без предупреждения", cls: "bg-red-50 text-red-700 hover:bg-red-100 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/60 dark:border-red-800" },
-          ].map(({ status, icon: Icon, label, cls }) => (
+            { status: "completed", attendance: "attended", icon: CheckCircle2, label: "Ученик присутствовал", cls: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60 dark:border-emerald-800" },
+            { status: "completed", attendance: "missed", icon: XCircle, label: "Ученик отсутствовал", cls: "bg-orange-50 text-orange-600 hover:bg-orange-100 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:hover:bg-orange-950/60 dark:border-orange-800" },
+            { status: "cancelled", attendance: null, icon: XCircle, label: "Отменить", cls: "bg-red-50 text-red-600 hover:bg-red-100 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/60 dark:border-red-800" },
+          ].map(({ status, attendance, icon: Icon, label, cls }) => (
             <button
-              key={status}
-              onClick={e => { e.stopPropagation(); markLesson(lesson, status); }}
+              key={`${status}-${attendance || "none"}`}
+              onClick={e => { e.stopPropagation(); markLesson(lesson, status, attendance || "attended"); }}
               disabled={updating === lesson.id}
               className={`flex items-center gap-1.5 px-3 py-2 min-h-[40px] text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 ${cls}`}
             >

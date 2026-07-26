@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, In, Not, Repository } from 'typeorm';
-import { LessonEntity } from '../lessons/entities/lesson.entity';
+import { FindOptionsWhere, In, Repository } from 'typeorm';
+import {
+  LessonEntity,
+  SCHEDULE_OCCUPYING_LESSON_STATUSES,
+} from '../lessons/entities/lesson.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { AvailabilityBookingEntity } from './entities/availability-booking.entity';
 import { AvailabilitySlotEntity } from './entities/availability-slot.entity';
@@ -107,7 +110,7 @@ export class ScheduleRepository {
       where: {
         teacherId,
         date,
-        status: Not('cancelled' as LessonEntity['status']),
+        status: In([...SCHEDULE_OCCUPYING_LESSON_STATUSES]),
       },
     });
   }
@@ -115,6 +118,7 @@ export class ScheduleRepository {
   /**
    * Lessons on a date where any of the given students participate
    * (primary student or attendance_records).
+   * Only schedule-occupying statuses are returned for conflict checks.
    */
   findLessonsForStudentsOnDate(
     studentIds: string[],
@@ -133,7 +137,9 @@ export class ScheduleRepository {
         'att.lesson_id = lesson.id',
       )
       .where('lesson.date = :date', { date })
-      .andWhere('lesson.status != :cancelled', { cancelled: 'cancelled' })
+      .andWhere('lesson.status IN (:...occupyingStatuses)', {
+        occupyingStatuses: [...SCHEDULE_OCCUPYING_LESSON_STATUSES],
+      })
       .andWhere(
         '(lesson.primary_student_id IN (:...studentIds) OR att.student_id IN (:...studentIds))',
         { studentIds },
@@ -147,17 +153,24 @@ export class ScheduleRepository {
     return qb.getMany();
   }
 
+  /**
+   * Active bookings that still occupy the teacher slot.
+   * Stale `active` rows for cancelled/missed/rescheduled lessons are ignored.
+   */
   findActiveBookingsByTeacherAndDate(
     teacherId: string,
     date: string,
   ): Promise<AvailabilityBookingEntity[]> {
-    return this.bookingRepo.find({
-      where: {
-        teacherId,
-        date,
-        status: 'active',
-      },
-    });
+    return this.bookingRepo
+      .createQueryBuilder('booking')
+      .innerJoin(LessonEntity, 'lesson', 'lesson.id = booking.lesson_id')
+      .where('booking.teacher_id = :teacherId', { teacherId })
+      .andWhere('booking.date = :date', { date })
+      .andWhere('booking.status = :bookingStatus', { bookingStatus: 'active' })
+      .andWhere('lesson.status IN (:...occupyingStatuses)', {
+        occupyingStatuses: [...SCHEDULE_OCCUPYING_LESSON_STATUSES],
+      })
+      .getMany();
   }
 
   teacherExists(teacherId: string): Promise<boolean> {
