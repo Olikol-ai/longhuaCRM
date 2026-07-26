@@ -71,7 +71,9 @@ export const AuthProvider = ({ children }) => {
   const establishSession = useCallback(async (options = {}) => {
     const force = options.force === true;
     const inFlight = getInFlightEstablish();
-    if (inFlight && !force) {
+    // Always coalesce concurrent establishes. force=true only skips the module cache,
+    // it must not stack parallel /auth/me calls that tear down UI mid-flight.
+    if (inFlight) {
       return inFlight;
     }
 
@@ -88,18 +90,21 @@ export const AuthProvider = ({ children }) => {
         return null;
       }
 
-      if (!force) {
-        const cached = getCachedSessionUser(token);
-        if (cached) {
-          applyUserSession(cached);
-          setIsLoadingAuth(false);
-          return cached;
-        }
+      const cached = getCachedSessionUser(token);
+      if (!force && cached) {
+        applyUserSession(cached);
+        setIsLoadingAuth(false);
+        return cached;
       }
 
+      // Soft revalidate: keep the visible session while /auth/me refreshes.
+      // Hard-clearing user/isLoadingAuth here unmounts Layout children (Profile),
+      // resets page refs, and re-triggers force refresh → infinite loading loop.
+      const softRefresh = Boolean(force && cached);
+
       try {
-        setIsLoadingAuth(true);
-        if (force || getCachedSessionUser(token) == null) {
+        if (!softRefresh) {
+          setIsLoadingAuth(true);
           setUser(null);
           setIsAuthenticated(false);
           setNeedsNameSetup(false);
@@ -138,7 +143,9 @@ export const AuthProvider = ({ children }) => {
     try {
       return await run;
     } finally {
-      clearInFlightEstablish();
+      if (getInFlightEstablish() === run) {
+        clearInFlightEstablish();
+      }
     }
   }, [applyUserSession]);
 
