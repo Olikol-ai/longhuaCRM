@@ -43,6 +43,11 @@ function statusLabel(status) {
   return status === "paid" ? "Выплачено" : "Не выплачено";
 }
 
+/**
+ * Admin salary page — monthly summary only.
+ * Data source: GET /teacher-payments/summary?month=YYYY-MM
+ * Never lists per-lesson TeacherPayment rows.
+ */
 export default function Salary() {
   const [rows, setRows] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(MONTHS[0].value);
@@ -85,16 +90,15 @@ export default function Salary() {
 
   const handleExport = () => {
     exportCSV(`salary_${selectedMonth}.csv`, [
-      ["Преподаватель", "Занятий", "Минут", "Часов", "Сумма (BYN)", "Статус"],
+      ["Преподаватель", "Количество занятий", "Часов", "Сумма (BYN)", "Статус выплаты"],
       ...rows.map((row) => [
         row.teacher_name ?? row.teacherName ?? "",
         row.lessons_count ?? row.lessonsCount ?? 0,
-        row.total_minutes ?? row.totalMinutes ?? 0,
         row.total_hours ?? row.totalHours ?? 0,
         row.amount ?? 0,
         statusLabel(row.payment_status ?? row.paymentStatus),
       ]),
-      ["ИТОГО", totalLessons, "", "", totalSalary, ""],
+      ["ИТОГО", totalLessons, "", totalSalary, ""],
     ]);
   };
 
@@ -165,7 +169,7 @@ export default function Salary() {
         <div>
           <h2 className="text-xl font-bold text-foreground">Зарплата преподавателей</h2>
           <p className="text-sm text-muted-foreground">
-            Месячный отчёт по завершённым занятиям
+            Месяц: {monthLabel}
           </p>
         </div>
         <div className="flex gap-2">
@@ -173,6 +177,7 @@ export default function Salary() {
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
             className={fieldCls}
+            aria-label="Месяц"
           >
             {MONTHS.map((m) => (
               <option key={m.value} value={m.value}>
@@ -191,12 +196,10 @@ export default function Salary() {
       </div>
 
       <div className="bg-gradient-to-r from-primary to-brand-hover rounded-xl p-5 text-primary-foreground">
-        <p className="text-primary-foreground/80 text-sm mb-1">
-          Итого к выплате — {monthLabel}
-        </p>
+        <p className="text-primary-foreground/80 text-sm mb-1">Итого к выплате</p>
         <p className="text-3xl font-bold">{formatCurrency(totalSalary)}</p>
         <p className="text-primary-foreground/80 text-xs mt-1">
-          {rows.length} преподавателей · {totalLessons} занятий
+          {rows.length} преподавателей · {totalLessons} занятий · {monthLabel}
         </p>
       </div>
 
@@ -213,10 +216,10 @@ export default function Salary() {
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="px-4 py-3 font-medium">Преподаватель</th>
-                <th className="px-4 py-3 font-medium">Проведено занятий</th>
-                <th className="px-4 py-3 font-medium">Часов</th>
+                <th className="px-4 py-3 font-medium">Количество занятий</th>
+                <th className="px-4 py-3 font-medium">Часы</th>
                 <th className="px-4 py-3 font-medium">Сумма</th>
-                <th className="px-4 py-3 font-medium">Статус</th>
+                <th className="px-4 py-3 font-medium">Статус выплаты</th>
                 <th className="px-4 py-3 font-medium" />
               </tr>
             </thead>
@@ -323,13 +326,10 @@ export default function Salary() {
       <div className="bg-muted rounded-xl p-4 text-xs text-muted-foreground">
         <p className="font-medium mb-1">Примечание</p>
         <p>
-          В отчёт входят только занятия со статусом «Проведено» за выбранный календарный месяц.
+          В отчёт входят только завершённые занятия активных преподавателей за выбранный месяц.
         </p>
-        <p>Формула: ставка преподавателя (BYN/час) × длительность занятия.</p>
-        <p>
-          Выплата фиксируется один раз на пару «преподаватель + месяц». Поурочные начисления
-          сохраняются в истории, но не показываются в основном списке.
-        </p>
+        <p>Формула: ставка (BYN/час) × длительность занятия (часы).</p>
+        <p>Выплата создаётся один раз на пару «преподаватель + месяц».</p>
       </div>
     </div>
   );
