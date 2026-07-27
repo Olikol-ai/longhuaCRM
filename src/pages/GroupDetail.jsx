@@ -531,7 +531,11 @@ export default function GroupDetail() {
                 </div>
                 {expandedLessonId === lesson.id && (
                   <div className="px-3 py-3 border-t border-slate-100 dark:border-slate-800">
-                    <LessonAttendancePanel lessonId={lesson.id} students={students} />
+                    <LessonAttendancePanel
+                      lessonId={lesson.id}
+                      students={students}
+                      isGroupLesson
+                    />
                   </div>
                 )}
               </div>

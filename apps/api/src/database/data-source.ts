@@ -34,6 +34,7 @@ import { RepairIndividualLessonAttendance1741000000000 } from './migrations/1741
 import { RepairCompletedIndividualAttendance1741100000000 } from './migrations/1741100000000-RepairCompletedIndividualAttendance';
 import { RepairLessonAttendanceData1741200000000 } from './migrations/1741200000000-RepairLessonAttendanceData';
 import { RepairStudentUserNameSync1741300000000 } from './migrations/1741300000000-RepairStudentUserNameSync';
+import { RepairAttendanceDuplicatesAndConstraints1741400000000 } from './migrations/1741400000000-RepairAttendanceDuplicatesAndConstraints';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -71,6 +72,7 @@ export default new DataSource({
     RepairCompletedIndividualAttendance1741100000000,
     RepairLessonAttendanceData1741200000000,
     RepairStudentUserNameSync1741300000000,
+    RepairAttendanceDuplicatesAndConstraints1741400000000,
   ],
   synchronize: false,
 });

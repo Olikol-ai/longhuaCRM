@@ -785,7 +785,10 @@ export class LessonsService {
     lessonId: string,
     options?: { attendanceStatus?: 'attended' | 'missed' },
   ): Promise<LessonEntity | null> {
-    const attendanceStatus = options?.attendanceStatus === 'missed' ? 'missed' : 'attended';
+    // `completionAttendance` is a completion hint for *group* lessons.
+    // For individual lessons, attendance must always be treated as present.
+    const attendanceStatusHint =
+      options?.attendanceStatus === 'missed' ? 'missed' : 'attended';
 
     return this.dataSource.transaction(async (manager) => {
       const lessonRepo = manager.getRepository(LessonEntity);
@@ -803,14 +806,14 @@ export class LessonsService {
         throw new ConflictException('Lesson is already finalized');
       }
 
-      if (
-        lesson.lessonType === 'individual' &&
-        !lesson.groupId &&
-        lesson.primaryStudentId
-      ) {
+      const isIndividual =
+        lesson.lessonType === 'individual' && !lesson.groupId && !!lesson.primaryStudentId;
+
+      if (isIndividual) {
+        const primaryStudentId = lesson.primaryStudentId as string;
         await this.syncIndividualLessonAttendance(
           lesson.id,
-          lesson.primaryStudentId,
+          primaryStudentId,
           manager,
         );
       } else if (lesson.groupId) {
@@ -821,15 +824,24 @@ export class LessonsService {
       await lessonRepo.save(lesson);
 
       const attendanceRepo = manager.getRepository(AttendanceEntity);
-      await attendanceRepo.update(
-        { lessonId, attendanceStatus: 'enrolled' },
-        { attendanceStatus },
-      );
+      const finalAttendanceStatus = isIndividual ? 'attended' : attendanceStatusHint;
+
+      if (isIndividual && lesson.primaryStudentId) {
+        await attendanceRepo.update(
+          { lessonId, studentId: lesson.primaryStudentId },
+          { attendanceStatus: 'attended' },
+        );
+      } else {
+        await attendanceRepo.update(
+          { lessonId, attendanceStatus: 'enrolled' },
+          { attendanceStatus: finalAttendanceStatus },
+        );
+      }
 
       await this.studentBalanceService.handleLessonStatusUpdate(lessonId, 'completed', manager);
       await this.teacherPaymentsService.createForCompletedLesson(lesson, manager);
 
-      if (attendanceStatus === 'missed') {
+      if (finalAttendanceStatus === 'missed') {
         const rows = await attendanceRepo.find({ where: { lessonId } });
         for (const row of rows) {
           if (row.studentId && row.attendanceStatus === 'missed') {

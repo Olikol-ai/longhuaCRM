@@ -73,7 +73,7 @@ export default function LessonDetailModal({
 
   const isGroupLesson = Boolean(form.group_id || lesson.group_id || lesson.lesson_type === "group");
   const canMarkAttendance =
-    Boolean(isTeacher) && !isAdmin && lesson.status === "planned";
+    Boolean(isTeacher) && !isAdmin && lesson.status === "planned" && isGroupLesson;
   const showAdminStatusActions =
     Boolean(isAdmin) && lesson.status === "planned";
 
@@ -435,6 +435,7 @@ export default function LessonDetailModal({
                   lessonId={lesson.id}
                   students={students}
                   isAdmin={Boolean(isAdmin)}
+                  isGroupLesson={isGroupLesson}
                 />
               </section>
             ) : null}
@@ -491,23 +492,27 @@ export default function LessonDetailModal({
                   <XCircle className="w-4 h-4 shrink-0" />
                   <span>Отменить</span>
                 </button>
+                {isGroupLesson ? (
+                  <button
+                    type="button"
+                    onClick={() => onUpdate(lesson.id, { status: "missed" })}
+                    className={`${actionBtnBase} @[26rem]:flex-1 @[26rem]:min-w-[8.5rem] bg-orange-50 text-orange-600 hover:bg-orange-100 dark:bg-orange-950/40 dark:text-orange-400 dark:hover:bg-orange-950/70`}
+                  >
+                    <XCircle className="w-4 h-4 shrink-0" />
+                    <span>Пропущено</span>
+                  </button>
+                ) : null}
+              </div>
+              {isGroupLesson ? (
                 <button
                   type="button"
-                  onClick={() => onUpdate(lesson.id, { status: "missed" })}
-                  className={`${actionBtnBase} @[26rem]:flex-1 @[26rem]:min-w-[8.5rem] bg-orange-50 text-orange-600 hover:bg-orange-100 dark:bg-orange-950/40 dark:text-orange-400 dark:hover:bg-orange-950/70`}
+                  onClick={() => onUpdate(lesson.id, { status: "missed_no_notice" })}
+                  className={`${actionBtnBase} bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900 dark:hover:bg-red-950/70`}
                 >
                   <XCircle className="w-4 h-4 shrink-0" />
-                  <span>Пропущено</span>
+                  <span>Пропущено без предупреждения</span>
                 </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => onUpdate(lesson.id, { status: "missed_no_notice" })}
-                className={`${actionBtnBase} bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900 dark:hover:bg-red-950/70`}
-              >
-                <XCircle className="w-4 h-4 shrink-0" />
-                <span>Пропущено без предупреждения</span>
-              </button>
+              ) : null}
             </div>
           ) : null}
         </div>

@@ -60,14 +60,14 @@ describe('formatStudentProfileDisplayName', () => {
     ).toBe('Бабаева Наталья');
   });
 
-  it('falls back to composed first/last when name empty', () => {
+  it('returns empty string when Student.name is empty', () => {
     expect(
       formatStudentProfileDisplayName({
         name: '',
         firstName: 'Наталья',
         lastName: 'Бабаева',
       }),
-    ).toBe('Бабаева Наталья');
+    ).toBe('');
   });
 });
 

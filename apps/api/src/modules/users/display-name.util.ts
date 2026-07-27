@@ -49,7 +49,7 @@ export function formatStudentProfileDisplayName(student: {
   if (name) {
     return name;
   }
-  return composeDisplayName(student.firstName, student.lastName, '');
+  return '';
 }
 
 /**

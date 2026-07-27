@@ -468,11 +468,18 @@ export default function TeacherSchedule() {
                               >
                                 <Calendar className="w-3 h-3" /> Перенести
                               </button>
-                              {[
-                                { status: "completed", attendance: "attended", icon: CheckCircle2, label: "Ученик присутствовал", cls: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" },
-                                { status: "completed", attendance: "missed", icon: XCircle, label: "Ученик отсутствовал", cls: "bg-orange-50 text-orange-600 hover:bg-orange-100" },
-                                { status: "cancelled", attendance: null, icon: XCircle, label: "Отменить", cls: "bg-red-50 text-red-600 hover:bg-red-100" },
-                              ].map(({ status, attendance, icon: Icon, label, cls }) => (
+                              {(
+                                (lesson.group_id || lesson.groupId || lesson.lesson_type === "group" || lesson.lessonType === "group")
+                                  ? [
+                                      { status: "completed", attendance: "attended", icon: CheckCircle2, label: "Ученик присутствовал", cls: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" },
+                                      { status: "completed", attendance: "missed", icon: XCircle, label: "Ученик отсутствовал", cls: "bg-orange-50 text-orange-600 hover:bg-orange-100" },
+                                      { status: "cancelled", attendance: null, icon: XCircle, label: "Отменить", cls: "bg-red-50 text-red-600 hover:bg-red-100" },
+                                    ]
+                                  : [
+                                      { status: "completed", attendance: "attended", icon: CheckCircle2, label: "Ученик присутствовал", cls: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" },
+                                      { status: "cancelled", attendance: null, icon: XCircle, label: "Отменить", cls: "bg-red-50 text-red-600 hover:bg-red-100" },
+                                    ]
+                              ).map(({ status, attendance, icon: Icon, label, cls }) => (
                                 <button
                                   key={`${status}-${attendance || "none"}`}
                                   onClick={e => { e.stopPropagation(); markLesson(lesson, status, attendance || "attended"); }}

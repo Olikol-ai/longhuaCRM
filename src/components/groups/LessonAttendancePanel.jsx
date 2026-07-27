@@ -2,13 +2,12 @@ import { useEffect, useState } from "react";
 import { api, apiFetch } from "@/api";
 import { Check, X, AlertTriangle } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
-import { resolveStudentLabel } from "@/lib/studentLabels";
 
 const STATUS_LABELS = {
   enrolled: "Ожидает",
   attended: "Присутствовал",
-  missed: "Отсутствовал",
-  missed_no_notice: "Без предупреждения",
+  missed: "Отсутствовал (по уважительной причине)",
+  missed_no_notice: "Отсутствовал (без уважительной причины)",
   cancelled: "Отменён",
 };
 
@@ -19,6 +18,7 @@ export default function LessonAttendancePanel({
   students = [],
   compact = false,
   isAdmin = true,
+  isGroupLesson = false,
 }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +42,7 @@ export default function LessonAttendancePanel({
   }, [lessonId]);
 
   const canEditRow = (row) => {
+    if (!isGroupLesson) return false;
     if (isAdmin) return true;
     return !FINAL_STATUSES.has(row.attendance_status);
   };
@@ -88,10 +89,12 @@ export default function LessonAttendancePanel({
         >
           <div className="min-w-0 flex-1 basis-[10rem]">
             <p className="text-sm font-medium text-slate-800 dark:text-slate-100 break-words [overflow-wrap:anywhere]">
-              {resolveStudentLabel(row.student_id, students, row)}
+              {row.student_name ?? row.studentName ?? "—"}
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-400 break-words">
-              {STATUS_LABELS[row.attendance_status] || row.attendance_status}
+              {!isGroupLesson && row.attendance_status === "attended"
+                ? null
+                : STATUS_LABELS[row.attendance_status] || row.attendance_status}
             </p>
           </div>
           {canEditRow(row) ? (
@@ -122,7 +125,15 @@ export default function LessonAttendancePanel({
               </button>
             </div>
           ) : (
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 shrink-0">Зафиксировано</p>
+            !isGroupLesson ? (
+              row.attendance_status === "attended" ? (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 shrink-0">
+                  ✓ Присутствовал
+                </p>
+              ) : null
+            ) : (
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 shrink-0">Зафиксировано</p>
+            )
           )}
         </div>
       ))}

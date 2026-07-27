@@ -14,10 +14,7 @@ export function formatStudentDisplayName(student) {
   if (name) {
     return name;
   }
-  const first = String(student.first_name ?? student.firstName ?? '').trim();
-  const last = String(student.last_name ?? student.lastName ?? '').trim();
-  const fromParts = [last, first].filter(Boolean).join(' ').trim();
-  return fromParts || null;
+  return null;
 }
 
 export function resolveStudentNameById(studentId, students = []) {

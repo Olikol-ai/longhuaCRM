@@ -18,14 +18,14 @@ describe('formatStudentDisplayName', () => {
     );
   });
 
-  it('falls back to last + first when name empty', () => {
+  it('returns null when Student.name is empty', () => {
     assert.equal(
       formatStudentDisplayName({
         name: '',
         first_name: 'Наталья',
         last_name: 'Бабаева',
       }),
-      'Бабаева Наталья',
+      null,
     );
   });
 });
