@@ -36,6 +36,25 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 Миграции применяются при старте API. Подробно: [docs/Deployment.md](docs/Deployment.md).
 
+## Обновление сервера
+
+На bare-metal сервере (`/opt/longhuaCRM`, ветка `refactor/nestjs`) обновление одной командой:
+
+```bash
+cd /opt/longhuaCRM
+./deploy.sh
+```
+
+Скрипт: останавливает только процессы LongHuaCRM → `git pull` → `npm install` → миграции → build → запуск в `screen -S longhua`.
+
+Проверка без запуска:
+
+```bash
+CRM_DIR="$(pwd)" ./deploy.sh --dry-run
+```
+
+Лог: `logs/deploy.log`. Настройки: `CRM_DIR`, `BRANCH`, `SCREEN_NAME` в `.env.example`.
+
 ## Документация
 
 **[docs/README.md](docs/README.md)** — полный индекс.

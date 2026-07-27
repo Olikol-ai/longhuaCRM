@@ -64,6 +64,35 @@ docker exec longhua-app npm run migration:run --prefix apps/api
 
 Настроить в load balancer / k8s probes.
 
+## Обновление сервера (bare metal + screen)
+
+Для стенда `/opt/longhuaCRM` на ветке `refactor/nestjs` используйте корневой скрипт:
+
+```bash
+cd /opt/longhuaCRM
+./deploy.sh
+```
+
+Что делает `deploy.sh`:
+
+1. Проверяет каталог и ветку `refactor/nestjs`
+2. Останавливает только процессы LongHuaCRM (не трогает RocketChat / WeKan)
+3. `git fetch` + `git pull` (при локальных изменениях — стоп)
+4. `npm install` (root + `apps/api`)
+5. `npm run migration:run --prefix apps/api`
+6. `npm run build:api` и `npm run build:client`
+7. Запуск `npm run dev` в `screen -S longhua` (без дублей сессии)
+8. Проверка порта `3001` и `GET /api/health/live`
+9. Лог в `logs/deploy.log`
+
+Dry-run (без изменений):
+
+```bash
+CRM_DIR="$(pwd)" ./deploy.sh --dry-run
+```
+
+Переменные: `CRM_DIR`, `BRANCH`, `SCREEN_NAME`, `API_PORT`, `HEALTH_URL` (см. `.env.example`).
+
 ## Вариант B: Bare metal / PM2
 
 ```bash
