@@ -26,6 +26,15 @@ export class StudentsService {
     return this.applyUserTelegram(rows);
   }
 
+  /**
+   * Active students with lesson_balance <= 2 (persisted balance column).
+   * Admin-only list for the low-balance dashboard screen.
+   */
+  async findLowBalance(): Promise<StudentEntity[]> {
+    const rows = await this.repository.findActiveWithLowBalance();
+    return this.applyUserTelegram(rows);
+  }
+
   async findById(actor: JwtPayload, id: string): Promise<StudentEntity> {
     await this.studentAccess.assertCanReadStudent(actor, id);
     const row = await this.repository.findById(id);

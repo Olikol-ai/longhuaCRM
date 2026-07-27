@@ -6,6 +6,7 @@ import { CalendarDays, Users, GraduationCap, AlertCircle, Clock, ArrowRight, Cak
 import StatCard from "./StatCard";
 import LessonRow from "./LessonRow";
 import { Link } from "react-router-dom";
+import { createPageUrl } from "@/utils";
 import { getGreetingName } from "@/lib/display-name";
 import { Card } from "@/components/ui/card";
 
@@ -23,10 +24,6 @@ function uniqueStudentsById(students) {
 
 function isActiveStudent(student) {
   return student?.status !== "inactive";
-}
-
-function isLowLessonBalance(student) {
-  return (student?.lesson_balance ?? 0) <= 2;
 }
 
 function DashboardSection({ title, subtitle, icon: Icon, iconClass, children }) {
@@ -48,6 +45,7 @@ export default function AdminDashboard({ user }) {
   const [lessons, setLessons] = useState([]);
   const [students, setStudents] = useState([]);
   const [teachers, setTeachers] = useState([]);
+  const [lowBalanceStudents, setLowBalanceStudents] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -55,10 +53,12 @@ export default function AdminDashboard({ user }) {
       api.lessons.list("-date", 200),
       api.students.list(),
       api.teachers.list(),
-    ]).then(([l, s, t]) => {
+      api.students.lowBalance().catch(() => []),
+    ]).then(([l, s, t, lowBalance]) => {
       setLessons(l);
       setStudents(s);
       setTeachers(t);
+      setLowBalanceStudents(Array.isArray(lowBalance) ? lowBalance : []);
       setLoading(false);
     });
   }, []);
@@ -71,7 +71,6 @@ export default function AdminDashboard({ user }) {
   });
 
   const activeStudents = uniqueStudentsById(students).filter(isActiveStudent);
-  const lowBalanceStudents = activeStudents.filter(isLowLessonBalance);
   const lowBalance = lowBalanceStudents.length;
 
   const upcomingBirthdays = uniqueStudentsById(students).filter(s => {
@@ -126,8 +125,11 @@ export default function AdminDashboard({ user }) {
           <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">
             У {lowBalance} {lowBalance > 1 ? "учеников" : "ученика"} осталось 2 урока или меньше
           </p>
-          <Link to="/UserManagement" className="ml-auto text-xs font-semibold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1">
-            View <ArrowRight className="w-3 h-3" />
+          <Link
+            to={createPageUrl("LowBalanceStudents")}
+            className="ml-auto text-xs font-semibold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1"
+          >
+            Просмотреть <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
       )}
@@ -177,28 +179,6 @@ export default function AdminDashboard({ user }) {
                     {s.daysUntil === 0 ? "🎂 Сегодня!" : `через ${s.daysUntil} дн.`}
                   </p>
                 </div>
-              </div>
-            ))}
-          </div>
-        </DashboardSection>
-      )}
-
-      {lowBalance > 0 && (
-        <DashboardSection title="Ученики с низким балансом">
-          <div className="divide-y divide-border">
-            {lowBalanceStudents.map(s => (
-              <div key={s.id} className="flex items-center gap-3 px-2 py-3">
-                <div className="w-7 h-7 rounded-full bg-brand-muted dark:bg-brand-soft/50 flex items-center justify-center">
-                  <span className="text-xs font-semibold text-brand dark:text-brand">{s.name[0]}</span>
-                </div>
-                <span className="text-sm text-foreground flex-1">{s.name}</span>
-                <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                  (s.lesson_balance || 0) === 0
-                    ? "bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-400"
-                    : "bg-amber-100 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400"
-                }`}>
-                  Осталось уроков: {s.lesson_balance || 0}
-                </span>
               </div>
             ))}
           </div>

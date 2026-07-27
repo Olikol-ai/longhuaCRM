@@ -28,6 +28,16 @@ export class StudentsController {
     return this.studentsService.findAll(user);
   }
 
+  /**
+   * Active students with lesson_balance <= 2.
+   * Must be declared before @Get(':id').
+   */
+  @Get('low-balance')
+  @Roles('admin')
+  findLowBalance() {
+    return this.studentsService.findLowBalance();
+  }
+
   @Get(':id')
   findById(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.studentsService.findById(user, id);

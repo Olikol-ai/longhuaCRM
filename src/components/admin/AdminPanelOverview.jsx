@@ -36,19 +36,23 @@ export default function AdminPanelOverview({ onOpenExport, onOpenSalary }) {
   });
 
   useEffect(() => {
-    Promise.all([api.lessons.list("-date", 100), api.students.list(), api.teachers.list()])
-      .then(([lessons, students, teachers]) => {
+    Promise.all([
+      api.lessons.list("-date", 100),
+      api.students.list(),
+      api.teachers.list(),
+      api.students.lowBalance().catch(() => []),
+    ])
+      .then(([lessons, students, teachers, lowBalanceRows]) => {
         const today = new Date().toISOString().slice(0, 10);
         const todayLessons = lessons.filter(
           (l) => l.date === today && l.status !== "cancelled",
         ).length;
         const activeStudents = students.filter((s) => s.status !== "inactive");
-        const lowBalance = activeStudents.filter((s) => (s.lesson_balance ?? 0) <= 2).length;
         setStats({
           todayLessons,
           activeStudents: activeStudents.length,
           activeTeachers: teachers.filter((t) => t.status !== "inactive").length,
-          lowBalance,
+          lowBalance: Array.isArray(lowBalanceRows) ? lowBalanceRows.length : 0,
         });
       })
       .finally(() => setLoading(false));
@@ -87,10 +91,10 @@ export default function AdminPanelOverview({ onOpenExport, onOpenSalary }) {
             У {stats.lowBalance} учеников осталось 2 урока или меньше
           </p>
           <Link
-            to={createPageUrl("UserManagement")}
+            to={createPageUrl("LowBalanceStudents")}
             className="ml-auto text-xs font-semibold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1"
           >
-            Открыть <ArrowRight className="w-3 h-3" />
+            Просмотреть <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
       )}
