@@ -723,6 +723,51 @@ export class LessonsService {
   }
 
   /**
+   * Cron/system completion path — no actor ACL.
+   * Reuses finalizeLessonCompletion (balance, TeacherPayment, attendance).
+   * Returns null when the lesson is missing, already finalized, or ineligible.
+   */
+  async completeExpiredBySystem(id: string): Promise<LessonEntity | null> {
+    const lesson = await this.repository.findById(id);
+    if (!lesson || lesson.status !== 'planned') {
+      return null;
+    }
+    if (!lesson.teacherId) {
+      return null;
+    }
+
+    const isIndividual =
+      lesson.lessonType === 'individual' &&
+      !lesson.groupId &&
+      !!lesson.primaryStudentId;
+    const isGroup = !!lesson.groupId;
+
+    if (!isIndividual && !isGroup) {
+      return null;
+    }
+
+    if (isGroup) {
+      const memberCount = await this.dataSource
+        .getRepository(GroupMemberEntity)
+        .count({ where: { groupId: lesson.groupId as string } });
+      if (memberCount === 0) {
+        return null;
+      }
+    }
+
+    try {
+      return await this.finalizeLessonCompletion(id, {
+        attendanceStatus: 'attended',
+      });
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Keep attendance.student_id aligned with primaryStudentId for individual lessons.
    * Prevents stale "wrong student" rows after reassignment (balance + UI labels).
    */

@@ -15,6 +15,7 @@ import { LessonRescheduledNotifier } from './lesson-rescheduled.notifier';
 import { LessonUpdatedNotifier } from './lesson-updated.notifier';
 import { LessonsController } from './lessons.controller';
 import { LessonsRepository } from './lessons.repository';
+import { LessonsScheduler } from './lessons.scheduler';
 import { LessonsService } from './lessons.service';
 
 @Module({
@@ -36,10 +37,11 @@ import { LessonsService } from './lessons.service';
   providers: [
     LessonsRepository,
     LessonsService,
+    LessonsScheduler,
     StudentBalanceService,
     LessonRescheduledNotifier,
     LessonUpdatedNotifier,
   ],
-  exports: [LessonsRepository, LessonsService, TypeOrmModule],
+  exports: [LessonsRepository, LessonsService, LessonsScheduler, TypeOrmModule],
 })
 export class LessonsModule {}
