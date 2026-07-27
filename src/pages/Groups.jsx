@@ -4,6 +4,7 @@ import { api } from "@/api";
 import { Plus, Users, Trash2, ChevronRight, Loader2 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { resolveAssignedTeacherLabel } from "@/lib/teacherLabels";
+import { localizeEntityStatus } from "@/lib/locale-by";
 
 export default function Groups() {
   const navigate = useNavigate();
@@ -135,7 +136,7 @@ export default function Groups() {
             <div key={group.id} className="border rounded-xl p-4 bg-card flex items-center justify-between gap-4">
               <Link to={`/Groups/${group.id}`} className="flex-1 min-w-0 group">
                 <p className="font-semibold group-hover:text-brand transition-colors">{group.name}</p>
-                <p className="text-xs text-muted-foreground">{teacherName(group.teacher_id)} · {group.status}</p>
+                <p className="text-xs text-muted-foreground">{teacherName(group.teacher_id)} · {localizeEntityStatus(group.status)}</p>
               </Link>
               <div className="flex gap-2 items-center">
                 <Link

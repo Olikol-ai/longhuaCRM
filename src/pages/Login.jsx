@@ -153,12 +153,12 @@ export default function Login() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Email</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Эл. почта</label>
               <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="user@example.com"
+                placeholder="ivan@example.com"
                 required
               />
             </div>

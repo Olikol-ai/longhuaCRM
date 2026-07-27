@@ -3,6 +3,7 @@ import { api } from "@/api";
 import { Plus, CalendarRange } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { resolveSeriesTeacherLabel } from "@/lib/teacherLabels";
+import { localizeSeriesStatus } from "@/lib/locale-by";
 
 export default function LessonSeriesAdmin() {
   const [series, setSeries] = useState([]);
@@ -81,7 +82,7 @@ export default function LessonSeriesAdmin() {
           <div key={row.id} className="border rounded-xl p-4 bg-card">
             <p className="font-semibold flex items-center gap-2"><CalendarRange className="w-4 h-4" /> {row.start_date} · {row.total_lessons} уроков</p>
             <p className="text-xs text-muted-foreground">
-              {resolveSeriesTeacherLabel(row, teachers)} · {row.frequency} · {row.status}
+              {resolveSeriesTeacherLabel(row, teachers)} · {row.frequency === 'biweekly' ? 'Раз в 2 недели' : row.frequency === 'weekly' ? 'Еженедельно' : row.frequency} · {localizeSeriesStatus(row.status)}
             </p>
           </div>
         ))}

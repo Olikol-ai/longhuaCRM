@@ -16,6 +16,11 @@ import { toast } from "@/components/ui/use-toast";
 import { resolveAssignedTeacherLabel } from "@/lib/teacherLabels";
 import { resolveStudentLabel } from "@/lib/studentLabels";
 import { formatTime } from "@/lib/time-slots";
+import {
+  localizeEntityStatus,
+  localizeLessonStatus,
+  localizeSeriesStatus,
+} from "@/lib/locale-by";
 import LessonDetailModal from "@/components/schedule/LessonDetailModal";
 import LessonAttendancePanel from "@/components/groups/LessonAttendancePanel";
 
@@ -259,7 +264,7 @@ export default function GroupDetail() {
           </button>
           <h2 className="text-xl font-bold">{group.name}</h2>
           <p className="text-sm text-muted-foreground">
-            {resolveAssignedTeacherLabel(group.teacher_id, teachers)} · {group.status}
+            {resolveAssignedTeacherLabel(group.teacher_id, teachers)} · {localizeEntityStatus(group.status)}
             {courseName ? ` · ${courseName}` : ""}
           </p>
         </div>
@@ -288,7 +293,7 @@ export default function GroupDetail() {
             <h3 className="font-semibold flex items-center gap-2"><BookOpen className="h-4 w-4" /> Основная информация</h3>
             <p className="text-sm"><span className="text-muted-foreground">Преподаватель:</span> {resolveAssignedTeacherLabel(group.teacher_id, teachers)}</p>
             <p className="text-sm"><span className="text-muted-foreground">Курс:</span> {courseName || "—"}</p>
-            <p className="text-sm"><span className="text-muted-foreground">Статус:</span> {group.status}</p>
+            <p className="text-sm"><span className="text-muted-foreground">Статус:</span> {localizeEntityStatus(group.status)}</p>
             <p className="text-sm"><span className="text-muted-foreground">Учеников:</span> {members.length}</p>
             <p className="text-sm"><span className="text-muted-foreground">Уроков:</span> {lessons.length}</p>
           </div>
@@ -357,7 +362,7 @@ export default function GroupDetail() {
                 <thead className="bg-slate-50 dark:bg-slate-800/60 text-left text-xs text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2 font-medium">Имя</th>
-                    <th className="px-3 py-2 font-medium">Email</th>
+                    <th className="px-3 py-2 font-medium">Эл. почта</th>
                     <th className="px-3 py-2 font-medium">Статус</th>
                     <th className="px-3 py-2 font-medium w-24">Действия</th>
                   </tr>
@@ -406,7 +411,7 @@ export default function GroupDetail() {
               {seriesList.map((series) => (
                 <div key={series.id} className="text-sm border border-slate-100 dark:border-slate-800 rounded-lg p-3">
                   <p className="font-medium">
-                    {series.start_date ?? series.startDate} · {series.total_lessons ?? series.totalLessons} уроков · {series.status}
+                    {series.start_date ?? series.startDate} · {series.total_lessons ?? series.totalLessons} уроков · {localizeSeriesStatus(series.status)}
                   </p>
                   <ul className="mt-1 text-muted-foreground space-y-0.5">
                     {(series.slots ?? []).map((slot) => (
@@ -519,7 +524,7 @@ export default function GroupDetail() {
                     onClick={() => setExpandedLessonId(expandedLessonId === lesson.id ? null : lesson.id)}
                     className="text-sm font-medium text-left hover:text-brand"
                   >
-                    {lesson.date} · {formatTime(lesson.start_time)} · {lesson.status}
+                    {lesson.date} · {formatTime(lesson.start_time)} · {localizeLessonStatus(lesson.status)}
                   </button>
                   <button
                     type="button"

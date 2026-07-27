@@ -271,7 +271,7 @@ export default function LessonDetailModal({
                 <input
                   value={form.meeting_link || ""}
                   onChange={(e) => set("meeting_link", e.target.value)}
-                  placeholder="Zoom / Google Meet / Teams"
+                  placeholder="Ссылка на Zoom, Google Meet или Teams"
                   className="w-full min-w-0 px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
                 />
               </div>

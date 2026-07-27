@@ -60,7 +60,7 @@ export default function TelegramSettings() {
     if (existing.length > 0) {
       await api.settings.update(existing[0].id, { value: token.trim() });
     } else {
-      await api.settings.create({ key: "telegram_bot_token", value: token.trim(), description: "Telegram Bot Token" });
+      await api.settings.create({ key: "telegram_bot_token", value: token.trim(), description: "Телеграм-бот Token" });
     }
     const v = token.trim();
     setBotToken(v);
@@ -158,7 +158,7 @@ export default function TelegramSettings() {
           <Send className="w-5 h-5 text-brand dark:text-brand" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-foreground">Telegram Bot</h2>
+          <h2 className="text-xl font-bold text-foreground">Телеграм-бот</h2>
           <p className="text-sm text-muted-foreground">Настройка уведомлений через Telegram-бот</p>
         </div>
       </div>
@@ -204,8 +204,8 @@ export default function TelegramSettings() {
       <Card className="p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-foreground">Webhook (вебхук)</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Telegram стучится к нам напрямую — ответ мгновенный</p>
+            <h3 className="text-sm font-semibold text-foreground">Вебхук</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Телеграм стучится к нам напрямую — ответ мгновенный</p>
           </div>
           <button
             onClick={registerWebhook}
@@ -343,7 +343,7 @@ export default function TelegramSettings() {
           {[
             { trigger: "Напоминание (~за 24 часа)", msg: "Информационное сообщение без кнопок", active: true },
             { trigger: "Подтверждение индивидуального занятия (~за 3 часа)", msg: "Текст + кнопки Подтвердить/Отменить; при ответе уведомляется преподаватель", active: true },
-            { trigger: "Привязка в профиле", msg: "Deep-link → /start TOKEN", active: true },
+            { trigger: "Привязка в профиле", msg: "Глубокая ссылка → /start TOKEN", active: true },
           ].map((item, i) => (
             <div key={i} className="flex items-start gap-3 py-2 border-b border-border last:border-0">
               <div className="mt-0.5 w-2 h-2 rounded-full flex-shrink-0 bg-emerald-400" />

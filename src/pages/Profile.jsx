@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
+import { localizeRole } from '@/lib/locale-by';
 import { Save, CheckCircle2, User, Send, Link2, Loader2, Unlink, Copy, Users } from "lucide-react";
 import { formatBelarusPhone, PHONE_PLACEHOLDER } from "@/utils/phone";
 import { toast } from "@/components/ui/use-toast";
@@ -210,7 +211,7 @@ export default function Profile() {
   };
 
   const handleTelegramUnlink = async () => {
-    if (!confirm('Отвязать Telegram от аккаунта?')) return;
+    if (!confirm('Отвязать Телеграм от аккаунта?')) return;
     setUnlinking(true);
     try {
       stopPolling();
@@ -218,7 +219,7 @@ export default function Profile() {
       await loadTelegramStatus();
       await checkAppState({ force: true });
     } catch (err) {
-      alert(err.message || 'Не удалось отвязать Telegram');
+      alert(err.message || 'Не удалось отвязать Телеграм');
     } finally {
       setUnlinking(false);
     }
@@ -266,7 +267,7 @@ export default function Profile() {
           <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">{user.full_name || "—"}</h3>
           <p className="text-sm text-slate-400">{form.email || user.email}</p>
           <span className={`text-xs font-bold uppercase px-2.5 py-1 rounded-full mt-1.5 inline-block ${roleColor[user.role] || roleColor.pending}`}>
-            {roleLabel[user.role] || user.role}
+            {localizeRole(user.role)}
           </span>
         </div>
       </div>
@@ -283,7 +284,7 @@ export default function Profile() {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Email</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Эл. почта</label>
           <input type="email" value={form.email}
             onChange={e => set("email", e.target.value)}
             disabled={user.role === 'admin'}
@@ -309,7 +310,7 @@ export default function Profile() {
 
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 space-y-3">
         <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-          <Send className="w-4 h-4 text-brand" /> Telegram
+          <Send className="w-4 h-4 text-brand" /> Телеграм
         </h3>
         <div className="border-t border-slate-100 dark:border-slate-800" />
 
@@ -319,7 +320,7 @@ export default function Profile() {
             <button type="button" onClick={handleTelegramUnlink} disabled={unlinking}
               className="flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 text-red-700 text-sm font-medium rounded-xl hover:bg-red-100 transition-colors disabled:opacity-50">
               {unlinking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unlink className="w-4 h-4" />}
-              Отвязать Telegram
+              Отвязать Телеграм
             </button>
           </div>
         ) : (
@@ -330,7 +331,7 @@ export default function Profile() {
             <button type="button" onClick={handleTelegramLink} disabled={linking}
               className="flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-soft text-brand text-sm font-medium rounded-xl hover:bg-brand-muted transition-colors disabled:opacity-50">
               {linking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
-              Привязать Telegram
+              Привязать Телеграм
             </button>
           </div>
         )}

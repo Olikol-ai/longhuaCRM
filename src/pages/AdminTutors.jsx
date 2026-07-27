@@ -62,7 +62,7 @@ export default function AdminTutors() {
                 <tr className="border-b border-slate-100 dark:border-slate-800 text-left text-xs text-slate-400 uppercase">
                   <th className="px-4 py-3">Ученик репетитора</th>
                   <th className="px-4 py-3">Репетитор</th>
-                  <th className="px-4 py-3">Email</th>
+                  <th className="px-4 py-3">Эл. почта</th>
                   <th className="px-4 py-3">Телефон</th>
                   <th className="px-4 py-3">Статус</th>
                 </tr>

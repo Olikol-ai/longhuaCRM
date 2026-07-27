@@ -201,7 +201,7 @@ export default function AssignmentCreateDialog({ open, onOpenChange, onCreated }
                   <Input
                     value={targetId}
                     onChange={(e) => setTargetId(e.target.value)}
-                    placeholder="UUID корп. группы"
+                    placeholder="ID корпоративной группы"
                   />
                 ) : (
                   <select
@@ -244,7 +244,7 @@ export default function AssignmentCreateDialog({ open, onOpenChange, onCreated }
               <Input
                 value={ruleOverrideId}
                 onChange={(e) => setRuleOverrideId(e.target.value)}
-                placeholder="UUID правила, если нужен другой набор"
+                placeholder="ID правила, если нужен другой набор"
               />
             </div>
 

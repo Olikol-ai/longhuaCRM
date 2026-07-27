@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { X, Edit2, Trash2, GraduationCap, CalendarDays } from "lucide-react";
 import TeacherAvailabilityView from "./TeacherAvailabilityView";
+import { localizeEntityStatus } from "@/lib/locale-by";
+import { formatHourlyRateShort } from "@/lib/formatters";
 
 export default function TeacherDetailModal({ teacher, students, onEdit, onDelete, onClose }) {
   const [tab, setTab] = useState("info");
@@ -17,7 +19,7 @@ export default function TeacherDetailModal({ teacher, students, onEdit, onDelete
             <div>
               <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">{teacher.name}</h3>
               <span className={`text-[10px] font-semibold uppercase ${teacher.status === "active" ? "text-emerald-600" : "text-slate-400 dark:text-slate-500"}`}>
-                {teacher.status || "active"}
+                {localizeEntityStatus(teacher.status || "active")}
               </span>
             </div>
           </div>
@@ -53,9 +55,9 @@ export default function TeacherDetailModal({ teacher, students, onEdit, onDelete
         <div className="p-6 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
-              ["Email", teacher.email],
-              ["Ставка", teacher.hourly_rate ? `${teacher.hourly_rate} BYN/ч` : null],
-              ["Telegram", teacher.telegram_id],
+              ["Эл. почта", teacher.email],
+              ["Ставка", teacher.hourly_rate != null && teacher.hourly_rate !== '' ? formatHourlyRateShort(teacher.hourly_rate) : null],
+              ["Телеграм", teacher.telegram_id],
               ["Специализации", teacher.specializations],
             ].map(([label, val]) => val ? (
               <div key={label} className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3">

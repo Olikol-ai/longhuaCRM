@@ -27,7 +27,11 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/formatters";
+import {
+  localizeEntityStatus,
+  localizeLessonStatus,
+} from "@/lib/locale-by";
 import { resolveAssignedTeacherLabel, resolveLessonTeacherLabel } from "@/lib/teacherLabels";
 import StudentFormDialog from "@/components/students/StudentFormDialog";
 import PaymentFormDialog from "@/components/payments/PaymentFormDialog";
@@ -115,9 +119,9 @@ export default function StudentDetail() {
   }
 
   const info = [
-    { icon: Mail, label: "Email", value: student.email },
+    { icon: Mail, label: "Эл. почта", value: student.email },
     { icon: Phone, label: "Телефон", value: student.phone },
-    { icon: MessageCircle, label: "Telegram", value: student.telegram_id },
+    { icon: MessageCircle, label: "Телеграм", value: student.telegram_id },
     { icon: GraduationCap, label: "Преподаватель", value: resolveAssignedTeacherLabel(student.assigned_teacher, teachers) },
     { icon: BookOpen, label: "Баланс", value: `${student.lesson_balance || 0} уроков` },
   ].filter((x) => x.value);
@@ -144,10 +148,10 @@ export default function StudentDetail() {
                 student.status === "paused" ? "bg-amber-50 text-amber-700 border-amber-200" :
                 "bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700"
               }>
-                {student.status}
+                {localizeEntityStatus(student.status)}
               </Badge>
               {student.start_date && (
-                <span className="text-xs text-slate-400">С {format(new Date(student.start_date), "MMM d, yyyy")}</span>
+                <span className="text-xs text-slate-400">С {formatDate(student.start_date)}</span>
               )}
             </div>
           </div>
@@ -211,7 +215,7 @@ export default function StudentDetail() {
                       <CardTitle className="text-base">
                         {enrollment.course_name || "Курс"}
                       </CardTitle>
-                      <Badge variant="outline">{enrollment.status}</Badge>
+                      <Badge variant="outline">{localizeEntityStatus(enrollment.status)}</Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -280,7 +284,7 @@ export default function StudentDetail() {
                           l.status === "rescheduled" ? "bg-amber-50 text-amber-700" :
                           "bg-brand-soft text-brand"
                         }>
-                          {l.status}
+                          {localizeLessonStatus(l.status)}
                         </Badge>
                       </TableCell>
                     </TableRow>

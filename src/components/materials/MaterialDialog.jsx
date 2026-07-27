@@ -229,7 +229,7 @@ export default function MaterialDialog({
             </div>
           ) : (
             <div>
-              <label className="block text-sm font-medium mb-2">URL *</label>
+              <label className="block text-sm font-medium mb-2">Ссылка *</label>
               <input
                 value={form.external_link}
                 onChange={(e) => setField('external_link', e.target.value)}

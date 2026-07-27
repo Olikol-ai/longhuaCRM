@@ -435,7 +435,7 @@ export default function LessonModal({
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Ссылка на встречу</label>
                     <input value={form.meeting_link} onChange={(e) => set("meeting_link", e.target.value)}
-                      placeholder="https://zoom.us/j/... or meet.google.com/..."
+                      placeholder="https://zoom.us/j/... или meet.google.com/..."
                       className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40" />
                   </div>
                 )}

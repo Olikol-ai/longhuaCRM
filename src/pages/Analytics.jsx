@@ -122,7 +122,7 @@ export default function Analytics() {
         </div>
         <button onClick={handleExport}
           className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground text-sm font-medium rounded-lg hover:bg-muted">
-          <Download className="w-4 h-4" /> Экспорт CSV
+          <Download className="w-4 h-4" /> Скачать CSV
         </button>
       </div>
 

@@ -302,7 +302,7 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-800">
                   <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Пользователь</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Email</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Эл. почта</th>
                   <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Роль</th>
                   <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide hidden lg:table-cell">Дата</th>
                   <th className="px-5 py-3.5 w-40"></th>
@@ -475,7 +475,7 @@ function StudentsTab({ students, teachers, loading, onReload }) {
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-800">
                   <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Имя</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Email</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Эл. почта</th>
                   <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Преподаватель</th>
                   <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Баланс</th>
                   <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Статус</th>
@@ -836,7 +836,7 @@ function TutorsTab({ tutors, students, loading, onReload }) {
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-800">
                   <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Имя</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Email</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Эл. почта</th>
                   <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Ученики</th>
                   <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Статус</th>
                   <th className="px-5 py-3.5 w-24"></th>

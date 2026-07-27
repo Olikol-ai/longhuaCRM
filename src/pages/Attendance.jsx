@@ -3,6 +3,7 @@ import { api, apiFetch } from "@/api";
 import { Check, X } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { resolveStudentLabel } from "@/lib/studentLabels";
+import { localizeAttendanceStatus } from "@/lib/locale-by";
 
 export default function Attendance() {
   const [rows, setRows] = useState([]);
@@ -48,7 +49,7 @@ export default function Attendance() {
           <div key={row.id} className="border rounded-xl p-4 bg-card flex items-center justify-between gap-4">
             <div>
               <p className="font-medium">{studentName(row.student_id)}</p>
-              <p className="text-xs text-muted-foreground">Урок: {lessonLabel(row.lesson_id)} · {row.attendance_status}</p>
+              <p className="text-xs text-muted-foreground">Урок: {lessonLabel(row.lesson_id)} · {localizeAttendanceStatus(row.attendance_status)}</p>
             </div>
             <div className="flex gap-2">
               <button onClick={() => mark(row.id, true)} className="px-3 py-1.5 text-xs border border-border rounded-lg flex items-center gap-1 hover:bg-muted"><Check className="w-3 h-3" /> Присутствовал</button>

@@ -83,17 +83,17 @@ export default function TeacherFormDialog({ open, onOpenChange, teacher, onSave 
             />
           </div>
           <div className="space-y-2">
-            <Label>Email</Label>
+            <Label>Эл. почта</Label>
             <Input
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="email@example.com"
+              placeholder="ivan@example.com"
             />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Ставка в час ($)</Label>
+              <Label>Ставка в час (BYN)</Label>
               <Input
                 type="number"
                 min={0}
