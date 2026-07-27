@@ -9,8 +9,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
+    // Query param forces browsers to re-fetch sw.js after icon/cache bumps.
+    navigator.serviceWorker.register('/sw.js?v=20260727b').catch(() => {
       /* installability still works via manifest on supported browsers */
     })
   })
 }
+

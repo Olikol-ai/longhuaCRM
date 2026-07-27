@@ -1,6 +1,16 @@
 /* Longhua Academy — minimal service worker for installability (network-first). */
-const CACHE = 'longhua-academy-shell-v2';
-const PRECACHE = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
+/* Bump CACHE when icons / shell assets change so old favicons are dropped. */
+const CACHE = 'longhua-academy-shell-v3-20260727b';
+const PRECACHE = [
+  '/',
+  '/manifest.webmanifest',
+  '/favicon.ico',
+  '/icons/favicon-16x16.png',
+  '/icons/favicon-32x32.png',
+  '/icons/apple-touch-icon.png',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -28,7 +38,13 @@ self.addEventListener('fetch', (event) => {
     fetch(request)
       .then((response) => {
         const copy = response.clone();
-        if (response.ok && (request.mode === 'navigate' || url.pathname.startsWith('/icons/') || url.pathname.endsWith('.webmanifest'))) {
+        if (
+          response.ok &&
+          (request.mode === 'navigate'
+            || url.pathname.startsWith('/icons/')
+            || url.pathname === '/favicon.ico'
+            || url.pathname.endsWith('.webmanifest'))
+        ) {
           caches.open(CACHE).then((cache) => cache.put(request, copy));
         }
         return response;
