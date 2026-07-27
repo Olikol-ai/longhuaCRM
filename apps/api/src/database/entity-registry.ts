@@ -27,6 +27,7 @@ import { SeriesStudentEntity } from '../modules/schedule/entities/series-student
 import { StudentEntity } from '../modules/students/entities/student.entity';
 import { TeacherEntity } from '../modules/teachers/entities/teacher.entity';
 import { TeacherInviteLinkEntity } from '../modules/teachers/entities/teacher-invite-link.entity';
+import { TeacherMonthlyPayoutEntity } from '../modules/teacher-payments/entities/teacher-monthly-payout.entity';
 import { TeacherPaymentEntity } from '../modules/teacher-payments/entities/teacher-payment.entity';
 import { AppSettingEntity } from '../modules/settings/entities/app-setting.entity';
 import { UserEntity } from '../modules/users/entities/user.entity';
@@ -65,6 +66,7 @@ export const ALL_V2_ENTITIES = [
   CertificateEntity,
   CertificateHistoryEntity,
   TeacherPaymentEntity,
+  TeacherMonthlyPayoutEntity,
   NotificationEntity,
   AuditLogEntity,
   AppSettingEntity,
