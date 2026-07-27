@@ -48,6 +48,8 @@ import { RegisterDto } from './dto/register.dto';
 
 import { UpdateMeDto } from './dto/update-me.dto';
 
+import { splitDisplayName } from '../users/display-name.util';
+
 import {
 
   getOnboardingContext,
@@ -55,6 +57,8 @@ import {
   hasDashboardAccess,
 
   validateBelarusPhone,
+
+  validateProfileFullName,
 
 } from './onboarding';
 
@@ -483,9 +487,71 @@ export class AuthService {
 
 
 
-    if (dto.first_name !== undefined) row.firstName = dto.first_name;
+    if (dto.role !== undefined) {
 
-    if (dto.last_name !== undefined) row.lastName = dto.last_name;
+      throw new ForbiddenException('Role changes must be made by an administrator');
+
+    }
+
+
+
+    const nameChanging =
+
+      dto.full_name !== undefined ||
+
+      dto.first_name !== undefined ||
+
+      dto.last_name !== undefined;
+
+
+
+    if (dto.full_name !== undefined) {
+
+      const trimmedFull = String(dto.full_name).trim();
+
+      if (!trimmedFull) {
+
+        throw new BadRequestException('ФИО обязательно и должно содержать минимум два слова');
+
+      }
+
+      const parts = splitDisplayName(trimmedFull);
+
+      row.lastName = parts.lastName;
+
+      row.firstName = parts.firstName;
+
+    } else {
+
+      if (dto.first_name !== undefined) {
+
+        row.firstName = String(dto.first_name).trim();
+
+      }
+
+      if (dto.last_name !== undefined) {
+
+        row.lastName = String(dto.last_name).trim();
+
+      }
+
+    }
+
+
+
+    if (nameChanging) {
+
+      try {
+
+        validateProfileFullName(row.firstName, row.lastName);
+
+      } catch {
+
+        throw new BadRequestException('ФИО обязательно и должно содержать минимум два слова');
+
+      }
+
+    }
 
 
 
@@ -561,22 +627,16 @@ export class AuthService {
 
 
 
-    if (dto.role !== undefined) {
-
-      throw new ForbiddenException('Role changes must be made by an administrator');
-
-    }
-
-
-
     row.updatedDate = new Date();
 
 
 
     const saved = await this.usersRepository.save(row);
 
-    if (dto.first_name !== undefined || dto.last_name !== undefined || dto.phone !== undefined) {
+    if (nameChanging || dto.phone !== undefined) {
+
       await this.roleEntitySync.syncLinkedProfilesFromUser(saved);
+
     }
 
     return this.attachProfileFields(authResponse(saved, (u) => this.signToken(u)), saved.id);

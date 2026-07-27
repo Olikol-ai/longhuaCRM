@@ -124,3 +124,17 @@ export function validateBelarusPhone(phone: string): void {
     throw new Error('Phone must match format +375 (29) 999-99-99');
   }
 }
+
+/**
+ * Profile FIO must contain at least two words (e.g. "Иванов Иван").
+ * Canonical storage is lastName + firstName (see display-name.util).
+ */
+export function validateProfileFullName(firstName: string, lastName: string): void {
+  const words = `${String(lastName ?? '').trim()} ${String(firstName ?? '').trim()}`
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (words.length < 2) {
+    throw new Error('Full name must contain at least two words');
+  }
+}

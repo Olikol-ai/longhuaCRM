@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from '@/api';
 import { useAuth } from "@/lib/AuthContext";
-import { Sun, Moon, Download, Loader2 } from "lucide-react";
+import { Sun, Moon, Download, Loader2, Pencil } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import { getRoleBadgeClass, getRoleLabel } from "@/lib/locale-by";
+import { createPageUrl } from "@/utils";
 
 export default function Settings() {
   const { user } = useAuth();
@@ -52,8 +54,10 @@ export default function Settings() {
                 {(displayName !== "—" ? displayName : user.email || "U")[0].toUpperCase()}
               </span>
             </div>
-            <div>
-              <h3 className="text-base font-semibold text-foreground">{displayName}</h3>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-base font-semibold text-foreground" data-testid="settings-display-name">
+                {displayName}
+              </h3>
               <p className="text-sm text-muted-foreground">{user.email}</p>
               <span
                 className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full mt-1 inline-block ${getRoleBadgeClass(user.role)}`}
@@ -95,6 +99,15 @@ export default function Settings() {
                 {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </button>
             </div>
+
+            <Link
+              to={createPageUrl("Profile")}
+              className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-brand-soft text-brand text-sm font-medium rounded-xl hover:bg-brand-muted transition-colors"
+              data-testid="settings-edit-profile"
+            >
+              <Pencil className="h-4 w-4" />
+              Редактировать профиль
+            </Link>
 
             {isAdmin && (
               <div className="bg-muted rounded-xl p-3 border border-dashed border-border">
