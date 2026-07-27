@@ -8,12 +8,14 @@ export const ONBOARDING_PATH = '/auth/pending-approval';
 export const ROLE_ENTRY_PATHS = {
   admin: '/admin',
   teacher: '/teacher',
+  tutor: '/tutor',
   student: '/student',
 };
 
 export const ROLE_DASHBOARD_PATHS = {
   admin: '/Dashboard',
   teacher: '/TeacherDashboard',
+  tutor: '/TutorDashboard',
   student: '/StudentDashboard',
 };
 
@@ -31,14 +33,14 @@ export function hasDashboardAccess(user) {
 
 /** Canonical post-auth entry for each role — no student fallback. */
 export function getRoleHomePath(role) {
-  if (role === 'admin' || role === 'teacher' || role === 'student') {
+  if (role === 'admin' || role === 'teacher' || role === 'tutor' || role === 'student') {
     return ROLE_ENTRY_PATHS[role];
   }
   return ONBOARDING_PATH;
 }
 
 export function getRoleDashboardPath(role) {
-  if (role === 'admin' || role === 'teacher' || role === 'student') {
+  if (role === 'admin' || role === 'teacher' || role === 'tutor' || role === 'student') {
     return ROLE_DASHBOARD_PATHS[role];
   }
   return ONBOARDING_PATH;
@@ -101,6 +103,13 @@ export function getRequiredRoleForPath(pathname) {
     || pathname === '/TeacherAssessmentResults'
   ) {
     return 'teacher';
+  }
+
+  if (
+    pathname === '/tutor'
+    || pathname === '/TutorDashboard'
+  ) {
+    return 'tutor';
   }
 
   if (

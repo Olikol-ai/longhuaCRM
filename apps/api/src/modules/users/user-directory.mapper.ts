@@ -1,15 +1,21 @@
 import { formatStudentProfileDisplayName } from './display-name.util';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
+import { TutorEntity } from '../tutors/entities/tutor.entity';
 import { UserEntity } from './entities/user.entity';
 import { userToRecord } from './user.mapper';
 
-export type DirectoryEntryType = 'account' | 'student_profile' | 'teacher_profile';
+export type DirectoryEntryType =
+  | 'account'
+  | 'student_profile'
+  | 'teacher_profile'
+  | 'tutor_profile';
 
 export function userToDirectoryEntry(
   user: UserEntity,
   student: StudentEntity | null,
   teacher: TeacherEntity | null,
+  tutor: TutorEntity | null = null,
 ): Record<string, unknown> {
   const base = userToRecord(user);
 
@@ -26,6 +32,7 @@ export function userToDirectoryEntry(
       user_id: user.id,
       student_profile_id: student.id,
       teacher_profile_id: teacher?.id ?? null,
+      tutor_profile_id: tutor?.id ?? null,
     };
   }
 
@@ -41,6 +48,21 @@ export function userToDirectoryEntry(
       user_id: user.id,
       student_profile_id: null,
       teacher_profile_id: teacher.id,
+      tutor_profile_id: null,
+    };
+  }
+
+  if (tutor) {
+    const display = String(tutor.displayName ?? '').trim();
+    return {
+      ...base,
+      full_name: display || base.full_name,
+      entry_type: 'account' as DirectoryEntryType,
+      has_account: true,
+      user_id: user.id,
+      student_profile_id: null,
+      teacher_profile_id: null,
+      tutor_profile_id: tutor.id,
     };
   }
 
@@ -51,6 +73,7 @@ export function userToDirectoryEntry(
     user_id: user.id,
     student_profile_id: null,
     teacher_profile_id: null,
+    tutor_profile_id: null,
   };
 }
 
@@ -62,6 +85,7 @@ export function studentProfileToDirectoryEntry(student: StudentEntity): Record<s
     user_id: null,
     student_profile_id: student.id,
     teacher_profile_id: null,
+    tutor_profile_id: null,
     email: student.email ?? '',
     role: 'student',
     status: student.status,
@@ -85,6 +109,7 @@ export function teacherProfileToDirectoryEntry(teacher: TeacherEntity): Record<s
     user_id: null,
     student_profile_id: null,
     teacher_profile_id: teacher.id,
+    tutor_profile_id: null,
     email: teacher.email ?? '',
     role: 'teacher',
     status: teacher.status,
@@ -95,5 +120,24 @@ export function teacherProfileToDirectoryEntry(teacher: TeacherEntity): Record<s
     telegram_id: teacher.telegramId ?? '',
     created_date: teacher.createdAt?.toISOString() ?? null,
     updated_date: teacher.updatedAt?.toISOString() ?? null,
+  };
+}
+
+export function tutorProfileToDirectoryEntry(tutor: TutorEntity): Record<string, unknown> {
+  return {
+    id: tutor.id,
+    entry_type: 'tutor_profile' as DirectoryEntryType,
+    has_account: false,
+    user_id: null,
+    student_profile_id: null,
+    teacher_profile_id: null,
+    tutor_profile_id: tutor.id,
+    email: tutor.email ?? '',
+    role: 'tutor',
+    status: tutor.status,
+    full_name: tutor.displayName,
+    phone: tutor.phone ?? '',
+    created_date: tutor.createdAt?.toISOString() ?? null,
+    updated_date: tutor.updatedAt?.toISOString() ?? null,
   };
 }

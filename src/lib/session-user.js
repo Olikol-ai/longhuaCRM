@@ -59,8 +59,10 @@ export function normalizeSessionUser(raw) {
     telegram_username: raw.telegram_username ?? raw.telegramUsername ?? '',
     student_profile_id: raw.student_profile_id ?? raw.studentProfileId ?? null,
     teacher_profile_id: raw.teacher_profile_id ?? raw.teacherProfileId ?? null,
+    tutor_profile_id: raw.tutor_profile_id ?? raw.tutorProfileId ?? null,
     has_student_profile: Boolean(raw.has_student_profile ?? raw.hasStudentProfile),
     has_teacher_profile: Boolean(raw.has_teacher_profile ?? raw.hasTeacherProfile),
+    has_tutor_profile: Boolean(raw.has_tutor_profile ?? raw.hasTutorProfile),
   };
 }
 

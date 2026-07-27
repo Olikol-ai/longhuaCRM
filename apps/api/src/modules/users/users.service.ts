@@ -16,11 +16,13 @@ import { RoleEntitySyncService } from './role-entity-sync.service';
 import {
   studentProfileToDirectoryEntry,
   teacherProfileToDirectoryEntry,
+  tutorProfileToDirectoryEntry,
   userToDirectoryEntry,
 } from './user-directory.mapper';
 import { userToRecord } from './user.mapper';
 import { UsersRepository } from './users.repository';
 import { UserEntity } from './entities/user.entity';
+import { TutorEntity } from '../tutors/entities/tutor.entity';
 
 const BLOCKED_UPDATE_FIELDS = new Set([
   'id',
@@ -44,6 +46,8 @@ export class UsersService {
     private readonly studentRepo: Repository<StudentEntity>,
     @InjectRepository(TeacherEntity)
     private readonly teacherRepo: Repository<TeacherEntity>,
+    @InjectRepository(TutorEntity)
+    private readonly tutorRepo: Repository<TutorEntity>,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -53,10 +57,11 @@ export class UsersService {
   }
 
   async listDirectory(): Promise<Record<string, unknown>[]> {
-    const [users, students, teachers] = await Promise.all([
+    const [users, students, teachers, tutors] = await Promise.all([
       this.usersRepository.findAll(),
       this.studentRepo.find({ where: { status: Not('inactive') } }),
       this.teacherRepo.find({ where: { status: Not('inactive') } }),
+      this.tutorRepo.find({ where: { status: Not('inactive') } }),
     ]);
 
     const activeUsers = users.filter((user) => user.status !== 'blocked');
@@ -67,12 +72,16 @@ export class UsersService {
     const teacherByUserId = new Map(
       teachers.filter((row) => row.userId).map((row) => [row.userId as string, row]),
     );
+    const tutorByUserId = new Map(
+      tutors.filter((row) => row.userId).map((row) => [row.userId as string, row]),
+    );
 
     const entries: Record<string, unknown>[] = activeUsers.map((user) =>
       userToDirectoryEntry(
         user,
         studentByUserId.get(user.id) ?? null,
         teacherByUserId.get(user.id) ?? null,
+        tutorByUserId.get(user.id) ?? null,
       ),
     );
 
@@ -82,6 +91,10 @@ export class UsersService {
 
     for (const teacher of teachers.filter((row) => !row.userId)) {
       entries.push(teacherProfileToDirectoryEntry(teacher));
+    }
+
+    for (const tutor of tutors.filter((row) => !row.userId)) {
+      entries.push(tutorProfileToDirectoryEntry(tutor));
     }
 
     return entries.sort((a, b) => {
@@ -137,7 +150,7 @@ export class UsersService {
 
         if (
           dto.role !== undefined &&
-          ['admin', 'teacher', 'student'].includes(String(dto.role))
+          ['admin', 'teacher', 'tutor', 'student'].includes(String(dto.role))
         ) {
           row.status = 'active';
           row.verificationCode = null;

@@ -4,6 +4,7 @@ import {
   Shield,
   Clock,
   UserCheck,
+  BookOpen,
 } from 'lucide-react';
 
 export const ROLE_CONFIG = {
@@ -20,6 +21,13 @@ export const ROLE_CONFIG = {
     text: 'text-emerald-700 dark:text-emerald-300',
     dot: 'bg-emerald-500',
     icon: GraduationCap,
+  },
+  tutor: {
+    label: 'Репетитор',
+    bg: 'bg-sky-100 dark:bg-sky-950/40',
+    text: 'text-sky-700 dark:text-sky-300',
+    dot: 'bg-sky-500',
+    icon: BookOpen,
   },
   student: {
     label: 'Ученик',
@@ -44,7 +52,7 @@ export const ROLE_CONFIG = {
   },
 };
 
-export const ALL_ROLE_OPTIONS = ['admin', 'teacher', 'student', 'pending', 'user'];
+export const ALL_ROLE_OPTIONS = ['admin', 'teacher', 'tutor', 'student', 'pending', 'user'];
 
 /** Nested filters inside Аккаунты — only overview + pending queue (not entity directories). */
 export const ACCOUNT_FILTER_TABS = [
@@ -81,6 +89,21 @@ export function visibleTeachers(teachers, users) {
     if (!t.user_id) return true;
     const role = roleByUserId.get(t.user_id);
     if (role !== 'teacher') return false;
+    if (seenUserIds.has(t.user_id)) return false;
+    seenUserIds.add(t.user_id);
+    return true;
+  });
+}
+
+/** Profiles visible in Tutors tab: active/pending + linked user has tutor role (or no linked account). */
+export function visibleTutors(tutors, users) {
+  const roleByUserId = new Map(users.map((u) => [u.id, displayRole(u.role)]));
+  const seenUserIds = new Set();
+  return tutors.filter((t) => {
+    if (t.status === 'inactive') return false;
+    if (!t.user_id) return true;
+    const role = roleByUserId.get(t.user_id);
+    if (role !== 'tutor') return false;
     if (seenUserIds.has(t.user_id)) return false;
     seenUserIds.add(t.user_id);
     return true;

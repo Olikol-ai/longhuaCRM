@@ -14,6 +14,7 @@ import { MaterialFolderEntity } from '../../modules/materials/entities/material-
 import { MaterialEntity } from '../../modules/materials/entities/material.entity';
 import { StudentEntity } from '../../modules/students/entities/student.entity';
 import { TeacherEntity } from '../../modules/teachers/entities/teacher.entity';
+import { TutorEntity } from '../../modules/tutors/entities/tutor.entity';
 import {
   AssessmentAttemptEntity,
   AssessmentExamAssignmentEntity,
@@ -27,6 +28,7 @@ import { MaterialsDomainAccessService } from './materials-domain-access.service'
 import { ScheduleAccessService } from './schedule-access.service';
 import { StudentAccessService } from './student-access.service';
 import { TeacherAccessService } from './teacher-access.service';
+import { TutorAccessService } from './tutor-access.service';
 import { AssessmentAccessService } from './assessment-access.service';
 
 @Global()
@@ -35,6 +37,7 @@ import { AssessmentAccessService } from './assessment-access.service';
     TypeOrmModule.forFeature([
       StudentEntity,
       TeacherEntity,
+      TutorEntity,
       LessonEntity,
       AttendanceEntity,
       GroupEntity,
@@ -56,6 +59,7 @@ import { AssessmentAccessService } from './assessment-access.service';
   providers: [
     StudentAccessService,
     TeacherAccessService,
+    TutorAccessService,
     LessonAccessService,
     ScheduleAccessService,
     CourseAccessService,
@@ -66,6 +70,7 @@ import { AssessmentAccessService } from './assessment-access.service';
   exports: [
     StudentAccessService,
     TeacherAccessService,
+    TutorAccessService,
     LessonAccessService,
     ScheduleAccessService,
     CourseAccessService,

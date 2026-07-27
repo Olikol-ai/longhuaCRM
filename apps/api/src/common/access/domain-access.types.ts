@@ -20,6 +20,13 @@ export const TEACHER_SELF_UPDATE_FIELDS = [
   'userId',
 ] as const;
 
+export const TUTOR_SELF_UPDATE_FIELDS = [
+  'displayName',
+  'bio',
+  'specializations',
+  'phone',
+] as const;
+
 export const TEACHER_LESSON_UPDATE_FIELDS = [
   'status',
   'completionAttendance',

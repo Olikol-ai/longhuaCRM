@@ -52,6 +52,12 @@ const teacherNav = [
   { name: "Настройки", icon: Settings, page: "Settings" },
 ];
 
+const tutorNav = [
+  { name: "Главная", icon: LayoutDashboard, page: "TutorDashboard" },
+  { name: "Профиль", icon: UserCircle, page: "Profile" },
+  { name: "Настройки", icon: Settings, page: "Settings" },
+];
+
 const studentNav = [
   { name: "Главная", icon: LayoutDashboard, page: "StudentDashboard" },
   { name: "Мои уроки", icon: Calendar, page: "StudentLessons" },
@@ -65,6 +71,7 @@ const studentNav = [
 const NAV_BY_ROLE = {
   admin: adminNav,
   teacher: teacherNav,
+  tutor: tutorNav,
   student: studentNav,
 };
 
@@ -204,7 +211,7 @@ export default function Layout({ children, currentPageName }) {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground truncate">{fullName}</p>
               <p className="text-xs text-muted-foreground truncate">
-                {role === "admin" ? "Администратор" : role === "teacher" ? "Преподаватель" : role === "student" ? "Ученик" : "Ожидает роли"}
+                {role === "admin" ? "Администратор" : role === "teacher" ? "Преподаватель" : role === "tutor" ? "Репетитор" : role === "student" ? "Ученик" : "Ожидает роли"}
               </p>
             </div>
             <button

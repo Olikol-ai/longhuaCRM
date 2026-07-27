@@ -14,7 +14,7 @@ import PendingApproval from './pages/PendingApproval';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import NameFormModal from '@/components/auth/NameFormModal';
 import RoleRouteGuard, { RoleHomeRedirect, OnboardingFallback, RootRedirect } from '@/components/auth/RoleRouteGuard';
-import { AdminRoute, TeacherRoute, StudentRoute } from '@/components/auth/AdminRoute';
+import { AdminRoute, TeacherRoute, StudentRoute, TutorRoute } from '@/components/auth/AdminRoute';
 import AppErrorBoundary from '@/components/common/AppErrorBoundary';
 import { ONBOARDING_PATH } from '@/lib/routing';
 
@@ -122,6 +122,7 @@ const AuthenticatedApp = () => {
         <Route path="/Welcome" element={<Navigate to={ONBOARDING_PATH} replace />} />
         <Route path="/student" element={<RoleHomeRedirect role="student" />} />
         <Route path="/teacher" element={<RoleHomeRedirect role="teacher" />} />
+        <Route path="/tutor" element={<RoleHomeRedirect role="tutor" />} />
         <Route path="/admin" element={<RoleHomeRedirect role="admin" />} />
         <Route path="/Students" element={<Navigate to="/UserManagement" replace />} />
         <Route path="/students" element={<Navigate to="/UserManagement" replace />} />
@@ -137,6 +138,8 @@ const AuthenticatedApp = () => {
             element = <AdminRoute>{element}</AdminRoute>;
           } else if (['TeacherDashboard', 'TeacherSchedule', 'TeacherAssessment', 'TeacherAssessmentReview', 'TeacherAssessmentReviewDetail', 'TeacherAssessmentResults', 'TeacherStudents'].includes(path)) {
             element = <TeacherRoute>{element}</TeacherRoute>;
+          } else if (['TutorDashboard'].includes(path)) {
+            element = <TutorRoute>{element}</TutorRoute>;
           } else if (['StudentDashboard', 'StudentLessons', 'StudentCertificates', 'StudentExams'].includes(path)) {
             element = <StudentRoute>{element}</StudentRoute>;
           }

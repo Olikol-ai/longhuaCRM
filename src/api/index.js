@@ -14,6 +14,7 @@ import { settings } from './settings.api';
 import { users } from './users.api';
 import { students } from './students.api';
 import { teachers } from './teachers.api';
+import { tutors } from './tutors.api';
 import { teacherInvites } from './teacher-invites.api';
 import { teacherPayments } from './teacher-payments.api';
 import { lessonSeries } from './lesson-series.api';
@@ -28,6 +29,7 @@ export { functions } from './functions';
 export { schedule } from './schedule';
 export { students } from './students.api';
 export { teachers } from './teachers.api';
+export { tutors } from './tutors.api';
 export { teacherInvites } from './teacher-invites.api';
 export { courses } from './courses.api';
 export { groups } from './groups.api';
@@ -49,6 +51,7 @@ export const api = {
   assessment,
   students,
   teachers,
+  tutors,
   teacherInvites,
   courses,
   groups,

@@ -3,7 +3,7 @@ import { UserEntity } from '../users/entities/user.entity';
 export const USER_STATUSES = ['pending', 'active', 'blocked'] as const;
 export type UserStatus = (typeof USER_STATUSES)[number];
 
-export const DASHBOARD_ROLES = ['admin', 'teacher', 'student'] as const;
+export const DASHBOARD_ROLES = ['admin', 'teacher', 'tutor', 'student'] as const;
 export type DashboardRole = (typeof DASHBOARD_ROLES)[number];
 
 export const ONBOARDING_STATES = [
@@ -73,6 +73,8 @@ export function getRedirectPath(
       return '/Dashboard';
     case 'teacher':
       return '/TeacherDashboard';
+    case 'tutor':
+      return '/TutorDashboard';
     case 'student':
       return '/StudentDashboard';
     default:

@@ -5,6 +5,7 @@ import { EntityManager, Repository } from 'typeorm';
 import { filterToEntityWhere } from '../../common/utils/api-record.util';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
+import { TutorEntity } from '../tutors/entities/tutor.entity';
 import {
   composeDisplayName,
   resolveNameParts,
@@ -23,6 +24,8 @@ export class RoleEntitySyncService {
     private readonly studentRepo: Repository<StudentEntity>,
     @InjectRepository(TeacherEntity)
     private readonly teacherRepo: Repository<TeacherEntity>,
+    @InjectRepository(TutorEntity)
+    private readonly tutorRepo: Repository<TutorEntity>,
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
   ) {}
@@ -39,21 +42,32 @@ export class RoleEntitySyncService {
     const role = newRole.trim().toLowerCase();
     const studentRepo = manager?.getRepository(StudentEntity) ?? this.studentRepo;
     const teacherRepo = manager?.getRepository(TeacherEntity) ?? this.teacherRepo;
+    const tutorRepo = manager?.getRepository(TutorEntity) ?? this.tutorRepo;
 
     if (role === 'student') {
       await this.detachTeachersForUser(teacherRepo, user.id);
+      await this.detachTutorsForUser(tutorRepo, user.id);
       await this.ensureStudentProfile(studentRepo, user, options?.assignedTeacherId);
       return;
     }
 
     if (role === 'teacher') {
       await this.detachStudentsForUser(studentRepo, user.id);
+      await this.detachTutorsForUser(tutorRepo, user.id);
       await this.ensureTeacherProfile(teacherRepo, user);
+      return;
+    }
+
+    if (role === 'tutor') {
+      await this.detachStudentsForUser(studentRepo, user.id);
+      await this.detachTeachersForUser(teacherRepo, user.id);
+      await this.ensureTutorProfile(tutorRepo, user);
       return;
     }
 
     if (role === 'admin' || role === 'pending' || role === 'user' || role === '') {
       await this.detachTeachersForUser(teacherRepo, user.id);
+      await this.detachTutorsForUser(tutorRepo, user.id);
       await this.detachStudentsForUser(studentRepo, user.id);
     }
   }
@@ -182,6 +196,40 @@ export class RoleEntitySyncService {
   }
 
   /**
+   * After admin edits a Tutor profile display name, keep linked User in sync.
+   */
+  async syncLinkedUserFromTutor(tutor: TutorEntity): Promise<void> {
+    if (!tutor.userId) {
+      return;
+    }
+
+    const parts = resolveNameParts({
+      name: tutor.displayName,
+      emailFallback: tutor.email,
+      nameIsSource: true,
+    });
+
+    const user = await this.userRepo.findOne({ where: { id: tutor.userId } });
+    if (!user) {
+      return;
+    }
+
+    let changed = false;
+    if (parts.firstName && user.firstName !== parts.firstName) {
+      user.firstName = parts.firstName;
+      changed = true;
+    }
+    if (parts.lastName !== undefined && user.lastName !== parts.lastName) {
+      user.lastName = parts.lastName;
+      changed = true;
+    }
+    if (changed) {
+      user.updatedDate = new Date();
+      await this.userRepo.save(user);
+    }
+  }
+
+  /**
    * After User name changes (/auth/me or admin Users), push into role profiles.
    */
   async syncLinkedProfilesFromUser(user: RoleEntityUserContext): Promise<void> {
@@ -209,6 +257,14 @@ export class RoleEntitySyncService {
       if (email) teacher.email = email;
       if (phone !== undefined) teacher.phone = phone || null;
       await this.teacherRepo.save(teacher);
+    }
+
+    const tutor = await this.tutorRepo.findOne({ where: { userId: user.id } });
+    if (tutor) {
+      tutor.displayName = display;
+      if (email) tutor.email = email;
+      if (phone !== undefined) tutor.phone = phone || null;
+      await this.tutorRepo.save(tutor);
     }
   }
 
@@ -251,6 +307,13 @@ export class RoleEntitySyncService {
     userId: string,
   ): Promise<void> {
     await teacherRepo.update({ userId }, { userId: null, status: 'inactive' });
+  }
+
+  private async detachTutorsForUser(
+    tutorRepo: Repository<TutorEntity>,
+    userId: string,
+  ): Promise<void> {
+    await tutorRepo.update({ userId }, { userId: null, status: 'inactive' });
   }
 
   private async detachStudentsForUser(
@@ -334,6 +397,40 @@ export class RoleEntitySyncService {
         lastName: user.lastName || '',
         userId: user.id,
         status: 'active',
+      }),
+    );
+  }
+
+  private async ensureTutorProfile(
+    tutorRepo: Repository<TutorEntity>,
+    user: RoleEntityUserContext,
+  ): Promise<void> {
+    let row =
+      (await tutorRepo.findOne({ where: { userId: user.id } })) ??
+      (user.email ? await tutorRepo.findOne({ where: { email: user.email } }) : null);
+
+    if (row?.userId && row.userId !== user.id) {
+      row = null;
+    }
+
+    if (row) {
+      row.userId = user.id;
+      row.status = 'active';
+      row.email = user.email;
+      row.displayName = this.displayName(user);
+      await tutorRepo.save(row);
+      return;
+    }
+
+    await tutorRepo.save(
+      tutorRepo.create({
+        id: randomUUID(),
+        displayName: this.displayName(user),
+        email: user.email,
+        phone: user.phone || null,
+        userId: user.id,
+        status: 'active',
+        commissionPercent: 1,
       }),
     );
   }

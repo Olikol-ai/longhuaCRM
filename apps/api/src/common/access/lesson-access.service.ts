@@ -9,6 +9,7 @@ import { NO_ACCESS_UUID } from './access.constants';
 import { DomainAccessActor, TEACHER_LESSON_UPDATE_FIELDS } from './domain-access.types';
 import { StudentAccessService } from './student-access.service';
 import { TeacherAccessService } from './teacher-access.service';
+import { TutorAccessService } from './tutor-access.service';
 
 @Injectable()
 export class LessonAccessService {
@@ -19,6 +20,7 @@ export class LessonAccessService {
     private readonly attendanceRepo: Repository<AttendanceEntity>,
     private readonly studentAccess: StudentAccessService,
     private readonly teacherAccess: TeacherAccessService,
+    private readonly tutorAccess: TutorAccessService,
   ) {}
 
   isAdmin(actor: DomainAccessActor): boolean {
@@ -41,6 +43,14 @@ export class LessonAccessService {
         return { teacherId: NO_ACCESS_UUID };
       }
       return filterToEntityWhere({ ...where, teacher_id: teacherId });
+    }
+
+    if (role === 'tutor') {
+      const tutorId = await this.tutorAccess.resolveTutorId(actor);
+      if (!tutorId) {
+        return { tutorId: NO_ACCESS_UUID };
+      }
+      return filterToEntityWhere({ ...where, tutor_id: tutorId });
     }
 
     if (role === 'student') {
@@ -97,6 +107,14 @@ export class LessonAccessService {
       return lesson;
     }
 
+    if (role === 'tutor') {
+      const tutorId = await this.tutorAccess.resolveTutorId(actor);
+      if (!tutorId || lesson.tutorId !== tutorId) {
+        throw new ForbiddenException('Cannot access another tutor lesson');
+      }
+      return lesson;
+    }
+
     if (role === 'student') {
       const studentId = await this.studentAccess.resolveStudentId(actor);
       if (!studentId) {
@@ -137,6 +155,13 @@ export class LessonAccessService {
       return this.pickFields(dto, TEACHER_LESSON_UPDATE_FIELDS);
     }
 
+    if (normalizeRole(actor.role) === 'tutor') {
+      if (!dto) {
+        return {};
+      }
+      return this.pickFields(dto, TEACHER_LESSON_UPDATE_FIELDS);
+    }
+
     throw new ForbiddenException('Forbidden');
   }
 
@@ -163,6 +188,34 @@ export class LessonAccessService {
       }
       const lessons = await this.lessonRepo.find({
         where: { teacherId },
+        select: ['id'],
+      });
+      const lessonIds = lessons.map((row) => row.id);
+      if (lessonIds.length === 0) {
+        return { lessonId: NO_ACCESS_UUID };
+      }
+      const owned = new Set(lessonIds);
+      const scoped = filterToEntityWhere(where);
+      if (scoped.lessonId != null) {
+        const allowed = this.intersectOwnedLessonIds(scoped.lessonId, owned);
+        if (allowed.length === 0) {
+          return { lessonId: NO_ACCESS_UUID };
+        }
+        return {
+          ...scoped,
+          lessonId: allowed.length === 1 ? allowed[0] : In(allowed),
+        };
+      }
+      return { ...scoped, lessonId: In(lessonIds) };
+    }
+
+    if (normalizeRole(actor.role) === 'tutor') {
+      const tutorId = await this.tutorAccess.resolveTutorId(actor);
+      if (!tutorId) {
+        return { lessonId: NO_ACCESS_UUID };
+      }
+      const lessons = await this.lessonRepo.find({
+        where: { tutorId },
         select: ['id'],
       });
       const lessonIds = lessons.map((row) => row.id);

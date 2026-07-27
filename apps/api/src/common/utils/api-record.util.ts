@@ -8,6 +8,7 @@ export function camelToSnake(key: string): string {
 /** Legacy frontend field names (stable API contract). */
 const API_FIELD_ALIASES: Record<string, string> = {
   assignedTeacherId: 'assigned_teacher',
+  assignedTutorId: 'assigned_tutor',
   courseTemplateId: 'course_id',
   // Explicit contract: frontend always uses telegram_id (not telegram_chat_id)
   telegramId: 'telegram_id',
@@ -15,9 +16,11 @@ const API_FIELD_ALIASES: Record<string, string> = {
 
 const FILTER_FIELD_ALIASES: Record<string, string> = {
   assigned_teacher: 'assignedTeacherId',
+  assigned_tutor: 'assignedTutorId',
   course_id: 'courseId',
   registration_number: 'registrationNumber',
   teacher_id: 'teacherId',
+  tutor_id: 'tutorId',
   student_id: 'studentId',
   user_id: 'userId',
   primary_student_id: 'primaryStudentId',
@@ -76,6 +79,7 @@ export function entityToApiRecord(
   for (const [key, val] of Object.entries(record)) {
     if (key === 'passwordHash' || key === 'verificationCodeHash') continue;
     if (key === 'assignedTeacher') continue;
+    if (key === 'assignedTutor') continue;
     if (key === 'folder' || key === 'material' || key === 'lesson') continue;
     /**
      * Skip nested TypeORM relation objects when the FK id is already present
@@ -87,6 +91,7 @@ export function entityToApiRecord(
       (key === 'group' && ('groupId' in record || 'group_id' in record))
       || (key === 'series' && ('seriesId' in record || 'series_id' in record))
       || (key === 'teacher' && ('teacherId' in record || 'teacher_id' in record))
+      || (key === 'tutor' && ('tutorId' in record || 'tutor_id' in record))
       || (key === 'primaryStudent' && ('primaryStudentId' in record || 'primary_student_id' in record))
     ) {
       continue;

@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { api } from '@/api';
 import {
   Users, GraduationCap, Shield, Trash2, Search,
-  ChevronDown, Loader2, X, Plus, Pencil, Eye, CheckCircle2
+  ChevronDown, Loader2, X, Plus, Pencil, Eye, CheckCircle2, BookOpen
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -20,6 +20,7 @@ import {
   showOrphanStudentsNotice,
   visibleStudents,
   visibleTeachers,
+  visibleTutors,
 } from "./userManagement.constants";
 import { resolveAssignedTeacherLabel } from "@/lib/teacherLabels";
 import { formatHourlyRateShort } from "@/lib/formatters";
@@ -728,11 +729,183 @@ function TeachersTab({ teachers, students, loading, onReload }) {
   );
 }
 
+// ─── Tab: Tutors ───────────────────────────────────────────────────────────────
+function TutorsTab({ tutors, students, loading, onReload }) {
+  const [lessons, setLessons] = useState([]);
+  const [search, setSearch] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    api.lessons.list().then(setLessons).catch(() => setLessons([]));
+  }, [tutors]);
+
+  const tutorName = (t) => t.display_name || t.name || "—";
+
+  const hasActiveLessons = (id) =>
+    lessons.some((l) => l.tutor_id === id && l.status === "planned");
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.tutors.delete(deleteTarget.id);
+      setDeleteTarget(null);
+      await onReload();
+    } catch (err) {
+      alert(err?.message || "Не удалось удалить репетитора");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const getStudentCount = (id) =>
+    students.filter((s) => s.assigned_tutor === id && s.status === "active").length;
+
+  const filtered = tutors.filter((t) =>
+    tutorName(t).toLowerCase().includes(search.toLowerCase())
+    || (t.email || "").toLowerCase().includes(search.toLowerCase()),
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1 max-w-full sm:max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск репетиторов..."
+            className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
+          />
+        </div>
+        <div className="flex items-center gap-3 justify-between sm:justify-end sm:ml-auto">
+          <span className="text-sm text-slate-400">{tutors.length} репетиторов</span>
+        </div>
+      </div>
+
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        Назначьте роль «Репетитор» во вкладке «Аккаунты» — профиль создаётся автоматически.
+      </p>
+
+      {loading ? (
+        <div className="flex justify-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
+          <Loader2 className="w-6 h-6 animate-spin text-brand" />
+        </div>
+      ) : (
+        <>
+          <div className="md:hidden space-y-3">
+            {filtered.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
+                Репетиторы не найдены
+              </div>
+            ) : filtered.map((t) => (
+              <div key={t.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-sky-50 dark:bg-sky-950/40 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs font-bold text-sky-600">
+                      {(tutorName(t) || "?")[0].toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-slate-800 dark:text-slate-100 truncate">{tutorName(t)}</p>
+                    <p className="text-xs text-slate-400 truncate mt-0.5">{t.email || "—"}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                      <span className="text-slate-500 dark:text-slate-400">Ученики: {getStudentCount(t.id)}</span>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border ${t.status === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800" : "bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700"}`}>
+                        {t.status === "active" ? <><CheckCircle2 className="w-3 h-3" /> Активен</> : t.status === "pending" ? "Ожидает" : "Неактивен"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-slate-50 dark:border-slate-800 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTarget(t)}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/50"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Удалить профиль
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-x-auto">
+            <table className="w-full text-sm min-w-[640px]">
+              <thead>
+                <tr className="border-b border-slate-100 dark:border-slate-800">
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Имя</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Email</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Ученики</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Статус</th>
+                  <th className="px-5 py-3.5 w-24"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((t) => (
+                  <tr key={t.id} className="border-b border-slate-50 dark:border-slate-800 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-sky-50 dark:bg-sky-950/40 flex items-center justify-center flex-shrink-0">
+                          <span className="text-xs font-bold text-sky-600">
+                            {(tutorName(t) || "?")[0].toUpperCase()}
+                          </span>
+                        </div>
+                        <p className="font-medium text-slate-800 dark:text-slate-100">{tutorName(t)}</p>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-xs">{t.email || "—"}</td>
+                    <td className="px-5 py-3.5 text-slate-700 dark:text-slate-300">{getStudentCount(t.id)}</td>
+                    <td className="px-5 py-3.5">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border ${t.status === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800" : "bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700"}`}>
+                        {t.status === "active" ? <><CheckCircle2 className="w-3 h-3" /> Активен</> : t.status === "pending" ? "Ожидает" : "Неактивен"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(t)}
+                          className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-400 rounded-lg transition-colors"
+                          title="Удалить"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filtered.length === 0 && (
+                  <tr><td colSpan={5} className="text-center py-12 text-slate-400">Репетиторы не найдены</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {deleteTarget && (
+        <DeleteConfirmModal
+          title="Удалить репетитора"
+          description={hasActiveLessons(deleteTarget.id)
+            ? `У «${tutorName(deleteTarget)}» есть запланированные уроки. Профиль будет удалён, уроки сохранятся без привязки.`
+            : `Удалить профиль «${tutorName(deleteTarget)}»?`}
+          onConfirm={handleDelete}
+          onCancel={() => setDeleteTarget(null)}
+          loading={deleting}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Main ───────────────────────────────────────────────────────────────────────
 const TABS = [
   { id: "accounts", label: "Аккаунты", icon: Shield },
   { id: "students", label: "Ученики", icon: Users },
   { id: "teachers", label: "Преподаватели", icon: GraduationCap },
+  { id: "tutors", label: "Репетиторы", icon: BookOpen },
 ];
 
 export default function UserManagement() {
@@ -740,6 +913,7 @@ export default function UserManagement() {
   const [directoryEntries, setDirectoryEntries] = useState([]);
   const [students, setStudents] = useState([]);
   const [teachers, setTeachers] = useState([]);
+  const [tutors, setTutors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const loadGenerationRef = useRef(0);
@@ -752,10 +926,11 @@ export default function UserManagement() {
     setLoading(true);
     setLoadError("");
     try {
-      const [directory, s, t] = await Promise.all([
+      const [directory, s, t, tutorsList] = await Promise.all([
         api.users.directory(),
         api.students.list("-created_date"),
         api.teachers.list("-created_date"),
+        api.tutors.list("-created_date"),
       ]);
       if (loadGenerationRef.current !== generation) {
         return;
@@ -763,6 +938,7 @@ export default function UserManagement() {
       setDirectoryEntries(Array.isArray(directory) ? directory : []);
       setStudents(Array.isArray(s) ? s : []);
       setTeachers(Array.isArray(t) ? t : []);
+      setTutors(Array.isArray(tutorsList) ? tutorsList : []);
     } catch (err) {
       if (loadGenerationRef.current !== generation) {
         return;
@@ -799,12 +975,13 @@ export default function UserManagement() {
 
   const displayStudents = visibleStudents(students, accountUsers);
   const displayTeachers = visibleTeachers(teachers, accountUsers);
+  const displayTutors = visibleTutors(tutors, accountUsers);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto w-full min-w-0">
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">Пользователи</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Управление аккаунтами, учениками и преподавателями</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Управление аккаунтами, учениками, преподавателями и репетиторами</p>
         {loadError && (
           <p className="mt-2 text-sm text-red-600">{loadError}</p>
         )}
@@ -845,6 +1022,14 @@ export default function UserManagement() {
       {activeTab === "teachers" && (
         <TeachersTab
           teachers={displayTeachers}
+          students={displayStudents}
+          loading={loading}
+          onReload={loadAll}
+        />
+      )}
+      {activeTab === "tutors" && (
+        <TutorsTab
+          tutors={displayTutors}
           students={displayStudents}
           loading={loading}
           onReload={loadAll}

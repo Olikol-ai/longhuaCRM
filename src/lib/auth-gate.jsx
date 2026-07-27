@@ -1,6 +1,6 @@
 import { getToken } from '@/api';
 
-const VALID_DASHBOARD_ROLES = new Set(['admin', 'teacher', 'student']);
+const VALID_DASHBOARD_ROLES = new Set(['admin', 'teacher', 'tutor', 'student']);
 
 export function AuthLoadingScreen() {
   return (

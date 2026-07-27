@@ -54,3 +54,21 @@ export function StudentRoute({ children }) {
 
   return children;
 }
+
+export function TutorRoute({ children, allowAdmin = true }) {
+  const auth = useAuth();
+  const { user } = auth;
+
+  if (blockRoute(auth)) {
+    return <AuthLoadingScreen />;
+  }
+
+  const allowed =
+    user.role === 'tutor' || (allowAdmin && user.role === 'admin');
+
+  if (!allowed) {
+    return <Navigate to={resolveRedirect(user)} replace />;
+  }
+
+  return children;
+}

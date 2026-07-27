@@ -1,4 +1,4 @@
-export const APP_ROLES = ['admin', 'teacher', 'student'] as const;
+export const APP_ROLES = ['admin', 'teacher', 'tutor', 'student'] as const;
 
 export type AppRole = (typeof APP_ROLES)[number];
 
@@ -7,7 +7,12 @@ export const RESTRICTED_ROLES = ['pending', 'user'] as const;
 export type NormalizedRole = AppRole | 'pending';
 
 export function normalizeRole(role: string | undefined | null): NormalizedRole {
-  if (role === 'admin' || role === 'teacher' || role === 'student') {
+  if (
+    role === 'admin' ||
+    role === 'teacher' ||
+    role === 'tutor' ||
+    role === 'student'
+  ) {
     return role;
   }
   return 'pending';

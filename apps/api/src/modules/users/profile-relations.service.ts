@@ -6,6 +6,8 @@ import { StudentEntity } from '../students/entities/student.entity';
 import { StudentDeletionService } from '../students/student-deletion.service';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { TeacherDeletionService } from '../teachers/teacher-deletion.service';
+import { TutorEntity } from '../tutors/entities/tutor.entity';
+import { TutorDeletionService } from '../tutors/tutor-deletion.service';
 
 export interface OrphanStudentRecord {
   id: string;
@@ -22,6 +24,7 @@ export class ProfileRelationsService {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly teacherDeletion: TeacherDeletionService,
+    private readonly tutorDeletion: TutorDeletionService,
     private readonly studentDeletion: StudentDeletionService,
   ) {}
 
@@ -45,24 +48,34 @@ export class ProfileRelationsService {
     return this.teacherDeletion.deleteTeacher(teacherId);
   }
 
+  async deleteTutor(tutorId: string): Promise<ProfileDeleteResult> {
+    await this.tutorDeletion.deleteTutor(tutorId);
+    return { orphanStudents: await this.findOrphanStudents() };
+  }
+
   async deleteProfilesForUser(userId: string): Promise<ProfileDeleteResult> {
     const studentRepo = this.dataSource.getRepository(StudentEntity);
     const teacherRepo = this.dataSource.getRepository(TeacherEntity);
+    const tutorRepo = this.dataSource.getRepository(TutorEntity);
 
-    const [linkedStudents, linkedTeachers] = await Promise.all([
+    const [linkedStudents, linkedTeachers, linkedTutors] = await Promise.all([
       studentRepo.find({ where: { userId } }),
       teacherRepo.find({ where: { userId } }),
+      tutorRepo.find({ where: { userId } }),
     ]);
 
     for (const teacher of linkedTeachers) {
       await this.deleteTeacher(teacher.id);
     }
 
+    for (const tutor of linkedTutors) {
+      await this.deleteTutor(tutor.id);
+    }
+
     for (const student of linkedStudents) {
       await this.deleteStudent(student.id);
     }
 
-    // Always clear direct user grants (CASCADE also covers this on user delete).
     await this.dataSource.getRepository(MaterialAccessEntity).delete({ userId });
 
     return { orphanStudents: await this.findOrphanStudents() };

@@ -37,6 +37,7 @@ import { RepairStudentUserNameSync1741300000000 } from './migrations/17413000000
 import { RepairAttendanceDuplicatesAndConstraints1741400000000 } from './migrations/1741400000000-RepairAttendanceDuplicatesAndConstraints';
 import { TeacherMonthlyPayouts1741500000000 } from './migrations/1741500000000-TeacherMonthlyPayouts';
 import { RepairOrphanTeacherRelations1741600000000 } from './migrations/1741600000000-RepairOrphanTeacherRelations';
+import { TutorFoundation1741700000000 } from './migrations/1741700000000-TutorFoundation';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -77,6 +78,7 @@ export default new DataSource({
     RepairAttendanceDuplicatesAndConstraints1741400000000,
     TeacherMonthlyPayouts1741500000000,
     RepairOrphanTeacherRelations1741600000000,
+    TutorFoundation1741700000000,
   ],
   synchronize: false,
 });

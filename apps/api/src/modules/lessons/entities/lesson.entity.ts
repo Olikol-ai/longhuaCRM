@@ -12,6 +12,7 @@ import { GroupEntity } from '../../groups/entities/group.entity';
 import { LessonSeriesEntity } from '../../lesson-series/entities/lesson-series.entity';
 import { StudentEntity } from '../../students/entities/student.entity';
 import { TeacherEntity } from '../../teachers/entities/teacher.entity';
+import { TutorEntity } from '../../tutors/entities/tutor.entity';
 
 export const LESSON_STATUSES = [
   'planned',
@@ -57,6 +58,14 @@ export class LessonEntity {
   @ManyToOne(() => TeacherEntity, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'teacher_id' })
   teacher?: TeacherEntity | null;
+
+  @Index('IDX_LESSON_TUTOR_ID')
+  @Column({ name: 'tutor_id', type: 'uuid', nullable: true })
+  tutorId: string | null;
+
+  @ManyToOne(() => TutorEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'tutor_id' })
+  tutor?: TutorEntity | null;
 
   @Index('IDX_LESSON_SERIES_ID')
   @Column({ name: 'series_id', type: 'uuid', nullable: true })

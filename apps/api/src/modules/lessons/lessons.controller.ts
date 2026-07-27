@@ -57,7 +57,7 @@ export class LessonsController {
   }
 
   @Patch('attendance/:id')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   updateAttendance(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
@@ -67,13 +67,13 @@ export class LessonsController {
   }
 
   @Patch('attendance/:id/present')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   markPresent(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.lessonsService.markPresent(user, id);
   }
 
   @Patch('attendance/:id/absent')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   markAbsent(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.lessonsService.markAbsent(user, id);
   }
@@ -85,13 +85,13 @@ export class LessonsController {
   }
 
   @Patch(':id/complete')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   complete(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.lessonsService.complete(user, id);
   }
 
   @Patch(':id/cancel')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   cancel(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.lessonsService.cancel(user, id);
   }
@@ -102,13 +102,13 @@ export class LessonsController {
   }
 
   @Post()
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   create(@CurrentUser() user: JwtPayload, @Body() dto: CreateLessonDto) {
     return this.lessonsService.create(user, dto);
   }
 
   @Patch(':id')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   update(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,

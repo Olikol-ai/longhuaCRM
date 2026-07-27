@@ -26,6 +26,7 @@ import { SeriesExclusionEntity } from '../modules/schedule/entities/series-exclu
 import { SeriesStudentEntity } from '../modules/schedule/entities/series-student.entity';
 import { StudentEntity } from '../modules/students/entities/student.entity';
 import { TeacherEntity } from '../modules/teachers/entities/teacher.entity';
+import { TutorEntity } from '../modules/tutors/entities/tutor.entity';
 import { TeacherInviteLinkEntity } from '../modules/teachers/entities/teacher-invite-link.entity';
 import { TeacherMonthlyPayoutEntity } from '../modules/teacher-payments/entities/teacher-monthly-payout.entity';
 import { TeacherPaymentEntity } from '../modules/teacher-payments/entities/teacher-payment.entity';
@@ -40,6 +41,7 @@ export const ALL_V2_ENTITIES = [
   PendingRegistrationEntity,
   StudentEntity,
   TeacherEntity,
+  TutorEntity,
   TeacherInviteLinkEntity,
   CourseTemplateEntity,
   EnrollmentEntity,

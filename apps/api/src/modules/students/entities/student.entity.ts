@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { TeacherEntity } from '../../teachers/entities/teacher.entity';
+import { TutorEntity } from '../../tutors/entities/tutor.entity';
 import { UserEntity } from '../../users/entities/user.entity';
 
 export type StudentStatus = 'active' | 'inactive' | 'paused';
@@ -50,6 +51,14 @@ export class StudentEntity {
   @ManyToOne(() => TeacherEntity, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'assigned_teacher_id' })
   assignedTeacher?: TeacherEntity | null;
+
+  @Index('IDX_STUDENT_ASSIGNED_TUTOR_ID')
+  @Column({ name: 'assigned_tutor_id', type: 'uuid', nullable: true })
+  assignedTutorId: string | null;
+
+  @ManyToOne(() => TutorEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'assigned_tutor_id' })
+  assignedTutor?: TutorEntity | null;
 
   @Column({ name: 'lesson_balance', type: 'int', default: 0 })
   lessonBalance: number;
