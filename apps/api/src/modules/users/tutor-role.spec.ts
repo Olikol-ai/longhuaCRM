@@ -20,8 +20,26 @@ describe('Tutor role foundation', () => {
     expect(getRedirectPath('active', 'tutor')).toBe('/TutorDashboard');
   });
 
+  it('includes tutor_student role with Profile redirect', () => {
+    expect(APP_ROLES).toContain('tutor_student');
+    expect(DASHBOARD_ROLES).toContain('tutor_student');
+    expect(isAppRole('tutor_student')).toBe(true);
+    expect(normalizeRole('tutor_student')).toBe('tutor_student');
+    expect(normalizeUserRole('tutor_student')).toBe('tutor_student');
+    expect(getRedirectPath('active', 'tutor_student')).toBe('/Profile');
+  });
+
   it('accepts tutor in UpdateUserDto validation', async () => {
     const dto = plainToInstance(UpdateUserDto, { role: 'tutor', status: 'active' });
+    const errors = await validate(dto);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts tutor_student in UpdateUserDto validation', async () => {
+    const dto = plainToInstance(UpdateUserDto, {
+      role: 'tutor_student',
+      status: 'active',
+    });
     const errors = await validate(dto);
     expect(errors).toHaveLength(0);
   });

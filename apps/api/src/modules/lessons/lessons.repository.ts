@@ -15,14 +15,14 @@ export class LessonsRepository {
 
   findAll(): Promise<LessonEntity[]> {
     return this.lessonRepo.find({
-      relations: ['teacher', 'primaryStudent', 'group'],
+      relations: ['teacher', 'primaryStudent', 'primaryTutorStudent', 'group'],
     });
   }
 
   findById(id: string): Promise<LessonEntity | null> {
     return this.lessonRepo.findOne({
       where: { id },
-      relations: ['teacher', 'primaryStudent', 'group'],
+      relations: ['teacher', 'primaryStudent', 'primaryTutorStudent', 'group'],
     });
   }
 
@@ -42,7 +42,7 @@ export class LessonsRepository {
   filter(where: FindOptionsWhere<LessonEntity>): Promise<LessonEntity[]> {
     return this.lessonRepo.find({
       where,
-      relations: ['teacher', 'primaryStudent', 'group'],
+      relations: ['teacher', 'primaryStudent', 'primaryTutorStudent', 'group'],
     });
   }
 

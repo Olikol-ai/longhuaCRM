@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { LessonEntity } from './lesson.entity';
 import { StudentEntity } from '../../students/entities/student.entity';
+import { TutorStudentEntity } from '../../tutors/entities/tutor-student.entity';
 
 export type AttendanceStatus =
   | 'enrolled'
@@ -41,6 +42,14 @@ export class AttendanceEntity {
   @ManyToOne(() => StudentEntity, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'student_id' })
   student?: StudentEntity | null;
+
+  @Index('IDX_ATTENDANCE_TUTOR_STUDENT_ID')
+  @Column({ name: 'tutor_student_id', type: 'uuid', nullable: true })
+  tutorStudentId: string | null;
+
+  @ManyToOne(() => TutorStudentEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'tutor_student_id' })
+  tutorStudent?: TutorStudentEntity | null;
 
   @Column({
     name: 'attendance_status',

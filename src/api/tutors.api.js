@@ -14,6 +14,18 @@ export const tutors = {
     return apiFetch('/tutors/me/stats');
   },
 
+  myStudents() {
+    return apiFetch('/tutors/me/students');
+  },
+
+  students(id) {
+    return apiFetch(`/tutors/${id}/students`);
+  },
+
+  allStudents() {
+    return apiFetch('/tutors/students/all');
+  },
+
   stats(id) {
     return apiFetch(`/tutors/${id}/stats`);
   },

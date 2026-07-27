@@ -19,6 +19,7 @@ import { MailService } from '../mail/mail.service';
 import { UsersRepository } from '../users/users.repository';
 import { RoleEntitySyncService } from '../users/role-entity-sync.service';
 import { TeacherInviteLinkEntity } from '../teachers/entities/teacher-invite-link.entity';
+import { TutorInviteLinkEntity } from '../tutors/entities/tutor-invite-link.entity';
 import { RegisterDto } from './dto/register.dto';
 import { PendingRegistrationRepository } from './pending-registration.repository';
 
@@ -39,6 +40,10 @@ export type PendingRegistrationSendResult = {
   email_status: 'sent' | 'email_not_sent';
   message?: string;
 };
+
+export type RegistrationInvite =
+  | { kind: 'teacher'; teacherId: string; inviteLinkId: string }
+  | { kind: 'tutor'; tutorId: string; inviteLinkId: string };
 
 @Injectable()
 export class PendingRegistrationService {
@@ -66,11 +71,14 @@ export class PendingRegistrationService {
     dto: RegisterDto,
     normalizedEmail: string,
     phone: string,
-    invite?: { teacherId: string; inviteLinkId: string } | null,
+    invite?: RegistrationInvite | null,
   ): Promise<{ pending: PendingRegistrationEntity; emailDelivery: PendingRegistrationSendResult }> {
     const passwordHash = bcrypt.hashSync(dto.password, 10);
     const now = new Date();
-    const wantsStudentRole = dto.wantsStudentRole === true || Boolean(invite?.teacherId);
+    const wantsStudentRole =
+      dto.wantsStudentRole === true ||
+      invite?.kind === 'teacher' ||
+      invite?.kind === 'tutor';
     let pending = await this.pendingRepository.findByEmail(normalizedEmail);
 
     if (pending?.status === 'blocked') {
@@ -78,14 +86,21 @@ export class PendingRegistrationService {
       pending.verificationAttempts = 0;
     }
 
+    const inviteTeacherId = invite?.kind === 'teacher' ? invite.teacherId : null;
+    const inviteLinkId = invite?.kind === 'teacher' ? invite.inviteLinkId : null;
+    const inviteTutorId = invite?.kind === 'tutor' ? invite.tutorId : null;
+    const inviteTutorLinkId = invite?.kind === 'tutor' ? invite.inviteLinkId : null;
+
     if (pending) {
       pending.passwordHash = passwordHash;
       pending.firstName = dto.first_name ?? '';
       pending.lastName = dto.last_name ?? '';
       pending.phone = phone;
       pending.wantsStudentRole = wantsStudentRole;
-      pending.inviteTeacherId = invite?.teacherId ?? null;
-      pending.inviteLinkId = invite?.inviteLinkId ?? null;
+      pending.inviteTeacherId = inviteTeacherId;
+      pending.inviteLinkId = inviteLinkId;
+      pending.inviteTutorId = inviteTutorId;
+      pending.inviteTutorLinkId = inviteTutorLinkId;
       pending.status = 'pending';
       pending.verificationAttempts = 0;
       pending.expiresAt = new Date(now.getTime() + this.getRegistrationTtlMs());
@@ -99,8 +114,10 @@ export class PendingRegistrationService {
         lastName: dto.last_name ?? '',
         phone,
         wantsStudentRole,
-        inviteTeacherId: invite?.teacherId ?? null,
-        inviteLinkId: invite?.inviteLinkId ?? null,
+        inviteTeacherId,
+        inviteLinkId,
+        inviteTutorId,
+        inviteTutorLinkId,
         verificationCodeHash: null,
         codeExpiresAt: null,
         lastSentAt: null,
@@ -226,11 +243,18 @@ export class PendingRegistrationService {
         });
       }
 
-      // Server-side only: never accept role from client. Soft intent / invite → student role.
+      // Server-side only: never accept role from client.
       const inviteTeacherId = pending.inviteTeacherId;
       const inviteLinkId = pending.inviteLinkId;
-      const assignedRole =
-        pending.wantsStudentRole === true || Boolean(inviteTeacherId) ? 'student' : '';
+      const inviteTutorId = pending.inviteTutorId;
+      const inviteTutorLinkId = pending.inviteTutorLinkId;
+
+      let assignedRole = '';
+      if (inviteTutorId) {
+        assignedRole = 'tutor_student';
+      } else if (pending.wantsStudentRole === true || Boolean(inviteTeacherId)) {
+        assignedRole = 'student';
+      }
 
       let user = await usersRepo.findOne({
         where: { email: normalizedEmail },
@@ -248,8 +272,8 @@ export class PendingRegistrationService {
           user.status = 'active';
           dirty = true;
         }
-        if (assignedRole === 'student' && user.role !== 'student') {
-          user.role = 'student';
+        if (assignedRole && user.role !== assignedRole) {
+          user.role = assignedRole;
           dirty = true;
         }
         if (dirty) {
@@ -261,8 +285,16 @@ export class PendingRegistrationService {
             assignedTeacherId: inviteTeacherId,
           });
         }
+        if (user.role === 'tutor_student') {
+          await this.roleEntitySync.syncAfterRoleChange(user, 'tutor_student', manager, {
+            assignedTutorId: inviteTutorId,
+          });
+        }
         if (inviteLinkId) {
           await manager.getRepository(TeacherInviteLinkEntity).increment({ id: inviteLinkId }, 'useCount', 1);
+        }
+        if (inviteTutorLinkId) {
+          await manager.getRepository(TutorInviteLinkEntity).increment({ id: inviteTutorLinkId }, 'useCount', 1);
         }
         await pendingRepo.delete({ id: pending.id });
         this.logger.log(
@@ -307,9 +339,17 @@ export class PendingRegistrationService {
           assignedTeacherId: inviteTeacherId,
         });
       }
+      if (assignedRole === 'tutor_student') {
+        await this.roleEntitySync.syncAfterRoleChange(created, 'tutor_student', manager, {
+          assignedTutorId: inviteTutorId,
+        });
+      }
 
       if (inviteLinkId) {
         await manager.getRepository(TeacherInviteLinkEntity).increment({ id: inviteLinkId }, 'useCount', 1);
+      }
+      if (inviteTutorLinkId) {
+        await manager.getRepository(TutorInviteLinkEntity).increment({ id: inviteTutorLinkId }, 'useCount', 1);
       }
 
       await pendingRepo.delete({ id: pending.id });

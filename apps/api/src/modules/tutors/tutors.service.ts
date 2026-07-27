@@ -2,12 +2,13 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, Repository } from 'typeorm';
 import { TutorAccessService } from '../../common/access/tutor-access.service';
+import { TutorStudentAccessService } from '../../common/access/tutor-student-access.service';
 import { JwtPayload } from '../auth/auth.service';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
-import { StudentEntity } from '../students/entities/student.entity';
 import { RoleEntitySyncService } from '../users/role-entity-sync.service';
 import { CreateTutorDto } from './dto/create-tutor.dto';
 import { UpdateTutorDto } from './dto/update-tutor.dto';
+import { TutorStudentEntity } from './entities/tutor-student.entity';
 import { TutorEntity } from './entities/tutor.entity';
 import { TutorDeleteResult, TutorDeletionService } from './tutor-deletion.service';
 import { TutorsRepository } from './tutors.repository';
@@ -52,10 +53,11 @@ export class TutorsService {
   constructor(
     private readonly repository: TutorsRepository,
     private readonly tutorAccess: TutorAccessService,
+    private readonly tutorStudentAccess: TutorStudentAccessService,
     private readonly tutorDeletion: TutorDeletionService,
     private readonly roleEntitySync: RoleEntitySyncService,
-    @InjectRepository(StudentEntity)
-    private readonly studentRepo: Repository<StudentEntity>,
+    @InjectRepository(TutorStudentEntity)
+    private readonly tutorStudentRepo: Repository<TutorStudentEntity>,
     @InjectRepository(LessonEntity)
     private readonly lessonRepo: Repository<LessonEntity>,
   ) {}
@@ -80,6 +82,31 @@ export class TutorsService {
       throw new NotFoundException('Tutor profile not found');
     }
     return this.findById(actor, tutorId);
+  }
+
+  async listStudents(actor: JwtPayload, tutorId?: string): Promise<TutorStudentEntity[]> {
+    let id = tutorId;
+    if (!id) {
+      id = (await this.tutorAccess.resolveTutorId(actor)) ?? undefined;
+    }
+    if (!id) {
+      throw new NotFoundException('Tutor profile not found');
+    }
+    await this.tutorStudentAccess.assertCanListForTutor(actor, id);
+    return this.tutorStudentRepo.find({
+      where: { tutorId: id },
+      order: { name: 'ASC' },
+    });
+  }
+
+  async listAllTutorStudents(actor: JwtPayload): Promise<TutorStudentEntity[]> {
+    if (actor.role !== 'admin') {
+      return this.listStudents(actor);
+    }
+    return this.tutorStudentRepo.find({
+      order: { name: 'ASC' },
+      relations: ['tutor'],
+    });
   }
 
   create(dto: CreateTutorDto): Promise<TutorEntity> {
@@ -194,17 +221,24 @@ export class TutorsService {
   }
 
   private async computeStats(tutorId: string): Promise<TutorStats> {
-    const students = await this.studentRepo.find({
-      where: { assignedTutorId: tutorId },
+    const students = await this.tutorStudentRepo.find({
+      where: { tutorId },
       select: ['id', 'status', 'name'],
     });
     const lessons = await this.lessonRepo.find({
       where: { tutorId },
-      select: ['id', 'status', 'duration', 'date', 'startTime', 'primaryStudentId', 'updatedAt'],
+      select: [
+        'id',
+        'status',
+        'duration',
+        'date',
+        'startTime',
+        'primaryTutorStudentId',
+        'updatedAt',
+      ],
       order: { date: 'DESC', startTime: 'DESC' },
     });
 
-    // Platform usage: only real completed lessons — never cancelled/rescheduled/missed.
     const completed = lessons.filter((l) => l.status === 'completed');
     const upcoming = lessons.filter((l) => l.status === 'planned');
     const teachingMinutes = completed.reduce(
@@ -216,7 +250,6 @@ export class TutorsService {
       students.map((s) => [s.id, s.name?.trim() || null]),
     );
 
-    // Prefer latest completed lesson date; fall back to any planned activity update.
     let lastActivityAt: string | null = null;
     if (completed.length > 0) {
       const latest = completed[0];
@@ -231,8 +264,8 @@ export class TutorsService {
       startTime: String(l.startTime).slice(0, 5),
       duration: Number(l.duration ?? 60),
       status: l.status,
-      studentName: l.primaryStudentId
-        ? studentNameById.get(l.primaryStudentId) ?? null
+      studentName: l.primaryTutorStudentId
+        ? studentNameById.get(l.primaryTutorStudentId) ?? null
         : null,
     }));
 

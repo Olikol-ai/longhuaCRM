@@ -25,6 +25,7 @@ import { StudentBalanceService } from '../students/student-balance.service';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { TeacherPaymentsService } from '../teacher-payments/teacher-payments.service';
 import { TutorEntity } from '../tutors/entities/tutor.entity';
+import { TutorStudentEntity } from '../tutors/entities/tutor-student.entity';
 import { AttendanceEntity } from './entities/attendance.entity';
 import {
   isScheduleOccupyingLessonStatus,
@@ -269,14 +270,16 @@ export class LessonsService {
     const tutorId = dto.tutorId as string;
     const duration = dto.duration ?? 60;
     const lessonType = dto.lessonType ?? 'individual';
+    const primaryTutorStudentId =
+      dto.primaryTutorStudentId || dto.tutorStudentId || undefined;
 
     if (lessonType === 'group' || dto.groupId) {
       throw new BadRequestException(
         'Групповые занятия доступны только преподавателям школы',
       );
     }
-    if (!dto.primaryStudentId) {
-      throw new BadRequestException('Выберите ученика для индивидуального урока');
+    if (!primaryTutorStudentId) {
+      throw new BadRequestException('Выберите ученика репетитора для индивидуального урока');
     }
 
     await this.scheduleService.assertNoTutorScheduleConflicts(
@@ -285,8 +288,8 @@ export class LessonsService {
       dto.startTime,
       duration,
     );
-    await this.scheduleService.assertNoStudentScheduleConflicts(
-      [dto.primaryStudentId],
+    await this.scheduleService.assertNoTutorStudentScheduleConflicts(
+      [primaryTutorStudentId],
       dto.date,
       dto.startTime,
       duration,
@@ -308,21 +311,21 @@ export class LessonsService {
         duration,
       );
 
-      const student = await manager.getRepository(StudentEntity).findOne({
-        where: { id: dto.primaryStudentId },
+      const tutorStudent = await manager.getRepository(TutorStudentEntity).findOne({
+        where: { id: primaryTutorStudentId },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!student) {
-        throw new NotFoundException('Ученик не найден');
+      if (!tutorStudent) {
+        throw new NotFoundException('Ученик репетитора не найден');
       }
-      if (student.assignedTutorId !== tutorId) {
+      if (tutorStudent.tutorId !== tutorId) {
         throw new BadRequestException(
           'Ученик не закреплён за этим репетитором',
         );
       }
 
-      await this.scheduleService.assertNoStudentScheduleConflicts(
-        [dto.primaryStudentId as string],
+      await this.scheduleService.assertNoTutorStudentScheduleConflicts(
+        [primaryTutorStudentId],
         dto.date,
         dto.startTime,
         duration,
@@ -335,7 +338,8 @@ export class LessonsService {
           tutorId,
           seriesId: null,
           groupId: null,
-          primaryStudentId: dto.primaryStudentId as string,
+          primaryStudentId: null,
+          primaryTutorStudentId,
           date: dto.date,
           startTime: dto.startTime,
           duration,
@@ -351,7 +355,8 @@ export class LessonsService {
       await manager.getRepository(AttendanceEntity).save(
         manager.getRepository(AttendanceEntity).create({
           lessonId: lesson.id,
-          studentId: dto.primaryStudentId as string,
+          studentId: null,
+          tutorStudentId: primaryTutorStudentId,
           attendanceStatus: 'enrolled',
         }),
       );
@@ -365,11 +370,21 @@ export class LessonsService {
 
   private normalizeCreateLessonDto(dto: CreateLessonDto): CreateLessonDto {
     const primaryStudentId = dto.primaryStudentId || dto.studentId || undefined;
+    const primaryTutorStudentId =
+      dto.primaryTutorStudentId || dto.tutorStudentId || undefined;
     return {
       ...dto,
       primaryStudentId,
+      primaryTutorStudentId,
       studentId: undefined,
-      lessonType: dto.lessonType ?? (dto.groupId ? 'group' : primaryStudentId ? 'individual' : undefined),
+      tutorStudentId: undefined,
+      lessonType:
+        dto.lessonType ??
+        (dto.groupId
+          ? 'group'
+          : primaryStudentId || primaryTutorStudentId
+            ? 'individual'
+            : undefined),
     };
   }
 
@@ -836,6 +851,40 @@ export class LessonsService {
       }),
     );
 
+    const tutorStudentIdsByLesson = new Map<string, string[]>();
+    for (const row of attendanceRows) {
+      if (!row.tutorStudentId) continue;
+      const list = tutorStudentIdsByLesson.get(row.lessonId) ?? [];
+      if (!list.includes(row.tutorStudentId)) {
+        list.push(row.tutorStudentId);
+      }
+      tutorStudentIdsByLesson.set(row.lessonId, list);
+    }
+
+    const allTutorStudentIds = [
+      ...new Set([
+        ...attendanceRows
+          .map((row) => row.tutorStudentId)
+          .filter((id): id is string => Boolean(id)),
+        ...lessons
+          .map((lesson) => lesson.primaryTutorStudentId)
+          .filter((id): id is string => Boolean(id)),
+      ]),
+    ];
+    const tutorStudents =
+      allTutorStudentIds.length > 0
+        ? await this.dataSource.getRepository(TutorStudentEntity).find({
+            where: { id: In(allTutorStudentIds) },
+            select: ['id', 'name', 'firstName', 'lastName'],
+          })
+        : [];
+    const tutorStudentNameById = new Map(
+      tutorStudents.map((row) => {
+        const label = formatStudentProfileDisplayName(row);
+        return [row.id, label] as const;
+      }),
+    );
+
     return lessons.map((lesson) => {
       const teacherName = lesson.teacher?.name?.trim() || null;
       let participantIds = studentIdsByLesson.get(lesson.id) ?? [];
@@ -847,26 +896,39 @@ export class LessonsService {
         participantIds = [lesson.primaryStudentId];
       }
 
-      const studentNames = participantIds
-        .map((id) => studentNameById.get(id) || '')
-        .filter(Boolean);
+      let tutorParticipantIds = tutorStudentIdsByLesson.get(lesson.id) ?? [];
+      if (
+        tutorParticipantIds.length === 0 &&
+        lesson.primaryTutorStudentId &&
+        !lesson.groupId
+      ) {
+        tutorParticipantIds = [lesson.primaryTutorStudentId];
+      }
+
+      const studentNames = [
+        ...participantIds.map((id) => studentNameById.get(id) || ''),
+        ...tutorParticipantIds.map((id) => tutorStudentNameById.get(id) || ''),
+      ].filter(Boolean);
       const studentName =
         studentNames.length > 0
           ? studentNames.join(', ')
           : lesson.primaryStudent?.name?.trim() ||
+            lesson.primaryTutorStudent?.name?.trim() ||
             lesson.group?.name?.trim() ||
             null;
 
       delete lesson.teacher;
       delete lesson.primaryStudent;
+      delete lesson.primaryTutorStudent;
       delete lesson.group;
       delete lesson.series;
 
       Object.assign(lesson, {
         teacherName,
         studentName,
-        studentIds: participantIds,
+        studentIds: participantIds.length > 0 ? participantIds : tutorParticipantIds,
         studentNames,
+        tutorStudentIds: tutorParticipantIds,
       });
       return lesson;
     });

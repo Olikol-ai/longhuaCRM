@@ -29,6 +29,13 @@ export const ROLE_CONFIG = {
     dot: 'bg-sky-500',
     icon: BookOpen,
   },
+  tutor_student: {
+    label: 'Ученик репетитора',
+    bg: 'bg-cyan-100 dark:bg-cyan-950/40',
+    text: 'text-cyan-700 dark:text-cyan-300',
+    dot: 'bg-cyan-500',
+    icon: UserCheck,
+  },
   student: {
     label: 'Ученик',
     bg: 'bg-slate-100 dark:bg-slate-800',

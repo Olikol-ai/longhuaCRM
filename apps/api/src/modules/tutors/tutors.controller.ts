@@ -35,6 +35,19 @@ export class TutorsController {
     return this.tutorsService.getStats(user);
   }
 
+  @Get('me/students')
+  @Roles('tutor', 'admin')
+  myStudents(@CurrentUser() user: JwtPayload) {
+    return this.tutorsService.listStudents(user);
+  }
+
+  /** Admin: all isolated tutor students (not school students). */
+  @Get('students/all')
+  @Roles('admin')
+  allTutorStudents(@CurrentUser() user: JwtPayload) {
+    return this.tutorsService.listAllTutorStudents(user);
+  }
+
   /** Admin platform-usage table for all tutors. Declared before :id. */
   @Get('analytics/overview')
   @Roles('admin')
@@ -46,6 +59,12 @@ export class TutorsController {
   @Roles('admin', 'tutor')
   findAll(@CurrentUser() user: JwtPayload) {
     return this.tutorsService.findAll(user);
+  }
+
+  @Get(':id/students')
+  @Roles('admin', 'tutor')
+  students(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.tutorsService.listStudents(user, id);
   }
 
   @Get(':id/stats')

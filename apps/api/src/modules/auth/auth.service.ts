@@ -65,6 +65,8 @@ import { PendingRegistrationService } from './pending-registration.service';
 import { VerificationEmailService } from './verification-email.service';
 
 import { TeacherInvitesService } from '../teachers/teacher-invites.service';
+import { TutorInvitesService } from '../tutors/tutor-invites.service';
+import { RegistrationInvite } from './pending-registration.service';
 
 
 
@@ -161,6 +163,7 @@ export class AuthService {
     private readonly mail: MailService,
 
     private readonly teacherInvites: TeacherInvitesService,
+    private readonly tutorInvites: TutorInvitesService,
 
   ) {}
 
@@ -320,7 +323,7 @@ export class AuthService {
 
       phone,
 
-      await this.teacherInvites.resolveValidInvite(dto.inviteToken),
+      await this.resolveRegistrationInvite(dto.inviteToken),
 
     );
 
@@ -804,6 +807,32 @@ export class AuthService {
     }
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
     return `${base}${normalizedPath}`;
+  }
+
+  private async resolveRegistrationInvite(
+    rawToken: string | undefined | null,
+  ): Promise<RegistrationInvite | null> {
+    const token = String(rawToken ?? '').trim();
+    if (!token) {
+      return null;
+    }
+    const tutorInvite = await this.tutorInvites.resolveValidInvite(token);
+    if (tutorInvite) {
+      return {
+        kind: 'tutor',
+        tutorId: tutorInvite.tutorId,
+        inviteLinkId: tutorInvite.inviteLinkId,
+      };
+    }
+    const teacherInvite = await this.teacherInvites.resolveValidInvite(token);
+    if (!teacherInvite) {
+      return null;
+    }
+    return {
+      kind: 'teacher',
+      teacherId: teacherInvite.teacherId,
+      inviteLinkId: teacherInvite.inviteLinkId,
+    };
   }
 
   signToken(user: Record<string, unknown>): string {

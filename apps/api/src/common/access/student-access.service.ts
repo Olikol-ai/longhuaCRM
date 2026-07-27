@@ -5,7 +5,6 @@ import { normalizeRole } from '../constants/roles';
 import { filterToEntityWhere } from '../utils/api-record.util';
 import { StudentEntity } from '../../modules/students/entities/student.entity';
 import { TeacherEntity } from '../../modules/teachers/entities/teacher.entity';
-import { TutorEntity } from '../../modules/tutors/entities/tutor.entity';
 import { NO_ACCESS_UUID } from './access.constants';
 import { DomainAccessActor, STUDENT_SELF_UPDATE_FIELDS } from './domain-access.types';
 
@@ -16,8 +15,6 @@ export class StudentAccessService {
     private readonly studentRepo: Repository<StudentEntity>,
     @InjectRepository(TeacherEntity)
     private readonly teacherRepo: Repository<TeacherEntity>,
-    @InjectRepository(TutorEntity)
-    private readonly tutorRepo: Repository<TutorEntity>,
   ) {}
 
   isAdmin(actor: DomainAccessActor): boolean {
@@ -54,12 +51,9 @@ export class StudentAccessService {
       return filterToEntityWhere({ ...where, assigned_teacher: teacher.id });
     }
 
-    if (role === 'tutor') {
-      const tutor = await this.tutorRepo.findOne({ where: { userId: actor.sub } });
-      if (!tutor) {
-        return { assignedTutorId: NO_ACCESS_UUID };
-      }
-      return filterToEntityWhere({ ...where, assigned_tutor: tutor.id });
+    // Tutors must use /tutors/:id/students (tutor_students), never school students.
+    if (role === 'tutor' || role === 'tutor_student') {
+      throw new ForbiddenException('Школьные ученики недоступны для репетиторов');
     }
 
     throw new ForbiddenException('Forbidden');
@@ -93,14 +87,6 @@ export class StudentAccessService {
     if (role === 'teacher') {
       const teacher = await this.teacherRepo.findOne({ where: { userId: actor.sub } });
       if (!teacher || student.assignedTeacherId !== teacher.id) {
-        throw new ForbiddenException('Cannot access students outside your assignment');
-      }
-      return;
-    }
-
-    if (role === 'tutor') {
-      const tutor = await this.tutorRepo.findOne({ where: { userId: actor.sub } });
-      if (!tutor || student.assignedTutorId !== tutor.id) {
         throw new ForbiddenException('Cannot access students outside your assignment');
       }
       return;

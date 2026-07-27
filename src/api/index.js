@@ -16,6 +16,7 @@ import { students } from './students.api';
 import { teachers } from './teachers.api';
 import { tutors } from './tutors.api';
 import { teacherInvites } from './teacher-invites.api';
+import { tutorInviteLinks } from './tutor-invite-links.api';
 import { teacherPayments } from './teacher-payments.api';
 import { lessonSeries } from './lesson-series.api';
 import { telegram } from './telegram.api';
@@ -31,6 +32,7 @@ export { students } from './students.api';
 export { teachers } from './teachers.api';
 export { tutors } from './tutors.api';
 export { teacherInvites } from './teacher-invites.api';
+export { tutorInviteLinks } from './tutor-invite-links.api';
 export { courses } from './courses.api';
 export { groups } from './groups.api';
 export { lessons } from './lessons.api';
@@ -53,6 +55,7 @@ export const api = {
   teachers,
   tutors,
   teacherInvites,
+  tutorInviteLinks,
   courses,
   groups,
   lessons,

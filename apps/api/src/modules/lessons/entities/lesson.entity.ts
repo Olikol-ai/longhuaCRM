@@ -13,6 +13,7 @@ import { LessonSeriesEntity } from '../../lesson-series/entities/lesson-series.e
 import { StudentEntity } from '../../students/entities/student.entity';
 import { TeacherEntity } from '../../teachers/entities/teacher.entity';
 import { TutorEntity } from '../../tutors/entities/tutor.entity';
+import { TutorStudentEntity } from '../../tutors/entities/tutor-student.entity';
 
 export const LESSON_STATUSES = [
   'planned',
@@ -90,6 +91,15 @@ export class LessonEntity {
   @ManyToOne(() => StudentEntity, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'primary_student_id' })
   primaryStudent?: StudentEntity | null;
+
+  /** Isolated tutor pupil (never a school Student). Used when tutorId is set. */
+  @Index('IDX_LESSON_PRIMARY_TUTOR_STUDENT_ID')
+  @Column({ name: 'primary_tutor_student_id', type: 'uuid', nullable: true })
+  primaryTutorStudentId: string | null;
+
+  @ManyToOne(() => TutorStudentEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'primary_tutor_student_id' })
+  primaryTutorStudent?: TutorStudentEntity | null;
 
   @Column({ type: 'date' })
   date: string;

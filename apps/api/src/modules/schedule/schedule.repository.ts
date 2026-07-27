@@ -163,6 +163,40 @@ export class ScheduleRepository {
     return qb.getMany();
   }
 
+
+  findLessonsForTutorStudentsOnDate(
+    tutorStudentIds: string[],
+    date: string,
+    excludeLessonId?: string,
+  ): Promise<LessonEntity[]> {
+    if (tutorStudentIds.length === 0) {
+      return Promise.resolve([]);
+    }
+
+    const qb = this.lessonRepo
+      .createQueryBuilder('lesson')
+      .leftJoin(
+        'attendance_records',
+        'att',
+        'att.lesson_id = lesson.id',
+      )
+      .where('lesson.date = :date', { date })
+      .andWhere('lesson.status IN (:...occupyingStatuses)', {
+        occupyingStatuses: [...SCHEDULE_OCCUPYING_LESSON_STATUSES],
+      })
+      .andWhere(
+        '(lesson.primary_tutor_student_id IN (:...tutorStudentIds) OR att.tutor_student_id IN (:...tutorStudentIds))',
+        { tutorStudentIds },
+      )
+      .distinct(true);
+
+    if (excludeLessonId) {
+      qb.andWhere('lesson.id != :excludeLessonId', { excludeLessonId });
+    }
+
+    return qb.getMany();
+  }
+
   /**
    * Active bookings that still occupy the teacher slot.
    * Stale `active` rows for cancelled/missed/rescheduled lessons are ignored.

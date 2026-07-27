@@ -11,6 +11,7 @@ import Salary from "./Salary";
 import ExportData from "./ExportData";
 import AdminPanelSystem from "@/components/admin/AdminPanelSystem";
 import TutorsAnalytics from "./TutorsAnalytics";
+import AdminTutors from "./AdminTutors";
 
 const TABS = [
   { id: "analytics", label: "Аналитика", icon: TrendingUp },
@@ -51,7 +52,7 @@ export default function AdminPanel() {
 
       <div className="flex-1 overflow-auto">
         {activeTab === "analytics" && <Analytics />}
-        {activeTab === "tutors" && <TutorsAnalytics />}
+        {activeTab === "tutors" && <AdminTutors />}
         {activeTab === "salary" && <Salary />}
         {activeTab === "export" && <ExportData />}
         {activeTab === "system" && <AdminPanelSystem />}

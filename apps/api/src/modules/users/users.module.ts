@@ -6,6 +6,7 @@ import { TeachersModule } from '../teachers/teachers.module';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { TutorsModule } from '../tutors/tutors.module';
 import { TutorEntity } from '../tutors/entities/tutor.entity';
+import { TutorStudentEntity } from '../tutors/entities/tutor-student.entity';
 import { UserEntity } from './entities/user.entity';
 import { ProfileRelationsService } from './profile-relations.service';
 import { RoleEntitySyncService } from './role-entity-sync.service';
@@ -16,7 +17,13 @@ import { UsersService } from './users.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([UserEntity, StudentEntity, TeacherEntity, TutorEntity]),
+    TypeOrmModule.forFeature([
+      UserEntity,
+      StudentEntity,
+      TeacherEntity,
+      TutorEntity,
+      TutorStudentEntity,
+    ]),
     forwardRef(() => TeachersModule),
     forwardRef(() => TutorsModule),
     forwardRef(() => StudentsModule),

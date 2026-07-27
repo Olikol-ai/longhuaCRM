@@ -30,7 +30,7 @@ export default function TutorDashboard() {
         api.tutors.me(),
         api.tutors.myStats(),
         api.lessons.list('-date', 200),
-        api.students.list(),
+        api.tutors.myStudents(),
       ]);
       setProfile(me);
       setStats(myStats);
@@ -97,6 +97,9 @@ export default function TutorDashboard() {
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link to={createPageUrl('TutorStudents')}>Ученики</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link to={createPageUrl('TutorReferralLinks')}>Ссылки</Link>
           </Button>
           <Button asChild size="sm">
             <Link to={createPageUrl('TutorStats')}>Статистика</Link>

@@ -138,7 +138,7 @@ const AuthenticatedApp = () => {
             element = <AdminRoute>{element}</AdminRoute>;
           } else if (['TeacherDashboard', 'TeacherSchedule', 'TeacherAssessment', 'TeacherAssessmentReview', 'TeacherAssessmentReviewDetail', 'TeacherAssessmentResults', 'TeacherStudents'].includes(path)) {
             element = <TeacherRoute>{element}</TeacherRoute>;
-          } else if (['TutorDashboard', 'TutorSchedule', 'TutorStudents', 'TutorStats'].includes(path)) {
+          } else if (['TutorDashboard', 'TutorSchedule', 'TutorStudents', 'TutorStats', 'TutorReferralLinks'].includes(path)) {
             element = <TutorRoute>{element}</TutorRoute>;
           } else if (['StudentDashboard', 'StudentLessons', 'StudentCertificates', 'StudentExams'].includes(path)) {
             element = <StudentRoute>{element}</StudentRoute>;

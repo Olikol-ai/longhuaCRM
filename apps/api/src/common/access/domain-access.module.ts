@@ -15,6 +15,7 @@ import { MaterialEntity } from '../../modules/materials/entities/material.entity
 import { StudentEntity } from '../../modules/students/entities/student.entity';
 import { TeacherEntity } from '../../modules/teachers/entities/teacher.entity';
 import { TutorEntity } from '../../modules/tutors/entities/tutor.entity';
+import { TutorStudentEntity } from '../../modules/tutors/entities/tutor-student.entity';
 import {
   AssessmentAttemptEntity,
   AssessmentExamAssignmentEntity,
@@ -29,6 +30,7 @@ import { ScheduleAccessService } from './schedule-access.service';
 import { StudentAccessService } from './student-access.service';
 import { TeacherAccessService } from './teacher-access.service';
 import { TutorAccessService } from './tutor-access.service';
+import { TutorStudentAccessService } from './tutor-student-access.service';
 import { AssessmentAccessService } from './assessment-access.service';
 
 @Global()
@@ -38,6 +40,7 @@ import { AssessmentAccessService } from './assessment-access.service';
       StudentEntity,
       TeacherEntity,
       TutorEntity,
+      TutorStudentEntity,
       LessonEntity,
       AttendanceEntity,
       GroupEntity,
@@ -60,6 +63,7 @@ import { AssessmentAccessService } from './assessment-access.service';
     StudentAccessService,
     TeacherAccessService,
     TutorAccessService,
+    TutorStudentAccessService,
     LessonAccessService,
     ScheduleAccessService,
     CourseAccessService,
@@ -71,6 +75,7 @@ import { AssessmentAccessService } from './assessment-access.service';
     StudentAccessService,
     TeacherAccessService,
     TutorAccessService,
+    TutorStudentAccessService,
     LessonAccessService,
     ScheduleAccessService,
     CourseAccessService,

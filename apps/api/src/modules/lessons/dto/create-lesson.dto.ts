@@ -69,6 +69,25 @@ export class CreateLessonDto {
   @IsUUID()
   studentId?: string;
 
+  /** Isolated tutor pupil for tutor-owned lessons. */
+  @IsOptional()
+  @Transform(({ value, obj }) => {
+    const record = obj as Record<string, unknown>;
+    return pickUuid(
+      value,
+      record.primaryTutorStudentId,
+      record.tutorStudentId,
+      record.tutor_student_id,
+      record.primary_tutor_student_id,
+    );
+  })
+  @IsUUID()
+  primaryTutorStudentId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  tutorStudentId?: string;
+
   /**
    * Always present — host for object-level validators that must not be skipped
    * by @IsOptional on instructor fields.

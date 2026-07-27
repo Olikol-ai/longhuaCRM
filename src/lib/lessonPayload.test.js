@@ -44,4 +44,19 @@ describe('toLessonWritePayload', () => {
     assert.equal(group.lessonType, 'group');
     assert.equal(group.primaryStudentId, undefined);
   });
+
+  it('maps tutor_student_id for tutor-owned lessons', () => {
+    const payload = toLessonWritePayload({
+      tutor_id: '55555555-5555-4555-8555-555555555555',
+      tutor_student_id: '66666666-6666-4666-8666-666666666666',
+      student_id: '77777777-7777-4777-8777-777777777777',
+      date: '2026-08-01',
+      start_time: '10:00',
+    });
+    assert.equal(payload.tutorId, '55555555-5555-4555-8555-555555555555');
+    assert.equal(payload.primaryTutorStudentId, '66666666-6666-4666-8666-666666666666');
+    assert.equal(payload.primaryStudentId, undefined);
+    assert.equal(payload.tutorStudentId, undefined);
+    assert.equal(payload.lessonType, 'individual');
+  });
 });

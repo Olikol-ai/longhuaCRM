@@ -42,6 +42,13 @@ export class PendingRegistrationEntity {
   @Column({ name: 'invite_link_id', type: 'uuid', nullable: true })
   inviteLinkId: string | null;
 
+  /** Tutor resolved from invite token at register time (never from client tutorId). */
+  @Column({ name: 'invite_tutor_id', type: 'uuid', nullable: true })
+  inviteTutorId: string | null;
+
+  @Column({ name: 'invite_tutor_link_id', type: 'uuid', nullable: true })
+  inviteTutorLinkId: string | null;
+
   @Column({ name: 'verification_code_hash', type: 'text', nullable: true })
   verificationCodeHash: string | null;
 

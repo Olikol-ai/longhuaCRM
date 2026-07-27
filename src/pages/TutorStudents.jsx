@@ -46,8 +46,8 @@ export default function TutorStudents() {
     setLoadError(null);
     setLoading(true);
     try {
-      // ACL: GET /students already scopes tutors to assigned_tutor_id.
-      const rows = await api.students.list();
+      // Isolated tutor_students only — never school /students.
+      const rows = await api.tutors.myStudents();
       const visible = (Array.isArray(rows) ? rows : []).filter(
         (s) => s.status !== 'inactive',
       );
@@ -86,9 +86,11 @@ export default function TutorStudents() {
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-5">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">Мои ученики</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+          Мои ученики
+        </h1>
         <p className="text-sm text-slate-500 mt-1">
-          {getGreetingName(user)}, здесь только ученики, закреплённые за вами
+          {getGreetingName(user)}, здесь только ваши ученики репетитора
         </p>
       </div>
 
@@ -118,6 +120,7 @@ export default function TutorStudents() {
             return (
               <Card key={s.id} className="p-4 space-y-2">
                 <p className="font-medium text-slate-900 dark:text-slate-100">{s.name}</p>
+                <p className="text-[11px] uppercase tracking-wide text-sky-600">Ученик репетитора</p>
                 {s.email && (
                   <p className="text-xs text-slate-500 flex items-center gap-1.5">
                     <Mail className="w-3.5 h-3.5" /> {s.email}

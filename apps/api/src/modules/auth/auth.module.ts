@@ -16,6 +16,8 @@ import { MailModule } from '../mail/mail.module';
 
 import { TeachersModule } from '../teachers/teachers.module';
 
+import { TutorsModule } from '../tutors/tutors.module';
+
 import { AuthController } from './auth.controller';
 
 import { AuthService } from './auth.service';
@@ -62,6 +64,8 @@ import { JwtStrategy } from './jwt.strategy';
     MailModule,
 
     TeachersModule,
+
+    TutorsModule,
 
   ],
 

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { EntityManager, Repository } from 'typeorm';
@@ -6,6 +6,7 @@ import { filterToEntityWhere } from '../../common/utils/api-record.util';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { TutorEntity } from '../tutors/entities/tutor.entity';
+import { TutorStudentEntity } from '../tutors/entities/tutor-student.entity';
 import {
   composeDisplayName,
   resolveNameParts,
@@ -26,6 +27,8 @@ export class RoleEntitySyncService {
     private readonly teacherRepo: Repository<TeacherEntity>,
     @InjectRepository(TutorEntity)
     private readonly tutorRepo: Repository<TutorEntity>,
+    @InjectRepository(TutorStudentEntity)
+    private readonly tutorStudentRepo: Repository<TutorStudentEntity>,
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
   ) {}
@@ -37,23 +40,40 @@ export class RoleEntitySyncService {
     user: RoleEntityUserContext,
     newRole: string,
     manager?: EntityManager,
-    options?: { assignedTeacherId?: string | null },
+    options?: { assignedTeacherId?: string | null; assignedTutorId?: string | null },
   ): Promise<void> {
     const role = newRole.trim().toLowerCase();
     const studentRepo = manager?.getRepository(StudentEntity) ?? this.studentRepo;
     const teacherRepo = manager?.getRepository(TeacherEntity) ?? this.teacherRepo;
     const tutorRepo = manager?.getRepository(TutorEntity) ?? this.tutorRepo;
+    const tutorStudentRepo =
+      manager?.getRepository(TutorStudentEntity) ?? this.tutorStudentRepo;
 
     if (role === 'student') {
       await this.detachTeachersForUser(teacherRepo, user.id);
       await this.detachTutorsForUser(tutorRepo, user.id);
+      await this.detachTutorStudentsForUser(tutorStudentRepo, user.id);
       await this.ensureStudentProfile(studentRepo, user, options?.assignedTeacherId);
+      return;
+    }
+
+    if (role === 'tutor_student') {
+      await this.detachStudentsForUser(studentRepo, user.id);
+      await this.detachTeachersForUser(teacherRepo, user.id);
+      await this.detachTutorsForUser(tutorRepo, user.id);
+      await this.ensureTutorStudentProfile(
+        tutorStudentRepo,
+        user,
+        options?.assignedTutorId ?? null,
+        manager,
+      );
       return;
     }
 
     if (role === 'teacher') {
       await this.detachStudentsForUser(studentRepo, user.id);
       await this.detachTutorsForUser(tutorRepo, user.id);
+      await this.detachTutorStudentsForUser(tutorStudentRepo, user.id);
       await this.ensureTeacherProfile(teacherRepo, user);
       return;
     }
@@ -61,6 +81,7 @@ export class RoleEntitySyncService {
     if (role === 'tutor') {
       await this.detachStudentsForUser(studentRepo, user.id);
       await this.detachTeachersForUser(teacherRepo, user.id);
+      await this.detachTutorStudentsForUser(tutorStudentRepo, user.id);
       await this.ensureTutorProfile(tutorRepo, user);
       return;
     }
@@ -69,6 +90,7 @@ export class RoleEntitySyncService {
       await this.detachTeachersForUser(teacherRepo, user.id);
       await this.detachTutorsForUser(tutorRepo, user.id);
       await this.detachStudentsForUser(studentRepo, user.id);
+      await this.detachTutorStudentsForUser(tutorStudentRepo, user.id);
     }
   }
 
@@ -266,6 +288,16 @@ export class RoleEntitySyncService {
       if (phone !== undefined) tutor.phone = phone || null;
       await this.tutorRepo.save(tutor);
     }
+
+    const tutorStudent = await this.tutorStudentRepo.findOne({ where: { userId: user.id } });
+    if (tutorStudent) {
+      tutorStudent.name = display;
+      tutorStudent.firstName = firstName || tutorStudent.firstName;
+      tutorStudent.lastName = lastName || tutorStudent.lastName;
+      if (email) tutorStudent.email = email;
+      if (phone !== undefined) tutorStudent.phone = phone || null;
+      await this.tutorStudentRepo.save(tutorStudent);
+    }
   }
 
   /**
@@ -316,11 +348,72 @@ export class RoleEntitySyncService {
     await tutorRepo.update({ userId }, { userId: null, status: 'inactive' });
   }
 
+  private async detachTutorStudentsForUser(
+    tutorStudentRepo: Repository<TutorStudentEntity>,
+    userId: string,
+  ): Promise<void> {
+    await tutorStudentRepo.update({ userId }, { userId: null, status: 'inactive' });
+  }
+
   private async detachStudentsForUser(
     studentRepo: Repository<StudentEntity>,
     userId: string,
   ): Promise<void> {
     await studentRepo.update({ userId }, { userId: null, status: 'inactive' });
+  }
+
+  private async ensureTutorStudentProfile(
+    tutorStudentRepo: Repository<TutorStudentEntity>,
+    user: RoleEntityUserContext,
+    assignedTutorId: string | null,
+    manager?: EntityManager,
+  ): Promise<void> {
+    if (!assignedTutorId) {
+      throw new BadRequestException(
+        'Для роли «Ученик репетитора» нужен закреплённый репетитор',
+      );
+    }
+
+    let row =
+      (await tutorStudentRepo.findOne({ where: { userId: user.id } })) ??
+      (user.email
+        ? await tutorStudentRepo.findOne({
+            where: { email: user.email, tutorId: assignedTutorId },
+          })
+        : null);
+
+    if (row?.userId && row.userId !== user.id) {
+      row = null;
+    }
+
+    if (row) {
+      row.userId = user.id;
+      row.tutorId = assignedTutorId;
+      row.status = 'active';
+      row.email = user.email;
+      row.name = this.displayName(user);
+      row.firstName = user.firstName || row.firstName;
+      row.lastName = user.lastName || row.lastName;
+      await tutorStudentRepo.save(row);
+      return;
+    }
+
+    await tutorStudentRepo.save(
+      tutorStudentRepo.create({
+        id: randomUUID(),
+        tutorId: assignedTutorId,
+        name: this.displayName(user),
+        email: user.email,
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        phone: user.phone || null,
+        userId: user.id,
+        status: 'active',
+      }),
+    );
+
+    // Silence unused manager warning while keeping signature consistent for txn callers.
+    void manager;
   }
 
   private async ensureStudentProfile(

@@ -56,6 +56,7 @@ const tutorNav = [
   { name: "Главная", icon: LayoutDashboard, page: "TutorDashboard" },
   { name: "Расписание", icon: Calendar, page: "TutorSchedule" },
   { name: "Ученики", icon: Users, page: "TutorStudents" },
+  { name: "Ссылки", icon: BookOpen, page: "TutorReferralLinks" },
   { name: "Статистика", icon: ClipboardList, page: "TutorStats" },
   { name: "Профиль", icon: UserCircle, page: "Profile" },
   { name: "Настройки", icon: Settings, page: "Settings" },
@@ -71,11 +72,17 @@ const studentNav = [
   { name: "Настройки", icon: Settings, page: "Settings" },
 ];
 
+const tutorStudentNav = [
+  { name: "Профиль", icon: UserCircle, page: "Profile" },
+  { name: "Настройки", icon: Settings, page: "Settings" },
+];
+
 const NAV_BY_ROLE = {
   admin: adminNav,
   teacher: teacherNav,
   tutor: tutorNav,
   student: studentNav,
+  tutor_student: tutorStudentNav,
 };
 
 export default function Layout({ children, currentPageName }) {

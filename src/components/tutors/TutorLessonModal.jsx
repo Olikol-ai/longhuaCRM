@@ -25,7 +25,7 @@ export default function TutorLessonModal({
 }) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    student_id: '',
+    tutor_student_id: '',
     date: defaultDate || '',
     start_time: '10:00',
     duration: 60,
@@ -37,7 +37,7 @@ export default function TutorLessonModal({
   useEffect(() => {
     if (!open) return;
     setForm({
-      student_id: '',
+      tutor_student_id: '',
       date: defaultDate || new Date().toISOString().slice(0, 10),
       start_time: '10:00',
       duration: 60,
@@ -60,7 +60,7 @@ export default function TutorLessonModal({
       toast({ title: 'Профиль репетитора не найден', variant: 'destructive' });
       return;
     }
-    if (!form.student_id) {
+    if (!form.tutor_student_id) {
       toast({ title: 'Выберите ученика', variant: 'destructive' });
       return;
     }
@@ -73,7 +73,7 @@ export default function TutorLessonModal({
     try {
       const payload = toLessonWritePayload({
         tutor_id: tutorId,
-        student_id: form.student_id,
+        tutor_student_id: form.tutor_student_id,
         date: form.date,
         start_time: form.start_time,
         duration: Number(form.duration) || 60,
@@ -109,8 +109,8 @@ export default function TutorLessonModal({
           <div className="space-y-2">
             <Label>Ученик *</Label>
             <Select
-              value={form.student_id || 'none'}
-              onValueChange={(v) => setForm((f) => ({ ...f, student_id: v === 'none' ? '' : v }))}
+              value={form.tutor_student_id || 'none'}
+              onValueChange={(v) => setForm((f) => ({ ...f, tutor_student_id: v === 'none' ? '' : v }))}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Выбрать ученика" />

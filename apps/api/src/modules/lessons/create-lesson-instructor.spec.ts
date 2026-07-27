@@ -21,12 +21,23 @@ describe('CreateLessonDto instructor ownership', () => {
   it('accepts tutor-owned lesson', async () => {
     const dto = plainToInstance(CreateLessonDto, {
       tutorId: TUTOR_ID,
-      primaryStudentId: STUDENT_ID,
+      primaryTutorStudentId: STUDENT_ID,
       date: '2026-08-01',
       startTime: '10:00',
     });
     const errors = await validate(dto);
     expect(errors).toHaveLength(0);
+  });
+
+  it('rejects tutor lesson without tutor student', async () => {
+    const dto = plainToInstance(CreateLessonDto, {
+      tutorId: TUTOR_ID,
+      primaryStudentId: STUDENT_ID,
+      date: '2026-08-01',
+      startTime: '10:00',
+    });
+    const errors = await validate(dto);
+    expect(errors.some((e) => e.property === 'date')).toBe(true);
   });
 
   it('rejects lesson with both teacher and tutor', async () => {

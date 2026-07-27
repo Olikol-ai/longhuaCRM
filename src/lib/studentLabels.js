@@ -58,7 +58,17 @@ function lessonStudentIds(lesson) {
   if (lesson?.studentIds?.length) {
     return lesson.studentIds;
   }
-  const primary = lesson?.primary_student_id || lesson?.primaryStudentId;
+  if (lesson?.tutor_student_ids?.length) {
+    return lesson.tutor_student_ids;
+  }
+  if (lesson?.tutorStudentIds?.length) {
+    return lesson.tutorStudentIds;
+  }
+  const primary =
+    lesson?.primary_student_id ||
+    lesson?.primaryStudentId ||
+    lesson?.primary_tutor_student_id ||
+    lesson?.primaryTutorStudentId;
   return primary ? [primary] : [];
 }
 

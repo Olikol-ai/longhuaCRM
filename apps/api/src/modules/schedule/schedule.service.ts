@@ -377,6 +377,36 @@ export class ScheduleService {
     }
   }
 
+  
+  async assertNoTutorStudentScheduleConflicts(
+    tutorStudentIds: string[],
+    date: string,
+    startTime: string,
+    duration: number,
+    excludeLessonId?: string,
+  ): Promise<void> {
+    const uniqueIds = [...new Set(tutorStudentIds.filter(Boolean))];
+    if (uniqueIds.length === 0) {
+      return;
+    }
+
+    const timeFrom = this.normalizeTime(startTime);
+    const timeTo = this.addMinutesToTime(timeFrom, Number(duration) || 60);
+    const lessons = await this.repository.findLessonsForTutorStudentsOnDate(
+      uniqueIds,
+      date,
+      excludeLessonId,
+    );
+
+    for (const lesson of lessons) {
+      const lessonFrom = this.normalizeTime(lesson.startTime);
+      const lessonTo = this.addMinutesToTime(lessonFrom, lesson.duration || 60);
+      if (this.rangesOverlap(timeFrom, timeTo, lessonFrom, lessonTo)) {
+        throw new BadRequestException(STUDENT_CONFLICT_MESSAGE);
+      }
+    }
+  }
+
   async createLessonBooking(params: {
     teacherId: string;
     lessonId: string;
