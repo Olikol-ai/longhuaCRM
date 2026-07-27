@@ -51,6 +51,13 @@ const TEACHER_LOCKED_LESSON_STATUSES = new Set([
   'rescheduled',
 ]);
 
+/**
+ * Statuses that already ran financial side-effects (balance + TeacherPayment).
+ * Leaving these via PATCH/cancel without a compensating reverse would corrupt money state.
+ * We forbid the transition rather than auto-mutating historical balances.
+ */
+const FINANCIALLY_FINALIZED_LESSON_STATUSES = new Set(['completed']);
+
 /** Attendance statuses a teacher cannot overwrite after confirmation. */
 const TEACHER_LOCKED_ATTENDANCE_STATUSES = new Set([
   'attended',
@@ -287,6 +294,26 @@ export class LessonsService {
       id,
       normalizedDto as Record<string, unknown>,
     );
+
+    if (
+      typeof payload.status === 'string' &&
+      payload.status !== before.status &&
+      FINANCIALLY_FINALIZED_LESSON_STATUSES.has(before.status)
+    ) {
+      throw new ConflictException(
+        'Нельзя изменить статус завершённого занятия: баланс и начисления уже зафиксированы',
+      );
+    }
+
+    // UI cancels via PATCH { status: 'cancelled' }. Route through cancel() so we
+    // take the same pessimistic lock as cron completion and reject non-planned.
+    if (
+      typeof payload.status === 'string' &&
+      payload.status === 'cancelled' &&
+      before.status !== 'cancelled'
+    ) {
+      return this.cancel(actor, id);
+    }
 
     const completing =
       payload.status &&
@@ -910,9 +937,21 @@ export class LessonsService {
 
     return this.dataSource.transaction(async (manager) => {
       const lessonRepo = manager.getRepository(LessonEntity);
-      const lesson = await lessonRepo.findOne({ where: { id } });
+      const lesson = await lessonRepo.findOne({
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (!lesson) {
         throw new NotFoundException('Lesson not found');
+      }
+
+      // Only planned lessons may be cancelled. Completed lessons already charged
+      // balance / created TeacherPayment — reversing that requires an explicit
+      // compensating flow (not silent cancel).
+      if (lesson.status !== 'planned') {
+        throw new ConflictException(
+          'Отменить можно только запланированное занятие',
+        );
       }
 
       lesson.status = 'cancelled';
@@ -947,7 +986,12 @@ export class LessonsService {
   }
 
   createAttendance(dto: CreateAttendanceDto): Promise<AttendanceEntity> {
-    return this.repository.saveAttendance(dto);
+    return this.repository.saveAttendance({
+      lessonId: dto.lessonId,
+      studentId: dto.studentId,
+      attendanceStatus: dto.attendanceStatus ?? 'enrolled',
+      balanceDeducted: false,
+    });
   }
 
   async updateAttendance(
@@ -981,9 +1025,7 @@ export class LessonsService {
       if (dto.attendanceStatus !== undefined) {
         existing.attendanceStatus = dto.attendanceStatus;
       }
-      if (dto.balanceDeducted !== undefined) {
-        existing.balanceDeducted = dto.balanceDeducted;
-      }
+      // balanceDeducted is never taken from the client — only StudentBalanceService.
       const row = await attendanceRepo.save(existing);
 
       if (

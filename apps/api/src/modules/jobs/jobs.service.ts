@@ -35,7 +35,6 @@ export class JobsService {
 
   async exportBackup() {
     const tables = [
-      ['users', UserEntity],
       ['students', StudentEntity],
       ['teachers', TeacherEntity],
       ['lessons', LessonEntity],
@@ -43,6 +42,11 @@ export class JobsService {
 
     const backup: Record<string, unknown> = {};
     let totalRecords = 0;
+
+    const users = await this.dataSource.getRepository(UserEntity).find({ take: 5000 });
+    const sanitizedUsers = users.map((user) => this.sanitizeUserForBackup(user));
+    backup.users = sanitizedUsers;
+    totalRecords += sanitizedUsers.length;
 
     for (const [name, entity] of tables) {
       const records = await this.dataSource.getRepository(entity).find({ take: 5000 });
@@ -53,7 +57,8 @@ export class JobsService {
     backup._metadata = {
       exportedAt: new Date().toISOString(),
       totalRecords,
-      exportedEntities: tables.length,
+      exportedEntities: tables.length + 1,
+      secretsOmitted: true,
     };
 
     const jsonData = JSON.stringify(backup, null, 2);
@@ -77,6 +82,30 @@ export class JobsService {
       success: true,
       message: `Revoked ${toDelete.length} access records`,
       deletedCount: toDelete.length,
+    };
+  }
+
+  /**
+   * Strip credential and token material from user rows before export.
+   * Operational identity fields stay so admins can restore directory context.
+   */
+  private sanitizeUserForBackup(user: UserEntity): Record<string, unknown> {
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      status: user.status,
+      emailVerified: user.emailVerified,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phone: user.phone,
+      telegramId: user.telegramId,
+      telegramUsername: user.telegramUsername,
+      telegramConnectedAt: user.telegramConnectedAt,
+      telegramNotify24h: user.telegramNotify24h,
+      telegramNotify3h: user.telegramNotify3h,
+      createdDate: user.createdDate,
+      updatedDate: user.updatedDate,
     };
   }
 }
