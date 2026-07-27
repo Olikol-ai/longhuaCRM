@@ -23,12 +23,12 @@ export class TeacherMonthlyPayoutEntity {
   id: string;
 
   @Index('IDX_TEACHER_MONTHLY_PAYOUT_TEACHER_ID')
-  @Column({ name: 'teacher_id', type: 'uuid' })
-  teacherId: string;
+  @Column({ name: 'teacher_id', type: 'uuid', nullable: true })
+  teacherId: string | null;
 
-  @ManyToOne(() => TeacherEntity, { nullable: false, onDelete: 'CASCADE' })
+  @ManyToOne(() => TeacherEntity, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'teacher_id' })
-  teacher?: TeacherEntity;
+  teacher?: TeacherEntity | null;
 
   /** Calendar month in `yyyy-MM` format (e.g. 2026-07). */
   @Column({ type: 'varchar', length: 7 })

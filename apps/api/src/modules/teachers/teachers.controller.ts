@@ -31,6 +31,16 @@ export class TeachersController {
   }
 
   /**
+   * Active teachers with a linked active User(role=teacher).
+   * Must be declared before @Get(':id').
+   */
+  @Get('active')
+  @Roles('admin')
+  findActive() {
+    return this.teachersService.findActive();
+  }
+
+  /**
    * Advisory: active teachers free for date + startTime + duration.
    * Must be declared before @Get(':id') so "available" is not parsed as an id.
    */

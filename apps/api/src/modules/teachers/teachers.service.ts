@@ -44,6 +44,23 @@ export class TeachersService {
     return this.applyUserTelegram(rows);
   }
 
+  /**
+   * Canonical active teachers for salary / admin directories.
+   * Requires: Teacher.status=active, linked User exists, role=teacher, status=active.
+   */
+  async findActive(): Promise<TeacherEntity[]> {
+    const rows = await this.userRepo.manager
+      .getRepository(TeacherEntity)
+      .createQueryBuilder('t')
+      .innerJoin(UserEntity, 'u', 'u.id = t.user_id')
+      .where('t.status = :teacherStatus', { teacherStatus: 'active' })
+      .andWhere('u.role = :role', { role: 'teacher' })
+      .andWhere('u.status = :userStatus', { userStatus: 'active' })
+      .orderBy('t.name', 'ASC')
+      .getMany();
+    return this.applyUserTelegram(rows);
+  }
+
   async findById(actor: JwtPayload, id: string): Promise<TeacherEntity> {
     await this.teacherAccess.assertCanReadTeacher(actor, id);
     const row = await this.repository.findById(id);

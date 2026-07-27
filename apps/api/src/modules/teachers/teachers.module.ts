@@ -3,10 +3,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { GroupEntity } from '../groups/entities/group.entity';
 import { LessonSeriesEntity } from '../lesson-series/entities/lesson-series.entity';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
+import { MaterialAccessEntity } from '../materials/entities/material-access.entity';
 import { AvailabilityBookingEntity } from '../schedule/entities/availability-booking.entity';
 import { AvailabilitySlotEntity } from '../schedule/entities/availability-slot.entity';
 import { ScheduleModule } from '../schedule/schedule.module';
 import { StudentEntity } from '../students/entities/student.entity';
+import { TeacherMonthlyPayoutEntity } from '../teacher-payments/entities/teacher-monthly-payout.entity';
 import { TeacherPaymentEntity } from '../teacher-payments/entities/teacher-payment.entity';
 import { UserEntity } from '../users/entities/user.entity';
 import { UsersModule } from '../users/users.module';
@@ -31,6 +33,8 @@ import { TeachersService } from './teachers.service';
       GroupEntity,
       LessonSeriesEntity,
       TeacherPaymentEntity,
+      TeacherMonthlyPayoutEntity,
+      MaterialAccessEntity,
       StudentEntity,
       AvailabilitySlotEntity,
       AvailabilityBookingEntity,

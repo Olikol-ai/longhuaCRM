@@ -11,6 +11,7 @@ import { JwtPayload } from '../auth/auth.service';
 import { TeacherAccessService } from '../../common/access/teacher-access.service';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
+import { UserEntity } from '../users/entities/user.entity';
 import { TeacherMonthlyPayoutEntity } from './entities/teacher-monthly-payout.entity';
 import { TeacherPaymentEntity } from './entities/teacher-payment.entity';
 import { UpdateTeacherPaymentDto } from './dto/update-teacher-payment.dto';
@@ -143,16 +144,32 @@ export class TeacherPaymentsService {
       return [];
     }
 
-    const teachers = await this.teacherRepo.find({
-      where: { id: In(teacherIds) },
-      select: ['id', 'name', 'hourlyRate'],
-    });
+    // Only canonical active teachers (linked active User with role=teacher).
+    const teachers = await this.teacherRepo
+      .createQueryBuilder('t')
+      .innerJoin(UserEntity, 'u', 'u.id = t.user_id')
+      .where('t.id IN (:...teacherIds)', { teacherIds })
+      .andWhere('t.status = :teacherStatus', { teacherStatus: 'active' })
+      .andWhere('u.role = :role', { role: 'teacher' })
+      .andWhere('u.status = :userStatus', { userStatus: 'active' })
+      .select(['t.id', 't.name', 't.hourlyRate'])
+      .getMany();
     const teacherById = new Map(teachers.map((t) => [t.id, t]));
+    const activeTeacherIds = teachers.map((t) => t.id);
+    if (activeTeacherIds.length === 0) {
+      return [];
+    }
 
     const payouts = await this.monthlyPayoutRepo.find({
-      where: { month, teacherId: In(teacherIds) },
+      where: { month, teacherId: In(activeTeacherIds) },
     });
-    const payoutByTeacher = new Map(payouts.map((p) => [p.teacherId, p]));
+    const payoutByTeacher = new Map(
+      payouts
+        .filter((p): p is TeacherMonthlyPayoutEntity & { teacherId: string } =>
+          Boolean(p.teacherId),
+        )
+        .map((p) => [p.teacherId, p]),
+    );
 
     const byTeacher = new Map<
       string,

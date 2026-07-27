@@ -4,6 +4,7 @@ import {
   adminLogin,
   api,
   authHeader,
+  createTeacherUser,
   createTestApp,
   ensureDatabaseReady,
 } from './e2e-helpers';
@@ -35,16 +36,18 @@ describe('Teacher monthly salary summary (e2e)', () => {
   }
 
   async function createTeacher(hourlyRate = 30): Promise<string> {
-    const res = await api(app)
-      .post('/api/teachers')
+    const suffix = randomUUID().slice(0, 8);
+    const teacher = await createTeacherUser(app, adminToken, {
+      email: `monthly-salary-${suffix}@test.local`,
+      password: 'TestTeacher123!',
+      name: `Salary Teacher ${suffix}`,
+    });
+    await api(app)
+      .patch(`/api/teachers/${teacher.teacherId}`)
       .set(authHeader(adminToken))
-      .send({
-        name: `Salary Teacher ${randomUUID().slice(0, 8)}`,
-        status: 'active',
-        hourlyRate,
-      })
-      .expect(201);
-    return res.body.id as string;
+      .send({ hourlyRate })
+      .expect(200);
+    return teacher.teacherId;
   }
 
   async function createAndCompleteLesson(params: {

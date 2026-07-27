@@ -6,6 +6,11 @@ const client = createDomainClient('/teachers');
 export const teachers = {
   ...client,
 
+  /** Canonical active teachers (linked active User with role=teacher). */
+  listActive() {
+    return apiFetch('/teachers/active');
+  },
+
   /**
    * Advisory list of teachers free for the given lesson slot.
    * @param {{ date: string, start_time: string, duration?: number }} params

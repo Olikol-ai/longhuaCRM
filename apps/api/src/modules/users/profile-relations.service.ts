@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, IsNull } from 'typeorm';
+import { MaterialAccessEntity } from '../materials/entities/material-access.entity';
 import { StudentEntity } from '../students/entities/student.entity';
 import { StudentDeletionService } from '../students/student-deletion.service';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
@@ -60,6 +61,9 @@ export class ProfileRelationsService {
     for (const student of linkedStudents) {
       await this.deleteStudent(student.id);
     }
+
+    // Always clear direct user grants (CASCADE also covers this on user delete).
+    await this.dataSource.getRepository(MaterialAccessEntity).delete({ userId });
 
     return { orphanStudents: await this.findOrphanStudents() };
   }
