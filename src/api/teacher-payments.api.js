@@ -1,10 +1,11 @@
 import { apiFetch } from './http';
-import { createDomainClient } from './domain-client';
 
-const client = createDomainClient('/teacher-payments');
-
+/**
+ * Teacher payments client — monthly salary summary only for admin UI.
+ * Intentionally does NOT expose CRUD list/filter/update against /teacher-payments
+ * (per-lesson TeacherPayment rows are audit history on the backend).
+ */
 export const teacherPayments = {
-  ...client,
   my() {
     return apiFetch('/teacher-payments/my');
   },

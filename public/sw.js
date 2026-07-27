@@ -1,5 +1,5 @@
 /* Longhua Academy — minimal service worker for installability (network-first). */
-const CACHE = 'longhua-academy-shell-v1';
+const CACHE = 'longhua-academy-shell-v2';
 const PRECACHE = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', (event) => {

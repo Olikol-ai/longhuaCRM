@@ -44,9 +44,9 @@ function statusLabel(status) {
 }
 
 /**
- * Admin salary page — monthly summary only.
- * Data source: GET /teacher-payments/summary?month=YYYY-MM
- * Never lists per-lesson TeacherPayment rows.
+ * Admin «Зарплата» — только месячный summary.
+ * Источник: GET /teacher-payments/summary?month=YYYY-MM
+ * Без поурочного реестра TeacherPayment и без client-side агрегации из уроков.
  */
 export default function Salary() {
   const [rows, setRows] = useState([]);
@@ -131,7 +131,7 @@ export default function Salary() {
     }
   };
 
-  const markPaid = async (row) => {
+  const payMonth = async (row) => {
     const teacherId = row.teacher_id ?? row.teacherId;
     setPayingTeacherId(teacherId);
     try {
@@ -272,7 +272,7 @@ export default function Salary() {
                             <button
                               type="button"
                               disabled={payingTeacherId === teacherId}
-                              onClick={() => markPaid(row)}
+                              onClick={() => payMonth(row)}
                               className="inline-flex items-center gap-1 px-3 py-1.5 text-xs bg-emerald-600 text-white rounded-lg disabled:opacity-50"
                             >
                               {payingTeacherId === teacherId ? (
