@@ -418,6 +418,15 @@ export class AlfaBankService {
       };
     }
 
+    // markPaidFromWebhook returns applied:false for terminal states (e.g. refunded).
+    if (!result.applied) {
+      return {
+        applied: false,
+        paymentId: result.paymentId,
+        status: 'refunded',
+      };
+    }
+
     await this.notifyStudentPaymentSuccess(result);
     return {
       applied: true,

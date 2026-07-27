@@ -263,6 +263,23 @@ export class PaymentsService {
         };
       }
 
+      // Terminal / non-payable states must not be reopened by a replayed webhook.
+      // Only pending (and failed init retries) may transition to paid.
+      if (row.status !== 'pending' && row.status !== 'failed') {
+        await this.audit.log({
+          action: 'payment_webhook_ignored',
+          entityType: 'Payment',
+          entityId: row.id,
+          summary: `order ${params.orderNumber} webhook ignored: status=${row.status}`,
+        });
+        return {
+          applied: false,
+          paymentId: row.id,
+          shopItem,
+          amount: Number(row.amount),
+        };
+      }
+
       row.status = 'paid';
       row.paidAt = new Date();
       row.externalId = params.externalOrderId;

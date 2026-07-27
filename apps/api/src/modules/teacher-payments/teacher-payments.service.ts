@@ -117,9 +117,10 @@ export class TeacherPaymentsService {
   }
 
   /**
-   * Monthly salary summary from completed lessons (SSOT).
-   * Per-lesson TeacherPayment rows stay as audit; payout status comes from
-   * teacher_monthly_payouts (teacher_id + month).
+   * Monthly salary summary.
+   * Accrual amount SSOT = teacher_payments.amount captured at lesson completion.
+   * Fallback to current hourlyRate only when an accrual row is missing (legacy gaps).
+   * Payout status comes from teacher_monthly_payouts (teacher_id + month).
    */
   async getMonthlySummary(month: string): Promise<TeacherMonthlySummaryRow[]> {
     this.assertMonthFormat(month);
@@ -171,6 +172,17 @@ export class TeacherPaymentsService {
         .map((p) => [p.teacherId, p]),
     );
 
+    const lessonIds = lessons.map((lesson) => lesson.id);
+    const accruals =
+      lessonIds.length > 0
+        ? await this.repository.filter({
+            lessonId: In(lessonIds),
+          } as FindOptionsWhere<TeacherPaymentEntity>)
+        : [];
+    const amountByLessonId = new Map(
+      accruals.map((row) => [row.lessonId, Number(row.amount)]),
+    );
+
     const byTeacher = new Map<
       string,
       { lessonsCount: number; totalMinutes: number; amount: number }
@@ -182,8 +194,12 @@ export class TeacherPaymentsService {
       if (!teacher) continue;
 
       const duration = Number(lesson.duration ?? 60);
-      const hourlyRate = Number(teacher.hourlyRate ?? 0);
-      const lessonAmount = Math.round(hourlyRate * (duration / 60) * 100) / 100;
+      const accrued = amountByLessonId.get(lesson.id);
+      const lessonAmount =
+        accrued != null && Number.isFinite(accrued)
+          ? Math.round(accrued * 100) / 100
+          : Math.round(Number(teacher.hourlyRate ?? 0) * (duration / 60) * 100) /
+            100;
 
       const current = byTeacher.get(lesson.teacherId) ?? {
         lessonsCount: 0,
@@ -241,15 +257,31 @@ export class TeacherPaymentsService {
       order: { date: 'ASC', startTime: 'ASC' },
     });
 
+    const lessonIds = lessons.map((lesson) => lesson.id);
+    const accruals =
+      lessonIds.length > 0
+        ? await this.repository.filter({
+            lessonId: In(lessonIds),
+          } as FindOptionsWhere<TeacherPaymentEntity>)
+        : [];
+    const amountByLessonId = new Map(
+      accruals.map((row) => [row.lessonId, Number(row.amount)]),
+    );
+
     const hourlyRate = Number(teacher.hourlyRate ?? 0);
     return lessons.map((lesson) => {
       const duration = Number(lesson.duration ?? 60);
+      const accrued = amountByLessonId.get(lesson.id);
+      const amount =
+        accrued != null && Number.isFinite(accrued)
+          ? Math.round(accrued * 100) / 100
+          : Math.round(hourlyRate * (duration / 60) * 100) / 100;
       return {
         lessonId: lesson.id,
         date: lesson.date,
         startTime: lesson.startTime,
         duration,
-        amount: Math.round(hourlyRate * (duration / 60) * 100) / 100,
+        amount,
       };
     });
   }

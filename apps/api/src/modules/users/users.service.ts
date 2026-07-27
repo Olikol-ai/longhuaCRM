@@ -102,80 +102,94 @@ export class UsersService {
       }
     }
 
-    const { saved, roleChanged } = await this.dataSource.transaction(async (manager) => {
-      const userRepo = manager.getRepository(UserEntity);
-      const row = await userRepo.findOne({
-        where: { id },
-        lock: { mode: 'pessimistic_write' },
-      });
-      if (!row) {
-        throw new NotFoundException('User not found');
-      }
-
-      const prevRole = row.role;
-      const prevStatus = row.status;
-
-      if (dto.role !== undefined) {
-        row.role = toDbRole(String(dto.role));
-      }
-      if (dto.status !== undefined) {
-        row.status = String(dto.status);
-      }
-      if (dto.firstName !== undefined) {
-        row.firstName = String(dto.firstName);
-      }
-      if (dto.lastName !== undefined) {
-        row.lastName = String(dto.lastName);
-      }
-      if (dto.phone !== undefined) {
-        row.phone = String(dto.phone);
-      }
-      if (dto.telegramId !== undefined) {
-        row.telegramId = String(dto.telegramId);
-      }
-
-      if (
-        dto.role !== undefined &&
-        ['admin', 'teacher', 'student'].includes(String(dto.role))
-      ) {
-        row.status = 'active';
-        row.verificationCode = null;
-        row.verificationCodeExpiresAt = null;
-        row.verificationCodeSentAt = null;
-        row.verificationAttempts = 0;
-      }
-
-      row.updatedDate = new Date();
-      const persisted = await userRepo.save(row);
-
-      const changedRole = dto.role !== undefined && persisted.role !== prevRole;
-
-      if (changedRole) {
-        await this.audit.log({
-          actorUserId: actor.sub,
-          action: 'role_change',
-          entityType: 'User',
-          entityId: id,
-          summary: `role: "${prevRole}" → "${persisted.role}"`,
+    const { saved, roleChanged, nameTouched } = await this.dataSource.transaction(
+      async (manager) => {
+        const userRepo = manager.getRepository(UserEntity);
+        const row = await userRepo.findOne({
+          where: { id },
+          lock: { mode: 'pessimistic_write' },
         });
-      }
+        if (!row) {
+          throw new NotFoundException('User not found');
+        }
 
-      if (dto.status !== undefined && persisted.status !== prevStatus) {
-        await this.audit.log({
-          actorUserId: actor.sub,
-          action: 'status_change',
-          entityType: 'User',
-          entityId: id,
-          summary: `status: "${prevStatus}" → "${persisted.status}"`,
-        });
-      }
+        const prevRole = row.role;
+        const prevStatus = row.status;
 
-      return { saved: persisted, roleChanged: changedRole };
-    });
+        if (dto.role !== undefined) {
+          row.role = toDbRole(String(dto.role));
+        }
+        if (dto.status !== undefined) {
+          row.status = String(dto.status);
+        }
+        if (dto.firstName !== undefined) {
+          row.firstName = String(dto.firstName);
+        }
+        if (dto.lastName !== undefined) {
+          row.lastName = String(dto.lastName);
+        }
+        if (dto.phone !== undefined) {
+          row.phone = String(dto.phone);
+        }
+        if (dto.telegramId !== undefined) {
+          row.telegramId = String(dto.telegramId);
+        }
 
-    if (roleChanged) {
-      await this.roleEntitySync.syncAfterRoleChange(saved, saved.role);
-    } else if (dto.firstName !== undefined || dto.lastName !== undefined) {
+        if (
+          dto.role !== undefined &&
+          ['admin', 'teacher', 'student'].includes(String(dto.role))
+        ) {
+          row.status = 'active';
+          row.verificationCode = null;
+          row.verificationCodeExpiresAt = null;
+          row.verificationCodeSentAt = null;
+          row.verificationAttempts = 0;
+        }
+
+        row.updatedDate = new Date();
+        const persisted = await userRepo.save(row);
+
+        const changedRole = dto.role !== undefined && persisted.role !== prevRole;
+        const touchedName =
+          dto.firstName !== undefined || dto.lastName !== undefined;
+
+        if (changedRole) {
+          await this.audit.log({
+            actorUserId: actor.sub,
+            action: 'role_change',
+            entityType: 'User',
+            entityId: id,
+            summary: `role: "${prevRole}" → "${persisted.role}"`,
+          });
+          // Keep User.role and Student/Teacher profiles consistent in one txn.
+          await this.roleEntitySync.syncAfterRoleChange(
+            persisted,
+            persisted.role,
+            manager,
+          );
+        }
+
+        if (dto.status !== undefined && persisted.status !== prevStatus) {
+          await this.audit.log({
+            actorUserId: actor.sub,
+            action: 'status_change',
+            entityType: 'User',
+            entityId: id,
+            summary: `status: "${prevStatus}" → "${persisted.status}"`,
+          });
+        }
+
+        return {
+          saved: persisted,
+          roleChanged: changedRole,
+          nameTouched: touchedName,
+        };
+      },
+    );
+
+    // Name sync does not accept a transaction manager today; safe after commit
+    // when role did not change (role sync already refreshed profile names).
+    if (!roleChanged && nameTouched) {
       await this.roleEntitySync.syncLinkedProfilesFromUser(saved);
     }
 
