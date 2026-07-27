@@ -25,6 +25,10 @@ export class UpdateLessonDto {
 
   @IsOptional()
   @IsUUID()
+  tutorId?: string;
+
+  @IsOptional()
+  @IsUUID()
   seriesId?: string;
 
   @IsOptional()

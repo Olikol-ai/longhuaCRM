@@ -108,6 +108,9 @@ export function getRequiredRoleForPath(pathname) {
   if (
     pathname === '/tutor'
     || pathname === '/TutorDashboard'
+    || pathname === '/TutorSchedule'
+    || pathname === '/TutorStudents'
+    || pathname === '/TutorStats'
   ) {
     return 'tutor';
   }

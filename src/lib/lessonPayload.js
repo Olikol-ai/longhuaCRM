@@ -4,6 +4,7 @@ function snakeToCamel(key) {
 
 const FIELD_ALIASES = {
   teacher_id: 'teacherId',
+  tutor_id: 'tutorId',
   student_id: 'studentId',
   primary_student_id: 'primaryStudentId',
   group_id: 'groupId',

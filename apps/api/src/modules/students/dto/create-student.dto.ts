@@ -43,6 +43,10 @@ export class CreateStudentDto {
   assignedTeacherId?: string;
 
   @IsOptional()
+  @IsUUID()
+  assignedTutorId?: string;
+
+  @IsOptional()
   @IsInt()
   @Min(0)
   lessonBalance?: number;

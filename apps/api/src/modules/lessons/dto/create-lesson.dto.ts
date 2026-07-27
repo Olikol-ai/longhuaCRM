@@ -10,6 +10,7 @@ import {
 } from 'class-validator';
 import { IsRequiredText } from '../../../common/validators/is-required-text.decorator';
 import { LessonFormat, LessonStatus, LessonType } from '../entities/lesson.entity';
+import { LessonHasInstructorConstraint } from './lesson-instructor.validator';
 import { LessonHasTargetConstraint } from './lesson-target.validator';
 
 function pickUuid(...candidates: unknown[]): string | undefined {
@@ -22,9 +23,17 @@ function pickUuid(...candidates: unknown[]): string | undefined {
 }
 
 export class CreateLessonDto {
+  /**
+   * School teacher owner. Mutually exclusive with tutorId.
+   */
+  @IsOptional()
   @IsUUID()
-  @Validate(LessonHasTargetConstraint)
-  teacherId!: string;
+  teacherId?: string;
+
+  /** External tutor owner. Mutually exclusive with teacherId. */
+  @IsOptional()
+  @IsUUID()
+  tutorId?: string;
 
   @IsOptional()
   @IsUUID()
@@ -60,7 +69,13 @@ export class CreateLessonDto {
   @IsUUID()
   studentId?: string;
 
+  /**
+   * Always present — host for object-level validators that must not be skipped
+   * by @IsOptional on instructor fields.
+   */
   @IsRequiredText()
+  @Validate(LessonHasInstructorConstraint)
+  @Validate(LessonHasTargetConstraint)
   date!: string;
 
   @IsRequiredText()

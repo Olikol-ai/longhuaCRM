@@ -17,4 +17,8 @@ export const tutors = {
   stats(id) {
     return apiFetch(`/tutors/${id}/stats`);
   },
+
+  analyticsOverview() {
+    return apiFetch('/tutors/analytics/overview');
+  },
 };

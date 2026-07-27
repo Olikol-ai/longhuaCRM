@@ -14,6 +14,7 @@ import { createWeeklyLessonSeries } from "@/lib/recurring-lessons";
 import { DAY_HOURS } from "@/lib/time-slots";
 import { resolveLessonTeacherLabel } from "@/lib/teacherLabels";
 import { resolveLessonStudentLabel, resolveLessonStudentNames } from "@/lib/studentLabels";
+import { filterSchoolTeacherLessons } from "@/lib/schoolSchedule";
 
 export default function Schedule() {
   const [view, setView] = useState("month");
@@ -42,7 +43,8 @@ export default function Schedule() {
         api.students.list(),
         api.groups.list(),
       ]);
-      setLessons(l);
+      // School schedule: never mix external tutor lessons into admin teacher calendar.
+      setLessons(filterSchoolTeacherLessons(l));
       setTeachers(t);
       setStudents(s);
       setGroups(g);

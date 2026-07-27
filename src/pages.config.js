@@ -61,6 +61,9 @@ import StudentLessons from './pages/StudentLessons';
 import TeacherDashboard from './pages/TeacherDashboard';
 import TeacherSchedule from './pages/TeacherSchedule';
 import TutorDashboard from './pages/TutorDashboard';
+import TutorSchedule from './pages/TutorSchedule';
+import TutorStudents from './pages/TutorStudents';
+import TutorStats from './pages/TutorStats';
 import Welcome from './pages/Welcome';
 import __Layout from './Layout.jsx';
 
@@ -76,6 +79,9 @@ export const PAGES = {
     "TeacherDashboard": TeacherDashboard,
     "TeacherSchedule": TeacherSchedule,
     "TutorDashboard": TutorDashboard,
+    "TutorSchedule": TutorSchedule,
+    "TutorStudents": TutorStudents,
+    "TutorStats": TutorStats,
     "Welcome": Welcome,
 }
 

@@ -115,6 +115,16 @@ export class ScheduleRepository {
     });
   }
 
+  findLessonsByTutorAndDate(tutorId: string, date: string): Promise<LessonEntity[]> {
+    return this.lessonRepo.find({
+      where: {
+        tutorId,
+        date,
+        status: In([...SCHEDULE_OCCUPYING_LESSON_STATUSES]),
+      },
+    });
+  }
+
   /**
    * Lessons on a date where any of the given students participate
    * (primary student or attendance_records).

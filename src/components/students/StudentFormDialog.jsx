@@ -30,12 +30,14 @@ function emptyToNull(value) {
 
 export default function StudentFormDialog({ open, onOpenChange, student, onSave }) {
   const [teachers, setTeachers] = useState([]);
+  const [tutors, setTutors] = useState([]);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     phone: "",
     assigned_teacher: "",
+    assigned_tutor: "",
     lesson_balance: 0,
     start_date: "",
     notes: "",
@@ -45,12 +47,14 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
   useEffect(() => {
     if (open) {
       loadTeachers();
+      loadTutors();
       if (student) {
         setFormData({
           name: student.name || "",
           email: student.email || "",
           phone: student.phone || "",
           assigned_teacher: student.assigned_teacher || "",
+          assigned_tutor: student.assigned_tutor || "",
           lesson_balance: student.lesson_balance ?? 0,
           start_date: student.start_date || "",
           notes: student.notes || "",
@@ -62,6 +66,7 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
           email: "",
           phone: "",
           assigned_teacher: "",
+          assigned_tutor: "",
           lesson_balance: 0,
           start_date: new Date().toISOString().split("T")[0],
           notes: "",
@@ -84,6 +89,15 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
     }
   };
 
+  const loadTutors = async () => {
+    try {
+      const t = await api.tutors.list();
+      setTutors((Array.isArray(t) ? t : []).filter((x) => x.status === "active"));
+    } catch {
+      setTutors([]);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!formData.name.trim()) {
       toast({ title: "Укажите имя ученика", variant: "destructive" });
@@ -96,6 +110,7 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
         email: emptyToNull(formData.email),
         phone: formData.phone || "",
         assigned_teacher: emptyToNull(formData.assigned_teacher),
+        assigned_tutor: emptyToNull(formData.assigned_tutor),
         lesson_balance: Number(formData.lesson_balance) || 0,
         start_date: emptyToNull(formData.start_date),
         notes: formData.notes || "",
@@ -159,7 +174,7 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Преподаватель (только администратор)</Label>
+              <Label>Преподаватель (школа)</Label>
               <Select
                 value={formData.assigned_teacher || "none"}
                 onValueChange={(v) => setFormData({ ...formData, assigned_teacher: v === "none" ? "" : v })}
@@ -174,8 +189,27 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Изменение преподавателя доступно только администратору</p>
             </div>
+            <div className="space-y-2">
+              <Label>Репетитор (внешний)</Label>
+              <Select
+                value={formData.assigned_tutor || "none"}
+                onValueChange={(v) => setFormData({ ...formData, assigned_tutor: v === "none" ? "" : v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Выбрать репетитора" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Не назначен</SelectItem>
+                  {tutors.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.display_name || t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Дата начала</Label>
               <Input
@@ -184,9 +218,6 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
                 onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
               />
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Баланс уроков</Label>
               <Input
@@ -196,22 +227,23 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
                 onChange={(e) => setFormData({ ...formData, lesson_balance: e.target.value })}
               />
             </div>
-            <div className="space-y-2">
-              <Label>Статус</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(v) => setFormData({ ...formData, status: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Активный</SelectItem>
-                  <SelectItem value="inactive">Неактивный</SelectItem>
-                  <SelectItem value="paused">Пауза</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Статус</Label>
+            <Select
+              value={formData.status}
+              onValueChange={(v) => setFormData({ ...formData, status: v })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Активный</SelectItem>
+                <SelectItem value="inactive">Неактивный</SelectItem>
+                <SelectItem value="paused">Пауза</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

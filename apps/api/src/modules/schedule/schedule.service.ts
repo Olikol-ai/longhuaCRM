@@ -319,6 +319,33 @@ export class ScheduleService {
   }
 
   /**
+   * Tutor lessons do not use school availability slots / bookings —
+   * only overlapping tutor-owned lessons are blocked.
+   */
+  async assertNoTutorScheduleConflicts(
+    tutorId: string,
+    date: string,
+    startTime: string,
+    duration: number,
+    excludeLessonId?: string,
+  ): Promise<void> {
+    const timeFrom = this.normalizeTime(startTime);
+    const timeTo = this.addMinutesToTime(timeFrom, Number(duration) || 60);
+
+    const lessons = await this.repository.findLessonsByTutorAndDate(tutorId, date);
+    for (const lesson of lessons) {
+      if (excludeLessonId && lesson.id === excludeLessonId) {
+        continue;
+      }
+      const lessonFrom = this.normalizeTime(lesson.startTime);
+      const lessonTo = this.addMinutesToTime(lessonFrom, lesson.duration || 60);
+      if (this.rangesOverlap(timeFrom, timeTo, lessonFrom, lessonTo)) {
+        throw new BadRequestException(CONFLICT_MESSAGE);
+      }
+    }
+  }
+
+  /**
    * Ensures none of the given students already have a lesson overlapping the slot.
    */
   async assertNoStudentScheduleConflicts(

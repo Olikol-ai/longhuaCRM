@@ -50,6 +50,12 @@ export class UpdateStudentDto {
   @IsUUID()
   assignedTeacherId?: string | null;
 
+  /** null / "" clears assigned tutor */
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null && v !== undefined && String(v).trim() !== '')
+  @IsUUID()
+  assignedTutorId?: string | null;
+
   @IsOptional()
   @IsInt()
   @Min(0)

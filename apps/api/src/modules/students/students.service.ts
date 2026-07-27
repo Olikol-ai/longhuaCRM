@@ -73,6 +73,12 @@ export class StudentsService {
       normalized.assignedTeacherId = null;
     }
     if (
+      Object.prototype.hasOwnProperty.call(normalized, 'assignedTutorId')
+      && (normalized.assignedTutorId === '' || normalized.assignedTutorId === undefined)
+    ) {
+      normalized.assignedTutorId = null;
+    }
+    if (
       Object.prototype.hasOwnProperty.call(normalized, 'email')
       && typeof normalized.email === 'string'
       && normalized.email.trim() === ''

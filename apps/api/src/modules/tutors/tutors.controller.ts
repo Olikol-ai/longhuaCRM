@@ -35,6 +35,13 @@ export class TutorsController {
     return this.tutorsService.getStats(user);
   }
 
+  /** Admin platform-usage table for all tutors. Declared before :id. */
+  @Get('analytics/overview')
+  @Roles('admin')
+  adminOverview() {
+    return this.tutorsService.adminOverview();
+  }
+
   @Get()
   @Roles('admin', 'tutor')
   findAll(@CurrentUser() user: JwtPayload) {

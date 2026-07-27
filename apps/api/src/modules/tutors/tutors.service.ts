@@ -12,13 +12,39 @@ import { TutorEntity } from './entities/tutor.entity';
 import { TutorDeleteResult, TutorDeletionService } from './tutor-deletion.service';
 import { TutorsRepository } from './tutors.repository';
 
+export type TutorActivityItem = {
+  lessonId: string;
+  date: string;
+  startTime: string;
+  duration: number;
+  status: string;
+  studentName: string | null;
+};
+
 export type TutorStats = {
   tutorId: string;
   studentsCount: number;
   activeStudentsCount: number;
   completedLessonsCount: number;
   teachingMinutes: number;
+  teachingHours: number;
   upcomingLessonsCount: number;
+  lastActivityAt: string | null;
+  activityHistory: TutorActivityItem[];
+};
+
+export type TutorAdminOverviewRow = {
+  tutorId: string;
+  displayName: string;
+  email: string | null;
+  status: string;
+  studentsCount: number;
+  activeStudentsCount: number;
+  completedLessonsCount: number;
+  teachingMinutes: number;
+  teachingHours: number;
+  upcomingLessonsCount: number;
+  lastActivityAt: string | null;
 };
 
 @Injectable()
@@ -130,6 +156,31 @@ export class TutorsService {
     return this.repository.filter(scoped as FindOptionsWhere<TutorEntity>);
   }
 
+  /** Admin platform-usage overview for all tutors (no finance). */
+  async adminOverview(): Promise<TutorAdminOverviewRow[]> {
+    const tutors = await this.repository.findAll();
+    const rows: TutorAdminOverviewRow[] = [];
+    for (const tutor of tutors) {
+      const stats = await this.computeStats(tutor.id);
+      rows.push({
+        tutorId: tutor.id,
+        displayName: tutor.displayName,
+        email: tutor.email,
+        status: tutor.status,
+        studentsCount: stats.studentsCount,
+        activeStudentsCount: stats.activeStudentsCount,
+        completedLessonsCount: stats.completedLessonsCount,
+        teachingMinutes: stats.teachingMinutes,
+        teachingHours: stats.teachingHours,
+        upcomingLessonsCount: stats.upcomingLessonsCount,
+        lastActivityAt: stats.lastActivityAt,
+      });
+    }
+    return rows.sort((a, b) =>
+      a.displayName.localeCompare(b.displayName, 'ru', { sensitivity: 'base' }),
+    );
+  }
+
   async getStats(actor: JwtPayload, tutorId?: string): Promise<TutorStats> {
     let id = tutorId;
     if (!id) {
@@ -139,16 +190,21 @@ export class TutorsService {
       throw new NotFoundException('Tutor profile not found');
     }
     await this.tutorAccess.assertCanReadTutor(actor, id);
+    return this.computeStats(id);
+  }
 
+  private async computeStats(tutorId: string): Promise<TutorStats> {
     const students = await this.studentRepo.find({
-      where: { assignedTutorId: id },
-      select: ['id', 'status'],
+      where: { assignedTutorId: tutorId },
+      select: ['id', 'status', 'name'],
     });
     const lessons = await this.lessonRepo.find({
-      where: { tutorId: id },
-      select: ['id', 'status', 'duration'],
+      where: { tutorId },
+      select: ['id', 'status', 'duration', 'date', 'startTime', 'primaryStudentId', 'updatedAt'],
+      order: { date: 'DESC', startTime: 'DESC' },
     });
 
+    // Platform usage: only real completed lessons — never cancelled/rescheduled/missed.
     const completed = lessons.filter((l) => l.status === 'completed');
     const upcoming = lessons.filter((l) => l.status === 'planned');
     const teachingMinutes = completed.reduce(
@@ -156,13 +212,40 @@ export class TutorsService {
       0,
     );
 
+    const studentNameById = new Map(
+      students.map((s) => [s.id, s.name?.trim() || null]),
+    );
+
+    // Prefer latest completed lesson date; fall back to any planned activity update.
+    let lastActivityAt: string | null = null;
+    if (completed.length > 0) {
+      const latest = completed[0];
+      lastActivityAt = `${latest.date}T${String(latest.startTime).slice(0, 8)}`;
+    } else if (lessons.length > 0 && lessons[0].updatedAt) {
+      lastActivityAt = lessons[0].updatedAt.toISOString();
+    }
+
+    const activityHistory: TutorActivityItem[] = completed.slice(0, 50).map((l) => ({
+      lessonId: l.id,
+      date: l.date,
+      startTime: String(l.startTime).slice(0, 5),
+      duration: Number(l.duration ?? 60),
+      status: l.status,
+      studentName: l.primaryStudentId
+        ? studentNameById.get(l.primaryStudentId) ?? null
+        : null,
+    }));
+
     return {
-      tutorId: id,
+      tutorId,
       studentsCount: students.length,
       activeStudentsCount: students.filter((s) => s.status === 'active').length,
       completedLessonsCount: completed.length,
       teachingMinutes,
+      teachingHours: Math.round((teachingMinutes / 60) * 10) / 10,
       upcomingLessonsCount: upcoming.length,
+      lastActivityAt,
+      activityHistory,
     };
   }
 }

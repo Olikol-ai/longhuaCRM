@@ -54,6 +54,9 @@ const teacherNav = [
 
 const tutorNav = [
   { name: "Главная", icon: LayoutDashboard, page: "TutorDashboard" },
+  { name: "Расписание", icon: Calendar, page: "TutorSchedule" },
+  { name: "Ученики", icon: Users, page: "TutorStudents" },
+  { name: "Статистика", icon: ClipboardList, page: "TutorStats" },
   { name: "Профиль", icon: UserCircle, page: "Profile" },
   { name: "Настройки", icon: Settings, page: "Settings" },
 ];

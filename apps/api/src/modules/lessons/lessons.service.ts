@@ -10,6 +10,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, FindOptionsWhere, In } from 'typeorm';
 import { LessonAccessService } from '../../common/access/lesson-access.service';
 import { TeacherAccessService } from '../../common/access/teacher-access.service';
+import { TutorAccessService } from '../../common/access/tutor-access.service';
 import { normalizeRole } from '../../common/constants/roles';
 import { JwtPayload } from '../auth/auth.service';
 import { AuditService } from '../audit/audit.service';
@@ -23,6 +24,7 @@ import { StudentEntity } from '../students/entities/student.entity';
 import { StudentBalanceService } from '../students/student-balance.service';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { TeacherPaymentsService } from '../teacher-payments/teacher-payments.service';
+import { TutorEntity } from '../tutors/entities/tutor.entity';
 import { AttendanceEntity } from './entities/attendance.entity';
 import {
   isScheduleOccupyingLessonStatus,
@@ -73,6 +75,7 @@ export class LessonsService {
     private readonly studentBalanceService: StudentBalanceService,
     private readonly lessonAccess: LessonAccessService,
     private readonly teacherAccess: TeacherAccessService,
+    private readonly tutorAccess: TutorAccessService,
     private readonly scheduleService: ScheduleService,
     private readonly teacherPaymentsService: TeacherPaymentsService,
     private readonly enrollmentProgress: EnrollmentProgressService,
@@ -106,6 +109,16 @@ export class LessonsService {
 
     if (actor) {
       await this.assertCanCreateLesson(actor, normalized);
+    }
+
+    if (normalized.tutorId) {
+      return this.createTutorLesson(normalized);
+    }
+
+    if (!normalized.teacherId) {
+      throw new BadRequestException(
+        'Укажите преподавателя (teacherId) или репетитора (tutorId)',
+      );
     }
 
     const duration = normalized.duration ?? 60;
@@ -156,7 +169,7 @@ export class LessonsService {
 
       // Serialize overlapping creates for the same teacher/students, then re-check.
       await this.scheduleService.assertNoScheduleConflicts(
-        normalized.teacherId,
+        normalized.teacherId as string,
         normalized.date,
         normalized.startTime,
         duration,
@@ -200,7 +213,8 @@ export class LessonsService {
       const lessonRepo = manager.getRepository(LessonEntity);
       const lesson = await lessonRepo.save(
         lessonRepo.create({
-          teacherId: normalized.teacherId,
+          teacherId: normalized.teacherId as string,
+          tutorId: null,
           seriesId: normalized.seriesId ?? null,
           groupId: normalized.groupId ?? null,
           primaryStudentId: normalized.groupId
@@ -233,13 +247,114 @@ export class LessonsService {
       const timeFrom = this.scheduleService.normalizeTime(normalized.startTime);
       const timeTo = this.scheduleService.addMinutesToTime(timeFrom, duration);
       await manager.getRepository(AvailabilityBookingEntity).save({
-        teacherId: normalized.teacherId,
+        teacherId: normalized.teacherId as string,
         lessonId: lesson.id,
         date: normalized.date,
         timeFrom,
         timeTo,
         status: 'active',
       });
+
+      return lesson;
+    });
+
+    const withNames = await this.repository.findById(created.id);
+    return (await this.attachDisplayNames([withNames ?? created]))[0];
+  }
+
+  /**
+   * Tutor-owned individual lessons: no school availability slots, no teacher payroll.
+   */
+  private async createTutorLesson(dto: CreateLessonDto): Promise<LessonEntity> {
+    const tutorId = dto.tutorId as string;
+    const duration = dto.duration ?? 60;
+    const lessonType = dto.lessonType ?? 'individual';
+
+    if (lessonType === 'group' || dto.groupId) {
+      throw new BadRequestException(
+        'Групповые занятия доступны только преподавателям школы',
+      );
+    }
+    if (!dto.primaryStudentId) {
+      throw new BadRequestException('Выберите ученика для индивидуального урока');
+    }
+
+    await this.scheduleService.assertNoTutorScheduleConflicts(
+      tutorId,
+      dto.date,
+      dto.startTime,
+      duration,
+    );
+    await this.scheduleService.assertNoStudentScheduleConflicts(
+      [dto.primaryStudentId],
+      dto.date,
+      dto.startTime,
+      duration,
+    );
+
+    const created = await this.dataSource.transaction(async (manager) => {
+      const tutor = await manager.getRepository(TutorEntity).findOne({
+        where: { id: tutorId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!tutor) {
+        throw new NotFoundException('Репетитор не найден');
+      }
+
+      await this.scheduleService.assertNoTutorScheduleConflicts(
+        tutorId,
+        dto.date,
+        dto.startTime,
+        duration,
+      );
+
+      const student = await manager.getRepository(StudentEntity).findOne({
+        where: { id: dto.primaryStudentId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!student) {
+        throw new NotFoundException('Ученик не найден');
+      }
+      if (student.assignedTutorId !== tutorId) {
+        throw new BadRequestException(
+          'Ученик не закреплён за этим репетитором',
+        );
+      }
+
+      await this.scheduleService.assertNoStudentScheduleConflicts(
+        [dto.primaryStudentId as string],
+        dto.date,
+        dto.startTime,
+        duration,
+      );
+
+      const lessonRepo = manager.getRepository(LessonEntity);
+      const lesson = await lessonRepo.save(
+        lessonRepo.create({
+          teacherId: null,
+          tutorId,
+          seriesId: null,
+          groupId: null,
+          primaryStudentId: dto.primaryStudentId as string,
+          date: dto.date,
+          startTime: dto.startTime,
+          duration,
+          status: dto.status ?? 'planned',
+          lessonType: 'individual',
+          lessonFormat: dto.lessonFormat ?? 'online',
+          meetingLink: dto.meetingLink ?? null,
+          room: dto.room ?? null,
+          notes: dto.notes ?? null,
+        }),
+      );
+
+      await manager.getRepository(AttendanceEntity).save(
+        manager.getRepository(AttendanceEntity).create({
+          lessonId: lesson.id,
+          studentId: dto.primaryStudentId as string,
+          attendanceStatus: 'enrolled',
+        }),
+      );
 
       return lesson;
     });
@@ -268,7 +383,15 @@ export class LessonsService {
 
     if (normalizeRole(actor.role) === 'teacher') {
       const teacherId = await this.teacherAccess.resolveTeacherId(actor);
-      if (!teacherId || dto.teacherId !== teacherId) {
+      if (!teacherId || dto.teacherId !== teacherId || dto.tutorId) {
+        throw new ForbiddenException('Можно создавать уроки только для себя');
+      }
+      return;
+    }
+
+    if (normalizeRole(actor.role) === 'tutor') {
+      const tutorId = await this.tutorAccess.resolveTutorId(actor);
+      if (!tutorId || dto.tutorId !== tutorId || dto.teacherId) {
         throw new ForbiddenException('Можно создавать уроки только для себя');
       }
       return;
@@ -347,6 +470,7 @@ export class LessonsService {
     }
 
     const teacherId = (payload.teacherId as string | undefined) ?? before.teacherId;
+    const tutorId = (payload.tutorId as string | undefined) ?? before.tutorId;
     const date = (payload.date as string | undefined) ?? before.date;
     const startTime = (payload.startTime as string | undefined) ?? before.startTime;
     const duration = (payload.duration as number | undefined) ?? before.duration ?? 60;
@@ -359,24 +483,35 @@ export class LessonsService {
       duration !== (before.duration ?? 60);
 
     const scheduleSlotChanged =
-      timeRescheduled || teacherId !== before.teacherId;
+      timeRescheduled ||
+      teacherId !== before.teacherId ||
+      tutorId !== before.tutorId;
 
     const infoChanges = this.collectLessonInfoChanges(before, payload);
 
     if (
       scheduleSlotChanged &&
       before.status !== 'cancelled' &&
-      nextStatus !== 'cancelled' &&
-      teacherId
+      nextStatus !== 'cancelled'
     ) {
-      await this.scheduleService.assertAvailableForLesson(teacherId, date, startTime, duration);
-      await this.scheduleService.assertNoScheduleConflicts(
-        teacherId,
-        date,
-        startTime,
-        duration,
-        id,
-      );
+      if (tutorId && !teacherId) {
+        await this.scheduleService.assertNoTutorScheduleConflicts(
+          tutorId,
+          date,
+          startTime,
+          duration,
+          id,
+        );
+      } else if (teacherId) {
+        await this.scheduleService.assertAvailableForLesson(teacherId, date, startTime, duration);
+        await this.scheduleService.assertNoScheduleConflicts(
+          teacherId,
+          date,
+          startTime,
+          duration,
+          id,
+        );
+      }
     }
 
     if (
@@ -446,7 +581,7 @@ export class LessonsService {
         { lessonId: id },
         { status: 'cancelled' },
       );
-    } else if (scheduleSlotChanged) {
+    } else if (scheduleSlotChanged && teacherId && !tutorId) {
       const timeFrom = this.scheduleService.normalizeTime(startTime);
       const timeTo = this.scheduleService.addMinutesToTime(timeFrom, duration);
       const bookingUpdate: Partial<AvailabilityBookingEntity> = {
@@ -911,7 +1046,10 @@ export class LessonsService {
       }
 
       await this.studentBalanceService.handleLessonStatusUpdate(lessonId, 'completed', manager);
-      await this.teacherPaymentsService.createForCompletedLesson(lesson, manager);
+      // Tutor lessons are outside school payroll — never create TeacherPayment rows.
+      if (lesson.teacherId) {
+        await this.teacherPaymentsService.createForCompletedLesson(lesson, manager);
+      }
 
       if (finalAttendanceStatus === 'missed') {
         const rows = await attendanceRepo.find({ where: { lessonId } });
