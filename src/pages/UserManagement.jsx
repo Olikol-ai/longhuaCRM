@@ -24,6 +24,7 @@ import {
 } from "./userManagement.constants";
 import { resolveAssignedTeacherLabel } from "@/lib/teacherLabels";
 import { formatHourlyRateShort } from "@/lib/formatters";
+import { getRoleLabel } from "@/lib/locale-by";
 
 const showOrphanNotice = (result) => showOrphanStudentsNotice(result, toast);
 
@@ -961,7 +962,7 @@ export default function UserManagement() {
       await loadAll();
       toast({
         title: "Роль обновлена",
-        description: `Пользователю назначена роль «${ROLE_CONFIG[newRole]?.label || newRole}»`,
+        description: `Пользователю назначена роль «${ROLE_CONFIG[newRole]?.label || getRoleLabel(newRole)}»`,
       });
     } catch (err) {
       toast({

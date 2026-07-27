@@ -6,52 +6,53 @@ import {
   UserCheck,
   BookOpen,
 } from 'lucide-react';
+import { getRoleLabel } from '@/lib/locale-by';
 
 export const ROLE_CONFIG = {
   admin: {
-    label: 'Администратор',
+    label: getRoleLabel('admin'),
     bg: 'bg-brand-muted dark:bg-brand-soft/40',
     text: 'text-brand dark:text-brand',
     dot: 'bg-brand',
     icon: Shield,
   },
   teacher: {
-    label: 'Преподаватель',
+    label: getRoleLabel('teacher'),
     bg: 'bg-emerald-100 dark:bg-emerald-950/40',
     text: 'text-emerald-700 dark:text-emerald-300',
     dot: 'bg-emerald-500',
     icon: GraduationCap,
   },
   tutor: {
-    label: 'Репетитор',
+    label: getRoleLabel('tutor'),
     bg: 'bg-sky-100 dark:bg-sky-950/40',
     text: 'text-sky-700 dark:text-sky-300',
     dot: 'bg-sky-500',
     icon: BookOpen,
   },
   tutor_student: {
-    label: 'Ученик репетитора',
+    label: getRoleLabel('tutor_student'),
     bg: 'bg-cyan-100 dark:bg-cyan-950/40',
     text: 'text-cyan-700 dark:text-cyan-300',
     dot: 'bg-cyan-500',
     icon: UserCheck,
   },
   student: {
-    label: 'Ученик',
+    label: getRoleLabel('student'),
     bg: 'bg-slate-100 dark:bg-slate-800',
     text: 'text-slate-700 dark:text-slate-300',
     dot: 'bg-slate-500',
     icon: Users,
   },
   pending: {
-    label: 'Ожидает роли',
+    label: getRoleLabel('pending'),
     bg: 'bg-amber-100 dark:bg-amber-950/40',
     text: 'text-amber-700 dark:text-amber-300',
     dot: 'bg-amber-400',
     icon: Clock,
   },
   user: {
-    label: 'Без роли',
+    label: getRoleLabel('user'),
     bg: 'bg-slate-100 dark:bg-slate-800',
     text: 'text-slate-600 dark:text-slate-300',
     dot: 'bg-slate-400',

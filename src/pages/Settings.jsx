@@ -1,13 +1,20 @@
 import { useState } from "react";
 import { api } from '@/api';
 import { useAuth } from "@/lib/AuthContext";
-import { User, Shield, Sun, Moon, Download, Loader2 } from "lucide-react";
+import { Sun, Moon, Download, Loader2 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
+import { getRoleBadgeClass, getRoleLabel } from "@/lib/locale-by";
 
 export default function Settings() {
   const { user } = useAuth();
   const [exporting, setExporting] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const isAdmin = user?.role === "admin";
+  const roleLabel = getRoleLabel(user?.role);
+  const displayName =
+    user?.full_name ||
+    [user?.last_name, user?.first_name].filter(Boolean).join(" ").trim() ||
+    "—";
 
   const handleExport = async () => {
     setExporting(true);
@@ -30,14 +37,6 @@ export default function Settings() {
     setExporting(false);
   };
 
-  const roleLabel = { admin: "Администратор", teacher: "Преподаватель", student: "Ученик", pending: "Ожидает роли" };
-  const roleColor = {
-    admin: "bg-brand-muted text-brand",
-    teacher: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
-    student: "bg-muted text-muted-foreground",
-    pending: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
-  };
-
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto">
       <div className="mb-6">
@@ -49,29 +48,43 @@ export default function Settings() {
         <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
           <div className="flex items-center gap-4 pb-4 border-b border-border">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-brand-active flex items-center justify-center">
-              <span className="text-xl font-bold text-primary-foreground">{(user.full_name || user.email || "U")[0].toUpperCase()}</span>
+              <span className="text-xl font-bold text-primary-foreground">
+                {(displayName !== "—" ? displayName : user.email || "U")[0].toUpperCase()}
+              </span>
             </div>
             <div>
-              <h3 className="text-base font-semibold text-foreground">{user.full_name || "—"}</h3>
+              <h3 className="text-base font-semibold text-foreground">{displayName}</h3>
               <p className="text-sm text-muted-foreground">{user.email}</p>
-              <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full mt-1 inline-block ${roleColor[user.role] || roleColor.pending}`}>
-                {roleLabel[user.role] || user.role}
+              <span
+                className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full mt-1 inline-block ${getRoleBadgeClass(user.role)}`}
+                data-testid="settings-role-badge"
+              >
+                {roleLabel}
               </span>
             </div>
           </div>
+
           <div className="space-y-3">
             <div className="bg-muted rounded-xl p-3">
-              <p className="text-xs text-muted-foreground mb-0.5">ID пользователя</p>
-              <p className="text-xs font-mono text-foreground">{user.id}</p>
+              <p className="text-xs text-muted-foreground mb-0.5">Имя</p>
+              <p className="text-sm font-medium text-foreground">{displayName}</p>
+            </div>
+            <div className="bg-muted rounded-xl p-3">
+              <p className="text-xs text-muted-foreground mb-0.5">Эл. почта</p>
+              <p className="text-sm font-medium text-foreground">{user.email || "—"}</p>
             </div>
             <div className="bg-muted rounded-xl p-3">
               <p className="text-xs text-muted-foreground mb-0.5">Роль</p>
-              <p className="text-sm font-medium text-foreground">{roleLabel[user.role] || "—"}</p>
+              <p className="text-sm font-medium text-foreground" data-testid="settings-role-label">
+                {roleLabel}
+              </p>
             </div>
             <div className="bg-muted rounded-xl p-3 flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground mb-0.5">Тема оформления</p>
-                <p className="text-sm font-medium text-foreground capitalize">{theme === "dark" ? "Тёмная" : "Светлая"}</p>
+                <p className="text-sm font-medium text-foreground">
+                  {theme === "dark" ? "Тёмная" : "Светлая"}
+                </p>
               </div>
               <button
                 type="button"
@@ -82,11 +95,19 @@ export default function Settings() {
                 {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </button>
             </div>
+
+            {isAdmin && (
+              <div className="bg-muted rounded-xl p-3 border border-dashed border-border">
+                <p className="text-xs text-muted-foreground mb-0.5">Техническая информация</p>
+                <p className="text-[11px] text-muted-foreground mb-1">ID пользователя (только для администратора)</p>
+                <p className="text-xs font-mono text-foreground break-all">{user.id}</p>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {user?.role === "admin" && (
+      {isAdmin && (
         <>
         <div className="bg-card rounded-2xl border border-border p-6 space-y-4 mt-6">
           <h3 className="text-sm font-semibold text-foreground">Экспорт данных</h3>
@@ -113,20 +134,26 @@ export default function Settings() {
         <div className="bg-card rounded-2xl border border-border p-6 space-y-4 mt-6">
           <h3 className="text-sm font-semibold text-foreground">Права доступа по ролям</h3>
           {[
-            { role: "Администратор", tone: "brand", perms: ["Полный доступ ко всем функциям", "Управление учениками и преподавателями", "Запись платежей", "Просмотр финансовых данных", "Расписание уроков", "Настройки Telegram-бота", "Управление ожидающими пользователями"] },
+            { role: "Администратор", tone: "brand", perms: ["Полный доступ ко всем функциям", "Управление учениками и преподавателями", "Запись платежей", "Просмотр финансовых данных", "Расписание уроков", "Настройки Телеграм-бота", "Управление ожидающими пользователями"] },
             { role: "Преподаватель", tone: "emerald", perms: ["Просмотр своего расписания", "Отметка уроков как завершённых/отменённых", "Просмотр имён учеников", "Нет доступа к финансовым данным"] },
+            { role: "Репетитор", tone: "sky", perms: ["Своё расписание", "Свои ученики репетитора", "Реферальные ссылки", "Статистика занятий", "Без доступа к ученикам школы и зарплате"] },
             { role: "Ученик", tone: "neutral", perms: ["Просмотр предстоящих уроков", "Просмотр календаря уроков", "Просмотр остатка баланса", "Доступ к ссылкам на встречи"] },
-            { role: "Ожидающий", tone: "amber", perms: ["Нет доступа к дашбордам", "Только просмотр страницы ожидания", "Доступ откроется после назначения роли администратором"] },
+            { role: "Ученик репетитора", tone: "cyan", perms: ["Профиль и настройки", "Занятия только у своего репетитора", "Без доступа к школьным группам"] },
+            { role: "Ожидающий", tone: "amber", perms: ["Нет доступа к кабинетам", "Только страница ожидания", "Доступ откроется после назначения роли администратором"] },
           ].map(({ role, tone, perms }) => (
             <div key={role} className={`rounded-xl border p-4 ${
               tone === "brand" ? "border-brand/20 bg-brand-soft/50 dark:bg-brand-soft/30" :
               tone === "emerald" ? "border-emerald-100 bg-emerald-50/50 dark:bg-emerald-950/20 dark:border-emerald-900/50" :
+              tone === "sky" ? "border-sky-100 bg-sky-50/50 dark:bg-sky-950/20 dark:border-sky-900/50" :
+              tone === "cyan" ? "border-cyan-100 bg-cyan-50/50 dark:bg-cyan-950/20 dark:border-cyan-900/50" :
               tone === "amber" ? "border-amber-100 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900/50" :
               "border-border bg-muted/50"
             }`}>
               <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-full mb-3 inline-block ${
                 tone === "brand" ? "bg-brand-muted text-brand" :
                 tone === "emerald" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" :
+                tone === "sky" ? "bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300" :
+                tone === "cyan" ? "bg-cyan-100 text-cyan-700 dark:bg-cyan-950/50 dark:text-cyan-300" :
                 tone === "amber" ? "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300" :
                 "bg-muted text-muted-foreground"
               }`}>{role}</span>

@@ -8,6 +8,7 @@ import {
   LESSON_STATUS_LABEL,
   ENTITY_STATUS_LABEL,
   localizeRole,
+  getRoleLabel,
   localizeLessonStatus,
   localizeEntityStatus,
 } from './locale-by.js';
@@ -22,6 +23,7 @@ describe('locale-by dictionaries', () => {
     assert.equal(localizeRole('tutor'), 'Репетитор');
     assert.equal(localizeRole('student'), 'Ученик');
     assert.equal(localizeRole('tutor_student'), 'Ученик репетитора');
+    assert.equal(getRoleLabel('tutor'), 'Репетитор');
     assert.equal(ROLE_LABEL.pending, 'Ожидает роли');
   });
 
@@ -66,11 +68,10 @@ describe('Belarus UI localization contracts', () => {
       join(srcRoot, 'pages', 'userManagement.constants.js'),
       'utf8',
     );
-    assert.match(constants, /label:\s*'Администратор'/);
-    assert.match(constants, /label:\s*'Преподаватель'/);
-    assert.match(constants, /label:\s*'Репетитор'/);
-    assert.match(constants, /label:\s*'Ученик'/);
-    assert.match(constants, /label:\s*'Ученик репетитора'/);
+    assert.match(constants, /getRoleLabel\('Администратор'\)|getRoleLabel\('admin'\)|label:\s*getRoleLabel/);
+    assert.match(constants, /getRoleLabel\('tutor'\)/);
+    assert.match(constants, /getRoleLabel\('tutor_student'\)/);
+    assert.match(constants, /from '@\/lib\/locale-by'/);
   });
 
   it('does not expose common English UI chrome in shared primitives', () => {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
-import { localizeRole } from '@/lib/locale-by';
+import { getRoleBadgeClass, getRoleLabel } from '@/lib/locale-by';
 import { Save, CheckCircle2, User, Send, Link2, Loader2, Unlink, Copy, Users } from "lucide-react";
 import { formatBelarusPhone, PHONE_PLACEHOLDER } from "@/utils/phone";
 import { toast } from "@/components/ui/use-toast";
@@ -227,23 +227,6 @@ export default function Profile() {
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const roleLabel = {
-    admin: "Администратор",
-    teacher: "Преподаватель",
-    tutor: "Репетитор",
-    student: "Ученик",
-    tutor_student: "Ученик репетитора",
-    pending: "Ожидает роли",
-  };
-  const roleColor = {
-    admin: "bg-brand-muted text-brand",
-    teacher: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
-    tutor: "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300",
-    student: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-    tutor_student: "bg-cyan-100 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300",
-    pending: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
-  };
-
   if (isLoadingAuth || !user) return (
     <div className="flex items-center justify-center py-20">
       <div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" />
@@ -266,8 +249,8 @@ export default function Profile() {
         <div>
           <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">{user.full_name || "—"}</h3>
           <p className="text-sm text-slate-400">{form.email || user.email}</p>
-          <span className={`text-xs font-bold uppercase px-2.5 py-1 rounded-full mt-1.5 inline-block ${roleColor[user.role] || roleColor.pending}`}>
-            {localizeRole(user.role)}
+          <span className={`text-xs font-bold uppercase px-2.5 py-1 rounded-full mt-1.5 inline-block ${getRoleBadgeClass(user.role)}`}>
+            {getRoleLabel(user.role)}
           </span>
         </div>
       </div>
