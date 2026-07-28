@@ -110,6 +110,10 @@ describe('VideoService', () => {
     expect(access.room_id).toBe('longhua-lesson-uuid-1');
     expect(access.room_url).toContain('longhua-lesson-uuid-1');
     expect(access.lesson.teacher_name).toBe('Учитель Тест');
+    expect(access.is_host).toBe(true);
+    expect(access.viewer_role).toBe('teacher');
+    expect(access.domain).toBe('meet.jit.si');
+    expect(access.external_api_url).toContain('external_api.js');
   });
 
   it('allows student who can read the lesson', async () => {
@@ -128,6 +132,9 @@ describe('VideoService', () => {
 
     expect(access.embed_url).toContain('meet.jit.si');
     expect(access.crm_join_url).toContain('/lesson/lesson-uuid-1/video');
+    expect(access.is_host).toBe(false);
+    expect(access.viewer_role).toBe('student');
+    expect(access.lesson.time_range_label).toMatch(/12:00/);
   });
 
   it('denies strangers via LessonAccessService', async () => {

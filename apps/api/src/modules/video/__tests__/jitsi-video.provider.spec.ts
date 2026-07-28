@@ -24,7 +24,7 @@ describe('JitsiVideoProvider', () => {
     );
   });
 
-  it('generates embed access data with display name', () => {
+  it('generates External API access data with display name', () => {
     const access = provider.generateAccessData({
       roomId: 'longhua-1',
       roomUrl: 'https://meet.example.test/longhua-1',
@@ -32,8 +32,25 @@ describe('JitsiVideoProvider', () => {
     });
     expect(access.provider).toBe('jitsi');
     expect(access.roomId).toBe('longhua-1');
+    expect(access.domain).toBe('meet.example.test');
+    expect(access.roomName).toBe('longhua-1');
+    expect(access.externalApiUrl).toBe('https://meet.example.test/external_api.js');
+    expect(access.hostRequiresAccount).toBe(false);
     expect(access.embedUrl).toContain('userInfo.displayName=');
     expect(access.token).toBeNull();
+  });
+
+  it('marks meet.jit.si as account-required host', () => {
+    const publicProvider = new JitsiVideoProvider({
+      get: () => 'https://meet.jit.si',
+    } as unknown as ConfigService);
+    const access = publicProvider.generateAccessData({
+      roomId: 'longhua-9',
+      roomUrl: 'https://meet.jit.si/longhua-9',
+      displayName: 'Учитель',
+    });
+    expect(access.hostRequiresAccount).toBe(true);
+    expect(access.domain).toBe('meet.jit.si');
   });
 
   it('deleteRoom is a no-op', () => {

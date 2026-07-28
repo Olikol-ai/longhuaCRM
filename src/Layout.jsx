@@ -118,6 +118,15 @@ export default function Layout({ children, currentPageName }) {
     return <>{children}</>;
   }
 
+  // Full-bleed lesson video shell — no sidebar so mobile video can use the whole screen.
+  if (currentPageName === 'LessonVideo') {
+    return (
+      <div className="min-h-dvh bg-slate-50 dark:bg-slate-950 overflow-x-hidden">
+        {children}
+      </div>
+    );
+  }
+
   if (shouldBlockUntilRoleKnown(user)) {
     return <AuthLoadingScreen />;
   }

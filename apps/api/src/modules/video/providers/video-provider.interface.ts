@@ -16,6 +16,14 @@ export type VideoAccessData = {
   /** Optional provider JWT / token when the backend is configured for authenticated rooms. */
   token: string | null;
   embedUrl: string;
+  /** Hostname for JitsiMeetExternalAPI (e.g. meet.jit.si). */
+  domain: string;
+  /** Room name passed to External API (same as roomId for Jitsi). */
+  roomName: string;
+  /** Absolute URL to external_api.js on the provider host. */
+  externalApiUrl: string;
+  /** True when the public host requires an account to open a room (e.g. meet.jit.si). */
+  hostRequiresAccount: boolean;
 };
 
 export type VideoLessonContext = {

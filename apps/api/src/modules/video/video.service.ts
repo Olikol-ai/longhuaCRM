@@ -72,7 +72,7 @@ export class VideoService {
     await this.lessonAccess.assertCanReadLesson(actor, lessonId);
     let lesson = await this.lessons.findOne({
       where: { id: lessonId },
-      relations: ['teacher', 'primaryStudent'],
+      relations: ['teacher', 'primaryStudent', 'group'],
     });
     if (!lesson) {
       throw new NotFoundException('Урок не найден');
@@ -95,6 +95,10 @@ export class VideoService {
       composeDisplayName(lesson.teacher?.firstName, lesson.teacher?.lastName, 'Преподаватель');
 
     const window = this.resolveLessonWindow(lesson);
+    const startLabel = this.formatClock(lesson.startTime);
+    const endLabel = this.formatEndClock(lesson.startTime, lesson.duration || 60);
+    const title = this.resolveLessonTitle(lesson);
+    const viewerRole = this.resolveViewerRole(actor.role);
 
     return {
       lesson_id: lesson.id,
@@ -104,14 +108,26 @@ export class VideoService {
       embed_url: access.embedUrl,
       display_name: access.displayName,
       token: access.token,
+      domain: access.domain,
+      room_name: access.roomName,
+      external_api_url: access.externalApiUrl,
+      host_requires_account: access.hostRequiresAccount,
       crm_join_url: this.buildCrmJoinUrl(lesson.id),
+      viewer_role: viewerRole,
+      is_host: viewerRole === 'teacher' || viewerRole === 'admin',
+      subject: 'Китайский язык',
       lesson: {
         id: lesson.id,
+        title,
         date: lesson.date,
         start_time: lesson.startTime,
+        end_time: endLabel,
+        start_time_label: startLabel,
+        time_range_label: `${startLabel} – ${endLabel}`,
         duration: lesson.duration,
         status: lesson.status,
         lesson_format: lesson.lessonFormat,
+        notes: lesson.notes,
         teacher_name: teacherName,
         student_name:
           lesson.primaryStudent?.name?.trim() ||
@@ -121,10 +137,45 @@ export class VideoService {
             '',
           ) ||
           null,
+        group_name: lesson.group?.name?.trim() || null,
       },
       timing: window,
     };
   }
+
+  private resolveViewerRole(
+    role: string | undefined,
+  ): 'admin' | 'teacher' | 'student' | 'guest' {
+    const r = String(role || '').toLowerCase();
+    if (r === 'admin') return 'admin';
+    if (r === 'teacher' || r === 'tutor') return 'teacher';
+    if (r === 'student' || r === 'tutor_student') return 'student';
+    return 'guest';
+  }
+
+  private resolveLessonTitle(lesson: LessonEntity): string {
+    const groupName = lesson.group?.name?.trim();
+    if (groupName) return groupName;
+    const notes = lesson.notes?.trim();
+    if (notes) {
+      const firstLine = notes.split(/\r?\n/)[0]?.trim();
+      if (firstLine) return firstLine.slice(0, 120);
+    }
+    return 'Онлайн-урок';
+  }
+
+  private formatClock(time: string | null | undefined): string {
+    return String(time || '00:00').slice(0, 5);
+  }
+
+  private formatEndClock(startTime: string, durationMin: number): string {
+    const [hh, mm] = this.formatClock(startTime).split(':').map(Number);
+    const total = (hh || 0) * 60 + (mm || 0) + durationMin;
+    const endH = Math.floor(total / 60) % 24;
+    const endM = total % 60;
+    return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+  }
+
 
   resolveLessonWindow(lesson: LessonEntity): {
     starts_at: string;
