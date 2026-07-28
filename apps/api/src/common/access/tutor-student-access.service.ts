@@ -63,4 +63,23 @@ export class TutorStudentAccessService {
     }
     throw new ForbiddenException('Forbidden');
   }
+
+  /** Tutor may create/edit/delete only their own notebook entries. */
+  async assertCanWriteTutorStudent(
+    actor: DomainAccessActor,
+    tutorStudentId: string,
+  ): Promise<TutorStudentEntity> {
+    if (normalizeRole(actor.role) !== 'tutor' && !this.isAdmin(actor)) {
+      throw new ForbiddenException('Forbidden');
+    }
+    const row = await this.assertCanReadTutorStudent(actor, tutorStudentId);
+    if (this.isAdmin(actor)) {
+      return row;
+    }
+    const ownTutorId = await this.resolveTutorId(actor);
+    if (!ownTutorId || row.tutorId !== ownTutorId) {
+      throw new ForbiddenException('Можно изменять только свои записи учеников');
+    }
+    return row;
+  }
 }

@@ -14,8 +14,10 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { JwtPayload } from '../auth/auth.service';
 import { CreateTutorDto } from './dto/create-tutor.dto';
+import { CreateTutorStudentNotebookDto } from './dto/create-tutor-student-notebook.dto';
 import { FilterQueryDto } from './dto/filter-query.dto';
 import { UpdateTutorDto } from './dto/update-tutor.dto';
+import { UpdateTutorStudentNotebookDto } from './dto/update-tutor-student-notebook.dto';
 import { TutorsService } from './tutors.service';
 
 @Controller('tutors')
@@ -39,6 +41,34 @@ export class TutorsController {
   @Roles('tutor', 'admin')
   myStudents(@CurrentUser() user: JwtPayload) {
     return this.tutorsService.listStudents(user);
+  }
+
+  @Post('me/students')
+  @Roles('tutor')
+  createMyStudent(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreateTutorStudentNotebookDto,
+  ) {
+    return this.tutorsService.createNotebookStudent(user, dto);
+  }
+
+  @Patch('me/students/:studentId')
+  @Roles('tutor')
+  updateMyStudent(
+    @CurrentUser() user: JwtPayload,
+    @Param('studentId') studentId: string,
+    @Body() dto: UpdateTutorStudentNotebookDto,
+  ) {
+    return this.tutorsService.updateNotebookStudent(user, studentId, dto);
+  }
+
+  @Delete('me/students/:studentId')
+  @Roles('tutor')
+  deleteMyStudent(
+    @CurrentUser() user: JwtPayload,
+    @Param('studentId') studentId: string,
+  ) {
+    return this.tutorsService.deleteNotebookStudent(user, studentId);
   }
 
   /** Admin: all isolated tutor students (not school students). */

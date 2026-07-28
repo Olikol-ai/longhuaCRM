@@ -5,7 +5,13 @@ import { getGreetingName } from '@/lib/display-name';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Loader2, Mail, Phone, Search, Users, MessageCircle } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import {
+  Loader2, Phone, Plus, Pencil, Trash2, Search, BookUser, X,
+} from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
+import { userFacingError } from '@/lib/userFacingError';
 
 function normalizeSearch(value) {
   return String(value || '')
@@ -14,46 +20,31 @@ function normalizeSearch(value) {
     .replace(/\s+/g, ' ');
 }
 
-function formatTelegram(student) {
-  const username = String(student.telegram_username || '').trim().replace(/^@/, '');
-  if (username) return `@${username}`;
-  return '';
-}
+const emptyForm = { name: '', phone: '', notes: '' };
 
-function studentMatchesQuery(student, query) {
-  if (!query) return true;
-  const haystack = [
-    student.name,
-    student.first_name,
-    student.last_name,
-    student.phone,
-    student.email,
-  ]
-    .filter(Boolean)
-    .map((v) => normalizeSearch(v))
-    .join(' ');
-  return haystack.includes(query);
-}
-
+/**
+ * Personal notebook of tutor pupils — not school CRM students.
+ */
 export default function TutorStudents() {
   const { user } = useAuth();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [query, setQuery] = useState('');
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState(emptyForm);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   const loadData = async () => {
     setLoadError(null);
     setLoading(true);
     try {
-      // Isolated tutor_students only — never school /students.
       const rows = await api.tutors.myStudents();
-      const visible = (Array.isArray(rows) ? rows : []).filter(
-        (s) => s.status !== 'inactive',
-      );
-      setStudents(visible);
+      setStudents(Array.isArray(rows) ? rows : []);
     } catch (err) {
-      setLoadError(err?.message || 'Не удалось загрузить учеников');
+      setLoadError(err?.message || 'Не удалось загрузить записи');
       setStudents([]);
     } finally {
       setLoading(false);
@@ -67,13 +58,94 @@ export default function TutorStudents() {
   const filtered = useMemo(() => {
     const q = normalizeSearch(query);
     return [...students]
-      .filter((s) => studentMatchesQuery(s, q))
+      .filter((s) => {
+        if (!q) return true;
+        const hay = [s.name, s.phone, s.notes]
+          .filter(Boolean)
+          .map((v) => normalizeSearch(v))
+          .join(' ');
+        return hay.includes(q);
+      })
       .sort((a, b) =>
         String(a.name || '').localeCompare(String(b.name || ''), 'ru', {
           sensitivity: 'base',
         }),
       );
   }, [students, query]);
+
+  const openCreate = () => {
+    setEditing(null);
+    setForm(emptyForm);
+    setFormOpen(true);
+  };
+
+  const openEdit = (row) => {
+    setEditing(row);
+    setForm({
+      name: row.name || '',
+      phone: row.phone || '',
+      notes: row.notes || '',
+    });
+    setFormOpen(true);
+  };
+
+  const closeForm = () => {
+    setFormOpen(false);
+    setEditing(null);
+    setForm(emptyForm);
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    const name = form.name.trim();
+    if (!name) {
+      toast({ title: 'Укажите ФИО', variant: 'destructive' });
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        name,
+        phone: form.phone.trim() || null,
+        notes: form.notes.trim() || null,
+      };
+      if (editing?.id) {
+        await api.tutors.updateMyStudent(editing.id, payload);
+        toast({ title: 'Запись обновлена' });
+      } else {
+        await api.tutors.createMyStudent(payload);
+        toast({ title: 'Ученик добавлен в блокнот' });
+      }
+      closeForm();
+      await loadData();
+    } catch (err) {
+      toast({
+        title: 'Не удалось сохранить',
+        description: userFacingError(err),
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (row) => {
+    if (!window.confirm(`Удалить «${row.name}» из блокнота?`)) return;
+    setDeletingId(row.id);
+    try {
+      await api.tutors.deleteMyStudent(row.id);
+      toast({ title: 'Запись удалена' });
+      await loadData();
+    } catch (err) {
+      toast({
+        title: 'Не удалось удалить',
+        description: userFacingError(err),
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -84,64 +156,130 @@ export default function TutorStudents() {
   }
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-5">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
-          Мои ученики
-        </h1>
-        <p className="text-sm text-slate-500 mt-1">
-          {getGreetingName(user)}, здесь только ваши ученики репетитора
-        </p>
+    <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-5" data-testid="tutor-notebook-page">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <BookUser className="h-6 w-6 text-brand" />
+            Ученики
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">
+            {getGreetingName(user)}, это ваш личный блокнот — не ученики школы Longhua
+          </p>
+        </div>
+        <Button type="button" onClick={openCreate} data-testid="tutor-notebook-add">
+          <Plus className="h-4 w-4 mr-1.5" /> Добавить
+        </Button>
       </div>
 
       {loadError && <p className="text-sm text-red-600">{loadError}</p>}
 
-      <div className="relative max-w-md">
+      <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Поиск ученика..."
+          placeholder="Поиск по ФИО..."
           className="pl-9"
         />
       </div>
 
-      <div className="flex items-center gap-2 text-sm text-slate-500">
-        <Users className="w-4 h-4" />
-        {filtered.length} учеников
-      </div>
+      <p className="text-xs text-slate-400">{filtered.length} записей</p>
 
       {filtered.length === 0 ? (
-        <Card className="p-8 text-center text-slate-400">Ученики не найдены</Card>
+        <Card className="p-8 text-center space-y-3">
+          <p className="text-slate-400">В блокноте пока никого нет</p>
+          <Button type="button" variant="outline" onClick={openCreate}>
+            Добавить первую запись
+          </Button>
+        </Card>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {filtered.map((s) => {
-            const tg = formatTelegram(s);
-            return (
-              <Card key={s.id} className="p-4 space-y-2">
-                <p className="font-medium text-slate-900 dark:text-slate-100">{s.name}</p>
-                <p className="text-[11px] uppercase tracking-wide text-sky-600">Ученик репетитора</p>
-                {s.email && (
-                  <p className="text-xs text-slate-500 flex items-center gap-1.5">
-                    <Mail className="w-3.5 h-3.5" /> {s.email}
-                  </p>
-                )}
+        <div className="space-y-2">
+          {filtered.map((s) => (
+            <Card key={s.id} className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="font-medium text-slate-900 dark:text-slate-100 truncate">{s.name}</p>
                 {s.phone && (
                   <p className="text-xs text-slate-500 flex items-center gap-1.5">
                     <Phone className="w-3.5 h-3.5" /> {s.phone}
                   </p>
                 )}
-                {tg && (
-                  <p className="text-xs text-slate-500 flex items-center gap-1.5">
-                    <MessageCircle className="w-3.5 h-3.5" /> {tg}
-                  </p>
+                {s.notes && (
+                  <p className="text-xs text-slate-400 line-clamp-2 whitespace-pre-wrap">{s.notes}</p>
                 )}
-                <div className="pt-1">
-                  <Button variant="outline" size="sm" onClick={loadData}>Обновить</Button>
-                </div>
-              </Card>
-            );
-          })}
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button type="button" variant="outline" size="sm" onClick={() => openEdit(s)}>
+                  <Pencil className="w-3.5 h-3.5 mr-1" /> Изменить
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-red-600 border-red-200 hover:bg-red-50"
+                  disabled={deletingId === s.id}
+                  onClick={() => handleDelete(s)}
+                >
+                  {deletingId === s.id ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  )}
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {formOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4">
+          <div className="w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+              <h2 className="text-base font-semibold">
+                {editing ? 'Изменить запись' : 'Новая запись'}
+              </h2>
+              <button type="button" onClick={closeForm} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleSave} className="p-5 space-y-4" data-testid="tutor-notebook-form">
+              <div className="space-y-2">
+                <Label>ФИО *</Label>
+                <Input
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="Пупкин Иван"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Телефон</Label>
+                <Input
+                  value={form.phone}
+                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                  placeholder="+375…"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Комментарий</Label>
+                <Textarea
+                  value={form.notes}
+                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                  rows={3}
+                  placeholder="Заметки для себя"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button type="button" variant="outline" onClick={closeForm}>Отмена</Button>
+                <Button type="submit" disabled={saving}>
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Сохранить
+                </Button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

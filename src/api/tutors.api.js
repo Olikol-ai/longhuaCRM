@@ -18,6 +18,26 @@ export const tutors = {
     return apiFetch('/tutors/me/students');
   },
 
+  createMyStudent(payload) {
+    return apiFetch('/tutors/me/students', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateMyStudent(id, payload) {
+    return apiFetch(`/tutors/me/students/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  deleteMyStudent(id) {
+    return apiFetch(`/tutors/me/students/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  },
+
   students(id) {
     return apiFetch(`/tutors/${id}/students`);
   },

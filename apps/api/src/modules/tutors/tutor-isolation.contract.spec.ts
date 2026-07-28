@@ -24,18 +24,42 @@ describe('Tutor isolation contracts', () => {
     const invites = read('apps/api/src/modules/tutors/tutor-invites.controller.ts');
     expect(controller).toContain(":id/students");
     expect(controller).toContain('me/students');
+    expect(controller).toContain("@Post('me/students')");
+    expect(controller).toContain("@Patch('me/students/:studentId')");
+    expect(controller).toContain("@Delete('me/students/:studentId')");
     expect(invites).toContain("@Controller('tutor-invite-links')");
     expect(invites).toContain('@Post()');
     expect(invites).toContain('@Get()');
   });
 
-  it('frontend has tutor referral and admin tutors pages', () => {
+  it('notebook create never wires User or school Student', () => {
+    const service = read('apps/api/src/modules/tutors/tutors.service.ts');
+    expect(service).toContain('createNotebookStudent');
+    expect(service).toContain('userId: null');
+    expect(service).toContain('Never creates User / school Student');
+    expect(service).not.toMatch(/createNotebookStudent[\s\S]*?studentsRepo/);
+  });
+
+  it('frontend has tutor notebook CRUD and admin stats-only tutors page', () => {
     const pages = read('src/pages.config.js');
     const admin = read('src/pages/AdminPanel.jsx');
     const layout = read('src/Layout.jsx');
+    const notebook = read('src/pages/TutorStudents.jsx');
+    const api = read('src/api/tutors.api.js');
+    const adminTutors = read('src/pages/AdminTutors.jsx');
+    const analytics = read('src/pages/TutorsAnalytics.jsx');
     expect(pages).toContain('TutorReferralLinks');
     expect(admin).toContain('AdminTutors');
     expect(layout).toContain('TutorReferralLinks');
+    expect(notebook).toContain('tutor-notebook-page');
+    expect(notebook).toContain('createMyStudent');
+    expect(api).toContain('createMyStudent');
+    expect(api).toContain('updateMyStudent');
+    expect(api).toContain('deleteMyStudent');
+    expect(adminTutors).not.toContain('allStudents');
+    expect(adminTutors).not.toContain('Ученики репетиторов');
+    expect(analytics).toContain('completed_lessons_count');
+    expect(analytics).toContain('teaching_hours');
   });
 
   it('tutor lesson payload uses tutor_student_id', () => {
@@ -43,5 +67,6 @@ describe('Tutor isolation contracts', () => {
     const modal = read('src/components/tutors/TutorLessonModal.jsx');
     expect(payload).toContain('primaryTutorStudentId');
     expect(modal).toContain('tutor_student_id');
+    expect(modal).toContain('Комментарий');
   });
 });

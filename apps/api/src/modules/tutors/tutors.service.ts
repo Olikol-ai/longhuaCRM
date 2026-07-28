@@ -1,13 +1,21 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import { randomUUID } from 'crypto';
+import { FindOptionsWhere, Not, Repository } from 'typeorm';
 import { TutorAccessService } from '../../common/access/tutor-access.service';
 import { TutorStudentAccessService } from '../../common/access/tutor-student-access.service';
 import { JwtPayload } from '../auth/auth.service';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
 import { RoleEntitySyncService } from '../users/role-entity-sync.service';
+import { resolveNameParts } from '../users/display-name.util';
 import { CreateTutorDto } from './dto/create-tutor.dto';
+import { CreateTutorStudentNotebookDto } from './dto/create-tutor-student-notebook.dto';
 import { UpdateTutorDto } from './dto/update-tutor.dto';
+import { UpdateTutorStudentNotebookDto } from './dto/update-tutor-student-notebook.dto';
 import { TutorStudentEntity } from './entities/tutor-student.entity';
 import { TutorEntity } from './entities/tutor.entity';
 import { TutorDeleteResult, TutorDeletionService } from './tutor-deletion.service';
@@ -94,9 +102,93 @@ export class TutorsService {
     }
     await this.tutorStudentAccess.assertCanListForTutor(actor, id);
     return this.tutorStudentRepo.find({
-      where: { tutorId: id },
+      where: { tutorId: id, status: Not('inactive' as TutorStudentEntity['status']) },
       order: { name: 'ASC' },
     });
+  }
+
+  /**
+   * Create a private notebook entry for the current tutor.
+   * Never creates User / school Student / balance / CRM registration.
+   */
+  async createNotebookStudent(
+    actor: JwtPayload,
+    dto: CreateTutorStudentNotebookDto,
+  ): Promise<TutorStudentEntity> {
+    const tutorId = await this.tutorAccess.resolveTutorId(actor);
+    if (!tutorId) {
+      throw new NotFoundException('Tutor profile not found');
+    }
+    await this.tutorStudentAccess.assertCanListForTutor(actor, tutorId);
+
+    const name = String(dto.name || '').trim();
+    const parts = resolveNameParts({ name, nameIsSource: true });
+    const notes = this.normalizeOptionalText(dto.notes ?? dto.comment);
+    const phone = this.normalizeOptionalText(dto.phone);
+
+    return this.tutorStudentRepo.save(
+      this.tutorStudentRepo.create({
+        id: randomUUID(),
+        tutorId,
+        userId: null,
+        name: parts.name || name,
+        firstName: parts.firstName || null,
+        lastName: parts.lastName || null,
+        email: null,
+        phone,
+        notes,
+        telegramId: null,
+        telegramUsername: null,
+        inviteLinkId: null,
+        status: 'active',
+      }),
+    );
+  }
+
+  async updateNotebookStudent(
+    actor: JwtPayload,
+    studentId: string,
+    dto: UpdateTutorStudentNotebookDto,
+  ): Promise<TutorStudentEntity> {
+    const row = await this.tutorStudentAccess.assertCanWriteTutorStudent(actor, studentId);
+
+    if (dto.name !== undefined) {
+      const name = String(dto.name || '').trim();
+      if (!name) {
+        throw new BadRequestException('ФИО обязательно');
+      }
+      const parts = resolveNameParts({ name, nameIsSource: true });
+      row.name = parts.name || name;
+      row.firstName = parts.firstName || null;
+      row.lastName = parts.lastName || null;
+    }
+    if (dto.phone !== undefined) {
+      row.phone = this.normalizeOptionalText(dto.phone);
+    }
+    if (dto.notes !== undefined || dto.comment !== undefined) {
+      row.notes = this.normalizeOptionalText(
+        dto.notes !== undefined ? dto.notes : dto.comment,
+      );
+    }
+
+    return this.tutorStudentRepo.save(row);
+  }
+
+  /** Soft-delete notebook entry (keeps lesson history). */
+  async deleteNotebookStudent(
+    actor: JwtPayload,
+    studentId: string,
+  ): Promise<{ id: string; deleted: true }> {
+    const row = await this.tutorStudentAccess.assertCanWriteTutorStudent(actor, studentId);
+    row.status = 'inactive';
+    await this.tutorStudentRepo.save(row);
+    return { id: row.id, deleted: true };
+  }
+
+  private normalizeOptionalText(value: unknown): string | null {
+    if (value == null) return null;
+    const trimmed = String(value).trim();
+    return trimmed ? trimmed : null;
   }
 
   async listAllTutorStudents(actor: JwtPayload): Promise<TutorStudentEntity[]> {
