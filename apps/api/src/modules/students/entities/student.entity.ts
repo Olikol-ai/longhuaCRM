@@ -12,7 +12,7 @@ import { TeacherEntity } from '../../teachers/entities/teacher.entity';
 import { TutorEntity } from '../../tutors/entities/tutor.entity';
 import { UserEntity } from '../../users/entities/user.entity';
 
-export type StudentStatus = 'active' | 'inactive' | 'paused';
+export type StudentStatus = 'active' | 'inactive' | 'paused' | 'pending_assignment';
 
 @Entity('students')
 export class StudentEntity {
@@ -74,7 +74,7 @@ export class StudentEntity {
 
   @Column({
     type: 'enum',
-    enum: ['active', 'inactive', 'paused'],
+    enum: ['active', 'inactive', 'paused', 'pending_assignment'],
     default: 'active',
   })
   status: StudentStatus;

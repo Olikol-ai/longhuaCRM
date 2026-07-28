@@ -240,6 +240,7 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="active">Активный</SelectItem>
+                <SelectItem value="pending_assignment">Ожидает назначения</SelectItem>
                 <SelectItem value="inactive">Неактивный</SelectItem>
                 <SelectItem value="paused">Пауза</SelectItem>
               </SelectContent>

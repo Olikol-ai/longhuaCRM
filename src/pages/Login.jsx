@@ -27,13 +27,16 @@ export default function Login() {
   const { establishSession } = useAuth();
 
   useEffect(() => {
-    const stored = sessionStorage.getItem(INVITE_REF_KEY) || '';
-    const ref = inviteFromQuery || stored;
-    if (!ref) return;
-    sessionStorage.setItem(INVITE_REF_KEY, ref);
-    setInviteToken(ref);
-    setMode('register');
-    setWantsStudentRole(true);
+    if (inviteFromQuery) {
+      sessionStorage.setItem(INVITE_REF_KEY, inviteFromQuery);
+      setInviteToken(inviteFromQuery);
+      setMode('register');
+      setWantsStudentRole(true);
+      return;
+    }
+    // No ?ref= in URL: never reuse a previous invite from sessionStorage.
+    sessionStorage.removeItem(INVITE_REF_KEY);
+    setInviteToken('');
   }, [inviteFromQuery]);
 
   const handleSubmit = async (e) => {
@@ -51,7 +54,8 @@ export default function Login() {
         }
         navigate(resolveRedirect(sessionUser), { replace: true });
       } else {
-        const token = inviteToken || sessionStorage.getItem(INVITE_REF_KEY) || undefined;
+        // Only the current URL ref (or in-memory token set from it) may bind a teacher.
+        const token = (inviteFromQuery || inviteToken || '').trim() || undefined;
         const result = await api.auth.register(
           email.trim(),
           password,
@@ -126,11 +130,11 @@ export default function Login() {
                 )}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Фамилия</label>
-                  <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Янчиленко" />
+                  <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Иванов" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Имя</label>
-                  <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Мария" />
+                  <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Иван" />
                 </div>
                 {!inviteToken && (
                   <label

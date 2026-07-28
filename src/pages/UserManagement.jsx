@@ -371,6 +371,7 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
 // ─── Tab: Students ─────────────────────────────────────────────────────────────
 function StudentsTab({ students, teachers, loading, onReload }) {
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all"); // all | pending_assignment | unassigned
   const [showForm, setShowForm] = useState(false);
   const [editStudent, setEditStudent] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -380,8 +381,14 @@ function StudentsTab({ students, teachers, loading, onReload }) {
     active:   "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
     inactive: "bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700",
     paused:   "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
+    pending_assignment: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800",
   };
-  const STATUS_LABEL = { active: "Активен", inactive: "Неактивен", paused: "Пауза" };
+  const STATUS_LABEL = {
+    active: "Активен",
+    inactive: "Неактивен",
+    paused: "Пауза",
+    pending_assignment: "Ожидает назначения",
+  };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -400,10 +407,21 @@ function StudentsTab({ students, teachers, loading, onReload }) {
 
   const getTeacherName = (id) => resolveAssignedTeacherLabel(id, teachers);
 
-  const filtered = students.filter(s =>
-    (s.name || "").toLowerCase().includes(search.toLowerCase()) ||
-    (s.email || "").toLowerCase().includes(search.toLowerCase())
+  const awaitingAssignment = students.filter(
+    (s) => s.status === "pending_assignment" || !s.assigned_teacher,
   );
+
+  const filtered = students.filter((s) => {
+    const q = search.toLowerCase();
+    const matchesSearch =
+      (s.name || "").toLowerCase().includes(q) ||
+      (s.email || "").toLowerCase().includes(q);
+    if (!matchesSearch) return false;
+    if (filter === "pending_assignment") {
+      return s.status === "pending_assignment" || !s.assigned_teacher;
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-4">
@@ -413,6 +431,32 @@ function StudentsTab({ students, teachers, loading, onReload }) {
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Поиск учеников..."
             className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40" />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setFilter("all")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+              filter === "all"
+                ? "bg-brand-soft text-brand border-brand/30"
+                : "bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-700"
+            }`}
+          >
+            Все
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter("pending_assignment")}
+            data-testid="students-filter-pending-assignment"
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+              filter === "pending_assignment"
+                ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800"
+                : "bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-700"
+            }`}
+          >
+            Ожидают назначения преподавателя
+            {awaitingAssignment.length > 0 ? ` (${awaitingAssignment.length})` : ""}
+          </button>
         </div>
         <div className="flex items-center gap-3 justify-between sm:justify-end sm:ml-auto">
           <span className="text-sm text-slate-400">{students.length} учеников</span>

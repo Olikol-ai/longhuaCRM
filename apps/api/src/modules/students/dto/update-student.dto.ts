@@ -74,7 +74,7 @@ export class UpdateStudentDto {
   notes?: string;
 
   @IsOptional()
-  @IsEnum(['active', 'inactive', 'paused'])
+  @IsEnum(['active', 'inactive', 'paused', 'pending_assignment'])
   status?: StudentStatus;
 
   @IsOptional()

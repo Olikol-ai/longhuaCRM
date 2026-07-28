@@ -41,6 +41,7 @@ import { TutorFoundation1741700000000 } from './migrations/1741700000000-TutorFo
 import { TutorStudentsAndInvites1741800000000 } from './migrations/1741800000000-TutorStudentsAndInvites';
 import { HomeworkSchema1741900000000 } from './migrations/1741900000000-HomeworkSchema';
 import { LessonVideoFields1742000000000 } from './migrations/1742000000000-LessonVideoFields';
+import { StudentPendingAssignmentStatus1742100000000 } from './migrations/1742100000000-StudentPendingAssignmentStatus';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -85,6 +86,7 @@ export default new DataSource({
     TutorStudentsAndInvites1741800000000,
     HomeworkSchema1741900000000,
     LessonVideoFields1742000000000,
+    StudentPendingAssignmentStatus1742100000000,
   ],
   synchronize: false,
 });

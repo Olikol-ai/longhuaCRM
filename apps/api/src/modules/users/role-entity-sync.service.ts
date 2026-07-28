@@ -53,7 +53,13 @@ export class RoleEntitySyncService {
       await this.detachTeachersForUser(teacherRepo, user.id);
       await this.detachTutorsForUser(tutorRepo, user.id);
       await this.detachTutorStudentsForUser(tutorStudentRepo, user.id);
-      await this.ensureStudentProfile(studentRepo, user, options?.assignedTeacherId);
+      await this.ensureStudentProfile(studentRepo, user, {
+        assignedTeacherId: options?.assignedTeacherId,
+        applyTeacherAssignment: Object.prototype.hasOwnProperty.call(
+          options ?? {},
+          'assignedTeacherId',
+        ),
+      });
       return;
     }
 
@@ -419,7 +425,11 @@ export class RoleEntitySyncService {
   private async ensureStudentProfile(
     studentRepo: Repository<StudentEntity>,
     user: RoleEntityUserContext,
-    assignedTeacherId?: string | null,
+    options?: {
+      assignedTeacherId?: string | null;
+      /** True when registration/invite explicitly passed assignedTeacherId (even null). */
+      applyTeacherAssignment?: boolean;
+    },
   ): Promise<void> {
     let row =
       (await studentRepo.findOne({ where: { userId: user.id } })) ??
@@ -429,20 +439,44 @@ export class RoleEntitySyncService {
       row = null;
     }
 
+    const inviteTeacherId = options?.assignedTeacherId ?? null;
+    const applyTeacher = Boolean(options?.applyTeacherAssignment);
+    const wasUnlinked = Boolean(row && !row.userId);
+
     if (row) {
       row.userId = user.id;
-      row.status = 'active';
       row.email = user.email;
       row.name = this.displayName(user);
       row.firstName = user.firstName || row.firstName;
       row.lastName = user.lastName || row.lastName;
-      if (assignedTeacherId && !row.assignedTeacherId) {
-        row.assignedTeacherId = assignedTeacherId;
+
+      if (applyTeacher) {
+        if (inviteTeacherId) {
+          // Registration via teacher referral — bind to that teacher only.
+          row.assignedTeacherId = inviteTeacherId;
+          row.status = 'active';
+        } else if (wasUnlinked) {
+          // Self-registration without referral: never inherit orphan's teacher.
+          row.assignedTeacherId = null;
+          row.status = 'pending_assignment';
+        } else if (!row.assignedTeacherId) {
+          row.status =
+            row.status === 'inactive' || row.status === 'paused'
+              ? row.status
+              : 'pending_assignment';
+        }
+      } else if (!row.assignedTeacherId && row.status === 'active') {
+        // Idempotent sync without invite context — keep teacher null, mark queue.
+        row.status = 'pending_assignment';
+      } else if (row.assignedTeacherId && row.status === 'pending_assignment') {
+        row.status = 'active';
       }
+
       await studentRepo.save(row);
       return;
     }
 
+    const hasTeacher = Boolean(inviteTeacherId);
     await studentRepo.save(
       studentRepo.create({
         id: randomUUID(),
@@ -451,9 +485,10 @@ export class RoleEntitySyncService {
         firstName: user.firstName || '',
         lastName: user.lastName || '',
         userId: user.id,
-        status: 'active',
+        status: hasTeacher ? 'active' : 'pending_assignment',
         lessonBalance: 0,
-        assignedTeacherId: assignedTeacherId ?? null,
+        // Never fall back to "first teacher in DB" — only explicit invite id.
+        assignedTeacherId: inviteTeacherId,
       }),
     );
   }

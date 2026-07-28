@@ -78,6 +78,29 @@ export class StudentsService {
     ) {
       normalized.assignedTutorId = null;
     }
+
+    // Admin assigned a teacher → leave the "awaiting assignment" queue.
+    if (
+      Object.prototype.hasOwnProperty.call(normalized, 'assignedTeacherId')
+      && normalized.assignedTeacherId
+      && !Object.prototype.hasOwnProperty.call(normalized, 'status')
+    ) {
+      const current = await this.repository.findById(id);
+      if (current?.status === 'pending_assignment') {
+        normalized.status = 'active';
+      }
+    }
+    // Cleared teacher without explicit status → back to awaiting assignment.
+    if (
+      Object.prototype.hasOwnProperty.call(normalized, 'assignedTeacherId')
+      && normalized.assignedTeacherId === null
+      && !Object.prototype.hasOwnProperty.call(normalized, 'status')
+    ) {
+      const current = await this.repository.findById(id);
+      if (current && current.status === 'active') {
+        normalized.status = 'pending_assignment';
+      }
+    }
     if (
       Object.prototype.hasOwnProperty.call(normalized, 'email')
       && typeof normalized.email === 'string'
