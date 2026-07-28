@@ -35,6 +35,11 @@ describe('TutorsService private notebook', () => {
     {} as never,
     tutorStudentRepo as never,
     {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
   );
 
   beforeEach(() => {

@@ -82,6 +82,12 @@ export default function AdminTutorDetail() {
     email: '',
     phone: '',
     status: 'pending',
+    bio: '',
+    teachingExperience: '',
+    specialization: '',
+    defaultLessonPrice: '',
+    workTimeFrom: '09:00',
+    workTimeTo: '21:00',
   });
   const [savingProfile, setSavingProfile] = useState(false);
   const [studentFormOpen, setStudentFormOpen] = useState(false);
@@ -110,6 +116,15 @@ export default function AdminTutorDetail() {
         email: t?.email || '',
         phone: t?.phone || '',
         status: t?.status || 'pending',
+        bio: t?.bio || '',
+        teachingExperience: t?.teaching_experience || t?.teachingExperience || '',
+        specialization: t?.specialization || '',
+        defaultLessonPrice:
+          t?.default_lesson_price != null || t?.defaultLessonPrice != null
+            ? String(t.default_lesson_price ?? t.defaultLessonPrice)
+            : '',
+        workTimeFrom: String(t?.work_time_from || t?.workTimeFrom || '09:00').slice(0, 5),
+        workTimeTo: String(t?.work_time_to || t?.workTimeTo || '21:00').slice(0, 5),
       });
     } catch (err) {
       setError(err?.message || 'Не удалось загрузить кабинет репетитора');
@@ -133,6 +148,14 @@ export default function AdminTutorDetail() {
         email: profileForm.email.trim() || null,
         phone: profileForm.phone.trim() || null,
         status: profileForm.status,
+        bio: profileForm.bio.trim() || null,
+        teachingExperience: profileForm.teachingExperience.trim() || null,
+        specialization: profileForm.specialization.trim() || null,
+        workTimeFrom: profileForm.workTimeFrom || null,
+        workTimeTo: profileForm.workTimeTo || null,
+        defaultLessonPrice: profileForm.defaultLessonPrice === ''
+          ? null
+          : Number(profileForm.defaultLessonPrice),
       });
       toast({ title: 'Профиль сохранён' });
       await load();
@@ -301,6 +324,58 @@ export default function AdminTutorDetail() {
                 value={profileForm.phone}
                 onChange={(e) => setProfileForm((f) => ({ ...f, phone: e.target.value }))}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>О себе</Label>
+              <Textarea
+                value={profileForm.bio}
+                onChange={(e) => setProfileForm((f) => ({ ...f, bio: e.target.value }))}
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Опыт преподавания</Label>
+              <Textarea
+                value={profileForm.teachingExperience}
+                onChange={(e) => setProfileForm((f) => ({ ...f, teachingExperience: e.target.value }))}
+                rows={2}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Специализация</Label>
+              <Input
+                value={profileForm.specialization}
+                onChange={(e) => setProfileForm((f) => ({ ...f, specialization: e.target.value }))}
+                placeholder="Китайский язык"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Рабочее время с</Label>
+                <Input
+                  type="time"
+                  value={profileForm.workTimeFrom}
+                  onChange={(e) => setProfileForm((f) => ({ ...f, workTimeFrom: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Рабочее время до</Label>
+                <Input
+                  type="time"
+                  value={profileForm.workTimeTo}
+                  onChange={(e) => setProfileForm((f) => ({ ...f, workTimeTo: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Стоимость занятия</Label>
+              <Input
+                type="number"
+                min={0}
+                value={profileForm.defaultLessonPrice}
+                onChange={(e) => setProfileForm((f) => ({ ...f, defaultLessonPrice: e.target.value }))}
+              />
+              <p className="text-xs text-slate-400">Только хранение. Оплата не подключена.</p>
             </div>
             <div className="space-y-2">
               <Label>Статус</Label>

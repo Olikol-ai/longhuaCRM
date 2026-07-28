@@ -303,6 +303,7 @@ export default function TutorSchedule() {
         onSave={handleCreate}
         students={students}
         tutorId={tutor?.id}
+        tutor={tutor}
         defaultDate={selectedDate}
       />
     </div>

@@ -3,6 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, Repository } from 'typeorm';
 import { TutorEntity } from './entities/tutor.entity';
 
+export const TUTOR_PROFILE_RELATIONS = [
+  'learningDirections',
+  'teachingLanguages',
+  'lessonDurations',
+  'workDays',
+] as const;
+
 @Injectable()
 export class TutorsRepository {
   constructor(
@@ -15,11 +22,17 @@ export class TutorsRepository {
   }
 
   findById(id: string): Promise<TutorEntity | null> {
-    return this.repo.findOne({ where: { id } });
+    return this.repo.findOne({
+      where: { id },
+      relations: [...TUTOR_PROFILE_RELATIONS],
+    });
   }
 
   findByUserId(userId: string): Promise<TutorEntity | null> {
-    return this.repo.findOne({ where: { userId } });
+    return this.repo.findOne({
+      where: { userId },
+      relations: [...TUTOR_PROFILE_RELATIONS],
+    });
   }
 
   save(entity: Partial<TutorEntity>): Promise<TutorEntity> {

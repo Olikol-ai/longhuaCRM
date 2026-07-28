@@ -38,12 +38,15 @@ describe('tutor workspace routes source', () => {
     assert.match(pagesConfig, /TutorStudents/);
     assert.match(pagesConfig, /TutorStats/);
     assert.match(pagesConfig, /TutorReferralLinks/);
+    assert.match(pagesConfig, /TutorProfile/);
     assert.match(layout, /TutorSchedule/);
     assert.match(layout, /TutorReferralLinks/);
+    assert.match(layout, /TutorProfile/);
     assert.match(adminPanel, /AdminTutors/);
     assert.match(adminPanel, /Репетиторы/);
     assert.match(routing, /TutorSchedule/);
     assert.match(routing, /TutorReferralLinks/);
+    assert.match(routing, /TutorProfile/);
     assert.match(routing, /\/admin\/tutors\//);
     assert.match(app, /\/admin\/tutors\/:tutorId/);
   });

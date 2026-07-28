@@ -65,6 +65,7 @@ import TutorSchedule from './pages/TutorSchedule';
 import TutorStudents from './pages/TutorStudents';
 import TutorStats from './pages/TutorStats';
 import TutorReferralLinks from './pages/TutorReferralLinks';
+import TutorProfile from './pages/TutorProfile';
 import Welcome from './pages/Welcome';
 import __Layout from './Layout.jsx';
 
@@ -84,6 +85,7 @@ export const PAGES = {
     "TutorStudents": TutorStudents,
     "TutorStats": TutorStats,
     "TutorReferralLinks": TutorReferralLinks,
+    "TutorProfile": TutorProfile,
     "Welcome": Welcome,
 }
 

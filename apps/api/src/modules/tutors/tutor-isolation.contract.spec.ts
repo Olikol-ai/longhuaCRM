@@ -51,11 +51,14 @@ describe('Tutor isolation contracts', () => {
     const adminTutors = read('src/pages/AdminTutors.jsx');
     const analytics = read('src/pages/TutorsAnalytics.jsx');
     const detail = read('src/pages/AdminTutorDetail.jsx');
+    const profile = read('src/pages/TutorProfile.jsx');
     const app = read('src/App.jsx');
     const routing = read('src/lib/routing.js');
     expect(pages).toContain('TutorReferralLinks');
+    expect(pages).toContain('TutorProfile');
     expect(admin).toContain('AdminTutors');
     expect(layout).toContain('TutorReferralLinks');
+    expect(layout).toContain('TutorProfile');
     expect(notebook).toContain('tutor-notebook-page');
     expect(notebook).toContain('createMyStudent');
     expect(api).toContain('createMyStudent');
@@ -73,8 +76,13 @@ describe('Tutor isolation contracts', () => {
     expect(detail).toContain('Расписание');
     expect(detail).toContain('Статистика');
     expect(detail).toContain('createStudent');
+    expect(profile).toContain('tutor-profile-page');
+    expect(profile).toContain('Настройки занятий');
+    expect(profile).toContain('Направления обучения');
     expect(app).toContain('/admin/tutors/:tutorId');
+    expect(app).toContain('TutorProfile');
     expect(routing).toContain('/admin/tutors/');
+    expect(routing).toContain('TutorProfile');
   });
 
   it('tutor lesson payload uses tutor_student_id', () => {

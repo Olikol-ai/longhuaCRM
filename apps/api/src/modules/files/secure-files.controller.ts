@@ -27,7 +27,7 @@ export class SecureFilesController {
 
   @Post('upload')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),

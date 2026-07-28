@@ -5,10 +5,16 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { UserEntity } from '../../users/entities/user.entity';
+import { TutorLearningDirectionEntity } from './tutor-learning-direction.entity';
+import { TutorLessonDurationEntity } from './tutor-lesson-duration.entity';
+import { TutorMaterialEntity } from './tutor-material.entity';
+import { TutorTeachingLanguageEntity } from './tutor-teaching-language.entity';
+import { TutorWorkDayEntity } from './tutor-work-day.entity';
 
 export type TutorStatus = 'active' | 'inactive' | 'pending';
 
@@ -44,9 +50,20 @@ export class TutorEntity {
   @Column({ name: 'display_name', type: 'text' })
   displayName: string;
 
+  @Column({ name: 'photo_url', type: 'text', nullable: true })
+  photoUrl: string | null;
+
   @Column({ type: 'text', nullable: true })
   bio: string | null;
 
+  @Column({ name: 'teaching_experience', type: 'text', nullable: true })
+  teachingExperience: string | null;
+
+  /** Primary specialization, e.g. «Китайский язык». */
+  @Column({ type: 'text', nullable: true })
+  specialization: string | null;
+
+  /** Legacy free-text specializations (kept for backward compatibility). */
   @Column({ type: 'text', nullable: true })
   specializations: string | null;
 
@@ -57,7 +74,13 @@ export class TutorEntity {
   @Column({ type: 'text', nullable: true })
   phone: string | null;
 
-  /** Future: tutor-set lesson price. Not used in Stage 1. */
+  @Column({ name: 'work_time_from', type: 'time', nullable: true })
+  workTimeFrom: string | null;
+
+  @Column({ name: 'work_time_to', type: 'time', nullable: true })
+  workTimeTo: string | null;
+
+  /** Stored price only — payment not wired yet (future split-pay). */
   @Column({
     name: 'default_lesson_price',
     type: 'numeric',
@@ -77,6 +100,21 @@ export class TutorEntity {
   /** Future: payout account reference. Not used in Stage 1. */
   @Column({ name: 'payout_account_ref', type: 'text', nullable: true })
   payoutAccountRef: string | null;
+
+  @OneToMany(() => TutorLearningDirectionEntity, (row) => row.tutor)
+  learningDirections?: TutorLearningDirectionEntity[];
+
+  @OneToMany(() => TutorTeachingLanguageEntity, (row) => row.tutor)
+  teachingLanguages?: TutorTeachingLanguageEntity[];
+
+  @OneToMany(() => TutorLessonDurationEntity, (row) => row.tutor)
+  lessonDurations?: TutorLessonDurationEntity[];
+
+  @OneToMany(() => TutorWorkDayEntity, (row) => row.tutor)
+  workDays?: TutorWorkDayEntity[];
+
+  @OneToMany(() => TutorMaterialEntity, (row) => row.tutor)
+  materials?: TutorMaterialEntity[];
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

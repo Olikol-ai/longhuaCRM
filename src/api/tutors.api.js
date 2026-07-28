@@ -76,6 +76,36 @@ export const tutors = {
     return apiFetch(`/tutors/${encodeURIComponent(id)}/lessons`);
   },
 
+  materials(tutorId) {
+    return apiFetch(`/tutors/${encodeURIComponent(tutorId)}/materials`);
+  },
+
+  createMaterial(tutorId, payload) {
+    return apiFetch(`/tutors/${encodeURIComponent(tutorId)}/materials`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateMaterial(tutorId, materialId, payload) {
+    return apiFetch(
+      `/tutors/${encodeURIComponent(tutorId)}/materials/${encodeURIComponent(materialId)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+
+  deleteMaterial(tutorId, materialId) {
+    return apiFetch(
+      `/tutors/${encodeURIComponent(tutorId)}/materials/${encodeURIComponent(materialId)}`,
+      {
+        method: 'DELETE',
+      },
+    );
+  },
+
   allStudents() {
     return apiFetch('/tutors/students/all');
   },

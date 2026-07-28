@@ -60,7 +60,7 @@ const tutorNav = [
   { name: "Ученики", icon: Users, page: "TutorStudents" },
   { name: "Ссылки", icon: BookOpen, page: "TutorReferralLinks" },
   { name: "Статистика", icon: ClipboardList, page: "TutorStats" },
-  { name: "Профиль", icon: UserCircle, page: "Profile" },
+  { name: "Профиль", icon: UserCircle, page: "TutorProfile" },
   { name: "Настройки", icon: Settings, page: "Settings" },
 ];
 

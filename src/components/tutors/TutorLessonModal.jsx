@@ -16,14 +16,51 @@ import { toast } from '@/components/ui/use-toast';
 import { toLessonWritePayload } from '@/lib/lessonPayload';
 import { createPageUrl } from '@/utils';
 
+const FALLBACK_DURATIONS = [30, 60, 90, 120];
+
+function resolveDurations(tutor) {
+  const rows = tutor?.lesson_durations || tutor?.lessonDurations || [];
+  const minutes = rows
+    .map((r) => Number(typeof r === 'number' ? r : r?.minutes))
+    .filter((n) => FALLBACK_DURATIONS.includes(n));
+  return minutes.length ? [...new Set(minutes)].sort((a, b) => a - b) : FALLBACK_DURATIONS;
+}
+
+function resolveWorkDays(tutor) {
+  const rows = tutor?.work_days || tutor?.workDays || [];
+  return rows
+    .map((r) => Number(typeof r === 'number' ? r : r?.day_of_week ?? r?.dayOfWeek))
+    .filter((n) => n >= 0 && n <= 6);
+}
+
+/** JS getDay(): 0=Sun … 6=Sat → our 0=Mon … 6=Sun */
+function toWorkDayIndex(dateStr) {
+  const d = new Date(`${dateStr}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  const js = d.getDay();
+  return js === 0 ? 6 : js - 1;
+}
+
+function timeToMinutes(value) {
+  const m = /^(\d{2}):(\d{2})/.exec(String(value || ''));
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+
 export default function TutorLessonModal({
   open,
   onClose,
   onSave,
   students,
   tutorId,
+  tutor,
   defaultDate,
 }) {
+  const durations = useMemo(() => resolveDurations(tutor), [tutor]);
+  const workDays = useMemo(() => resolveWorkDays(tutor), [tutor]);
+  const workFrom = String(tutor?.work_time_from || tutor?.workTimeFrom || '').slice(0, 5);
+  const workTo = String(tutor?.work_time_to || tutor?.workTimeTo || '').slice(0, 5);
+
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     tutor_student_id: '',
@@ -35,14 +72,15 @@ export default function TutorLessonModal({
 
   useEffect(() => {
     if (!open) return;
+    const preferred = durations.includes(60) ? 60 : durations[0];
     setForm({
       tutor_student_id: '',
       date: defaultDate || new Date().toISOString().slice(0, 10),
-      start_time: '10:00',
-      duration: 60,
+      start_time: workFrom || '10:00',
+      duration: preferred,
       notes: '',
     });
-  }, [open, defaultDate]);
+  }, [open, defaultDate, durations, workFrom]);
 
   const activeStudents = useMemo(
     () => (Array.isArray(students) ? students : []).filter((s) => s.status !== 'inactive'),
@@ -64,6 +102,32 @@ export default function TutorLessonModal({
     if (!form.date || !form.start_time) {
       toast({ title: 'Укажите дату и время', variant: 'destructive' });
       return;
+    }
+
+    if (workDays.length > 0) {
+      const dayIdx = toWorkDayIndex(form.date);
+      if (dayIdx != null && !workDays.includes(dayIdx)) {
+        toast({
+          title: 'День вне рабочих дней',
+          description: 'Выберите дату из ваших рабочих дней в профиле',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    if (workFrom && workTo) {
+      const start = timeToMinutes(form.start_time);
+      const from = timeToMinutes(workFrom);
+      const to = timeToMinutes(workTo);
+      if (start != null && from != null && to != null && (start < from || start > to)) {
+        toast({
+          title: 'Время вне рабочего окна',
+          description: `Рабочее время: ${workFrom}–${workTo}`,
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     setSaving(true);
@@ -153,14 +217,22 @@ export default function TutorLessonModal({
           </div>
 
           <div className="space-y-2">
-            <Label>Длительность (мин)</Label>
-            <Input
-              type="number"
-              min={15}
-              step={15}
-              value={form.duration}
-              onChange={(e) => setForm((f) => ({ ...f, duration: e.target.value }))}
-            />
+            <Label>Длительность</Label>
+            <Select
+              value={String(form.duration)}
+              onValueChange={(v) => setForm((f) => ({ ...f, duration: Number(v) }))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {durations.map((minutes) => (
+                  <SelectItem key={minutes} value={String(minutes)}>
+                    {minutes} минут
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

@@ -22,9 +22,19 @@ export const TEACHER_SELF_UPDATE_FIELDS = [
 
 export const TUTOR_SELF_UPDATE_FIELDS = [
   'displayName',
+  'photoUrl',
   'bio',
+  'teachingExperience',
+  'specialization',
   'specializations',
   'phone',
+  'workTimeFrom',
+  'workTimeTo',
+  'defaultLessonPrice',
+  'learningDirections',
+  'teachingLanguages',
+  'lessonDurations',
+  'workDays',
 ] as const;
 
 export const TEACHER_LESSON_UPDATE_FIELDS = [

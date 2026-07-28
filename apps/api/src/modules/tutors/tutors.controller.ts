@@ -14,9 +14,11 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { JwtPayload } from '../auth/auth.service';
 import { CreateTutorDto } from './dto/create-tutor.dto';
+import { CreateTutorMaterialDto } from './dto/create-tutor-material.dto';
 import { CreateTutorStudentNotebookDto } from './dto/create-tutor-student-notebook.dto';
 import { FilterQueryDto } from './dto/filter-query.dto';
 import { UpdateTutorDto } from './dto/update-tutor.dto';
+import { UpdateTutorMaterialDto } from './dto/update-tutor-material.dto';
 import { UpdateTutorStudentNotebookDto } from './dto/update-tutor-student-notebook.dto';
 import { TutorsService } from './tutors.service';
 
@@ -127,6 +129,43 @@ export class TutorsController {
     @Param('studentId') studentId: string,
   ) {
     return this.tutorsService.deleteNotebookStudent(user, studentId, id);
+  }
+
+  @Get(':id/materials')
+  @Roles('admin', 'tutor')
+  listMaterials(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.tutorsService.listMaterials(user, id);
+  }
+
+  @Post(':id/materials')
+  @Roles('admin', 'tutor')
+  createMaterial(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: CreateTutorMaterialDto,
+  ) {
+    return this.tutorsService.createMaterial(user, id, dto);
+  }
+
+  @Patch(':id/materials/:materialId')
+  @Roles('admin', 'tutor')
+  updateMaterial(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Param('materialId') materialId: string,
+    @Body() dto: UpdateTutorMaterialDto,
+  ) {
+    return this.tutorsService.updateMaterial(user, id, materialId, dto);
+  }
+
+  @Delete(':id/materials/:materialId')
+  @Roles('admin', 'tutor')
+  deleteMaterial(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Param('materialId') materialId: string,
+  ) {
+    return this.tutorsService.deleteMaterial(user, id, materialId);
   }
 
   @Get(':id/lessons')

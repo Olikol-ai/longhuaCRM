@@ -13,10 +13,20 @@ import { LessonEntity } from '../lessons/entities/lesson.entity';
 import { RoleEntitySyncService } from '../users/role-entity-sync.service';
 import { resolveNameParts } from '../users/display-name.util';
 import { CreateTutorDto } from './dto/create-tutor.dto';
+import { CreateTutorMaterialDto } from './dto/create-tutor-material.dto';
 import { CreateTutorStudentNotebookDto } from './dto/create-tutor-student-notebook.dto';
 import { UpdateTutorDto } from './dto/update-tutor.dto';
+import { UpdateTutorMaterialDto } from './dto/update-tutor-material.dto';
 import { UpdateTutorStudentNotebookDto } from './dto/update-tutor-student-notebook.dto';
+import { TutorLearningDirectionEntity } from './entities/tutor-learning-direction.entity';
+import {
+  TUTOR_ALLOWED_LESSON_DURATIONS,
+  TutorLessonDurationEntity,
+} from './entities/tutor-lesson-duration.entity';
+import { TutorMaterialEntity } from './entities/tutor-material.entity';
 import { TutorStudentEntity } from './entities/tutor-student.entity';
+import { TutorTeachingLanguageEntity } from './entities/tutor-teaching-language.entity';
+import { TutorWorkDayEntity } from './entities/tutor-work-day.entity';
 import { TutorEntity } from './entities/tutor.entity';
 import { TutorDeleteResult, TutorDeletionService } from './tutor-deletion.service';
 import { TutorsRepository } from './tutors.repository';
@@ -83,6 +93,16 @@ export class TutorsService {
     private readonly tutorStudentRepo: Repository<TutorStudentEntity>,
     @InjectRepository(LessonEntity)
     private readonly lessonRepo: Repository<LessonEntity>,
+    @InjectRepository(TutorLearningDirectionEntity)
+    private readonly directionRepo: Repository<TutorLearningDirectionEntity>,
+    @InjectRepository(TutorTeachingLanguageEntity)
+    private readonly languageRepo: Repository<TutorTeachingLanguageEntity>,
+    @InjectRepository(TutorLessonDurationEntity)
+    private readonly durationRepo: Repository<TutorLessonDurationEntity>,
+    @InjectRepository(TutorWorkDayEntity)
+    private readonly workDayRepo: Repository<TutorWorkDayEntity>,
+    @InjectRepository(TutorMaterialEntity)
+    private readonly materialRepo: Repository<TutorMaterialEntity>,
   ) {}
 
   async findAll(actor: JwtPayload): Promise<TutorEntity[]> {
@@ -287,18 +307,28 @@ export class TutorsService {
     if (payload.displayName !== undefined) {
       mapped.displayName = String(payload.displayName);
     }
+    if (payload.photoUrl !== undefined) {
+      mapped.photoUrl = this.normalizeOptionalText(payload.photoUrl);
+    }
     if (payload.bio !== undefined) {
-      mapped.bio = payload.bio == null ? null : String(payload.bio);
+      mapped.bio = this.normalizeOptionalText(payload.bio);
+    }
+    if (payload.teachingExperience !== undefined) {
+      mapped.teachingExperience = this.normalizeOptionalText(
+        payload.teachingExperience,
+      );
+    }
+    if (payload.specialization !== undefined) {
+      mapped.specialization = this.normalizeOptionalText(payload.specialization);
     }
     if (payload.specializations !== undefined) {
-      mapped.specializations =
-        payload.specializations == null ? null : String(payload.specializations);
+      mapped.specializations = this.normalizeOptionalText(payload.specializations);
     }
     if (payload.email !== undefined) {
       mapped.email = payload.email == null ? null : String(payload.email);
     }
     if (payload.phone !== undefined) {
-      mapped.phone = payload.phone == null ? null : String(payload.phone);
+      mapped.phone = this.normalizeOptionalText(payload.phone);
     }
     if (payload.status !== undefined) {
       mapped.status = payload.status as TutorEntity['status'];
@@ -306,17 +336,259 @@ export class TutorsService {
     if (payload.userId !== undefined) {
       mapped.userId = payload.userId == null ? null : String(payload.userId);
     }
+    if (payload.defaultLessonPrice !== undefined) {
+      mapped.defaultLessonPrice =
+        payload.defaultLessonPrice == null
+          ? null
+          : Number(payload.defaultLessonPrice);
+    }
+    if (payload.commissionPercent !== undefined) {
+      mapped.commissionPercent =
+        payload.commissionPercent == null
+          ? null
+          : Number(payload.commissionPercent);
+    }
+    if (payload.payoutAccountRef !== undefined) {
+      mapped.payoutAccountRef = this.normalizeOptionalText(
+        payload.payoutAccountRef,
+      );
+    }
+    if (payload.workTimeFrom !== undefined) {
+      mapped.workTimeFrom = this.normalizeTime(payload.workTimeFrom);
+    }
+    if (payload.workTimeTo !== undefined) {
+      mapped.workTimeTo = this.normalizeTime(payload.workTimeTo);
+    }
 
-    const row = await this.repository.update(id, mapped);
-    if (!row) {
+    if (Object.keys(mapped).length > 0) {
+      const row = await this.repository.update(id, mapped);
+      if (!row) {
+        throw new NotFoundException('Tutor not found');
+      }
+      if (mapped.displayName !== undefined && row.userId) {
+        await this.roleEntitySync.syncLinkedUserFromTutor(row);
+      }
+    } else {
+      const existing = await this.repository.findById(id);
+      if (!existing) {
+        throw new NotFoundException('Tutor not found');
+      }
+    }
+
+    if (payload.learningDirections !== undefined) {
+      await this.replaceNamedList(
+        'directions',
+        id,
+        payload.learningDirections as unknown[],
+      );
+    }
+    if (payload.teachingLanguages !== undefined) {
+      await this.replaceNamedList(
+        'languages',
+        id,
+        payload.teachingLanguages as unknown[],
+      );
+    }
+    if (payload.lessonDurations !== undefined) {
+      await this.replaceLessonDurations(id, payload.lessonDurations as unknown[]);
+    }
+    if (payload.workDays !== undefined) {
+      await this.replaceWorkDays(id, payload.workDays as unknown[]);
+    }
+
+    const refreshed = await this.repository.findById(id);
+    if (!refreshed) {
       throw new NotFoundException('Tutor not found');
     }
+    return refreshed;
+  }
 
-    if (mapped.displayName !== undefined && row.userId) {
-      await this.roleEntitySync.syncLinkedUserFromTutor(row);
+  private normalizeTime(value: unknown): string | null {
+    if (value == null || value === '') return null;
+    const raw = String(value).trim();
+    const match = /^([01]\d|2[0-3]):([0-5]\d)/.exec(raw);
+    if (!match) {
+      throw new BadRequestException('Некорректное время (ожидается ЧЧ:ММ)');
     }
+    return `${match[1]}:${match[2]}`;
+  }
 
-    return row;
+  private async replaceNamedList(
+    kind: 'directions' | 'languages',
+    tutorId: string,
+    values: unknown[],
+  ): Promise<void> {
+    const names = (Array.isArray(values) ? values : [])
+      .map((v) => String(v ?? '').trim())
+      .filter(Boolean);
+    if (kind === 'directions') {
+      await this.directionRepo.delete({ tutorId });
+      if (names.length === 0) return;
+      await this.directionRepo.save(
+        names.map((name, index) =>
+          this.directionRepo.create({
+            id: randomUUID(),
+            tutorId,
+            name,
+            sortOrder: index,
+          }),
+        ),
+      );
+      return;
+    }
+    await this.languageRepo.delete({ tutorId });
+    if (names.length === 0) return;
+    await this.languageRepo.save(
+      names.map((name, index) =>
+        this.languageRepo.create({
+          id: randomUUID(),
+          tutorId,
+          name,
+          sortOrder: index,
+        }),
+      ),
+    );
+  }
+
+  private async replaceLessonDurations(
+    tutorId: string,
+    values: unknown[],
+  ): Promise<void> {
+    const allowed = new Set<number>(TUTOR_ALLOWED_LESSON_DURATIONS);
+    const minutes = [
+      ...new Set(
+        (Array.isArray(values) ? values : []).map((v) => Number(v)),
+      ),
+    ].filter((n) => allowed.has(n));
+    if (
+      (Array.isArray(values) ? values : []).some(
+        (v) => !allowed.has(Number(v)),
+      )
+    ) {
+      throw new BadRequestException(
+        'Допустимая длительность: 30, 60, 90 или 120 минут',
+      );
+    }
+    await this.durationRepo.delete({ tutorId });
+    if (minutes.length === 0) return;
+    await this.durationRepo.save(
+      minutes.map((m) =>
+        this.durationRepo.create({
+          id: randomUUID(),
+          tutorId,
+          minutes: m,
+        }),
+      ),
+    );
+  }
+
+  private async replaceWorkDays(
+    tutorId: string,
+    values: unknown[],
+  ): Promise<void> {
+    const days = [
+      ...new Set((Array.isArray(values) ? values : []).map((v) => Number(v))),
+    ].filter((d) => Number.isInteger(d) && d >= 0 && d <= 6);
+    if (
+      (Array.isArray(values) ? values : []).some((v) => {
+        const n = Number(v);
+        return !Number.isInteger(n) || n < 0 || n > 6;
+      })
+    ) {
+      throw new BadRequestException('День недели должен быть от 0 (пн) до 6 (вс)');
+    }
+    await this.workDayRepo.delete({ tutorId });
+    if (days.length === 0) return;
+    await this.workDayRepo.save(
+      days.map((dayOfWeek) =>
+        this.workDayRepo.create({
+          id: randomUUID(),
+          tutorId,
+          dayOfWeek,
+        }),
+      ),
+    );
+  }
+
+  async listMaterials(
+    actor: JwtPayload,
+    tutorId: string,
+  ): Promise<TutorMaterialEntity[]> {
+    await this.tutorAccess.assertCanReadTutor(actor, tutorId);
+    return this.materialRepo.find({
+      where: { tutorId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async createMaterial(
+    actor: JwtPayload,
+    tutorId: string,
+    dto: CreateTutorMaterialDto,
+  ): Promise<TutorMaterialEntity> {
+    await this.tutorAccess.assertCanUpdateTutor(actor, tutorId, {});
+    const title = String(dto.title || '').trim();
+    if (!title) {
+      throw new BadRequestException('Укажите название материала');
+    }
+    return this.materialRepo.save(
+      this.materialRepo.create({
+        id: randomUUID(),
+        tutorId,
+        title,
+        description: this.normalizeOptionalText(dto.description),
+        externalLink: this.normalizeOptionalText(dto.externalLink),
+        fileUrl: this.normalizeOptionalText(dto.fileUrl),
+      }),
+    );
+  }
+
+  async updateMaterial(
+    actor: JwtPayload,
+    tutorId: string,
+    materialId: string,
+    dto: UpdateTutorMaterialDto,
+  ): Promise<TutorMaterialEntity> {
+    await this.tutorAccess.assertCanUpdateTutor(actor, tutorId, {});
+    const row = await this.materialRepo.findOne({
+      where: { id: materialId, tutorId },
+    });
+    if (!row) {
+      throw new NotFoundException('Материал не найден');
+    }
+    if (dto.title !== undefined) {
+      const title = String(dto.title || '').trim();
+      if (!title) {
+        throw new BadRequestException('Укажите название материала');
+      }
+      row.title = title;
+    }
+    if (dto.description !== undefined) {
+      row.description = this.normalizeOptionalText(dto.description);
+    }
+    if (dto.externalLink !== undefined) {
+      row.externalLink = this.normalizeOptionalText(dto.externalLink);
+    }
+    if (dto.fileUrl !== undefined) {
+      row.fileUrl = this.normalizeOptionalText(dto.fileUrl);
+    }
+    return this.materialRepo.save(row);
+  }
+
+  async deleteMaterial(
+    actor: JwtPayload,
+    tutorId: string,
+    materialId: string,
+  ): Promise<{ id: string; deleted: true }> {
+    await this.tutorAccess.assertCanUpdateTutor(actor, tutorId, {});
+    const row = await this.materialRepo.findOne({
+      where: { id: materialId, tutorId },
+    });
+    if (!row) {
+      throw new NotFoundException('Материал не найден');
+    }
+    await this.materialRepo.delete({ id: materialId });
+    return { id: materialId, deleted: true };
   }
 
   delete(id: string): Promise<TutorDeleteResult> {

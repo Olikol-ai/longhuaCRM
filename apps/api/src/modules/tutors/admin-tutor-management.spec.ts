@@ -73,6 +73,11 @@ describe('Admin tutor management access', () => {
       {} as never,
       tutorStudentRepo as never,
       lessonRepo as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
     );
 
     const admin = { sub: 'admin-1', email: 'admin@test.local', role: 'admin' };
