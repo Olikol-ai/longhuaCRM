@@ -68,7 +68,11 @@ function lessonStudentIds(lesson) {
     lesson?.primary_student_id ||
     lesson?.primaryStudentId ||
     lesson?.primary_tutor_student_id ||
-    lesson?.primaryTutorStudentId;
+    lesson?.primaryTutorStudentId ||
+    lesson?.primary_teacher_student_contact_id ||
+    lesson?.primaryTeacherStudentContactId ||
+    lesson?.teacher_student_contact_id ||
+    lesson?.teacherStudentContactId;
   return primary ? [primary] : [];
 }
 

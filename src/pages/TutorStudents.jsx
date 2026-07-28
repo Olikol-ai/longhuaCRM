@@ -168,7 +168,7 @@ export default function TutorStudents() {
           </p>
         </div>
         <Button type="button" onClick={openCreate} data-testid="tutor-notebook-add">
-          <Plus className="h-4 w-4 mr-1.5" /> Добавить
+          <Plus className="h-4 w-4 mr-1.5" /> Добавить ученика
         </Button>
       </div>
 

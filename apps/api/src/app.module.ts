@@ -34,6 +34,7 @@ import { ScheduleModule as ScheduleDomainModule } from './modules/schedule/sched
 import { SpaModule } from './modules/spa/spa.module';
 import { StudentsModule } from './modules/students/students.module';
 import { TeachersModule } from './modules/teachers/teachers.module';
+import { TeacherStudentContactsModule } from './modules/teacher-student-contacts/teacher-student-contacts.module';
 import { TutorsModule } from './modules/tutors/tutors.module';
 import { UsersModule } from './modules/users/users.module';
 import { AlfaBankModule } from './modules/alfabank/alfabank.module';
@@ -112,6 +113,7 @@ function resolveEnvFilePaths(): string[] {
     UsersModule,
     StudentsModule,
     TeachersModule,
+    TeacherStudentContactsModule,
     TutorsModule,
     CoursesModule,
     GroupsModule,

@@ -59,4 +59,21 @@ describe('toLessonWritePayload', () => {
     assert.equal(payload.tutorStudentId, undefined);
     assert.equal(payload.lessonType, 'individual');
   });
+
+  it('maps teacher_student_contact_id and clears CRM student', () => {
+    const payload = toLessonWritePayload({
+      teacher_id: '11111111-1111-4111-8111-111111111111',
+      teacher_student_contact_id: '88888888-8888-4888-8888-888888888888',
+      student_id: '77777777-7777-4777-8777-777777777777',
+      date: '2026-08-01',
+      start_time: '10:00',
+    });
+    assert.equal(
+      payload.primaryTeacherStudentContactId,
+      '88888888-8888-4888-8888-888888888888',
+    );
+    assert.equal(payload.primaryStudentId, undefined);
+    assert.equal(payload.teacherStudentContactId, undefined);
+    assert.equal(payload.lessonType, 'individual');
+  });
 });

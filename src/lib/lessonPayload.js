@@ -9,6 +9,8 @@ const FIELD_ALIASES = {
   primary_student_id: 'primaryStudentId',
   tutor_student_id: 'tutorStudentId',
   primary_tutor_student_id: 'primaryTutorStudentId',
+  teacher_student_contact_id: 'teacherStudentContactId',
+  primary_teacher_student_contact_id: 'primaryTeacherStudentContactId',
   group_id: 'groupId',
   series_id: 'seriesId',
   start_time: 'startTime',
@@ -32,6 +34,8 @@ const LESSON_STRIP_KEYS = new Set([
   'studentLastName',
   'isRecurring',
   'recurringGroupId',
+  'studentTargetType',
+  'student_target_type',
 ]);
 
 function recordToEntityPayload(input) {
@@ -50,6 +54,7 @@ function recordToEntityPayload(input) {
  * Map UI snake_case records onto CreateLessonDto / UpdateLessonDto.
  * Critical: student_id must become primaryStudentId (not studentId).
  * Tutor lessons: tutor_student_id → primaryTutorStudentId.
+ * Private contacts: teacher_student_contact_id → primaryTeacherStudentContactId.
  */
 export function toLessonWritePayload(input) {
   const payload = recordToEntityPayload(input);
@@ -66,7 +71,23 @@ export function toLessonWritePayload(input) {
     }
   }
 
-  if (!payload.primaryStudentId && !payload.primaryTutorStudentId) {
+  if (!payload.primaryTeacherStudentContactId) {
+    const contact =
+      payload.teacherStudentContactId ??
+      input?.primary_teacher_student_contact_id ??
+      input?.primaryTeacherStudentContactId ??
+      input?.teacher_student_contact_id ??
+      input?.teacherStudentContactId;
+    if (contact) {
+      payload.primaryTeacherStudentContactId = contact;
+    }
+  }
+
+  if (
+    !payload.primaryStudentId &&
+    !payload.primaryTutorStudentId &&
+    !payload.primaryTeacherStudentContactId
+  ) {
     const legacyStudent =
       payload.studentId ??
       input?.primary_student_id ??
@@ -81,10 +102,18 @@ export function toLessonWritePayload(input) {
   // Tutor-owned lessons must never send school student ids.
   if (payload.tutorId && payload.primaryTutorStudentId) {
     delete payload.primaryStudentId;
+    delete payload.primaryTeacherStudentContactId;
+  }
+
+  // Contact lessons never mix with CRM students.
+  if (payload.primaryTeacherStudentContactId) {
+    delete payload.primaryStudentId;
+    delete payload.primaryTutorStudentId;
   }
 
   delete payload.studentId;
   delete payload.tutorStudentId;
+  delete payload.teacherStudentContactId;
 
   for (const key of LESSON_STRIP_KEYS) {
     delete payload[key];
@@ -99,15 +128,27 @@ export function toLessonWritePayload(input) {
   if (payload.primaryTutorStudentId === '' || payload.primaryTutorStudentId == null) {
     delete payload.primaryTutorStudentId;
   }
+  if (
+    payload.primaryTeacherStudentContactId === '' ||
+    payload.primaryTeacherStudentContactId == null
+  ) {
+    delete payload.primaryTeacherStudentContactId;
+  }
 
   // Group lessons are driven by membership; do not also send a primary student.
   if (payload.groupId) {
     delete payload.primaryStudentId;
     delete payload.primaryTutorStudentId;
+    delete payload.primaryTeacherStudentContactId;
     if (!payload.lessonType) {
       payload.lessonType = 'group';
     }
-  } else if ((payload.primaryStudentId || payload.primaryTutorStudentId) && !payload.lessonType) {
+  } else if (
+    (payload.primaryStudentId ||
+      payload.primaryTutorStudentId ||
+      payload.primaryTeacherStudentContactId) &&
+    !payload.lessonType
+  ) {
     payload.lessonType = 'individual';
   }
 

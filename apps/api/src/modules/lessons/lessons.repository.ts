@@ -15,14 +15,26 @@ export class LessonsRepository {
 
   findAll(): Promise<LessonEntity[]> {
     return this.lessonRepo.find({
-      relations: ['teacher', 'primaryStudent', 'primaryTutorStudent', 'group'],
+      relations: [
+        'teacher',
+        'primaryStudent',
+        'primaryTutorStudent',
+        'primaryTeacherStudentContact',
+        'group',
+      ],
     });
   }
 
   findById(id: string): Promise<LessonEntity | null> {
     return this.lessonRepo.findOne({
       where: { id },
-      relations: ['teacher', 'primaryStudent', 'primaryTutorStudent', 'group'],
+      relations: [
+        'teacher',
+        'primaryStudent',
+        'primaryTutorStudent',
+        'primaryTeacherStudentContact',
+        'group',
+      ],
     });
   }
 
@@ -42,7 +54,13 @@ export class LessonsRepository {
   filter(where: FindOptionsWhere<LessonEntity>): Promise<LessonEntity[]> {
     return this.lessonRepo.find({
       where,
-      relations: ['teacher', 'primaryStudent', 'primaryTutorStudent', 'group'],
+      relations: [
+        'teacher',
+        'primaryStudent',
+        'primaryTutorStudent',
+        'primaryTeacherStudentContact',
+        'group',
+      ],
     });
   }
 

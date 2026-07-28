@@ -26,6 +26,7 @@ export default function LessonModal({
   date,
   teachers,
   students,
+  contacts = [],
   groups = [],
   onSave,
   onClose,
@@ -34,7 +35,9 @@ export default function LessonModal({
   const [form, setForm] = useState({
     teacher_id: defaultTeacherId || "",
     lesson_type: "individual",
+    student_target_type: "crm",
     primary_student_id: "",
+    teacher_student_contact_id: "",
     group_id: "",
     date: date || "",
     start_time: "10:00",
@@ -134,6 +137,19 @@ export default function LessonModal({
   }, [form.date, teacherSchedule]);
 
   const activeStudents = students.filter((s) => s.status !== "inactive");
+  const activeContacts = useMemo(
+    () =>
+      (Array.isArray(contacts) ? contacts : []).filter((c) => {
+        if (c.status === "inactive") return false;
+        if (!form.teacher_id) return true;
+        const ownerType = c.owner_type || c.ownerType;
+        const ownerId = c.owner_id || c.ownerId;
+        if (ownerType && ownerType !== "teacher") return false;
+        if (ownerId && ownerId !== form.teacher_id) return false;
+        return true;
+      }),
+    [contacts, form.teacher_id],
+  );
   const activeTeachers = teachers.filter((t) => t.status !== "inactive");
   const teacherGroups = useMemo(
     () => groups.filter((g) => !form.teacher_id || g.teacher_id === form.teacher_id),
@@ -160,7 +176,11 @@ export default function LessonModal({
     form.teacher_id &&
     form.date &&
     form.start_time &&
-    (form.lesson_type === "group" ? form.group_id : form.primary_student_id),
+    (form.lesson_type === "group"
+      ? form.group_id
+      : form.student_target_type === "contact"
+        ? form.teacher_student_contact_id
+        : form.primary_student_id),
   );
 
   const validateTeacherAvailability = async (lessonDate, startTime, duration) => {
@@ -180,9 +200,15 @@ export default function LessonModal({
   const handleSave = async () => {
     if (!canSubmit || saving) return;
 
-    if (form.lesson_type === "individual" && !form.primary_student_id) {
-      alert("Выберите ученика для индивидуального урока");
-      return;
+    if (form.lesson_type === "individual") {
+      if (form.student_target_type === "contact" && !form.teacher_student_contact_id) {
+        alert("Выберите личного ученика");
+        return;
+      }
+      if (form.student_target_type !== "contact" && !form.primary_student_id) {
+        alert("Выберите ученика для индивидуального урока");
+        return;
+      }
     }
     if (form.lesson_type === "group" && !form.group_id) {
       alert("Выберите группу для группового урока");
@@ -224,7 +250,9 @@ export default function LessonModal({
         lesson_type: form.lesson_type,
         ...(form.lesson_type === "group"
           ? { group_id: form.group_id }
-          : { primary_student_id: form.primary_student_id }),
+          : form.student_target_type === "contact"
+            ? { teacher_student_contact_id: form.teacher_student_contact_id }
+            : { primary_student_id: form.primary_student_id }),
       };
 
       await onSave(payload, recurring);
@@ -298,6 +326,7 @@ export default function LessonModal({
                         ...f,
                         teacher_id: value,
                         group_id: "",
+                        teacher_student_contact_id: "",
                       }));
                     }}
                   >
@@ -321,6 +350,7 @@ export default function LessonModal({
                         ...f,
                         lesson_type: value,
                         primary_student_id: value === "individual" ? f.primary_student_id : "",
+                        teacher_student_contact_id: value === "individual" ? f.teacher_student_contact_id : "",
                         group_id: value === "group" ? f.group_id : "",
                       }));
                     }}
@@ -336,28 +366,75 @@ export default function LessonModal({
                 </div>
 
                 {form.lesson_type === "individual" ? (
-                  <div className="col-span-2">
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Ученик *</label>
-                    <Select
-                      value={form.primary_student_id}
-                      onValueChange={(value) => set("primary_student_id", value)}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Выбрать ученика" />
-                      </SelectTrigger>
-                      <SelectContent className={DROPDOWN_Z}>
-                        {activeStudents.length === 0 ? (
-                          <SelectItem value="__none" disabled>Нет доступных учеников</SelectItem>
-                        ) : (
-                          activeStudents.map((s) => (
-                            <SelectItem key={s.id} value={s.id}>
-                              {s.name} · баланс: {s.lesson_balance || 0}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <>
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Тип ученика *</label>
+                      <Select
+                        value={form.student_target_type}
+                        onValueChange={(value) => {
+                          setForm((f) => ({
+                            ...f,
+                            student_target_type: value,
+                            primary_student_id: "",
+                            teacher_student_contact_id: "",
+                          }));
+                        }}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className={DROPDOWN_Z}>
+                          <SelectItem value="crm">Зарегистрированный ученик CRM</SelectItem>
+                          <SelectItem value="contact">Личный ученик преподавателя</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {form.student_target_type === "contact" ? (
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Личный ученик *</label>
+                        <Select
+                          value={form.teacher_student_contact_id}
+                          onValueChange={(value) => set("teacher_student_contact_id", value)}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Выбрать из списка" />
+                          </SelectTrigger>
+                          <SelectContent className={DROPDOWN_Z}>
+                            {activeContacts.length === 0 ? (
+                              <SelectItem value="__none" disabled>Нет личных учеников — добавьте в разделе «Ученики»</SelectItem>
+                            ) : (
+                              activeContacts.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Ученик CRM *</label>
+                        <Select
+                          value={form.primary_student_id}
+                          onValueChange={(value) => set("primary_student_id", value)}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Выбрать ученика" />
+                          </SelectTrigger>
+                          <SelectContent className={DROPDOWN_Z}>
+                            {activeStudents.length === 0 ? (
+                              <SelectItem value="__none" disabled>Нет доступных учеников</SelectItem>
+                            ) : (
+                              activeStudents.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  {s.name} · баланс: {s.lesson_balance || 0}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Группа *</label>

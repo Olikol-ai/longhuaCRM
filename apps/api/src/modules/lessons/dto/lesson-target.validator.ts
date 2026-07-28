@@ -10,6 +10,8 @@ export type LessonTargetFields = {
   studentId?: string;
   primaryTutorStudentId?: string;
   tutorStudentId?: string;
+  primaryTeacherStudentContactId?: string;
+  teacherStudentContactId?: string;
   tutorId?: string;
   teacherId?: string;
   lessonType?: 'individual' | 'group';
@@ -23,22 +25,27 @@ function resolvePrimaryTutorStudentId(dto: LessonTargetFields): string | undefin
   return dto.primaryTutorStudentId || dto.tutorStudentId || undefined;
 }
 
+function resolveTeacherStudentContactId(dto: LessonTargetFields): string | undefined {
+  return dto.primaryTeacherStudentContactId || dto.teacherStudentContactId || undefined;
+}
+
 @ValidatorConstraint({ name: 'lessonHasTarget', async: false })
 export class LessonHasTargetConstraint implements ValidatorConstraintInterface {
   validate(_value: unknown, args: ValidationArguments): boolean {
     const dto = args.object as LessonTargetFields;
     const primaryStudentId = resolvePrimaryStudentId(dto);
     const primaryTutorStudentId = resolvePrimaryTutorStudentId(dto);
+    const contactId = resolveTeacherStudentContactId(dto);
     if (dto.lessonType === 'group') {
       return Boolean(dto.groupId);
     }
     if (dto.tutorId && !dto.teacherId) {
-      return Boolean(primaryTutorStudentId);
+      return Boolean(primaryTutorStudentId || contactId);
     }
     if (dto.lessonType === 'individual') {
-      return Boolean(primaryStudentId);
+      return Boolean(primaryStudentId || contactId);
     }
-    return Boolean(dto.groupId || primaryStudentId || primaryTutorStudentId);
+    return Boolean(dto.groupId || primaryStudentId || primaryTutorStudentId || contactId);
   }
 
   defaultMessage(args: ValidationArguments): string {

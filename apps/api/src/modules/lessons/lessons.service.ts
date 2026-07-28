@@ -26,6 +26,7 @@ import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { TeacherPaymentsService } from '../teacher-payments/teacher-payments.service';
 import { TutorEntity } from '../tutors/entities/tutor.entity';
 import { TutorStudentEntity } from '../tutors/entities/tutor-student.entity';
+import { TeacherStudentContactEntity } from '../teacher-student-contacts/entities/teacher-student-contact.entity';
 import { AttendanceEntity } from './entities/attendance.entity';
 import {
   isScheduleOccupyingLessonStatus,
@@ -127,16 +128,30 @@ export class LessonsService {
     const duration = normalized.duration ?? 60;
     const lessonType =
       normalized.lessonType ?? (normalized.groupId ? 'group' : 'individual');
+    const contactId = normalized.primaryTeacherStudentContactId;
 
     if (lessonType === 'group' && !normalized.groupId) {
       throw new BadRequestException('Выберите группу для группового урока');
     }
-    if (lessonType === 'individual' && !normalized.primaryStudentId) {
+    if (
+      lessonType === 'individual' &&
+      !normalized.primaryStudentId &&
+      !contactId
+    ) {
       throw new BadRequestException('Выберите ученика для индивидуального урока');
     }
-    if (!normalized.groupId && !normalized.primaryStudentId) {
+    if (
+      !normalized.groupId &&
+      !normalized.primaryStudentId &&
+      !contactId
+    ) {
       throw new BadRequestException(
         'Выберите ученика для индивидуального урока или группу для группового',
+      );
+    }
+    if (normalized.primaryStudentId && contactId) {
+      throw new BadRequestException(
+        'Выберите либо ученика CRM, либо личного ученика, не обоих',
       );
     }
 
@@ -213,6 +228,23 @@ export class LessonsService {
         }
       }
 
+      if (contactId && !normalized.groupId) {
+        const contact = await manager
+          .getRepository(TeacherStudentContactEntity)
+          .findOne({ where: { id: contactId } });
+        if (!contact || contact.status === 'inactive') {
+          throw new NotFoundException('Личный ученик не найден');
+        }
+        if (
+          contact.ownerType !== 'teacher' ||
+          contact.ownerId !== normalized.teacherId
+        ) {
+          throw new BadRequestException(
+            'Личный ученик не принадлежит выбранному преподавателю',
+          );
+        }
+      }
+
       const lessonRepo = manager.getRepository(LessonEntity);
       const lesson = await lessonRepo.save(
         lessonRepo.create({
@@ -223,6 +255,10 @@ export class LessonsService {
           primaryStudentId: normalized.groupId
             ? null
             : (normalized.primaryStudentId ?? null),
+          primaryTutorStudentId: null,
+          primaryTeacherStudentContactId: normalized.groupId
+            ? null
+            : (contactId ?? null),
           date: normalized.date,
           startTime: normalized.startTime,
           duration,
@@ -387,17 +423,25 @@ export class LessonsService {
     const primaryStudentId = dto.primaryStudentId || dto.studentId || undefined;
     const primaryTutorStudentId =
       dto.primaryTutorStudentId || dto.tutorStudentId || undefined;
+    const primaryTeacherStudentContactId =
+      dto.primaryTeacherStudentContactId ||
+      dto.teacherStudentContactId ||
+      undefined;
     return {
       ...dto,
       primaryStudentId,
       primaryTutorStudentId,
+      primaryTeacherStudentContactId,
       studentId: undefined,
       tutorStudentId: undefined,
+      teacherStudentContactId: undefined,
       lessonType:
         dto.lessonType ??
         (dto.groupId
           ? 'group'
-          : primaryStudentId || primaryTutorStudentId
+          : primaryStudentId ||
+              primaryTutorStudentId ||
+              primaryTeacherStudentContactId
             ? 'individual'
             : undefined),
     };
@@ -908,6 +952,24 @@ export class LessonsService {
       }),
     );
 
+    const allContactIds = [
+      ...new Set(
+        lessons
+          .map((lesson) => lesson.primaryTeacherStudentContactId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const contacts =
+      allContactIds.length > 0
+        ? await this.dataSource.getRepository(TeacherStudentContactEntity).find({
+            where: { id: In(allContactIds) },
+            select: ['id', 'name'],
+          })
+        : [];
+    const contactNameById = new Map(
+      contacts.map((row) => [row.id, row.name?.trim() || ''] as const),
+    );
+
     return lessons.map((lesson) => {
       const teacherName = lesson.teacher?.name?.trim() || null;
       let participantIds = studentIdsByLesson.get(lesson.id) ?? [];
@@ -928,21 +990,27 @@ export class LessonsService {
         tutorParticipantIds = [lesson.primaryTutorStudentId];
       }
 
+      const contactId = lesson.primaryTeacherStudentContactId;
+      const contactName = contactId ? contactNameById.get(contactId) || '' : '';
+
       const studentNames = [
         ...participantIds.map((id) => studentNameById.get(id) || ''),
         ...tutorParticipantIds.map((id) => tutorStudentNameById.get(id) || ''),
+        ...(contactName ? [contactName] : []),
       ].filter(Boolean);
       const studentName =
         studentNames.length > 0
           ? studentNames.join(', ')
           : lesson.primaryStudent?.name?.trim() ||
             lesson.primaryTutorStudent?.name?.trim() ||
+            lesson.primaryTeacherStudentContact?.name?.trim() ||
             lesson.group?.name?.trim() ||
             null;
 
       delete lesson.teacher;
       delete lesson.primaryStudent;
       delete lesson.primaryTutorStudent;
+      delete lesson.primaryTeacherStudentContact;
       delete lesson.group;
       delete lesson.series;
 
@@ -952,6 +1020,7 @@ export class LessonsService {
         studentIds: participantIds.length > 0 ? participantIds : tutorParticipantIds,
         studentNames,
         tutorStudentIds: tutorParticipantIds,
+        teacherStudentContactId: contactId ?? null,
       });
       return lesson;
     });
@@ -1131,8 +1200,8 @@ export class LessonsService {
       }
 
       await this.studentBalanceService.handleLessonStatusUpdate(lessonId, 'completed', manager);
-      // Tutor lessons are outside school payroll — never create TeacherPayment rows.
-      if (lesson.teacherId) {
+      // Tutor lessons and private-contact notebook lessons are outside school payroll.
+      if (lesson.teacherId && !lesson.primaryTeacherStudentContactId) {
         await this.teacherPaymentsService.createForCompletedLesson(lesson, manager);
       }
 

@@ -14,6 +14,7 @@ import { StudentEntity } from '../../students/entities/student.entity';
 import { TeacherEntity } from '../../teachers/entities/teacher.entity';
 import { TutorEntity } from '../../tutors/entities/tutor.entity';
 import { TutorStudentEntity } from '../../tutors/entities/tutor-student.entity';
+import { TeacherStudentContactEntity } from '../../teacher-student-contacts/entities/teacher-student-contact.entity';
 
 export const LESSON_STATUSES = [
   'planned',
@@ -100,6 +101,15 @@ export class LessonEntity {
   @ManyToOne(() => TutorStudentEntity, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'primary_tutor_student_id' })
   primaryTutorStudent?: TutorStudentEntity | null;
+
+  /** Private teacher/tutor contact notebook entry (never CRM Student). */
+  @Index('IDX_LESSON_PRIMARY_TEACHER_STUDENT_CONTACT_ID')
+  @Column({ name: 'primary_teacher_student_contact_id', type: 'uuid', nullable: true })
+  primaryTeacherStudentContactId: string | null;
+
+  @ManyToOne(() => TeacherStudentContactEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'primary_teacher_student_contact_id' })
+  primaryTeacherStudentContact?: TeacherStudentContactEntity | null;
 
   @Column({ type: 'date' })
   date: string;

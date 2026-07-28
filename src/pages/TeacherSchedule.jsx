@@ -57,6 +57,7 @@ export default function TeacherSchedule() {
   const [teacher, setTeacher] = useState(null);
   const [allTeachers, setAllTeachers] = useState([]);
   const [students, setStudents] = useState([]);
+  const [contacts, setContacts] = useState([]);
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -78,11 +79,12 @@ export default function TeacherSchedule() {
   const loadData = async () => {
     setLoadError(null);
     try {
-      const [teachers, allLessons, allStudents, allGroups] = await Promise.all([
+      const [teachers, allLessons, allStudents, allGroups, myContacts] = await Promise.all([
         api.teachers.list(),
         api.lessons.list("-date", 500),
         api.students.list(),
         api.groups.list(),
+        api.teacherStudentContacts.listMine({ ownerType: 'teacher' }).catch(() => []),
       ]);
       const t = teachers.find((row) => row.user_id === user.id || row.email === user.email);
       setAllTeachers(teachers);
@@ -91,11 +93,13 @@ export default function TeacherSchedule() {
         setLessons(allLessons.filter((l) => l.teacher_id === t.id));
         setStudents(allStudents.filter((s) => s.assigned_teacher === t.id));
         setGroups(allGroups.filter((g) => g.teacher_id === t.id));
+        setContacts(Array.isArray(myContacts) ? myContacts : []);
       } else {
         setTeacher(null);
         setLessons([]);
         setStudents([]);
         setGroups([]);
+        setContacts([]);
       }
     } catch (err) {
       setLoadError(err?.message || "Не удалось загрузить расписание");
@@ -564,6 +568,7 @@ export default function TeacherSchedule() {
           date={selectedDate}
           teachers={[teacher]}
           students={students}
+          contacts={contacts}
           groups={groups}
           defaultTeacherId={teacher.id}
           onSave={handleSaveLesson}

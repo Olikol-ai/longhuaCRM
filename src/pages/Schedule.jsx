@@ -22,6 +22,7 @@ export default function Schedule() {
   const [lessons, setLessons] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [students, setStudents] = useState([]);
+  const [contacts, setContacts] = useState([]);
   const [groups, setGroups] = useState([]);
   const { user } = useAuth();
   const [showModal, setShowModal] = useState(false);
@@ -37,17 +38,19 @@ export default function Schedule() {
     setLoading(true);
     setError('');
     try {
-      const [l, t, s, g] = await Promise.all([
+      const [l, t, s, g, c] = await Promise.all([
         api.lessons.list("-date", 500),
         api.teachers.list(),
         api.students.list(),
         api.groups.list(),
+        api.teacherStudentContacts.listMine().catch(() => []),
       ]);
       // School schedule: never mix external tutor lessons into admin teacher calendar.
       setLessons(filterSchoolTeacherLessons(l));
       setTeachers(t);
       setStudents(s);
       setGroups(g);
+      setContacts(Array.isArray(c) ? c : []);
     } catch (err) {
       setError(err.message || 'Не удалось загрузить расписание');
     } finally {
@@ -241,6 +244,7 @@ export default function Schedule() {
           date={selectedDate}
           teachers={teachers}
           students={students}
+          contacts={contacts}
           groups={groups}
           defaultTeacherId={selectedTeacherId}
           onSave={handleSave}

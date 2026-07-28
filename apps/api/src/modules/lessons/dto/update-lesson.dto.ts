@@ -58,6 +58,24 @@ export class UpdateLessonDto {
   studentId?: string;
 
   @IsOptional()
+  @Transform(({ value, obj }) => {
+    const record = obj as Record<string, unknown>;
+    return pickUuid(
+      value,
+      record.primaryTeacherStudentContactId,
+      record.teacherStudentContactId,
+      record.teacher_student_contact_id,
+      record.primary_teacher_student_contact_id,
+    );
+  })
+  @IsUUID()
+  primaryTeacherStudentContactId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  teacherStudentContactId?: string;
+
+  @IsOptional()
   @IsString()
   date?: string;
 
