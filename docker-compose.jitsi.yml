@@ -1,0 +1,140 @@
+# LonghuaCRM — self-hosted Jitsi with guest access (no personal Jitsi accounts).
+#
+# CRM users join as guests; identity (name, role, lesson title) comes from LonghuaCRM.
+#
+# Quick start:
+#   1. cp env.jitsi.example .env.jitsi
+#   2. Edit PUBLIC_URL (https://meet.your-domain.com) and XMPP passwords
+#   3. mkdir -p ~/.jitsi-meet-cfg/{web,transcripts,prosody/config,prosody/prosody-plugins-custom,jicofo,jvb}
+#   4. docker compose -f docker-compose.jitsi.yml --env-file .env.jitsi up -d
+#   5. In LonghuaCRM .env set:
+#        JITSI_BASE_URL=https://meet.your-domain.com
+#
+# Optional token auth (CRM signs HS256 guest JWTs, still no Jitsi registration):
+#   ENABLE_AUTH=1, AUTH_TYPE=jwt, JWT_APP_ID / JWT_APP_SECRET
+#   and matching JITSI_JWT_APP_ID / JITSI_JWT_APP_SECRET in CRM .env
+#
+# Based on jitsi/docker-jitsi-meet (anonymous guests when ENABLE_AUTH=0).
+
+services:
+  web:
+    image: jitsi/web:${JITSI_IMAGE_VERSION:-stable-10008}
+    restart: unless-stopped
+    ports:
+      - '${JITSI_HTTP_PORT:-8000}:80'
+      - '${JITSI_HTTPS_PORT:-8443}:443'
+    volumes:
+      - ${CONFIG:-~/.jitsi-meet-cfg}/web:/config:Z
+      - ${CONFIG:-~/.jitsi-meet-cfg}/transcripts:/usr/share/jitsi-meet/transcripts:Z
+    environment:
+      ENABLE_AUTH: ${ENABLE_AUTH:-0}
+      ENABLE_GUESTS: ${ENABLE_GUESTS:-1}
+      ENABLE_LETSENCRYPT: ${ENABLE_LETSENCRYPT:-0}
+      ENABLE_HTTP_REDIRECT: ${ENABLE_HTTP_REDIRECT:-0}
+      ENABLE_WELCOME_PAGE: 0
+      ENABLE_CLOSE_PAGE: 0
+      DISABLE_HTTPS: ${DISABLE_HTTPS:-0}
+      PUBLIC_URL: ${PUBLIC_URL}
+      XMPP_DOMAIN: ${XMPP_DOMAIN:-meet.jitsi}
+      XMPP_AUTH_DOMAIN: ${XMPP_AUTH_DOMAIN:-auth.meet.jitsi}
+      XMPP_BOSH_URL_BASE: http://xmpp.meet.jitsi:5280
+      XMPP_GUEST_DOMAIN: ${XMPP_GUEST_DOMAIN:-guest.meet.jitsi}
+      XMPP_MUC_DOMAIN: ${XMPP_MUC_DOMAIN:-muc.meet.jitsi}
+      XMPP_INTERNAL_MUC_DOMAIN: ${XMPP_INTERNAL_MUC_DOMAIN:-internal-muc.meet.jitsi}
+      XMPP_RECORDER_DOMAIN: ${XMPP_RECORDER_DOMAIN:-recorder.meet.jitsi}
+      JICOFO_AUTH_PASSWORD: ${JICOFO_AUTH_PASSWORD}
+      JVB_AUTH_PASSWORD: ${JVB_AUTH_PASSWORD}
+      JIGASI_XMPP_PASSWORD: ${JIGASI_XMPP_PASSWORD:-}
+      JIBRI_RECORDER_PASSWORD: ${JIBRI_RECORDER_PASSWORD:-}
+      JIBRI_XMPP_PASSWORD: ${JIBRI_XMPP_PASSWORD:-}
+      TZ: ${TZ:-Europe/Minsk}
+      DEFAULT_LANGUAGE: ru
+    networks:
+      meet.jitsi:
+        aliases:
+          - meet.jitsi
+    depends_on:
+      - jvb
+
+  prosody:
+    image: jitsi/prosody:${JITSI_IMAGE_VERSION:-stable-10008}
+    restart: unless-stopped
+    volumes:
+      - ${CONFIG:-~/.jitsi-meet-cfg}/prosody/config:/config:Z
+      - ${CONFIG:-~/.jitsi-meet-cfg}/prosody/prosody-plugins-custom:/prosody-plugins-custom:Z
+    environment:
+      AUTH_TYPE: ${AUTH_TYPE:-}
+      ENABLE_AUTH: ${ENABLE_AUTH:-0}
+      ENABLE_GUESTS: ${ENABLE_GUESTS:-1}
+      PUBLIC_URL: ${PUBLIC_URL}
+      XMPP_DOMAIN: ${XMPP_DOMAIN:-meet.jitsi}
+      XMPP_AUTH_DOMAIN: ${XMPP_AUTH_DOMAIN:-auth.meet.jitsi}
+      XMPP_GUEST_DOMAIN: ${XMPP_GUEST_DOMAIN:-guest.meet.jitsi}
+      XMPP_MUC_DOMAIN: ${XMPP_MUC_DOMAIN:-muc.meet.jitsi}
+      XMPP_INTERNAL_MUC_DOMAIN: ${XMPP_INTERNAL_MUC_DOMAIN:-internal-muc.meet.jitsi}
+      XMPP_RECORDER_DOMAIN: ${XMPP_RECORDER_DOMAIN:-recorder.meet.jitsi}
+      JICOFO_AUTH_PASSWORD: ${JICOFO_AUTH_PASSWORD}
+      JVB_AUTH_PASSWORD: ${JVB_AUTH_PASSWORD}
+      JIGASI_XMPP_PASSWORD: ${JIGASI_XMPP_PASSWORD:-}
+      JIBRI_RECORDER_PASSWORD: ${JIBRI_RECORDER_PASSWORD:-}
+      JIBRI_XMPP_PASSWORD: ${JIBRI_XMPP_PASSWORD:-}
+      JWT_APP_ID: ${JWT_APP_ID:-}
+      JWT_APP_SECRET: ${JWT_APP_SECRET:-}
+      JWT_ACCEPTED_ISSUERS: ${JWT_ACCEPTED_ISSUERS:-}
+      JWT_ACCEPTED_AUDIENCES: ${JWT_ACCEPTED_AUDIENCES:-}
+      JWT_ALLOW_EMPTY: ${JWT_ALLOW_EMPTY:-0}
+      TZ: ${TZ:-Europe/Minsk}
+    networks:
+      meet.jitsi:
+        aliases:
+          - xmpp.meet.jitsi
+
+  jicofo:
+    image: jitsi/jicofo:${JITSI_IMAGE_VERSION:-stable-10008}
+    restart: unless-stopped
+    volumes:
+      - ${CONFIG:-~/.jitsi-meet-cfg}/jicofo:/config:Z
+    environment:
+      AUTH_TYPE: ${AUTH_TYPE:-}
+      ENABLE_AUTH: ${ENABLE_AUTH:-0}
+      ENABLE_GUESTS: ${ENABLE_GUESTS:-1}
+      XMPP_DOMAIN: ${XMPP_DOMAIN:-meet.jitsi}
+      XMPP_AUTH_DOMAIN: ${XMPP_AUTH_DOMAIN:-auth.meet.jitsi}
+      XMPP_INTERNAL_MUC_DOMAIN: ${XMPP_INTERNAL_MUC_DOMAIN:-internal-muc.meet.jitsi}
+      XMPP_MUC_DOMAIN: ${XMPP_MUC_DOMAIN:-muc.meet.jitsi}
+      XMPP_SERVER: xmpp.meet.jitsi
+      JICOFO_AUTH_PASSWORD: ${JICOFO_AUTH_PASSWORD}
+      JICOFO_AUTH_USER: focus
+      JVB_BREWERY_MUC: jvbbrewery
+      TZ: ${TZ:-Europe/Minsk}
+    depends_on:
+      - prosody
+    networks:
+      meet.jitsi:
+
+  jvb:
+    image: jitsi/jvb:${JITSI_IMAGE_VERSION:-stable-10008}
+    restart: unless-stopped
+    ports:
+      - '${JVB_PORT:-10000}:${JVB_PORT:-10000}/udp'
+    volumes:
+      - ${CONFIG:-~/.jitsi-meet-cfg}/jvb:/config:Z
+    environment:
+      PUBLIC_URL: ${PUBLIC_URL}
+      XMPP_AUTH_DOMAIN: ${XMPP_AUTH_DOMAIN:-auth.meet.jitsi}
+      XMPP_INTERNAL_MUC_DOMAIN: ${XMPP_INTERNAL_MUC_DOMAIN:-internal-muc.meet.jitsi}
+      XMPP_SERVER: xmpp.meet.jitsi
+      JVB_AUTH_USER: jvb
+      JVB_AUTH_PASSWORD: ${JVB_AUTH_PASSWORD}
+      JVB_BREWERY_MUC: jvbbrewery
+      JVB_PORT: ${JVB_PORT:-10000}
+      JVB_STUN_SERVERS: ${JVB_STUN_SERVERS:-meet-jit-si-turnrelay.jitsi.net:443}
+      JVB_ADVERTISE_IPS: ${JVB_ADVERTISE_IPS:-}
+      TZ: ${TZ:-Europe/Minsk}
+    depends_on:
+      - prosody
+    networks:
+      meet.jitsi:
+
+networks:
+  meet.jitsi:

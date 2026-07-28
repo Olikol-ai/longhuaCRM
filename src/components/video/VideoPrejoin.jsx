@@ -116,10 +116,10 @@ export default function VideoPrejoin({
         </p>
       )}
 
-      {hostRequiresAccount && isHost && (
-        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-          Если сервис видео попросит подтвердить вход — нажмите кнопку входа в окне урока.
-          Браузер может один раз спросить разрешение на всплывающее окно.
+      {hostRequiresAccount && (
+        <p className="text-xs text-center text-red-600 dark:text-red-400 leading-relaxed bg-red-50 dark:bg-red-950/30 rounded-xl px-3 py-2">
+          Этот видеосервер требует личный аккаунт и не подходит для уроков.
+          Администратору нужно настроить Jitsi с гостевым доступом (JITSI_BASE_URL).
         </p>
       )}
 

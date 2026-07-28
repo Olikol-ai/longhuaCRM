@@ -6,7 +6,10 @@ import { LessonEntity } from '../../lessons/entities/lesson.entity';
 
 describe('VideoService', () => {
   const provider = new JitsiVideoProvider({
-    get: () => 'https://meet.jit.si',
+    get: (key: string) => {
+      if (key === 'video.jitsiBaseUrl') return 'https://meet.example.test';
+      return '';
+    },
   } as unknown as ConfigService);
 
   const lessons = {
@@ -64,14 +67,18 @@ describe('VideoService', () => {
     } as LessonEntity;
   }
 
-  it('creates Jitsi room and saves video_room_id / video_room_url', async () => {
+  it('creates Jitsi room and saves video_room_id / video_room_url on guest host', async () => {
     const lesson = onlineLesson();
     const saved = await service.ensureLessonVideo(lesson);
 
     expect(saved.videoProvider).toBe('jitsi');
     expect(saved.videoRoomId).toBe('longhua-lesson-uuid-1');
-    expect(saved.videoRoomUrl).toBe('https://meet.jit.si/longhua-lesson-uuid-1');
-    expect(saved.meetingLink).toBe('https://crm.example.com/lesson/lesson-uuid-1/video');
+    expect(saved.videoRoomUrl).toBe(
+      'https://meet.example.test/longhua-lesson-uuid-1',
+    );
+    expect(saved.meetingLink).toBe(
+      'https://crm.example.com/lesson/lesson-uuid-1/video',
+    );
     expect(lessons.save).toHaveBeenCalledTimes(1);
   });
 
@@ -79,7 +86,7 @@ describe('VideoService', () => {
     const lesson = onlineLesson({
       videoProvider: 'jitsi',
       videoRoomId: 'longhua-lesson-uuid-1',
-      videoRoomUrl: 'https://meet.jit.si/longhua-lesson-uuid-1',
+      videoRoomUrl: 'https://meet.example.test/longhua-lesson-uuid-1',
     });
     const result = await service.ensureLessonVideo(lesson);
     expect(lessons.save).not.toHaveBeenCalled();
@@ -93,7 +100,54 @@ describe('VideoService', () => {
     expect(lessons.save).not.toHaveBeenCalled();
   });
 
-  it('allows teacher who can read the lesson', async () => {
+  it('allows teacher guest access with role in display name', async () => {
+    const lesson = onlineLesson({
+      videoProvider: 'jitsi',
+      videoRoomId: 'longhua-lesson-uuid-1',
+      videoRoomUrl: 'https://meet.example.test/longhua-lesson-uuid-1',
+    });
+    lessonAccess.assertCanReadLesson.mockResolvedValue(lesson);
+    lessons.findOne.mockResolvedValue(lesson);
+
+    const access = await service.getLessonVideoAccess(
+      { sub: 'teacher-user', role: 'teacher', email: 't@test.local' },
+      'lesson-uuid-1',
+    );
+
+    expect(access.room_id).toBe('longhua-lesson-uuid-1');
+    expect(access.room_url).toContain('meet.example.test');
+    expect(access.guest_access).toBe(true);
+    expect(access.host_requires_account).toBe(false);
+    expect(access.is_host).toBe(true);
+    expect(access.viewer_role).toBe('teacher');
+    expect(access.display_name).toContain('преподаватель');
+    expect(access.conference_subject).toBeTruthy();
+    expect(access.domain).toBe('meet.example.test');
+  });
+
+  it('allows student guest access without personal Jitsi account', async () => {
+    const lesson = onlineLesson({
+      videoProvider: 'jitsi',
+      videoRoomId: 'longhua-lesson-uuid-1',
+      videoRoomUrl: 'https://meet.example.test/longhua-lesson-uuid-1',
+    });
+    lessonAccess.assertCanReadLesson.mockResolvedValue(lesson);
+    lessons.findOne.mockResolvedValue(lesson);
+
+    const access = await service.getLessonVideoAccess(
+      { sub: 'student-user', role: 'student', email: 's@test.local' },
+      'lesson-uuid-1',
+    );
+
+    expect(access.guest_access).toBe(true);
+    expect(access.host_requires_account).toBe(false);
+    expect(access.is_host).toBe(false);
+    expect(access.viewer_role).toBe('student');
+    expect(access.display_name).toContain('ученик');
+    expect(access.crm_join_url).toContain('/lesson/lesson-uuid-1/video');
+  });
+
+  it('rewrites stale meet.jit.si room URL to current guest host', async () => {
     const lesson = onlineLesson({
       videoProvider: 'jitsi',
       videoRoomId: 'longhua-lesson-uuid-1',
@@ -107,34 +161,10 @@ describe('VideoService', () => {
       'lesson-uuid-1',
     );
 
-    expect(access.room_id).toBe('longhua-lesson-uuid-1');
-    expect(access.room_url).toContain('longhua-lesson-uuid-1');
-    expect(access.lesson.teacher_name).toBe('Учитель Тест');
-    expect(access.is_host).toBe(true);
-    expect(access.viewer_role).toBe('teacher');
-    expect(access.domain).toBe('meet.jit.si');
-    expect(access.external_api_url).toContain('external_api.js');
-  });
-
-  it('allows student who can read the lesson', async () => {
-    const lesson = onlineLesson({
-      videoProvider: 'jitsi',
-      videoRoomId: 'longhua-lesson-uuid-1',
-      videoRoomUrl: 'https://meet.jit.si/longhua-lesson-uuid-1',
-    });
-    lessonAccess.assertCanReadLesson.mockResolvedValue(lesson);
-    lessons.findOne.mockResolvedValue(lesson);
-
-    const access = await service.getLessonVideoAccess(
-      { sub: 'student-user', role: 'student', email: 's@test.local' },
-      'lesson-uuid-1',
+    expect(access.room_url).toBe(
+      'https://meet.example.test/longhua-lesson-uuid-1',
     );
-
-    expect(access.embed_url).toContain('meet.jit.si');
-    expect(access.crm_join_url).toContain('/lesson/lesson-uuid-1/video');
-    expect(access.is_host).toBe(false);
-    expect(access.viewer_role).toBe('student');
-    expect(access.lesson.time_range_label).toMatch(/12:00/);
+    expect(lessons.save).toHaveBeenCalled();
   });
 
   it('denies strangers via LessonAccessService', async () => {

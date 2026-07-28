@@ -43,7 +43,11 @@ export default () => ({
   serveFrontend: parseEnvBoolean(process.env.SERVE_FRONTEND, true),
   appPublicUrl: process.env.APP_PUBLIC_URL,
   video: {
-    jitsiBaseUrl: process.env.JITSI_BASE_URL ?? 'https://meet.jit.si',
+    /** Guest-capable Jitsi base URL (NOT public meet.jit.si). */
+    jitsiBaseUrl: process.env.JITSI_BASE_URL ?? '',
+    /** Optional HS256 app id/secret so CRM issues guest JWTs (no Jitsi accounts). */
+    jitsiJwtAppId: process.env.JITSI_JWT_APP_ID ?? '',
+    jitsiJwtAppSecret: process.env.JITSI_JWT_APP_SECRET ?? '',
   },
   mail: readMailEnvFromProcess(),
   pendingRegistration: {

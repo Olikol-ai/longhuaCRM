@@ -38,7 +38,7 @@ export function lessonScheduleFallback(role) {
   return '/Dashboard';
 }
 
-export function parseJitsiDomain(roomUrl, fallback = 'meet.jit.si') {
+export function parseJitsiDomain(roomUrl, fallback = 'meet.example.local') {
   if (!roomUrl) return fallback;
   try {
     return new URL(roomUrl).hostname || fallback;
@@ -61,8 +61,9 @@ export const JITSI_TOOLBAR_BUTTONS = [
   'videoquality',
 ];
 
-export function buildJitsiConfigOverwrite() {
-  return {
+export function buildJitsiConfigOverwrite(options = {}) {
+  const subject = options.subject || null;
+  const config = {
     defaultLanguage: 'ru',
     disableDeepLinking: true,
     deeplinking: { disabled: true },
@@ -73,11 +74,21 @@ export function buildJitsiConfigOverwrite() {
     requireDisplayName: false,
     disableInviteFunctions: true,
     enableInsecureRoomNameWarning: false,
-    hideConferenceSubject: true,
+    hideConferenceSubject: false,
+    enableLobby: false,
+    lobby: { autoKnock: false },
     notifications: [],
     toolbarButtons: JITSI_TOOLBAR_BUTTONS,
     buttonsWithNotifyClick: [],
+    // Guest join: no auth UI — identity comes from CRM via userInfo / JWT.
+    disableProfile: true,
+    startWithAudioMuted: false,
+    startWithVideoMuted: false,
   };
+  if (subject) {
+    config.subject = subject;
+  }
+  return config;
 }
 
 export function buildJitsiInterfaceConfigOverwrite() {

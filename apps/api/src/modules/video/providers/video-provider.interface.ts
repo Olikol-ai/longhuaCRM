@@ -16,19 +16,38 @@ export type VideoAccessData = {
   /** Optional provider JWT / token when the backend is configured for authenticated rooms. */
   token: string | null;
   embedUrl: string;
-  /** Hostname for JitsiMeetExternalAPI (e.g. meet.jit.si). */
+  /** Hostname for JitsiMeetExternalAPI (e.g. meet.example.com). */
   domain: string;
   /** Room name passed to External API (same as roomId for Jitsi). */
   roomName: string;
   /** Absolute URL to external_api.js on the provider host. */
   externalApiUrl: string;
-  /** True when the public host requires an account to open a room (e.g. meet.jit.si). */
+  /**
+   * True only when the configured host cannot admit CRM guests without a personal
+   * Jitsi/OAuth account (e.g. public meet.jit.si). Guest-capable hosts return false.
+   */
   hostRequiresAccount: boolean;
+  /** Conference subject (lesson title) for External API. */
+  subject: string | null;
+  /** CRM role label passed into the room (преподаватель / ученик / …). */
+  roleLabel: string | null;
 };
 
 export type VideoLessonContext = {
   id: string;
   title?: string | null;
+};
+
+export type VideoAccessInput = {
+  roomId: string;
+  /** Ignored when provider rebuilds URL from current JITSI_BASE_URL (preferred). */
+  roomUrl?: string | null;
+  displayName: string;
+  userId: string;
+  email?: string | null;
+  roleLabel: string;
+  isModerator: boolean;
+  subject?: string | null;
 };
 
 export interface VideoProvider {
@@ -38,11 +57,9 @@ export interface VideoProvider {
 
   getRoomUrl(roomId: string): string;
 
-  generateAccessData(input: {
-    roomId: string;
-    roomUrl: string;
-    displayName: string;
-  }): Promise<VideoAccessData> | VideoAccessData;
+  generateAccessData(
+    input: VideoAccessInput,
+  ): Promise<VideoAccessData> | VideoAccessData;
 
   deleteRoom(roomId: string): Promise<void> | void;
 }

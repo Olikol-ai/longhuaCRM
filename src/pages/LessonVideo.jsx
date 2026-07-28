@@ -243,6 +243,7 @@ export default function LessonVideo() {
                 roomName={data.room_name || data.room_id}
                 roomUrl={data.room_url}
                 displayName={data.display_name}
+                subject={data.conference_subject || lesson.title}
                 externalApiUrl={data.external_api_url}
                 jwt={data.token}
                 onLeft={handleLeft}

@@ -43,10 +43,12 @@ describe('lesson-video helpers', () => {
 
   it('parses Jitsi domain and builds External API overrides', () => {
     assert.equal(parseJitsiDomain('https://meet.example.test/room'), 'meet.example.test');
-    const config = buildJitsiConfigOverwrite();
+    const config = buildJitsiConfigOverwrite({ subject: 'HSK 2' });
     assert.equal(config.prejoinConfig.enabled, false);
     assert.equal(config.disableDeepLinking, true);
     assert.equal(config.defaultLanguage, 'ru');
+    assert.equal(config.enableLobby, false);
+    assert.equal(config.subject, 'HSK 2');
     assert.ok(config.toolbarButtons.includes('microphone'));
     assert.ok(config.toolbarButtons.includes('chat'));
     assert.ok(!config.toolbarButtons.includes('invite'));
@@ -88,6 +90,8 @@ describe('Video lesson UI contract', () => {
     assert.match(prejoin, /Микрофон/);
     assert.match(embed, /JitsiMeetExternalAPI/);
     assert.match(embed, /loadJitsiExternalApi/);
+    assert.match(embed, /executeCommand\('displayName'/);
+    assert.match(embed, /CRM guest|guest|displayName/);
     assert.match(layout, /LessonVideo/);
     assert.match(teacher, /Начать видеоурок/);
     assert.match(student, /Войти в видеоурок/);

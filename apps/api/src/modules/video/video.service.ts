@@ -82,12 +82,26 @@ export class VideoService {
     }
 
     lesson = await this.ensureLessonVideo(lesson);
+    lesson = await this.syncLessonVideoUrl(lesson);
 
-    const displayName = await this.resolveDisplayName(actor);
+    const viewerRole = this.resolveViewerRole(actor.role);
+    const isHost = viewerRole === 'teacher' || viewerRole === 'admin';
+    const roleLabel = this.roleLabelRu(viewerRole);
+    const title = this.resolveLessonTitle(lesson);
+    const baseDisplayName = await this.resolveDisplayName(actor);
+    const displayName = roleLabel
+      ? `${baseDisplayName} (${roleLabel})`
+      : baseDisplayName;
+
     const access = await this.provider.generateAccessData({
       roomId: lesson.videoRoomId as string,
-      roomUrl: lesson.videoRoomUrl as string,
+      roomUrl: lesson.videoRoomUrl,
       displayName,
+      userId: actor.sub,
+      email: actor.email,
+      roleLabel,
+      isModerator: isHost,
+      subject: title,
     });
 
     const teacherName =
@@ -97,8 +111,6 @@ export class VideoService {
     const window = this.resolveLessonWindow(lesson);
     const startLabel = this.formatClock(lesson.startTime);
     const endLabel = this.formatEndClock(lesson.startTime, lesson.duration || 60);
-    const title = this.resolveLessonTitle(lesson);
-    const viewerRole = this.resolveViewerRole(actor.role);
 
     return {
       lesson_id: lesson.id,
@@ -114,8 +126,11 @@ export class VideoService {
       host_requires_account: access.hostRequiresAccount,
       crm_join_url: this.buildCrmJoinUrl(lesson.id),
       viewer_role: viewerRole,
-      is_host: viewerRole === 'teacher' || viewerRole === 'admin',
+      is_host: isHost,
       subject: 'Китайский язык',
+      conference_subject: access.subject || title,
+      role_label: access.roleLabel,
+      guest_access: true,
       lesson: {
         id: lesson.id,
         title,
@@ -141,6 +156,33 @@ export class VideoService {
       },
       timing: window,
     };
+  }
+
+  /**
+   * Keep video_room_url aligned with current JITSI_BASE_URL (guest host).
+   * Old rows pointing at meet.jit.si are rewritten on access.
+   */
+  private async syncLessonVideoUrl(lesson: LessonEntity): Promise<LessonEntity> {
+    if (!lesson.videoRoomId) return lesson;
+    const freshUrl = this.provider.getRoomUrl(lesson.videoRoomId);
+    if (lesson.videoRoomUrl === freshUrl && lesson.videoProvider === 'jitsi') {
+      return lesson;
+    }
+    lesson.videoProvider = 'jitsi';
+    lesson.videoRoomUrl = freshUrl;
+    if (!lesson.meetingLink) {
+      lesson.meetingLink = this.buildCrmJoinUrl(lesson.id);
+    }
+    return this.lessons.save(lesson);
+  }
+
+  private roleLabelRu(
+    role: 'admin' | 'teacher' | 'student' | 'guest',
+  ): string {
+    if (role === 'admin') return 'администратор';
+    if (role === 'teacher') return 'преподаватель';
+    if (role === 'student') return 'ученик';
+    return 'участник';
   }
 
   private resolveViewerRole(

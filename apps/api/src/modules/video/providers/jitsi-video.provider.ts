@@ -1,18 +1,27 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   VideoAccessData,
+  VideoAccessInput,
   VideoLessonContext,
   VideoProvider,
   VideoRoomInfo,
 } from './video-provider.interface';
+import {
+  createJitsiGuestToken,
+  isAccountRequiredJitsiHost,
+} from './jitsi-guest-token.util';
 
 /**
- * Jitsi Meet provider — rooms are created on first join; we only allocate id + URL.
- * Base URL via JITSI_BASE_URL (default https://meet.jit.si).
+ * Jitsi Meet provider — allocates room id + URL; clients join as CRM guests.
  *
- * Prefer embedding via JitsiMeetExternalAPI on the client (not a raw iframe src),
- * so media permissions and auth retry run on a user gesture.
+ * Guest access requirements:
+ * - Do NOT use public meet.jit.si (requires personal OAuth accounts).
+ * - Point JITSI_BASE_URL at a self-hosted Jitsi with anonymous guests
+ *   (ENABLE_AUTH=0) and/or CRM-issued HS256 JWT (JITSI_JWT_APP_ID/SECRET).
  */
 @Injectable()
 export class JitsiVideoProvider implements VideoProvider {
@@ -24,15 +33,23 @@ export class JitsiVideoProvider implements VideoProvider {
     const raw =
       this.config.get<string>('video.jitsiBaseUrl') ||
       process.env.JITSI_BASE_URL ||
-      'https://meet.jit.si';
-    return raw.replace(/\/$/, '');
+      '';
+    const trimmed = String(raw).trim().replace(/\/$/, '');
+    if (!trimmed) {
+      throw new ServiceUnavailableException(
+        'Видеоурок недоступен: не задан JITSI_BASE_URL. Укажите адрес Jitsi с гостевым доступом (без регистрации).',
+      );
+    }
+    return trimmed;
   }
 
-  private domain(): string {
+  private domainFromBase(base: string): string {
     try {
-      return new URL(this.baseUrl()).hostname;
+      return new URL(base).hostname;
     } catch {
-      return 'meet.jit.si';
+      throw new ServiceUnavailableException(
+        'Видеоурок недоступен: некорректный JITSI_BASE_URL.',
+      );
     }
   }
 
@@ -40,21 +57,43 @@ export class JitsiVideoProvider implements VideoProvider {
     return String(roomId).trim().replace(/[^a-zA-Z0-9._-]/g, '-');
   }
 
-  /**
-   * Public meet.jit.si requires an account to create/open rooms; auth uses a popup
-   * that browsers block unless started from a user gesture (External API retry).
-   * Self-hosted instances typically allow anonymous guests.
-   */
-  private hostRequiresAccount(domain: string): boolean {
-    return domain === 'meet.jit.si' || domain.endsWith('.jit.si');
+  private jwtCredentials(): { appId: string; appSecret: string } | null {
+    const appId = (
+      this.config.get<string>('video.jitsiJwtAppId') ||
+      process.env.JITSI_JWT_APP_ID ||
+      ''
+    ).trim();
+    const appSecret = (
+      this.config.get<string>('video.jitsiJwtAppSecret') ||
+      process.env.JITSI_JWT_APP_SECRET ||
+      ''
+    ).trim();
+    if (!appId || !appSecret) return null;
+    return { appId, appSecret };
+  }
+
+  private assertGuestCapable(domain: string, hasCrmToken: boolean): void {
+    if (isAccountRequiredJitsiHost(domain) && !hasCrmToken) {
+      throw new ServiceUnavailableException(
+        'Публичный Jitsi требует личный аккаунт и не подходит для уроков Longhua. ' +
+          'Настройте JITSI_BASE_URL на свой сервер Jitsi с гостевым доступом ' +
+          '(см. docker-compose.jitsi.yml) или задайте JITSI_JWT_APP_ID/SECRET для токенов CRM.',
+      );
+    }
   }
 
   createRoom(lesson: VideoLessonContext): VideoRoomInfo {
+    const base = this.baseUrl();
+    const domain = this.domainFromBase(base);
+    // Creating a room metadata does not need a token, but we refuse known
+    // account-gated public hosts so lessons are not bound to them.
+    this.assertGuestCapable(domain, Boolean(this.jwtCredentials()));
+
     const roomId = `longhua-${lesson.id}`;
     return {
       provider: this.name,
       roomId,
-      roomUrl: this.getRoomUrl(roomId),
+      roomUrl: `${base}/${this.sanitizeRoomId(roomId)}`,
     };
   }
 
@@ -63,33 +102,60 @@ export class JitsiVideoProvider implements VideoProvider {
     return `${this.baseUrl()}/${id}`;
   }
 
-  generateAccessData(input: {
-    roomId: string;
-    roomUrl: string;
-    displayName: string;
-  }): VideoAccessData {
+  generateAccessData(input: VideoAccessInput): VideoAccessData {
     const displayName = input.displayName.trim() || 'Участник';
-    const domain = this.domain();
+    const base = this.baseUrl();
+    const domain = this.domainFromBase(base);
     const roomName = this.sanitizeRoomId(input.roomId);
-    const roomUrl = input.roomUrl || this.getRoomUrl(roomName);
-    // Hash config is a fallback only; client should use External API + userInfo.
-    const embedUrl = `${roomUrl}#userInfo.displayName="${encodeURIComponent(displayName)}"&config.prejoinConfig.enabled=false&config.disableDeepLinking=true`;
+    // Always rebuild from current JITSI_BASE_URL so old meet.jit.si rows migrate.
+    const roomUrl = `${base}/${roomName}`;
+    const creds = this.jwtCredentials();
+    this.assertGuestCapable(domain, Boolean(creds));
+
+    let token: string | null = null;
+    if (creds) {
+      token = createJitsiGuestToken({
+        appId: creds.appId,
+        appSecret: creds.appSecret,
+        roomName,
+        userId: input.userId || `crm-${roomName}`,
+        displayName,
+        email: input.email,
+        isModerator: input.isModerator,
+        subject: input.subject,
+      });
+    }
+
+    const subject = input.subject?.trim() || null;
+    const roleLabel = input.roleLabel?.trim() || null;
+    const embedParts = [
+      `userInfo.displayName="${encodeURIComponent(displayName)}"`,
+      'config.prejoinConfig.enabled=false',
+      'config.disableDeepLinking=true',
+      'config.enableWelcomePage=false',
+    ];
+    if (subject) {
+      embedParts.push(`config.subject="${encodeURIComponent(subject)}"`);
+    }
 
     return {
       provider: this.name,
       roomId: input.roomId,
       roomUrl,
       displayName,
-      token: null,
-      embedUrl,
+      token,
+      embedUrl: `${roomUrl}#${embedParts.join('&')}`,
       domain,
       roomName,
-      externalApiUrl: `https://${domain}/external_api.js`,
-      hostRequiresAccount: this.hostRequiresAccount(domain),
+      externalApiUrl: `${base}/external_api.js`,
+      // CRM guests never need a personal Jitsi account on a guest-capable host.
+      hostRequiresAccount: false,
+      subject,
+      roleLabel,
     };
   }
 
   deleteRoom(_roomId: string): void {
-    // Public Jitsi rooms have no server-side delete API.
+    // Rooms are ephemeral; nothing to delete server-side.
   }
 }
