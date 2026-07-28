@@ -2,6 +2,7 @@ import { Clock, Video } from "lucide-react";
 import { resolveLessonTeacherLabel } from "@/lib/teacherLabels";
 import { resolveLessonStudentLabel } from "@/lib/studentLabels";
 import { localizeLessonStatus } from "@/lib/locale-by";
+import { isOnlineLesson, lessonVideoPath } from "@/lib/lesson-video";
 
 const statusStyles = {
   planned: "bg-brand-soft text-brand border-brand/20 dark:bg-brand-soft/50 dark:text-brand dark:border-brand/40",
@@ -46,15 +47,14 @@ export default function LessonRow({
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <Clock className="w-3 h-3" /> {lesson.start_time} · {lesson.duration || 60} мин
           </span>
-          {lesson.meeting_link && (
+          {isOnlineLesson(lesson) && (
             <a
-              href={lesson.meeting_link}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={lessonVideoPath(lesson.id)}
               className="flex items-center gap-1 text-xs text-brand dark:text-brand hover:text-brand dark:hover:text-brand"
               onClick={(e) => e.stopPropagation()}
             >
-              <Video className="w-3 h-3" /> Подключиться
+              <Video className="w-3 h-3" />
+              {role === 'teacher' || role === 'admin' ? 'Начать видеоурок' : 'Войти в видеоурок'}
             </a>
           )}
         </div>

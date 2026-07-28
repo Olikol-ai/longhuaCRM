@@ -3,6 +3,8 @@ import { describe, it } from 'node:test';
 import {
   buildBalanceText,
   buildNearestLessonCard,
+  build15mOnlineLessonReminderMessage,
+  buildOnlineLessonJoinKeyboard,
   formatLessonBalanceAmount,
   matchMainMenuButton,
 } from './telegram-messages';
@@ -76,5 +78,27 @@ describe('matchMainMenuButton', () => {
     assert.equal(matchMainMenuButton('/balance'), 'balance');
     assert.equal(matchMainMenuButton('/balance@LonghuaBot'), 'balance');
     assert.equal(matchMainMenuButton('💰 Баланс'), 'balance');
+  });
+});
+
+describe('online lesson 15m reminder', () => {
+  it('builds Russian 15-minute reminder text', () => {
+    const text = build15mOnlineLessonReminderMessage({
+      time: '18:30',
+      teacher: 'Иван Иванов',
+    });
+    assert.match(text, /Онлайн-урок/);
+    assert.match(text, /начнётся через 15 минут/);
+    assert.match(text, /18:30/);
+    assert.match(text, /Иван Иванов/);
+  });
+
+  it('builds join keyboard with Войти в урок', () => {
+    const kb = buildOnlineLessonJoinKeyboard('https://crm.example.com/lesson/1/video');
+    assert.equal(kb.inline_keyboard[0][0].text, 'Войти в урок');
+    assert.equal(
+      kb.inline_keyboard[0][0].url,
+      'https://crm.example.com/lesson/1/video',
+    );
   });
 });

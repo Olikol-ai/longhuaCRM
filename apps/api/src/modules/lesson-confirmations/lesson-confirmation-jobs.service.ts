@@ -7,7 +7,9 @@ import { JobGuard } from '../../common/concurrency/job-guard';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import {
+  build15mOnlineLessonReminderMessage,
   build24hReminderMessage,
+  buildOnlineLessonJoinKeyboard,
   formatLessonTime,
 } from '../telegram/telegram-messages';
 import { TelegramGateway } from '../telegram/telegram.gateway';
@@ -17,12 +19,14 @@ import { LessonConfirmationService } from './lesson-confirmation.service';
  * Lesson notification jobs:
  * - 24h informational reminder (no LessonConfirmation)
  * - 3h confirmation request (LessonConfirmation)
+ * - 15m online lesson join reminder (Telegram URL button)
  */
 @Injectable()
 export class LessonConfirmationJobsService {
   private readonly logger = new Logger(LessonConfirmationJobsService.name);
   private readonly remind24hGuard = new JobGuard(this.logger, 'sendLessonReminders24h');
   private readonly confirm3hGuard = new JobGuard(this.logger, 'sendLessonConfirmations3h');
+  private readonly remind15mGuard = new JobGuard(this.logger, 'sendLessonReminders15m');
 
   constructor(
     private readonly config: ConfigService,
@@ -56,6 +60,19 @@ export class LessonConfirmationJobsService {
       const result = await this.runSendPendingLessonConfirmations();
       this.logger.log(
         `send-lesson-confirmations-3h: lessons=${result.lessons} sent=${result.sent} skipped=${result.skipped}`,
+      );
+    });
+  }
+
+  @Cron('*/2 * * * *')
+  async sendLessonReminders15m() {
+    if (!this.config.get<boolean>('jobs.enabled')) return;
+    if (!this.config.get<boolean>('telegram.enabled')) return;
+
+    await this.remind15mGuard.run(async () => {
+      const result = await this.runSendLessonReminders15m();
+      this.logger.log(
+        `send-lesson-reminders-15m: lessons=${result.lessons} sent=${result.sent}`,
       );
     });
   }
@@ -124,6 +141,67 @@ export class LessonConfirmationJobsService {
       // Mark sent only after at least one successful delivery (or no participants).
       if (studentIds.length === 0 || delivered > 0) {
         lesson.reminder24hSent = true;
+        await this.lessonRepo.save(lesson);
+      }
+    }
+
+    return { lessons: windowLessons.length, sent };
+  }
+
+  async runSendLessonReminders15m(): Promise<{ lessons: number; sent: number }> {
+    const planned = await this.lessonRepo.find({ where: { status: 'planned' } });
+    const now = this.getTimezoneNow();
+    const windowMin = 12;
+    const windowMax = 18;
+    const appBase = String(this.config.get<string>('appPublicUrl') || '')
+      .trim()
+      .replace(/\/$/, '');
+
+    const windowLessons = planned.filter((lesson) => {
+      if (lesson.lessonFormat !== 'online') return false;
+      if (lesson.reminder15mSent) return false;
+      const start = this.getLessonStartTime(lesson);
+      const diffMin = (start.getTime() - now.getTime()) / 60_000;
+      return diffMin >= windowMin && diffMin <= windowMax;
+    });
+
+    let sent = 0;
+    for (const lesson of windowLessons) {
+      const teacher = lesson.teacherId
+        ? await this.teacherRepo.findOne({ where: { id: lesson.teacherId } })
+        : null;
+      const studentIds = await this.confirmations.resolveParticipantStudentIds(lesson);
+      const joinUrl = appBase
+        ? `${appBase}/lesson/${lesson.id}/video`
+        : `/lesson/${lesson.id}/video`;
+      const text = build15mOnlineLessonReminderMessage({
+        time: formatLessonTime(lesson.startTime),
+        teacher: teacher?.name?.trim() || '—',
+      });
+      const replyMarkup = appBase.startsWith('http')
+        ? buildOnlineLessonJoinKeyboard(joinUrl)
+        : undefined;
+
+      let delivered = 0;
+      for (const studentId of studentIds) {
+        const chatId = await this.confirmations.resolveStudentTelegramChatId(studentId);
+        if (!chatId) continue;
+
+        const result = await this.gateway.sendMessage(chatId, text, {
+          replyMarkup,
+        });
+        if (result.ok) {
+          sent += 1;
+          delivered += 1;
+        } else {
+          this.logger.error(
+            `15m reminder failed for student ${studentId}: ${result.error ?? result.description}`,
+          );
+        }
+      }
+
+      if (studentIds.length === 0 || delivered > 0) {
+        lesson.reminder15mSent = true;
         await this.lessonRepo.save(lesson);
       }
     }

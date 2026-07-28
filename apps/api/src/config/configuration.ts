@@ -42,6 +42,9 @@ export default () => ({
   },
   serveFrontend: parseEnvBoolean(process.env.SERVE_FRONTEND, true),
   appPublicUrl: process.env.APP_PUBLIC_URL,
+  video: {
+    jitsiBaseUrl: process.env.JITSI_BASE_URL ?? 'https://meet.jit.si',
+  },
   mail: readMailEnvFromProcess(),
   pendingRegistration: {
     ttlHours: parseInt(process.env.PENDING_REGISTRATION_TTL_HOURS ?? '24', 10),

@@ -17,6 +17,7 @@ import { LessonsController } from './lessons.controller';
 import { LessonsRepository } from './lessons.repository';
 import { LessonsScheduler } from './lessons.scheduler';
 import { LessonsService } from './lessons.service';
+import { VideoModule } from '../video/video.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { LessonsService } from './lessons.service';
     LessonConfirmationsModule,
     NotificationsModule,
     TelegramModule,
+    VideoModule,
   ],
   controllers: [LessonsController],
   providers: [

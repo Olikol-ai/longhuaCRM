@@ -398,16 +398,20 @@ export default function LessonDetailModal({
               ) : null}
             </section>
 
-            {/* Meeting link */}
-            {lesson.meeting_link ? (
+            {/* Video lesson */}
+            {(lesson.lesson_format === 'online' || lesson.video_room_url || lesson.meeting_link) ? (
               <a
-                href={lesson.meeting_link}
-                target="_blank"
-                rel="noopener noreferrer"
+                href={`/lesson/${lesson.id}/video`}
                 className="flex items-start gap-2 px-3 py-2.5 bg-brand-soft text-brand rounded-xl text-sm font-medium hover:bg-brand-muted transition-colors min-w-0"
               >
                 <Video className="w-4 h-4 shrink-0 mt-0.5" />
-                <span className="min-w-0 break-all [overflow-wrap:anywhere]">Войти на встречу</span>
+                <span className="min-w-0 break-all [overflow-wrap:anywhere]">
+                  {lesson.status === 'completed'
+                    ? 'Открыть видеоурок'
+                    : isTeacher || isAdmin
+                      ? 'Начать видеоурок'
+                      : 'Войти в видеоурок'}
+                </span>
               </a>
             ) : null}
 

@@ -40,6 +40,7 @@ import { RepairOrphanTeacherRelations1741600000000 } from './migrations/17416000
 import { TutorFoundation1741700000000 } from './migrations/1741700000000-TutorFoundation';
 import { TutorStudentsAndInvites1741800000000 } from './migrations/1741800000000-TutorStudentsAndInvites';
 import { HomeworkSchema1741900000000 } from './migrations/1741900000000-HomeworkSchema';
+import { LessonVideoFields1742000000000 } from './migrations/1742000000000-LessonVideoFields';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -83,6 +84,7 @@ export default new DataSource({
     TutorFoundation1741700000000,
     TutorStudentsAndInvites1741800000000,
     HomeworkSchema1741900000000,
+    LessonVideoFields1742000000000,
   ],
   synchronize: false,
 });

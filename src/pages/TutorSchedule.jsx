@@ -16,6 +16,7 @@ import {
 import { ru } from 'date-fns/locale';
 import TutorLessonModal from '@/components/tutors/TutorLessonModal';
 import { toast } from '@/components/ui/use-toast';
+import { isOnlineLesson, lessonVideoPath } from '@/lib/lesson-video';
 
 const STATUS_BG = {
   planned: 'bg-brand',
@@ -63,15 +64,13 @@ function TutorLessonCard({ lesson, students, onOpen, onComplete, onCancel, busy 
           </Button>
         </div>
       )}
-      {lesson.meeting_link && (
+      {isOnlineLesson(lesson) && (
         <a
-          href={lesson.meeting_link}
-          target="_blank"
-          rel="noreferrer"
+          href={lessonVideoPath(lesson.id)}
           className="mt-2 inline-flex items-center gap-1 text-xs text-brand"
           onClick={(e) => e.stopPropagation()}
         >
-          <Video className="w-3 h-3" /> Ссылка
+          <Video className="w-3 h-3" /> Начать видеоурок
         </a>
       )}
     </button>

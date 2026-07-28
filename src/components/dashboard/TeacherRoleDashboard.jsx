@@ -8,6 +8,7 @@ import { getGreetingName } from "@/lib/display-name";
 import { Card } from "@/components/ui/card";
 import { resolveLessonStudentLabel } from "@/lib/studentLabels";
 import { filterLessonsWithinNext48Hours } from "@/lib/teacherUpcomingLessons";
+import { isOnlineLesson, lessonVideoPath } from "@/lib/lesson-video";
 
 const STATUS_LABELS = {
   planned: "Запланировано",
@@ -100,10 +101,10 @@ export default function TeacherRoleDashboard({ user }) {
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       <Clock className="w-3 h-3" /> {lesson.start_time} · {lesson.duration || 60}min
                     </span>
-                    {lesson.meeting_link && (
-                      <a href={lesson.meeting_link} target="_blank" rel="noopener noreferrer"
+                    {isOnlineLesson(lesson) && (
+                      <a href={lessonVideoPath(lesson.id)}
                         className="text-xs text-brand dark:text-brand hover:text-brand dark:hover:text-brand flex items-center gap-1">
-                        <Video className="w-3 h-3" /> Войти
+                        <Video className="w-3 h-3" /> Начать видеоурок
                       </a>
                     )}
                   </div>
@@ -163,10 +164,10 @@ export default function TeacherRoleDashboard({ user }) {
                   </p>
                   <p className="text-xs text-muted-foreground">{lesson.start_time} · {lesson.duration || 60}мин</p>
                 </div>
-                {lesson.meeting_link && (
-                  <a href={lesson.meeting_link} target="_blank" rel="noopener noreferrer"
+                {isOnlineLesson(lesson) && (
+                  <a href={lessonVideoPath(lesson.id)}
                     className="text-xs text-brand dark:text-brand hover:text-brand dark:hover:text-brand flex items-center gap-1">
-                    <Video className="w-3 h-3" /> Войти
+                    <Video className="w-3 h-3" /> Начать видеоурок
                   </a>
                 )}
               </div>

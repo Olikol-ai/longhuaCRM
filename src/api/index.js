@@ -1,6 +1,7 @@
 import { alfabank } from './alfabank';
 import { assessment } from './assessment.api';
 import { homework } from './homework.api';
+import { video } from './video.api';
 import { auth } from './auth';
 import { certificates } from './certificates.api';
 import { courses } from './courses.api';
@@ -27,6 +28,7 @@ export { getToken, setToken, apiFetch, TOKEN_KEY, onTokenChange } from './http';
 export { alfabank } from './alfabank';
 export { assessment } from './assessment.api';
 export { homework } from './homework.api';
+export { video } from './video.api';
 export { auth } from './auth';
 export { functions } from './functions';
 export { schedule } from './schedule';
@@ -54,6 +56,7 @@ export const api = {
   alfabank,
   assessment,
   homework,
+  video,
   students,
   teachers,
   tutors,

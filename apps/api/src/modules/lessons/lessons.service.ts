@@ -44,6 +44,7 @@ import {
 } from './events/lesson.events';
 import { formatStudentProfileDisplayName } from '../users/display-name.util';
 import { LessonsRepository } from './lessons.repository';
+import { VideoService } from '../video/video.service';
 
 /** Terminal lesson statuses a teacher cannot change again after confirming. */
 const TEACHER_LOCKED_LESSON_STATUSES = new Set([
@@ -83,6 +84,7 @@ export class LessonsService {
     private readonly lessonConfirmations: LessonConfirmationService,
     private readonly audit: AuditService,
     private readonly events: EventEmitter2,
+    private readonly videoService: VideoService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -260,7 +262,8 @@ export class LessonsService {
     });
 
     const withNames = await this.repository.findById(created.id);
-    return (await this.attachDisplayNames([withNames ?? created]))[0];
+    const named = (await this.attachDisplayNames([withNames ?? created]))[0];
+    return this.provisionOnlineVideo(named);
   }
 
   /**
@@ -365,7 +368,19 @@ export class LessonsService {
     });
 
     const withNames = await this.repository.findById(created.id);
-    return (await this.attachDisplayNames([withNames ?? created]))[0];
+    const named = (await this.attachDisplayNames([withNames ?? created]))[0];
+    return this.provisionOnlineVideo(named);
+  }
+
+  private async provisionOnlineVideo(lesson: LessonEntity): Promise<LessonEntity> {
+    if (!lesson || lesson.lessonFormat !== 'online') {
+      return lesson;
+    }
+    try {
+      return await this.videoService.ensureLessonVideo(lesson);
+    } catch {
+      return lesson;
+    }
   }
 
   private normalizeCreateLessonDto(dto: CreateLessonDto): CreateLessonDto {
@@ -560,8 +575,14 @@ export class LessonsService {
 
     if (timeRescheduled) {
       // Reminder jobs key off lesson.date/startTime + reminder24hSent.
-      (payload as UpdateLessonDto & { reminder24hSent?: boolean }).reminder24hSent =
-        false;
+      (payload as UpdateLessonDto & {
+        reminder24hSent?: boolean;
+        reminder15mSent?: boolean;
+      }).reminder24hSent = false;
+      (payload as UpdateLessonDto & {
+        reminder24hSent?: boolean;
+        reminder15mSent?: boolean;
+      }).reminder15mSent = false;
     }
 
     // completionAttendance is only a completion hint — not a lessons column.
@@ -572,6 +593,8 @@ export class LessonsService {
     if (!row) {
       throw new NotFoundException('Lesson not found');
     }
+
+    await this.provisionOnlineVideo(row);
 
     const nextPrimaryStudentId =
       (payload.primaryStudentId as string | undefined) ?? before.primaryStudentId;

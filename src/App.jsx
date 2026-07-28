@@ -55,6 +55,7 @@ const HomeworkEditor = lazy(() => import('./pages/HomeworkEditor'));
 const HomeworkAssignment = lazy(() => import('./pages/HomeworkAssignment'));
 const HomeworkResults = lazy(() => import('./pages/HomeworkResults'));
 const HomeworkViewer = lazy(() => import('./pages/HomeworkViewer'));
+const LessonVideo = lazy(() => import('./pages/LessonVideo'));
 
 /**
  * Route registration: see docs/frontend-routing.md
@@ -173,6 +174,14 @@ const AuthenticatedApp = () => {
         <Route path="/StudentExams" element={<StudentRoute><LayoutWrapper currentPageName="StudentExams"><StudentExams /></LayoutWrapper></StudentRoute>} />
         <Route path="/StudentExamTake" element={<StudentRoute><LayoutWrapper currentPageName="StudentExams"><StudentExamTake /></LayoutWrapper></StudentRoute>} />
         <Route path="/HomeworkViewer" element={<StudentRoute><LayoutWrapper currentPageName="HomeworkViewer"><HomeworkViewer /></LayoutWrapper></StudentRoute>} />
+        <Route
+          path="/lesson/:id/video"
+          element={
+            <LayoutWrapper currentPageName="LessonVideo">
+              <LessonVideo />
+            </LayoutWrapper>
+          }
+        />
         <Route path="/certificate/:id" element={<CertificateView />} />
         <Route path="/Attendance" element={<Navigate to="/Groups" replace />} />
         <Route path="/Payments" element={<AdminRoute><LayoutWrapper currentPageName="Payments"><Payments /></LayoutWrapper></AdminRoute>} />

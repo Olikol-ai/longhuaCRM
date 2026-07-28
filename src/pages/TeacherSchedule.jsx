@@ -22,6 +22,7 @@ import LessonDetailModal from "@/components/schedule/LessonDetailModal";
 import { createWeeklyLessonSeries } from "@/lib/recurring-lessons";
 import { toast } from "@/components/ui/use-toast";
 import { createPageUrl } from "@/utils";
+import { canStartVideoLesson, isOnlineLesson, lessonVideoPath } from "@/lib/lesson-video";
 
 const STATUS_BG = {
   planned: "bg-brand",
@@ -455,12 +456,25 @@ export default function TeacherSchedule() {
                             {resolveLessonStudentLabel(lesson, students)}
                           </p>
                           <p className="text-[10px] text-slate-400">{lesson.duration || 60} мин</p>
-                          {lesson.meeting_link && (
-                            <a href={lesson.meeting_link} target="_blank" rel="noopener noreferrer"
+                          {isOnlineLesson(lesson) && (
+                            <button
+                              type="button"
                               className="inline-flex items-center gap-1 text-[10px] text-brand hover:underline mt-1"
-                              onClick={e => e.stopPropagation()}>
-                              <Video className="h-2.5 w-2.5" /> Войти
-                            </a>
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const gate = canStartVideoLesson(lesson);
+                                if (!gate.ok && gate.reason === 'too_early') {
+                                  toast({
+                                    title: 'Видеоурок ещё не начался',
+                                    description: 'Войти можно за 10 минут до начала.',
+                                  });
+                                  return;
+                                }
+                                navigate(lessonVideoPath(lesson.id));
+                              }}
+                            >
+                              <Video className="h-2.5 w-2.5" /> Начать видеоурок
+                            </button>
                           )}
                           {expandedLesson === lesson.id && lesson.status === "planned" && (
                             <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
@@ -599,12 +613,25 @@ function TeacherLessonCard({ lesson, students, expandedLesson, setExpandedLesson
             <p className="font-semibold text-slate-900 dark:text-white">{lesson.start_time}</p>
             <p className="text-sm text-slate-600 dark:text-slate-400">{resolveLessonStudentLabel(lesson, students)}</p>
             <p className="text-xs text-slate-400">{lesson.duration || 60} мин</p>
-            {lesson.meeting_link && (
-              <a href={lesson.meeting_link} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-brand dark:text-brand hover:underline mt-0.5"
-                onClick={e => e.stopPropagation()}>
-                <Video className="h-3 w-3" /> Войти на встречу
-              </a>
+            {isOnlineLesson(lesson) && (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-xs text-brand hover:underline mt-0.5"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const gate = canStartVideoLesson(lesson);
+                  if (!gate.ok && gate.reason === 'too_early') {
+                    toast({
+                      title: 'Видеоурок ещё не начался',
+                      description: 'Войти можно за 10 минут до начала.',
+                    });
+                    return;
+                  }
+                  navigate(lessonVideoPath(lesson.id));
+                }}
+              >
+                <Video className="h-3 w-3" /> Начать видеоурок
+              </button>
             )}
           </div>
         </div>

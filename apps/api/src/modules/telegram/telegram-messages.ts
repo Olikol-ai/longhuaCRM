@@ -104,6 +104,27 @@ export function build24hReminderMessage(input: {
   ].join('\n');
 }
 
+export function build15mOnlineLessonReminderMessage(input: {
+  time: string;
+  teacher: string;
+}): string {
+  return [
+    '🎥 Онлайн-урок',
+    '',
+    'Ваш онлайн-урок начнётся через 15 минут',
+    `Время: ${input.time}`,
+    `Преподаватель: ${input.teacher}`,
+  ].join('\n');
+}
+
+export function buildOnlineLessonJoinKeyboard(joinUrl: string): {
+  inline_keyboard: TelegramInlineButton[][];
+} {
+  return {
+    inline_keyboard: [[{ text: 'Войти в урок', url: joinUrl }]],
+  };
+}
+
 export function build3hConfirmationMessage(input: {
   teacher: string;
   date: string;

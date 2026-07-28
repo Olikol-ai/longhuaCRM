@@ -136,12 +136,25 @@ export class LessonEntity {
   @Column({ name: 'meeting_link', type: 'text', nullable: true })
   meetingLink: string | null;
 
+  /** Video provider key, e.g. jitsi. Nullable for legacy / offline lessons. */
+  @Column({ name: 'video_provider', type: 'varchar', length: 64, nullable: true })
+  videoProvider: string | null;
+
+  @Column({ name: 'video_room_id', type: 'varchar', length: 128, nullable: true })
+  videoRoomId: string | null;
+
+  @Column({ name: 'video_room_url', type: 'text', nullable: true })
+  videoRoomUrl: string | null;
+
   /** Classroom / cabinet label for offline lessons. */
   @Column({ type: 'varchar', length: 128, nullable: true })
   room: string | null;
 
   @Column({ name: 'reminder_24h_sent', type: 'boolean', default: false })
   reminder24hSent: boolean;
+
+  @Column({ name: 'reminder_15m_sent', type: 'boolean', default: false })
+  reminder15mSent: boolean;
 
   @Column({ type: 'text', nullable: true })
   notes: string | null;

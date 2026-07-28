@@ -12,6 +12,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { getGreetingName } from "@/lib/display-name";
 import { useTheme } from "@/lib/ThemeContext";
 import { resolveAssignedTeacherLabel, resolveLessonTeacherLabel } from "@/lib/teacherLabels";
+import { isOnlineLesson, lessonVideoPath } from "@/lib/lesson-video";
 
 const STATUS_LABELS = {
   planned: "Запланировано",
@@ -254,15 +255,13 @@ export default function StudentDashboard() {
                           {lesson.notes && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{lesson.notes}</p>}
                         </div>
                       </div>
-                      {lesson.meeting_link && (
+                      {isOnlineLesson(lesson) && (
                         <a
-                          href={lesson.meeting_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          href={lessonVideoPath(lesson.id)}
                           className="inline-flex items-center gap-2 px-4 py-2 bg-brand-soft dark:bg-brand-soft/40 text-brand dark:text-brand rounded-xl text-sm font-medium hover:bg-brand-muted dark:hover:bg-brand-soft/60 transition-colors shrink-0"
                         >
                           <Video className="h-4 w-4" />
-                          Войти
+                          Войти в видеоурок
                         </a>
                       )}
                     </div>
@@ -294,14 +293,12 @@ export default function StudentDashboard() {
                             <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{resolveLessonTeacherLabel(lesson, teachers)}</p>
                             {lesson.notes && <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{lesson.notes}</p>}
                           </div>
-                          {lesson.meeting_link && (
+                          {isOnlineLesson(lesson) && (
                             <a
-                              href={lesson.meeting_link}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                              href={lessonVideoPath(lesson.id)}
                               className="flex items-center gap-1 text-[11px] text-brand dark:text-brand hover:underline shrink-0"
                             >
-                              <Video className="h-3 w-3" /> Войти
+                              <Video className="h-3 w-3" /> Войти в видеоурок
                             </a>
                           )}
                         </div>

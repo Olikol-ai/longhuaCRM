@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { api } from '@/api';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import { useAuth } from "@/lib/AuthContext";
+import { toast } from "@/components/ui/use-toast";
+import { canStartVideoLesson, isOnlineLesson, lessonVideoPath } from "@/lib/lesson-video";
 import {
   format,
   startOfMonth,
@@ -63,6 +65,7 @@ const WEEK_DAYS_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
 export default function StudentLessons() {
   const { user, isLoadingAuth } = useAuth();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const highlightLessonId = searchParams.get("lesson");
   const [lessons, setLessons] = useState([]);
@@ -319,15 +322,24 @@ export default function StudentLessons() {
                           <p className="text-xs font-bold text-slate-900 dark:text-white">{lesson.start_time}</p>
                           <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 truncate">{resolveLessonTeacherLabel(lesson)}</p>
                           <p className="text-[10px] text-slate-400">{lesson.duration || 60} мин</p>
-                          {lesson.meeting_link && (
-                            <a
-                              href={lesson.meeting_link}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                          {isOnlineLesson(lesson) && (
+                            <button
+                              type="button"
                               className="inline-flex items-center gap-1 text-[10px] text-brand hover:underline mt-1"
+                              onClick={() => {
+                                const gate = canStartVideoLesson(lesson);
+                                if (!gate.ok && gate.reason === 'too_early') {
+                                  toast({
+                                    title: 'Видеоурок ещё не начался',
+                                    description: 'Войти можно за 10 минут до начала.',
+                                  });
+                                  return;
+                                }
+                                navigate(lessonVideoPath(lesson.id));
+                              }}
                             >
-                              <Video className="h-2.5 w-2.5" /> Войти
-                            </a>
+                              <Video className="h-2.5 w-2.5" /> Войти в видеоурок
+                            </button>
                           )}
                         </div>
                       ))
@@ -385,6 +397,7 @@ export default function StudentLessons() {
 }
 
 function LessonCard({ lesson, highlighted = false }) {
+  const navigate = useNavigate();
   return (
     <div
       id={highlighted ? `lesson-${lesson.id}` : undefined}
@@ -415,15 +428,24 @@ function LessonCard({ lesson, highlighted = false }) {
         <Badge className={`text-[11px] ${lesson.status === "planned" ? "bg-brand-soft text-brand" : lesson.status === "completed" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`} variant="outline">
           {STATUS_LABELS[lesson.status] || 'Статус неизвестен'}
         </Badge>
-        {lesson.meeting_link && lesson.status === "planned" && (
-          <a
-            href={lesson.meeting_link}
-            target="_blank"
-            rel="noopener noreferrer"
+        {isOnlineLesson(lesson) && lesson.status === "planned" && (
+          <button
+            type="button"
+            onClick={() => {
+              const gate = canStartVideoLesson(lesson);
+              if (!gate.ok && gate.reason === 'too_early') {
+                toast({
+                  title: 'Видеоурок ещё не начался',
+                  description: 'Войти можно за 10 минут до начала.',
+                });
+                return;
+              }
+              navigate(lessonVideoPath(lesson.id));
+            }}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-soft dark:bg-brand-soft/40 text-brand rounded-lg text-xs font-medium hover:bg-brand-muted transition-colors"
           >
-            <Video className="h-3.5 w-3.5" /> Войти
-          </a>
+            <Video className="h-3.5 w-3.5" /> Войти в видеоурок
+          </button>
         )}
       </div>
     </div>

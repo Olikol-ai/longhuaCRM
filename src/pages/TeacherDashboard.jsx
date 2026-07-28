@@ -6,7 +6,7 @@ import { getGreetingName } from '@/lib/display-name';
 import { resolveLessonStudentLabel } from '@/lib/studentLabels';
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { Calendar, CheckCircle2, XCircle, Clock, Loader2, Sun, Moon, DollarSign, Link2, Copy } from "lucide-react";
+import { Calendar, CheckCircle2, XCircle, Clock, Loader2, Sun, Moon, DollarSign, Link2, Copy, Video } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import StatCard from "@/components/dashboard/StatCard";
 import { toast } from "@/components/ui/use-toast";
 import { formatCurrency } from "@/lib/formatters";
 import { filterLessonsWithinNext48Hours } from "@/lib/teacherUpcomingLessons";
+import { isOnlineLesson, lessonVideoPath } from "@/lib/lesson-video";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -311,14 +312,13 @@ export default function TeacherDashboard() {
                            </div>
                            <div>
                              <p className="font-medium text-slate-900 dark:text-white">{resolveLessonStudentLabel(lesson, students)}</p>
-                    {lesson.meeting_link && (
+                    {isOnlineLesson(lesson) && (
                       <a
-                        href={lesson.meeting_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-brand dark:text-brand hover:underline"
+                        href={lessonVideoPath(lesson.id)}
+                        className="text-xs text-brand dark:text-brand hover:underline inline-flex items-center gap-1"
                       >
-                        Войти на встречу →
+                        <Video className="h-3 w-3" />
+                        Начать видеоурок →
                       </a>
                     )}
                     {lesson.notes && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{lesson.notes}</p>}
