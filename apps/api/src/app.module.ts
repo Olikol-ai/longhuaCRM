@@ -16,6 +16,7 @@ import { DomainAccessModule } from './common/access/domain-access.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AssessmentModule } from './modules/assessment/assessment.module';
+import { HomeworkModule } from './modules/homework/homework.module';
 import { CertificatesModule } from './modules/certificates/certificates.module';
 import { CoursesModule } from './modules/courses/courses.module';
 import { GroupsModule } from './modules/groups/groups.module';
@@ -121,6 +122,7 @@ function resolveEnvFilePaths(): string[] {
     MaterialsModule,
     CertificatesModule,
     AssessmentModule,
+    HomeworkModule,
     NotificationsModule,
     SettingsModule,
     AlfaBankModule,

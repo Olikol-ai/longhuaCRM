@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
 import { Button } from "@/components/ui/button";
@@ -6,7 +7,7 @@ import TeacherAvailabilityTab from "@/components/schedule/TeacherAvailabilityTab
 import { Badge } from "@/components/ui/badge";
 import {
   ChevronLeft, ChevronRight, Loader2, Video, Plus,
-  CheckCircle2, XCircle, Calendar, List, Sun, Moon,
+  CheckCircle2, XCircle, Calendar, List, Sun, Moon, NotebookPen,
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import { resolveLessonStudentLabel } from "@/lib/studentLabels";
@@ -20,6 +21,7 @@ import LessonModal from "@/components/schedule/LessonModal";
 import LessonDetailModal from "@/components/schedule/LessonDetailModal";
 import { createWeeklyLessonSeries } from "@/lib/recurring-lessons";
 import { toast } from "@/components/ui/use-toast";
+import { createPageUrl } from "@/utils";
 
 const STATUS_BG = {
   planned: "bg-brand",
@@ -49,6 +51,7 @@ const WEEK_DAYS_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
 export default function TeacherSchedule() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [lessons, setLessons] = useState([]);
   const [teacher, setTeacher] = useState(null);
   const [allTeachers, setAllTeachers] = useState([]);
@@ -491,6 +494,24 @@ export default function TeacherSchedule() {
                               ))}
                             </div>
                           )}
+                          {expandedLesson === lesson.id && lesson.status === "completed" && (
+                            <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                              <button
+                                type="button"
+                                data-testid="assign-homework-from-lesson"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const sid = lesson.primary_student_id || lesson.student_id || lesson.primaryStudentId;
+                                  const q = new URLSearchParams({ lessonId: lesson.id });
+                                  if (sid) q.set('studentId', sid);
+                                  navigate(`${createPageUrl('HomeworkAssignment')}?${q.toString()}`);
+                                }}
+                                className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium rounded-lg bg-brand-soft text-brand hover:bg-brand-muted"
+                              >
+                                <NotebookPen className="w-3 h-3" /> Назначить домашнее задание
+                              </button>
+                            </div>
+                          )}
                         </div>
                       ))
                     )}
@@ -555,6 +576,7 @@ export default function TeacherSchedule() {
 }
 
 function TeacherLessonCard({ lesson, students, expandedLesson, setExpandedLesson, markLesson, updating, onOpenDetails }) {
+  const navigate = useNavigate();
   return (
     <div
       className={`p-4 bg-white dark:bg-slate-900 rounded-xl border-l-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:shadow-sm transition-all ${STATUS_BORDER[lesson.status] || "border-l-slate-300 dark:border-l-slate-600"}`}
@@ -618,6 +640,24 @@ function TeacherLessonCard({ lesson, students, expandedLesson, setExpandedLesson
               <Icon className="w-3.5 h-3.5" /> {label}
             </button>
           ))}
+        </div>
+      )}
+      {expandedLesson === lesson.id && lesson.status === "completed" && (
+        <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+          <button
+            type="button"
+            data-testid="assign-homework-from-lesson-card"
+            onClick={(e) => {
+              e.stopPropagation();
+              const sid = lesson.primary_student_id || lesson.student_id || lesson.primaryStudentId;
+              const q = new URLSearchParams({ lessonId: lesson.id });
+              if (sid) q.set('studentId', sid);
+              navigate(`${createPageUrl('HomeworkAssignment')}?${q.toString()}`);
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 min-h-[40px] text-xs font-medium rounded-lg border bg-brand-soft text-brand hover:bg-brand-muted border-brand/20"
+          >
+            <NotebookPen className="w-3.5 h-3.5" /> Назначить домашнее задание
+          </button>
         </div>
       )}
     </div>

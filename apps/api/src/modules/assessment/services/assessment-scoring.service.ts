@@ -43,9 +43,38 @@ export type PassingRuleInput = {
   passScorePercent?: string | number | null;
 };
 
+/** Minimal snapshot shape shared by Exam and Homework runtimes. */
+export type ScorableQuestionSnapshot = {
+  id: string;
+  sectionKey: string;
+  type: QuestionType | string;
+  points: string | number;
+};
+
+export type ScorableAnswerSnapshot = {
+  id: string;
+  isCorrect: boolean;
+};
+
+export type ScorableAttemptAnswer = {
+  id: string | null;
+  questionSnapshotId: string;
+  textAnswer?: string | null;
+  selectedAnswerSnapshotIds: string[];
+};
+
+export type ScoreFromDataInput = {
+  questionSnapshots: ScorableQuestionSnapshot[];
+  answers: ScorableAttemptAnswer[];
+  answerSnapshotsByQuestionId: Map<string, ScorableAnswerSnapshot[]>;
+  sectionWeights?: Map<string, string>;
+  passingRule?: PassingRuleInput | null;
+};
+
 /**
- * Pure scoring against Attempt Snapshot + AttemptAnswers.
- * Does not persist Result (ResultService owns lifecycle).
+ * Shared scoring engine for Exam Attempts and Homework Submissions.
+ * Loads from AssessmentAttemptRepository only for exam scoreAttempt();
+ * Homework (and tests) call scoreFromData() with in-memory snapshots.
  */
 @Injectable()
 export class AssessmentScoringService {
@@ -59,8 +88,40 @@ export class AssessmentScoringService {
     const questionSnapshots =
       await this.attempts.findQuestionSnapshotsByAttemptId(attemptId);
     const attemptAnswers = await this.attempts.findAttemptAnswersByAttemptId(attemptId);
-    const answerByQ = new Map(attemptAnswers.map((a) => [a.questionSnapshotId, a]));
 
+    const answers: ScorableAttemptAnswer[] = [];
+    for (const a of attemptAnswers) {
+      const selectedIds = await this.attempts.findSelectedAnswerSnapshotIds(a.id);
+      answers.push({
+        id: a.id,
+        questionSnapshotId: a.questionSnapshotId,
+        textAnswer: a.textAnswer,
+        selectedAnswerSnapshotIds: selectedIds,
+      });
+    }
+
+    const answerSnapshotsByQuestionId = new Map<string, ScorableAnswerSnapshot[]>();
+    for (const qSnap of questionSnapshots) {
+      if (qSnap.type === QuestionType.ShortText) continue;
+      const snaps = await this.attempts.findAnswerSnapshotsByQuestionSnapshotId(qSnap.id);
+      answerSnapshotsByQuestionId.set(qSnap.id, snaps);
+    }
+
+    return this.scoreFromData({
+      questionSnapshots,
+      answers,
+      answerSnapshotsByQuestionId,
+      sectionWeights,
+      passingRule,
+    });
+  }
+
+  /**
+   * Pure scoring against provided snapshots — shared by Exam and Homework.
+   */
+  scoreFromData(input: ScoreFromDataInput): AttemptScoreResult {
+    const sectionWeights = input.sectionWeights ?? new Map<string, string>();
+    const answerByQ = new Map(input.answers.map((a) => [a.questionSnapshotId, a]));
     const questions: QuestionScoreRow[] = [];
     const sectionScores = new Map<string, SectionScoreRow>();
 
@@ -78,12 +139,10 @@ export class AssessmentScoringService {
     let autoCount = 0;
     let manualCount = 0;
 
-    for (const qSnap of questionSnapshots) {
+    for (const qSnap of input.questionSnapshots) {
       const points = Number(qSnap.points);
       const attemptAnswer = answerByQ.get(qSnap.id) ?? null;
-      const selectedIds = attemptAnswer
-        ? await this.attempts.findSelectedAnswerSnapshotIds(attemptAnswer.id)
-        : [];
+      const selectedIds = attemptAnswer?.selectedAnswerSnapshotIds ?? [];
 
       let bucket = sectionScores.get(qSnap.sectionKey);
       if (!bucket) {
@@ -103,7 +162,7 @@ export class AssessmentScoringService {
         questions.push({
           questionSnapshotId: qSnap.id,
           sectionKey: qSnap.sectionKey,
-          type: qSnap.type,
+          type: qSnap.type as QuestionType,
           maxPoints: points,
           earnedPoints: 0,
           requiresManualReview: true,
@@ -116,12 +175,10 @@ export class AssessmentScoringService {
       }
 
       autoCount += 1;
-      const answerSnaps = await this.attempts.findAnswerSnapshotsByQuestionSnapshotId(
-        qSnap.id,
-      );
+      const answerSnaps = input.answerSnapshotsByQuestionId.get(qSnap.id) ?? [];
       const { earned, isCorrect } = this.scoreAutoQuestion(
         qSnap,
-        answerSnaps,
+        answerSnaps as AssessmentAnswerSnapshotEntity[],
         selectedIds,
         points,
       );
@@ -132,7 +189,7 @@ export class AssessmentScoringService {
       questions.push({
         questionSnapshotId: qSnap.id,
         sectionKey: qSnap.sectionKey,
-        type: qSnap.type,
+        type: qSnap.type as QuestionType,
         maxPoints: points,
         earnedPoints: earned,
         requiresManualReview: false,
@@ -144,7 +201,7 @@ export class AssessmentScoringService {
     }
 
     const percent = totalMax > 0 ? (totalScore / totalMax) * 100 : 0;
-    const passed = this.resolvePassed(totalScore, percent, passingRule);
+    const passed = this.resolvePassed(totalScore, percent, input.passingRule);
     const evaluationType = this.resolveEvaluationType(autoCount, manualCount);
     const requiresManualReview = manualCount > 0;
 
@@ -165,8 +222,8 @@ export class AssessmentScoringService {
    * Exposed for unit tests without DB.
    */
   scoreAutoQuestion(
-    qSnap: Pick<AssessmentQuestionSnapshotEntity, 'type'>,
-    answerSnaps: AssessmentAnswerSnapshotEntity[],
+    qSnap: Pick<AssessmentQuestionSnapshotEntity, 'type'> | ScorableQuestionSnapshot,
+    answerSnaps: Array<Pick<AssessmentAnswerSnapshotEntity, 'id' | 'isCorrect'>>,
     selectedIds: string[],
     points: number,
   ): { earned: number; isCorrect: boolean } {

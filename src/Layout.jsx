@@ -18,6 +18,7 @@ import {
   Award,
   ClipboardList,
   CreditCard,
+  NotebookPen,
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import { useAuth } from "@/lib/AuthContext";
@@ -47,6 +48,7 @@ const teacherNav = [
   { name: "Моё расписание", icon: Calendar, page: "TeacherSchedule" },
   { name: "Мои ученики", icon: Users, page: "TeacherStudents" },
   { name: "Экзамены", icon: ClipboardList, page: "TeacherAssessment" },
+  { name: "Домашние задания", icon: NotebookPen, page: "HomeworkList" },
   { name: "Материалы", icon: BookOpen, page: "MaterialsHub" },
   { name: "Профиль", icon: UserCircle, page: "Profile" },
   { name: "Настройки", icon: Settings, page: "Settings" },
@@ -68,6 +70,7 @@ const studentNav = [
   { name: "Мои материалы", icon: BookOpen, page: "StudentLessonMaterials" },
   { name: "Мои сертификаты", icon: Award, page: "StudentCertificates" },
   { name: "Мои экзамены", icon: ClipboardList, page: "StudentExams" },
+  { name: "Домашние задания", icon: NotebookPen, page: "HomeworkViewer" },
   { name: "Профиль", icon: UserCircle, page: "Profile" },
   { name: "Настройки", icon: Settings, page: "Settings" },
 ];
