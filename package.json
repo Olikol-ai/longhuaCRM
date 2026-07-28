@@ -7,7 +7,7 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\" \"npm run tunnel\"",
     "dev:client": "vite",
     "dev:server": "npm run migration:run --prefix apps/api && npm run start:dev --prefix apps/api",
-    "tunnel": "cloudflared tunnel run longhua-dev",
+    "tunnel": "bash scripts/run-cloudflare-tunnel.sh",
     "build": "npm run build:api && vite build",
     "build:client": "vite build",
     "build:api": "npm run build --prefix apps/api",

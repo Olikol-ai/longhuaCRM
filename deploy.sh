@@ -144,7 +144,7 @@ crm_pgrep() {
           *"$CRM_DIR"*|*longhuaCRM*|*LongHuaCRM*|*apps/api*) echo "$pid $args" ;;
         esac
         ;;
-      *cloudflared*"tunnel run"*longhua*)
+      *cloudflared*"tunnel run"*|*scripts/run-cloudflare-tunnel.sh*)
         echo "$pid $args"
         ;;
       *"$CRM_DIR"*/*node*)
