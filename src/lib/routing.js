@@ -70,6 +70,7 @@ export function getRequiredRoleForPath(pathname) {
     || pathname === '/Schedule'
     || pathname === '/UserManagement'
     || pathname === '/AdminPanel'
+    || pathname.startsWith('/admin/tutors/')
     || pathname === '/Groups'
     || pathname.startsWith('/Groups/')
     || pathname === '/Certificates'

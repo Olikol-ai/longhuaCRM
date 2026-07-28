@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   TrendingUp,
   DollarSign,
@@ -10,7 +11,6 @@ import Analytics from "./Analytics";
 import Salary from "./Salary";
 import ExportData from "./ExportData";
 import AdminPanelSystem from "@/components/admin/AdminPanelSystem";
-import TutorsAnalytics from "./TutorsAnalytics";
 import AdminTutors from "./AdminTutors";
 
 const TABS = [
@@ -21,8 +21,14 @@ const TABS = [
   { id: "system", label: "Система", icon: Settings2 },
 ];
 
+const TAB_IDS = new Set(TABS.map((t) => t.id));
+
 export default function AdminPanel() {
-  const [activeTab, setActiveTab] = useState("analytics");
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState(
+    initialTab && TAB_IDS.has(initialTab) ? initialTab : "analytics",
+  );
 
   return (
     <div className="flex flex-col h-full min-h-screen bg-background">

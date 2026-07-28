@@ -23,6 +23,7 @@ const LowBalanceStudents = lazy(() => import('./pages/LowBalanceStudents'));
 const StudentLessonMaterials = lazy(() => import('./pages/StudentLessonMaterials'));
 const MaterialsHub = lazy(() => import('./pages/MaterialsHub'));
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
+const AdminTutorDetail = lazy(() => import('./pages/AdminTutorDetail'));
 const Groups = lazy(() => import('./pages/Groups'));
 const GroupDetail = lazy(() => import('./pages/GroupDetail'));
 const Certificates = lazy(() => import('./pages/Certificates'));
@@ -167,6 +168,7 @@ const AuthenticatedApp = () => {
         <Route path="/UserManagement" element={<AdminRoute><LayoutWrapper currentPageName="UserManagement"><UserManagement /></LayoutWrapper></AdminRoute>} />
         <Route path="/LowBalanceStudents" element={<AdminRoute><LayoutWrapper currentPageName="LowBalanceStudents"><LowBalanceStudents /></LayoutWrapper></AdminRoute>} />
         <Route path="/AdminPanel" element={<AdminRoute><LayoutWrapper currentPageName="AdminPanel"><AdminPanel /></LayoutWrapper></AdminRoute>} />
+        <Route path="/admin/tutors/:tutorId" element={<AdminRoute><LayoutWrapper currentPageName="AdminPanel"><AdminTutorDetail /></LayoutWrapper></AdminRoute>} />
         <Route path="/Groups/:groupId" element={<AdminRoute><LayoutWrapper currentPageName="Groups"><GroupDetail /></LayoutWrapper></AdminRoute>} />
         <Route path="/Groups" element={<AdminRoute><LayoutWrapper currentPageName="Groups"><Groups /></LayoutWrapper></AdminRoute>} />
         <Route path="/Certificates" element={<AdminRoute><LayoutWrapper currentPageName="Certificates"><Certificates /></LayoutWrapper></AdminRoute>} />

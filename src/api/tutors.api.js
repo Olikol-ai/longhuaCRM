@@ -6,6 +6,10 @@ const client = createDomainClient('/tutors');
 export const tutors = {
   ...client,
 
+  get(id) {
+    return apiFetch(`/tutors/${encodeURIComponent(id)}`);
+  },
+
   me() {
     return apiFetch('/tutors/me');
   },
@@ -40,6 +44,36 @@ export const tutors = {
 
   students(id) {
     return apiFetch(`/tutors/${id}/students`);
+  },
+
+  createStudent(tutorId, payload) {
+    return apiFetch(`/tutors/${encodeURIComponent(tutorId)}/students`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateStudent(tutorId, studentId, payload) {
+    return apiFetch(
+      `/tutors/${encodeURIComponent(tutorId)}/students/${encodeURIComponent(studentId)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+
+  deleteStudent(tutorId, studentId) {
+    return apiFetch(
+      `/tutors/${encodeURIComponent(tutorId)}/students/${encodeURIComponent(studentId)}`,
+      {
+        method: 'DELETE',
+      },
+    );
+  },
+
+  lessons(id) {
+    return apiFetch(`/tutors/${encodeURIComponent(id)}/lessons`);
   },
 
   allStudents() {

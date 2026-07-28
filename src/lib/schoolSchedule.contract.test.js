@@ -32,6 +32,7 @@ describe('tutor workspace routes source', () => {
     const layout = readFileSync(join(srcRoot, 'Layout.jsx'), 'utf8');
     const adminPanel = readFileSync(join(srcRoot, 'pages', 'AdminPanel.jsx'), 'utf8');
     const routing = readFileSync(join(srcRoot, 'lib', 'routing.js'), 'utf8');
+    const app = readFileSync(join(srcRoot, 'App.jsx'), 'utf8');
 
     assert.match(pagesConfig, /TutorSchedule/);
     assert.match(pagesConfig, /TutorStudents/);
@@ -43,5 +44,7 @@ describe('tutor workspace routes source', () => {
     assert.match(adminPanel, /Репетиторы/);
     assert.match(routing, /TutorSchedule/);
     assert.match(routing, /TutorReferralLinks/);
+    assert.match(routing, /\/admin\/tutors\//);
+    assert.match(app, /\/admin\/tutors\/:tutorId/);
   });
 });

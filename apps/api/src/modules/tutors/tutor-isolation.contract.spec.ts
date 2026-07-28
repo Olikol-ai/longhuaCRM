@@ -27,6 +27,8 @@ describe('Tutor isolation contracts', () => {
     expect(controller).toContain("@Post('me/students')");
     expect(controller).toContain("@Patch('me/students/:studentId')");
     expect(controller).toContain("@Delete('me/students/:studentId')");
+    expect(controller).toContain("@Post(':id/students')");
+    expect(controller).toContain("@Get(':id/lessons')");
     expect(invites).toContain("@Controller('tutor-invite-links')");
     expect(invites).toContain('@Post()');
     expect(invites).toContain('@Get()');
@@ -40,7 +42,7 @@ describe('Tutor isolation contracts', () => {
     expect(service).not.toMatch(/createNotebookStudent[\s\S]*?studentsRepo/);
   });
 
-  it('frontend has tutor notebook CRUD and admin stats-only tutors page', () => {
+  it('frontend has tutor notebook CRUD and admin tutor cabinet management', () => {
     const pages = read('src/pages.config.js');
     const admin = read('src/pages/AdminPanel.jsx');
     const layout = read('src/Layout.jsx');
@@ -48,18 +50,31 @@ describe('Tutor isolation contracts', () => {
     const api = read('src/api/tutors.api.js');
     const adminTutors = read('src/pages/AdminTutors.jsx');
     const analytics = read('src/pages/TutorsAnalytics.jsx');
+    const detail = read('src/pages/AdminTutorDetail.jsx');
+    const app = read('src/App.jsx');
+    const routing = read('src/lib/routing.js');
     expect(pages).toContain('TutorReferralLinks');
     expect(admin).toContain('AdminTutors');
     expect(layout).toContain('TutorReferralLinks');
     expect(notebook).toContain('tutor-notebook-page');
     expect(notebook).toContain('createMyStudent');
     expect(api).toContain('createMyStudent');
-    expect(api).toContain('updateMyStudent');
-    expect(api).toContain('deleteMyStudent');
+    expect(api).toContain('createStudent');
+    expect(api).toContain('updateStudent');
+    expect(api).toContain('deleteStudent');
+    expect(api).toContain('lessons');
     expect(adminTutors).not.toContain('allStudents');
     expect(adminTutors).not.toContain('Ученики репетиторов');
-    expect(analytics).toContain('completed_lessons_count');
-    expect(analytics).toContain('teaching_hours');
+    expect(analytics).toContain('/admin/tutors/');
+    expect(analytics).toContain('Ученики');
+    expect(detail).toContain('admin-tutor-detail');
+    expect(detail).toContain('Профиль');
+    expect(detail).toContain('Ученики');
+    expect(detail).toContain('Расписание');
+    expect(detail).toContain('Статистика');
+    expect(detail).toContain('createStudent');
+    expect(app).toContain('/admin/tutors/:tutorId');
+    expect(routing).toContain('/admin/tutors/');
   });
 
   it('tutor lesson payload uses tutor_student_id', () => {

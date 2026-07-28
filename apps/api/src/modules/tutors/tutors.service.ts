@@ -38,8 +38,23 @@ export type TutorStats = {
   teachingMinutes: number;
   teachingHours: number;
   upcomingLessonsCount: number;
+  /** Completed lessons in the current calendar month. */
+  monthlyLessonsCount: number;
+  monthlyTeachingMinutes: number;
+  monthlyTeachingHours: number;
   lastActivityAt: string | null;
   activityHistory: TutorActivityItem[];
+};
+
+export type TutorLessonRow = {
+  id: string;
+  date: string;
+  startTime: string;
+  duration: number;
+  status: string;
+  studentName: string | null;
+  studentId: string | null;
+  notes: string | null;
 };
 
 export type TutorAdminOverviewRow = {
@@ -108,14 +123,18 @@ export class TutorsService {
   }
 
   /**
-   * Create a private notebook entry for the current tutor.
+   * Create a private notebook entry for a tutor (own cabinet or admin on behalf).
    * Never creates User / school Student / balance / CRM registration.
    */
   async createNotebookStudent(
     actor: JwtPayload,
     dto: CreateTutorStudentNotebookDto,
+    forTutorId?: string,
   ): Promise<TutorStudentEntity> {
-    const tutorId = await this.tutorAccess.resolveTutorId(actor);
+    let tutorId = forTutorId;
+    if (!tutorId) {
+      tutorId = (await this.tutorAccess.resolveTutorId(actor)) ?? undefined;
+    }
     if (!tutorId) {
       throw new NotFoundException('Tutor profile not found');
     }
@@ -149,8 +168,10 @@ export class TutorsService {
     actor: JwtPayload,
     studentId: string,
     dto: UpdateTutorStudentNotebookDto,
+    expectedTutorId?: string,
   ): Promise<TutorStudentEntity> {
     const row = await this.tutorStudentAccess.assertCanWriteTutorStudent(actor, studentId);
+    this.assertNotebookBelongsToTutor(row, expectedTutorId);
 
     if (dto.name !== undefined) {
       const name = String(dto.name || '').trim();
@@ -178,11 +199,46 @@ export class TutorsService {
   async deleteNotebookStudent(
     actor: JwtPayload,
     studentId: string,
+    expectedTutorId?: string,
   ): Promise<{ id: string; deleted: true }> {
     const row = await this.tutorStudentAccess.assertCanWriteTutorStudent(actor, studentId);
+    this.assertNotebookBelongsToTutor(row, expectedTutorId);
     row.status = 'inactive';
     await this.tutorStudentRepo.save(row);
     return { id: row.id, deleted: true };
+  }
+
+  private assertNotebookBelongsToTutor(
+    row: TutorStudentEntity,
+    expectedTutorId?: string,
+  ): void {
+    if (expectedTutorId && row.tutorId !== expectedTutorId) {
+      throw new NotFoundException('Ученик репетитора не найден');
+    }
+  }
+
+  /** Lessons owned by this tutor only (never school teacher schedule). */
+  async listLessons(
+    actor: JwtPayload,
+    tutorId: string,
+  ): Promise<TutorLessonRow[]> {
+    await this.tutorAccess.assertCanReadTutor(actor, tutorId);
+    const lessons = await this.lessonRepo.find({
+      where: { tutorId },
+      relations: ['primaryTutorStudent'],
+      order: { date: 'DESC', startTime: 'DESC' },
+      take: 500,
+    });
+    return lessons.map((l) => ({
+      id: l.id,
+      date: l.date,
+      startTime: String(l.startTime).slice(0, 5),
+      duration: Number(l.duration ?? 60),
+      status: l.status,
+      studentName: l.primaryTutorStudent?.name?.trim() || null,
+      studentId: l.primaryTutorStudentId,
+      notes: l.notes ?? null,
+    }));
   }
 
   private normalizeOptionalText(value: unknown): string | null {
@@ -338,6 +394,16 @@ export class TutorsService {
       0,
     );
 
+    const now = new Date();
+    const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthlyCompleted = completed.filter((l) =>
+      String(l.date || '').startsWith(monthPrefix),
+    );
+    const monthlyTeachingMinutes = monthlyCompleted.reduce(
+      (sum, l) => sum + Number(l.duration ?? 60),
+      0,
+    );
+
     const studentNameById = new Map(
       students.map((s) => [s.id, s.name?.trim() || null]),
     );
@@ -361,14 +427,19 @@ export class TutorsService {
         : null,
     }));
 
+    const activeStudents = students.filter((s) => s.status === 'active');
+
     return {
       tutorId,
-      studentsCount: students.length,
-      activeStudentsCount: students.filter((s) => s.status === 'active').length,
+      studentsCount: activeStudents.length,
+      activeStudentsCount: activeStudents.length,
       completedLessonsCount: completed.length,
       teachingMinutes,
       teachingHours: Math.round((teachingMinutes / 60) * 10) / 10,
       upcomingLessonsCount: upcoming.length,
+      monthlyLessonsCount: monthlyCompleted.length,
+      monthlyTeachingMinutes,
+      monthlyTeachingHours: Math.round((monthlyTeachingMinutes / 60) * 10) / 10,
       lastActivityAt,
       activityHistory,
     };

@@ -97,6 +97,44 @@ export class TutorsController {
     return this.tutorsService.listStudents(user, id);
   }
 
+  /** Admin (or owning tutor) creates a notebook entry for this tutor. */
+  @Post(':id/students')
+  @Roles('admin', 'tutor')
+  createStudentForTutor(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: CreateTutorStudentNotebookDto,
+  ) {
+    return this.tutorsService.createNotebookStudent(user, dto, id);
+  }
+
+  @Patch(':id/students/:studentId')
+  @Roles('admin', 'tutor')
+  updateStudentForTutor(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Param('studentId') studentId: string,
+    @Body() dto: UpdateTutorStudentNotebookDto,
+  ) {
+    return this.tutorsService.updateNotebookStudent(user, studentId, dto, id);
+  }
+
+  @Delete(':id/students/:studentId')
+  @Roles('admin', 'tutor')
+  deleteStudentForTutor(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Param('studentId') studentId: string,
+  ) {
+    return this.tutorsService.deleteNotebookStudent(user, studentId, id);
+  }
+
+  @Get(':id/lessons')
+  @Roles('admin', 'tutor')
+  lessons(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.tutorsService.listLessons(user, id);
+  }
+
   @Get(':id/stats')
   @Roles('admin', 'tutor')
   stats(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
