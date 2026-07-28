@@ -1,10 +1,13 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { normalizeRole } from '../../common/constants/roles';
+import { JwtPayload } from '../auth/auth.service';
 import { EnrollmentEntity } from '../courses/entities/enrollment.entity';
 import { CourseTemplateEntity } from '../courses/entities/course-template.entity';
 import { GroupEntity } from '../groups/entities/group.entity';
@@ -57,7 +60,11 @@ export class MaterialAccessService {
     private readonly courseRepo: Repository<CourseTemplateEntity>,
   ) {}
 
-  async grant(dto: GrantMaterialAccessDto): Promise<MaterialAccessMutationResult> {
+  async grant(
+    dto: GrantMaterialAccessDto,
+    actor?: JwtPayload,
+  ): Promise<MaterialAccessMutationResult> {
+    await this.assertActorCanMutateTarget(actor, dto.targetType, dto.targetId);
     const materialIds = await this.assertActiveMaterials(dto.materialIds);
     const role = dto.grantedByRole ?? 'ADMIN';
 
@@ -220,7 +227,11 @@ export class MaterialAccessService {
     };
   }
 
-  async revoke(dto: RevokeMaterialAccessDto): Promise<MaterialAccessMutationResult> {
+  async revoke(
+    dto: RevokeMaterialAccessDto,
+    actor?: JwtPayload,
+  ): Promise<MaterialAccessMutationResult> {
+    await this.assertActorCanMutateTarget(actor, dto.targetType, dto.targetId);
     const materialIds = [...new Set(dto.materialIds)];
     if (materialIds.length === 0) {
       throw new BadRequestException('Укажите материалы');
@@ -720,6 +731,56 @@ export class MaterialAccessService {
         grantedByRole,
       }),
     );
+  }
+
+  /**
+   * Teachers may only grant/revoke for their assigned students / own groups.
+   * Course-wide grants stay admin-only.
+   */
+  private async assertActorCanMutateTarget(
+    actor: JwtPayload | undefined,
+    targetType: MaterialAccessTargetType,
+    targetId: string,
+  ): Promise<void> {
+    if (!actor || normalizeRole(actor.role) === 'admin') {
+      return;
+    }
+    if (normalizeRole(actor.role) !== 'teacher') {
+      throw new ForbiddenException('Недостаточно прав для изменения доступа');
+    }
+    const teacher = await this.teacherRepo.findOne({ where: { userId: actor.sub } });
+    if (!teacher) {
+      throw new ForbiddenException('Профиль преподавателя не найден');
+    }
+
+    if (targetType === 'course') {
+      throw new ForbiddenException(
+        'Выдавать доступ через курс может только администратор',
+      );
+    }
+
+    if (targetType === 'student') {
+      const student = await this.studentRepo.findOne({ where: { id: targetId } });
+      if (!student || student.assignedTeacherId !== teacher.id) {
+        throw new ForbiddenException('Можно выдавать доступ только своим ученикам');
+      }
+      return;
+    }
+
+    if (targetType === 'user') {
+      const student = await this.studentRepo.findOne({ where: { userId: targetId } });
+      if (!student || student.assignedTeacherId !== teacher.id) {
+        throw new ForbiddenException('Можно выдавать доступ только своим ученикам');
+      }
+      return;
+    }
+
+    if (targetType === 'group') {
+      const group = await this.groupRepo.findOne({ where: { id: targetId } });
+      if (!group || group.teacherId !== teacher.id) {
+        throw new ForbiddenException('Можно выдавать доступ только своим группам');
+      }
+    }
   }
 
   private async assertActiveMaterials(materialIds: string[]): Promise<string[]> {

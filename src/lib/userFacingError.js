@@ -24,6 +24,10 @@ const PATTERNS = [
   [/jwt|token|expired/i, 'Сессия истекла. Войдите снова.'],
   [/forbidden|access denied/i, 'Недостаточно прав для этого действия.'],
   [/not found/i, 'Данные не найдены.'],
+  [
+    /telegram.*(not configured|unavailable|bot_username|BOT_USERNAME)/i,
+    'Интеграция Telegram временно недоступна. Обратитесь к администратору.',
+  ],
 ];
 
 function looksTechnicalEnglish(text) {

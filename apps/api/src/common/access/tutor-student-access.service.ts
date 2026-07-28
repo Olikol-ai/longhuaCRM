@@ -37,6 +37,14 @@ export class TutorStudentAccessService {
     }
   }
 
+  async resolveTutorStudentId(actor: DomainAccessActor): Promise<string | null> {
+    if (normalizeRole(actor.role) !== 'tutor_student') {
+      return null;
+    }
+    const row = await this.tutorStudentRepo.findOne({ where: { userId: actor.sub } });
+    return row?.id ?? null;
+  }
+
   async assertCanReadTutorStudent(
     actor: DomainAccessActor,
     tutorStudentId: string,

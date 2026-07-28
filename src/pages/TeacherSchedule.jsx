@@ -44,6 +44,7 @@ const STATUS_LABELS = {
   planned: "Запланировано",
   completed: "Проведено",
   cancelled: "Отменено",
+  rescheduled: "Перенесено",
   missed: "Пропущено",
   missed_no_notice: "Без предупреждения",
 };

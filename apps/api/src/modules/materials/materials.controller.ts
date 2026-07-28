@@ -82,14 +82,14 @@ export class MaterialsController {
 
   @Post('access/grant')
   @Roles('admin', 'teacher')
-  grantAccess(@Body() dto: GrantMaterialAccessDto) {
-    return this.materialAccessService.grant(dto);
+  grantAccess(@CurrentUser() user: JwtPayload, @Body() dto: GrantMaterialAccessDto) {
+    return this.materialAccessService.grant(dto, user);
   }
 
   @Post('access/revoke')
   @Roles('admin', 'teacher')
-  revokeAccess(@Body() dto: RevokeMaterialAccessDto) {
-    return this.materialAccessService.revoke(dto);
+  revokeAccess(@CurrentUser() user: JwtPayload, @Body() dto: RevokeMaterialAccessDto) {
+    return this.materialAccessService.revoke(dto, user);
   }
 
   @Post('access/sync')

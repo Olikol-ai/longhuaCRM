@@ -8,7 +8,7 @@ import AdminSettings from "@/pages/AdminSettings";
 const SYSTEM_TABS = [
   { id: "shop", label: "Магазин", icon: ShoppingBag },
   { id: "welcome", label: "Страница встречи", icon: FileText },
-  { id: "telegram", label: "Telegram Bot", icon: Send },
+  { id: "telegram", label: "Telegram-бот", icon: Send },
   { id: "integrations", label: "Интеграции", icon: Settings },
 ];
 

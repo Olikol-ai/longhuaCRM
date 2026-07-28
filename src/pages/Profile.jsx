@@ -5,6 +5,7 @@ import { getRoleBadgeClass, getRoleLabel } from '@/lib/locale-by';
 import { Save, CheckCircle2, User, Send, Link2, Loader2, Unlink, Copy, Users, Pencil, X } from "lucide-react";
 import { formatBelarusPhone, isValidBelarusPhone, PHONE_PLACEHOLDER } from "@/utils/phone";
 import { toast } from "@/components/ui/use-toast";
+import { userFacingError } from "@/lib/userFacingError";
 
 function inviteStorageKey(userId) {
   return `longhua_teacher_invite_url_${userId}`;
@@ -259,7 +260,12 @@ export default function Profile() {
       }
       startStatusPolling();
     } catch (err) {
-      alert(err.message || 'Не удалось создать ссылку');
+      alert(
+        userFacingError(
+          err,
+          'Интеграция Telegram временно недоступна. Обратитесь к администратору.',
+        ),
+      );
     } finally {
       setLinking(false);
     }
@@ -274,7 +280,12 @@ export default function Profile() {
       await loadTelegramStatus();
       await checkAppState({ force: true });
     } catch (err) {
-      alert(err.message || 'Не удалось отвязать Телеграм');
+      alert(
+        userFacingError(
+          err,
+          'Не удалось отвязать Телеграм. Попробуйте ещё раз.',
+        ),
+      );
     } finally {
       setUnlinking(false);
     }

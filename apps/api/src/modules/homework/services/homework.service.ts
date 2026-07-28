@@ -204,6 +204,15 @@ export class HomeworkService {
     if (students.length !== dto.student_ids.length) {
       throw new BadRequestException('One or more students not found');
     }
+    const teacherId = await this.resolveTeacherId(user);
+    if (teacherId) {
+      const foreign = students.filter((s) => s.assignedTeacherId !== teacherId);
+      if (foreign.length > 0) {
+        throw new ForbiddenException(
+          'Можно назначать ДЗ только своим ученикам',
+        );
+      }
+    }
     const dueAt = dto.due_at ? new Date(dto.due_at) : null;
     const created: HomeworkAssignmentEntity[] = [];
     for (const student of students) {

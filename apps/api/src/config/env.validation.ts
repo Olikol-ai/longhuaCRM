@@ -78,6 +78,11 @@ class EnvironmentVariables {
   @IsOptional()
   TELEGRAM_MOCK?: boolean;
 
+  /** Public bot username for deep-links (t.me/username), without @. */
+  @IsString()
+  @IsOptional()
+  TELEGRAM_BOT_USERNAME?: string;
+
   @IsString()
   @IsOptional()
   ALFA_BANK_TOKEN?: string;

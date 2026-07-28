@@ -15,10 +15,10 @@ const STATUS_LABEL = {
 
 const ACTIVITY_LABEL = {
   test: 'Тест',
-  reading: 'Reading',
-  listening: 'Listening',
-  speaking: 'Speaking',
-  writing: 'Writing',
+  reading: 'Чтение',
+  listening: 'Аудирование',
+  speaking: 'Говорение',
+  writing: 'Письмо',
 };
 
 export default function HomeworkList() {

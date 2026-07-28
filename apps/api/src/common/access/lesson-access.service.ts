@@ -10,6 +10,7 @@ import { DomainAccessActor, TEACHER_LESSON_UPDATE_FIELDS } from './domain-access
 import { StudentAccessService } from './student-access.service';
 import { TeacherAccessService } from './teacher-access.service';
 import { TutorAccessService } from './tutor-access.service';
+import { TutorStudentAccessService } from './tutor-student-access.service';
 
 @Injectable()
 export class LessonAccessService {
@@ -21,6 +22,7 @@ export class LessonAccessService {
     private readonly studentAccess: StudentAccessService,
     private readonly teacherAccess: TeacherAccessService,
     private readonly tutorAccess: TutorAccessService,
+    private readonly tutorStudentAccess: TutorStudentAccessService,
   ) {}
 
   isAdmin(actor: DomainAccessActor): boolean {
@@ -130,6 +132,24 @@ export class LessonAccessService {
       });
       if (!attendance) {
         throw new ForbiddenException('Cannot access another student lesson');
+      }
+      return lesson;
+    }
+
+    if (role === 'tutor_student') {
+      const tutorStudentId =
+        await this.tutorStudentAccess.resolveTutorStudentId(actor);
+      if (!tutorStudentId) {
+        throw new ForbiddenException('Forbidden');
+      }
+      if (lesson.primaryTutorStudentId === tutorStudentId) {
+        return lesson;
+      }
+      const attendance = await this.attendanceRepo.findOne({
+        where: { lessonId, tutorStudentId },
+      });
+      if (!attendance) {
+        throw new ForbiddenException('Cannot access another tutor student lesson');
       }
       return lesson;
     }

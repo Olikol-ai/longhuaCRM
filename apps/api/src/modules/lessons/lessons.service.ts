@@ -228,6 +228,11 @@ export class LessonsService {
         if (!student) {
           throw new NotFoundException('Ученик не найден');
         }
+        if (student.assignedTeacherId !== normalized.teacherId) {
+          throw new BadRequestException(
+            'Ученик не закреплён за выбранным преподавателем',
+          );
+        }
       }
 
       if (contactId && !normalized.groupId) {
@@ -1115,17 +1120,24 @@ export class LessonsService {
     if (!lesson || lesson.status !== 'planned') {
       return null;
     }
+
+    // School teacher lessons and teacher-owned private contacts (not tutor-only).
+    // Tutor lessons are completed manually outside school cron payroll.
     if (!lesson.teacherId) {
       return null;
     }
 
-    const isIndividual =
+    const isCrmIndividual =
       lesson.lessonType === 'individual' &&
       !lesson.groupId &&
       !!lesson.primaryStudentId;
+    const isContactIndividual =
+      lesson.lessonType === 'individual' &&
+      !lesson.groupId &&
+      !!lesson.primaryTeacherStudentContactId;
     const isGroup = !!lesson.groupId;
 
-    if (!isIndividual && !isGroup) {
+    if (!isCrmIndividual && !isContactIndividual && !isGroup) {
       return null;
     }
 
@@ -1424,7 +1436,11 @@ export class LessonsService {
           where: { id: existing.lessonId },
         });
         if (lesson?.status === 'completed' && !row.balanceDeducted) {
-          await this.studentBalanceService.handleLessonStatusUpdate(existing.lessonId, 'completed');
+          await this.studentBalanceService.handleLessonStatusUpdate(
+            existing.lessonId,
+            'completed',
+            manager,
+          );
         }
       }
 

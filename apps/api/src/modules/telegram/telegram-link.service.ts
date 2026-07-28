@@ -1,9 +1,10 @@
 import {
-  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -15,6 +16,10 @@ import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { UsersRepository } from '../users/users.repository';
 
 const LINK_TTL_MS = 15 * 60 * 1000;
+
+/** Safe message for end users — never expose env var names. */
+export const TELEGRAM_LINK_UNAVAILABLE_USER_MESSAGE =
+  'Интеграция Telegram временно недоступна. Обратитесь к администратору.';
 
 @Injectable()
 export class TelegramLinkService {
@@ -40,6 +45,22 @@ export class TelegramLinkService {
       throw new ForbiddenException('Telegram linking requires an active account');
     }
 
+    const botUsername = this.getBotUsername();
+    if (!botUsername) {
+      const enabled = this.config.get<boolean>('telegram.enabled') === true;
+      const hasToken = Boolean(
+        (this.config.get<string>('telegram.botToken') ?? '').trim()
+          || process.env.TELEGRAM_BOT_TOKEN?.trim(),
+      );
+      this.logger.error(
+        'Telegram deep-link refused: bot username is missing. '
+          + `telegram.enabled=${enabled}, botTokenConfigured=${hasToken}, `
+          + 'configKey=telegram.botUsername / env TELEGRAM_BOT_USERNAME. '
+          + 'Set TELEGRAM_BOT_USERNAME in the server environment (without @).',
+      );
+      throw new ServiceUnavailableException(TELEGRAM_LINK_UNAVAILABLE_USER_MESSAGE);
+    }
+
     const token = randomBytes(16).toString('hex');
     const expires = new Date(Date.now() + LINK_TTL_MS);
     row.telegramLinkToken = token;
@@ -47,12 +68,6 @@ export class TelegramLinkService {
     row.updatedDate = new Date();
     await this.usersRepository.save(row);
 
-    const botUsername = this.getBotUsername();
-    if (!botUsername) {
-      throw new BadRequestException(
-        'TELEGRAM_BOT_USERNAME is not configured. Set it in the server environment.',
-      );
-    }
     return {
       link: `https://t.me/${botUsername}?start=${token}`,
       expiresAt: expires.toISOString(),
@@ -191,11 +206,13 @@ export class TelegramLinkService {
   }
 
   getBotUsername(): string {
-    const configured =
+    const raw =
       this.config.get<string>('telegram.botUsername')?.trim()
+      || this.config.get<string>('TELEGRAM_BOT_USERNAME')?.trim()
       || process.env.TELEGRAM_BOT_USERNAME?.trim()
       || '';
-    return configured;
+    // Deep links need bare username: t.me/BotName (leading @ breaks the URL).
+    return raw.replace(/^@+/, '');
   }
 
   async isChatLinked(telegramId: string): Promise<boolean> {
