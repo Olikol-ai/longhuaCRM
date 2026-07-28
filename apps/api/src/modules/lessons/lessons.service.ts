@@ -27,6 +27,7 @@ import { TeacherPaymentsService } from '../teacher-payments/teacher-payments.ser
 import { TutorEntity } from '../tutors/entities/tutor.entity';
 import { TutorStudentEntity } from '../tutors/entities/tutor-student.entity';
 import { TeacherStudentContactEntity } from '../teacher-student-contacts/entities/teacher-student-contact.entity';
+import { TeacherStudentContactBalanceService } from '../teacher-student-contacts/teacher-student-contact-balance.service';
 import { AttendanceEntity } from './entities/attendance.entity';
 import {
   isScheduleOccupyingLessonStatus,
@@ -86,6 +87,7 @@ export class LessonsService {
     private readonly audit: AuditService,
     private readonly events: EventEmitter2,
     private readonly videoService: VideoService,
+    private readonly contactBalanceService: TeacherStudentContactBalanceService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -283,6 +285,19 @@ export class LessonsService {
         );
       }
 
+      if (contactId && !normalized.groupId) {
+        await attendanceRepo.save(
+          attendanceRepo.create({
+            lessonId: lesson.id,
+            studentId: null,
+            tutorStudentId: null,
+            teacherStudentContactId: contactId,
+            attendanceStatus: 'enrolled',
+            balanceDeducted: false,
+          }),
+        );
+      }
+
       const timeFrom = this.scheduleService.normalizeTime(normalized.startTime);
       const timeTo = this.scheduleService.addMinutesToTime(timeFrom, duration);
       await manager.getRepository(AvailabilityBookingEntity).save({
@@ -304,6 +319,7 @@ export class LessonsService {
 
   /**
    * Tutor-owned individual lessons: no school availability slots, no teacher payroll.
+   * Target: TutorStudent notebook OR TeacherStudentContact (private balance).
    */
   private async createTutorLesson(dto: CreateLessonDto): Promise<LessonEntity> {
     const tutorId = dto.tutorId as string;
@@ -311,14 +327,23 @@ export class LessonsService {
     const lessonType = dto.lessonType ?? 'individual';
     const primaryTutorStudentId =
       dto.primaryTutorStudentId || dto.tutorStudentId || undefined;
+    const contactId =
+      dto.primaryTeacherStudentContactId ||
+      dto.teacherStudentContactId ||
+      undefined;
 
     if (lessonType === 'group' || dto.groupId) {
       throw new BadRequestException(
         'Групповые занятия доступны только преподавателям школы',
       );
     }
-    if (!primaryTutorStudentId) {
+    if (!primaryTutorStudentId && !contactId) {
       throw new BadRequestException('Выберите ученика репетитора для индивидуального урока');
+    }
+    if (primaryTutorStudentId && contactId) {
+      throw new BadRequestException(
+        'Выберите либо ученика блокнота, либо личного контакта, не обоих',
+      );
     }
 
     await this.scheduleService.assertNoTutorScheduleConflicts(
@@ -327,12 +352,14 @@ export class LessonsService {
       dto.startTime,
       duration,
     );
-    await this.scheduleService.assertNoTutorStudentScheduleConflicts(
-      [primaryTutorStudentId],
-      dto.date,
-      dto.startTime,
-      duration,
-    );
+    if (primaryTutorStudentId) {
+      await this.scheduleService.assertNoTutorStudentScheduleConflicts(
+        [primaryTutorStudentId],
+        dto.date,
+        dto.startTime,
+        duration,
+      );
+    }
 
     const created = await this.dataSource.transaction(async (manager) => {
       const tutor = await manager.getRepository(TutorEntity).findOne({
@@ -350,25 +377,40 @@ export class LessonsService {
         duration,
       );
 
-      const tutorStudent = await manager.getRepository(TutorStudentEntity).findOne({
-        where: { id: primaryTutorStudentId },
-        lock: { mode: 'pessimistic_write' },
-      });
-      if (!tutorStudent) {
-        throw new NotFoundException('Ученик репетитора не найден');
-      }
-      if (tutorStudent.tutorId !== tutorId) {
-        throw new BadRequestException(
-          'Ученик не закреплён за этим репетитором',
+      if (primaryTutorStudentId) {
+        const tutorStudent = await manager.getRepository(TutorStudentEntity).findOne({
+          where: { id: primaryTutorStudentId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!tutorStudent) {
+          throw new NotFoundException('Ученик репетитора не найден');
+        }
+        if (tutorStudent.tutorId !== tutorId) {
+          throw new BadRequestException(
+            'Ученик не закреплён за этим репетитором',
+          );
+        }
+        await this.scheduleService.assertNoTutorStudentScheduleConflicts(
+          [primaryTutorStudentId],
+          dto.date,
+          dto.startTime,
+          duration,
         );
       }
 
-      await this.scheduleService.assertNoTutorStudentScheduleConflicts(
-        [primaryTutorStudentId],
-        dto.date,
-        dto.startTime,
-        duration,
-      );
+      if (contactId) {
+        const contact = await manager
+          .getRepository(TeacherStudentContactEntity)
+          .findOne({ where: { id: contactId } });
+        if (!contact || contact.status === 'inactive') {
+          throw new NotFoundException('Личный ученик не найден');
+        }
+        if (contact.ownerType !== 'tutor' || contact.ownerId !== tutorId) {
+          throw new BadRequestException(
+            'Личный ученик не принадлежит выбранному репетитору',
+          );
+        }
+      }
 
       const lessonRepo = manager.getRepository(LessonEntity);
       const lesson = await lessonRepo.save(
@@ -378,7 +420,8 @@ export class LessonsService {
           seriesId: null,
           groupId: null,
           primaryStudentId: null,
-          primaryTutorStudentId,
+          primaryTutorStudentId: primaryTutorStudentId ?? null,
+          primaryTeacherStudentContactId: contactId ?? null,
           date: dto.date,
           startTime: dto.startTime,
           duration,
@@ -391,14 +434,28 @@ export class LessonsService {
         }),
       );
 
-      await manager.getRepository(AttendanceEntity).save(
-        manager.getRepository(AttendanceEntity).create({
-          lessonId: lesson.id,
-          studentId: null,
-          tutorStudentId: primaryTutorStudentId,
-          attendanceStatus: 'enrolled',
-        }),
-      );
+      if (primaryTutorStudentId) {
+        await manager.getRepository(AttendanceEntity).save(
+          manager.getRepository(AttendanceEntity).create({
+            lessonId: lesson.id,
+            studentId: null,
+            tutorStudentId: primaryTutorStudentId,
+            attendanceStatus: 'enrolled',
+          }),
+        );
+      }
+      if (contactId) {
+        await manager.getRepository(AttendanceEntity).save(
+          manager.getRepository(AttendanceEntity).create({
+            lessonId: lesson.id,
+            studentId: null,
+            tutorStudentId: null,
+            teacherStudentContactId: contactId,
+            attendanceStatus: 'enrolled',
+            balanceDeducted: false,
+          }),
+        );
+      }
 
       return lesson;
     });
@@ -497,9 +554,14 @@ export class LessonsService {
       payload.status !== before.status &&
       FINANCIALLY_FINALIZED_LESSON_STATUSES.has(before.status)
     ) {
-      throw new ConflictException(
-        'Нельзя изменить статус завершённого занятия: баланс и начисления уже зафиксированы',
-      );
+      const allowingContactCancel =
+        Boolean(before.primaryTeacherStudentContactId) &&
+        payload.status === 'cancelled';
+      if (!allowingContactCancel) {
+        throw new ConflictException(
+          'Нельзя изменить статус завершённого занятия: баланс и начисления уже зафиксированы',
+        );
+      }
     }
 
     // UI cancels via PATCH { status: 'cancelled' }. Route through cancel() so we
@@ -527,9 +589,14 @@ export class LessonsService {
       typeof payload.status === 'string' &&
       payload.status !== before.status
     ) {
-      throw new ForbiddenException(
-        'Статус занятия уже зафиксирован и не может быть изменён',
-      );
+      const allowingContactCancel =
+        Boolean(before.primaryTeacherStudentContactId) &&
+        payload.status === 'cancelled';
+      if (!allowingContactCancel) {
+        throw new ForbiddenException(
+          'Статус занятия уже зафиксирован и не может быть изменён',
+        );
+      }
     }
 
     if (completing) {
@@ -1192,6 +1259,14 @@ export class LessonsService {
           { lessonId, studentId: lesson.primaryStudentId },
           { attendanceStatus: 'attended' },
         );
+      } else if (isIndividual && lesson.primaryTeacherStudentContactId) {
+        await attendanceRepo.update(
+          {
+            lessonId,
+            teacherStudentContactId: lesson.primaryTeacherStudentContactId,
+          },
+          { attendanceStatus: 'attended' },
+        );
       } else {
         await attendanceRepo.update(
           { lessonId, attendanceStatus: 'enrolled' },
@@ -1200,6 +1275,7 @@ export class LessonsService {
       }
 
       await this.studentBalanceService.handleLessonStatusUpdate(lessonId, 'completed', manager);
+      await this.contactBalanceService.deductForCompletedLesson(lessonId, manager);
       // Tutor lessons and private-contact notebook lessons are outside school payroll.
       if (lesson.teacherId && !lesson.primaryTeacherStudentContactId) {
         await this.teacherPaymentsService.createForCompletedLesson(lesson, manager);
@@ -1227,7 +1303,7 @@ export class LessonsService {
   async cancel(actor: JwtPayload, id: string): Promise<LessonEntity> {
     await this.lessonAccess.assertCanWriteLesson(actor, id);
 
-    return this.dataSource.transaction(async (manager) => {
+    const cancelled = await this.dataSource.transaction(async (manager) => {
       const lessonRepo = manager.getRepository(LessonEntity);
       const lesson = await lessonRepo.findOne({
         where: { id },
@@ -1237,12 +1313,23 @@ export class LessonsService {
         throw new NotFoundException('Lesson not found');
       }
 
-      // Only planned lessons may be cancelled. Completed lessons already charged
-      // balance / created TeacherPayment — reversing that requires an explicit
-      // compensating flow (not silent cancel).
-      if (lesson.status !== 'planned') {
+      const isContactLesson = Boolean(lesson.primaryTeacherStudentContactId);
+      const canCancelCompletedContact =
+        lesson.status === 'completed' && isContactLesson;
+
+      // Planned: free the slot. Completed private-contact: restore private balance.
+      // School CRM completed lessons stay locked (balance + TeacherPayment).
+      if (lesson.status !== 'planned' && !canCancelCompletedContact) {
         throw new ConflictException(
           'Отменить можно только запланированное занятие',
+        );
+      }
+
+      if (canCancelCompletedContact) {
+        await this.contactBalanceService.restoreForCancelledLesson(
+          id,
+          manager,
+          actor.sub,
         );
       }
 
@@ -1261,6 +1348,9 @@ export class LessonsService {
 
       return lesson;
     });
+
+    const withNames = await this.repository.findById(cancelled.id);
+    return (await this.attachDisplayNames([withNames ?? cancelled]))[0];
   }
 
   async findAllAttendance(actor: JwtPayload): Promise<AttendanceEntity[]> {

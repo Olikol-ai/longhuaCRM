@@ -42,12 +42,14 @@ describe('Tutor isolation contracts', () => {
     expect(service).not.toMatch(/createNotebookStudent[\s\S]*?studentsRepo/);
   });
 
-  it('frontend has tutor notebook CRUD and admin tutor cabinet management', () => {
+  it('frontend has tutor students page and admin tutor cabinet management', () => {
     const pages = read('src/pages.config.js');
     const admin = read('src/pages/AdminPanel.jsx');
     const layout = read('src/Layout.jsx');
     const notebook = read('src/pages/TutorStudents.jsx');
+    const privateNotebook = read('src/components/students/PrivateStudentsNotebook.jsx');
     const api = read('src/api/tutors.api.js');
+    const contactsApi = read('src/api/teacher-student-contacts.api.js');
     const adminTutors = read('src/pages/AdminTutors.jsx');
     const analytics = read('src/pages/TutorsAnalytics.jsx');
     const detail = read('src/pages/AdminTutorDetail.jsx');
@@ -59,13 +61,18 @@ describe('Tutor isolation contracts', () => {
     expect(admin).toContain('AdminTutors');
     expect(layout).toContain('TutorReferralLinks');
     expect(layout).toContain('TutorProfile');
-    expect(notebook).toContain('tutor-notebook-page');
-    expect(notebook).toContain('createMyStudent');
+    expect(notebook).toContain('PrivateStudentsNotebook');
+    expect(notebook).toContain('ownerType="tutor"');
+    expect(privateNotebook).toContain('teacherStudentContacts');
+    expect(privateNotebook).toContain('Баланс занятий');
+    expect(privateNotebook).toContain('updateBalance');
     expect(api).toContain('createMyStudent');
     expect(api).toContain('createStudent');
     expect(api).toContain('updateStudent');
     expect(api).toContain('deleteStudent');
     expect(api).toContain('lessons');
+    expect(contactsApi).toContain('updateBalance');
+    expect(contactsApi).toContain('/balance');
     expect(adminTutors).not.toContain('allStudents');
     expect(adminTutors).not.toContain('Ученики репетиторов');
     expect(analytics).toContain('/admin/tutors/');
@@ -85,11 +92,12 @@ describe('Tutor isolation contracts', () => {
     expect(routing).toContain('TutorProfile');
   });
 
-  it('tutor lesson payload uses tutor_student_id', () => {
+  it('tutor lesson payload supports private contact id', () => {
     const payload = read('src/lib/lessonPayload.js');
     const modal = read('src/components/tutors/TutorLessonModal.jsx');
     expect(payload).toContain('primaryTutorStudentId');
-    expect(modal).toContain('tutor_student_id');
+    expect(payload).toContain('primaryTeacherStudentContactId');
+    expect(modal).toContain('teacher_student_contact_id');
     expect(modal).toContain('Комментарий');
   });
 });

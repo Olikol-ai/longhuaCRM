@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { JwtPayload } from '../auth/auth.service';
 import { CreateTeacherStudentContactDto } from './dto/create-teacher-student-contact.dto';
+import { UpdateTeacherStudentContactBalanceDto } from './dto/update-teacher-student-contact-balance.dto';
 import { UpdateTeacherStudentContactDto } from './dto/update-teacher-student-contact.dto';
 import { TeacherStudentContactOwnerType } from './entities/teacher-student-contact.entity';
 import { TeacherStudentContactsService } from './teacher-student-contacts.service';
@@ -41,6 +42,28 @@ export class TeacherStudentContactsController {
     @Query('ownerType') ownerType?: TeacherStudentContactOwnerType,
   ) {
     return this.contactsService.create(user, dto, ownerType);
+  }
+
+  @Get(':id/detail')
+  @Roles('admin', 'teacher', 'tutor')
+  detail(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.contactsService.getDetail(user, id);
+  }
+
+  @Get(':id/balance-history')
+  @Roles('admin', 'teacher', 'tutor')
+  balanceHistory(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.contactsService.listBalanceHistory(user, id);
+  }
+
+  @Patch(':id/balance')
+  @Roles('admin', 'teacher', 'tutor')
+  updateBalance(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateTeacherStudentContactBalanceDto,
+  ) {
+    return this.contactsService.updateBalance(user, id, dto);
   }
 
   @Get(':ownerType/:ownerId')

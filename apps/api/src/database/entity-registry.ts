@@ -34,6 +34,7 @@ import { TutorLessonDurationEntity } from '../modules/tutors/entities/tutor-less
 import { TutorWorkDayEntity } from '../modules/tutors/entities/tutor-work-day.entity';
 import { TutorMaterialEntity } from '../modules/tutors/entities/tutor-material.entity';
 import { TeacherStudentContactEntity } from '../modules/teacher-student-contacts/entities/teacher-student-contact.entity';
+import { TeacherStudentBalanceHistoryEntity } from '../modules/teacher-student-contacts/entities/teacher-student-balance-history.entity';
 import { TeacherInviteLinkEntity } from '../modules/teachers/entities/teacher-invite-link.entity';
 import { TutorInviteLinkEntity } from '../modules/tutors/entities/tutor-invite-link.entity';
 import { TeacherMonthlyPayoutEntity } from '../modules/teacher-payments/entities/teacher-monthly-payout.entity';
@@ -58,6 +59,7 @@ export const ALL_V2_ENTITIES = [
   TutorWorkDayEntity,
   TutorMaterialEntity,
   TeacherStudentContactEntity,
+  TeacherStudentBalanceHistoryEntity,
   TeacherInviteLinkEntity,
   TutorInviteLinkEntity,
   CourseTemplateEntity,

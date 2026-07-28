@@ -63,7 +63,7 @@ export default function TutorLessonModal({
 
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    tutor_student_id: '',
+    teacher_student_contact_id: '',
     date: defaultDate || '',
     start_time: '10:00',
     duration: 60,
@@ -74,7 +74,7 @@ export default function TutorLessonModal({
     if (!open) return;
     const preferred = durations.includes(60) ? 60 : durations[0];
     setForm({
-      tutor_student_id: '',
+      teacher_student_contact_id: '',
       date: defaultDate || new Date().toISOString().slice(0, 10),
       start_time: workFrom || '10:00',
       duration: preferred,
@@ -95,8 +95,8 @@ export default function TutorLessonModal({
       toast({ title: 'Профиль репетитора не найден', variant: 'destructive' });
       return;
     }
-    if (!form.tutor_student_id) {
-      toast({ title: 'Выберите ученика из блокнота', variant: 'destructive' });
+    if (!form.teacher_student_contact_id) {
+      toast({ title: 'Выберите ученика из списка', variant: 'destructive' });
       return;
     }
     if (!form.date || !form.start_time) {
@@ -134,7 +134,7 @@ export default function TutorLessonModal({
     try {
       const payload = toLessonWritePayload({
         tutor_id: tutorId,
-        tutor_student_id: form.tutor_student_id,
+        teacher_student_contact_id: form.teacher_student_contact_id,
         date: form.date,
         start_time: form.start_time,
         duration: Number(form.duration) || 60,
@@ -167,7 +167,7 @@ export default function TutorLessonModal({
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4" data-testid="tutor-lesson-form">
           <div className="space-y-2">
-            <Label>Ученик из блокнота *</Label>
+            <Label>Личный ученик *</Label>
             {activeStudents.length === 0 ? (
               <p className="text-sm text-slate-500">
                 Сначала добавьте запись в{' '}
@@ -181,8 +181,13 @@ export default function TutorLessonModal({
               </p>
             ) : (
               <Select
-                value={form.tutor_student_id || 'none'}
-                onValueChange={(v) => setForm((f) => ({ ...f, tutor_student_id: v === 'none' ? '' : v }))}
+                value={form.teacher_student_contact_id || 'none'}
+                onValueChange={(v) =>
+                  setForm((f) => ({
+                    ...f,
+                    teacher_student_contact_id: v === 'none' ? '' : v,
+                  }))
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Выбрать ученика" />
@@ -190,7 +195,9 @@ export default function TutorLessonModal({
                 <SelectContent>
                   <SelectItem value="none">Выбрать ученика</SelectItem>
                   {activeStudents.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name} · баланс: {s.lesson_balance ?? s.lessonBalance ?? 0}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>

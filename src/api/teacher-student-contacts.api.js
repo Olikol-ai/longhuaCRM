@@ -1,8 +1,8 @@
 import { apiFetch } from './http';
 
 /**
- * Private local student contacts for teachers/tutors (scheduling notebook).
- * Never creates User / CRM Student / balance / payment.
+ * Private local student contacts for teachers/tutors (scheduling notebook + balance).
+ * Never creates User / CRM Student / school payment.
  */
 export const teacherStudentContacts = {
   listMine(params = {}) {
@@ -36,6 +36,23 @@ export const teacherStudentContacts = {
         body: JSON.stringify(payload),
       },
     );
+  },
+
+  detail(id) {
+    return apiFetch(`/teacher-student-contacts/${encodeURIComponent(id)}/detail`);
+  },
+
+  balanceHistory(id) {
+    return apiFetch(
+      `/teacher-student-contacts/${encodeURIComponent(id)}/balance-history`,
+    );
+  },
+
+  updateBalance(id, payload) {
+    return apiFetch(`/teacher-student-contacts/${encodeURIComponent(id)}/balance`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
   },
 
   update(id, payload) {

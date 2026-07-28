@@ -404,7 +404,9 @@ export default function LessonModal({
                               <SelectItem value="__none" disabled>Нет личных учеников — добавьте в разделе «Ученики»</SelectItem>
                             ) : (
                               activeContacts.map((s) => (
-                                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                <SelectItem key={s.id} value={s.id}>
+                                  {s.name} · баланс: {s.lesson_balance ?? s.lessonBalance ?? 0}
+                                </SelectItem>
                               ))
                             )}
                           </SelectContent>

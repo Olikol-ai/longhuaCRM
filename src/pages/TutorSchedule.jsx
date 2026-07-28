@@ -97,7 +97,7 @@ export default function TutorSchedule() {
       const [me, allLessons, allStudents] = await Promise.all([
         api.tutors.me(),
         api.lessons.list('-date', 500),
-        api.tutors.myStudents(),
+        api.teacherStudentContacts.listMine({ ownerType: 'tutor' }),
       ]);
       setTutor(me);
       // Backend already scopes; keep client filter for safety.

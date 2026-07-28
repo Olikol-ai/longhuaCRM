@@ -11,6 +11,7 @@ import {
 import { LessonEntity } from './lesson.entity';
 import { StudentEntity } from '../../students/entities/student.entity';
 import { TutorStudentEntity } from '../../tutors/entities/tutor-student.entity';
+import { TeacherStudentContactEntity } from '../../teacher-student-contacts/entities/teacher-student-contact.entity';
 
 export type AttendanceStatus =
   | 'enrolled'
@@ -50,6 +51,17 @@ export class AttendanceEntity {
   @ManyToOne(() => TutorStudentEntity, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'tutor_student_id' })
   tutorStudent?: TutorStudentEntity | null;
+
+  @Index('IDX_ATTENDANCE_TEACHER_STUDENT_CONTACT_ID')
+  @Column({ name: 'teacher_student_contact_id', type: 'uuid', nullable: true })
+  teacherStudentContactId: string | null;
+
+  @ManyToOne(() => TeacherStudentContactEntity, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'teacher_student_contact_id' })
+  teacherStudentContact?: TeacherStudentContactEntity | null;
 
   @Column({
     name: 'attendance_status',

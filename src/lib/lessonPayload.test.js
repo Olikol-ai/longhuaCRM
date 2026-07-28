@@ -76,4 +76,20 @@ describe('toLessonWritePayload', () => {
     assert.equal(payload.teacherStudentContactId, undefined);
     assert.equal(payload.lessonType, 'individual');
   });
+
+  it('maps contact for tutor-owned lessons', () => {
+    const payload = toLessonWritePayload({
+      tutor_id: '55555555-5555-4555-8555-555555555555',
+      teacher_student_contact_id: '88888888-8888-4888-8888-888888888888',
+      date: '2026-08-01',
+      start_time: '10:00',
+    });
+    assert.equal(payload.tutorId, '55555555-5555-4555-8555-555555555555');
+    assert.equal(
+      payload.primaryTeacherStudentContactId,
+      '88888888-8888-4888-8888-888888888888',
+    );
+    assert.equal(payload.primaryTutorStudentId, undefined);
+    assert.equal(payload.lessonType, 'individual');
+  });
 });

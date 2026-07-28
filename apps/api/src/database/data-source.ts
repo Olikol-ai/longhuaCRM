@@ -44,6 +44,7 @@ import { LessonVideoFields1742000000000 } from './migrations/1742000000000-Lesso
 import { StudentPendingAssignmentStatus1742100000000 } from './migrations/1742100000000-StudentPendingAssignmentStatus';
 import { TutorProfileAndSettings1742200000000 } from './migrations/1742200000000-TutorProfileAndSettings';
 import { TeacherStudentContacts1742300000000 } from './migrations/1742300000000-TeacherStudentContacts';
+import { TeacherStudentContactBalance1742400000000 } from './migrations/1742400000000-TeacherStudentContactBalance';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -91,6 +92,7 @@ export default new DataSource({
     StudentPendingAssignmentStatus1742100000000,
     TutorProfileAndSettings1742200000000,
     TeacherStudentContacts1742300000000,
+    TeacherStudentContactBalance1742400000000,
   ],
   synchronize: false,
 });
