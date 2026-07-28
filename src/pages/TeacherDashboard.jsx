@@ -69,7 +69,14 @@ export default function TeacherDashboard() {
       setTeacher(t);
       if (t) {
         setLessons(allLessons.filter((l) => l.teacher_id === t.id));
-        setStudents(allStudents.filter((s) => s.assigned_teacher === t.id));
+        setStudents(
+          allStudents.filter(
+            (s) =>
+              s.assigned_teacher === t.id
+              && s.status !== 'inactive'
+              && (s.user_role == null || s.user_role === 'student' || s.userRole === 'student'),
+          ),
+        );
       } else {
         setLessons([]);
         setStudents([]);
@@ -259,7 +266,7 @@ export default function TeacherDashboard() {
                 <div>
                   <Badge variant="default">Активна</Badge>
                   <span className="ml-2 text-xs text-muted-foreground">
-                    до {format(new Date(row.expires_at), "dd.MM.yyyy")} · использований: {row.use_count ?? 0}
+                    до {format(new Date(row.expires_at), "dd.MM.yyyy")} · реферальных учеников: {row.active_students_count ?? row.activeStudentsCount ?? row.use_count ?? 0}
                   </span>
                 </div>
                 <Button type="button" variant="ghost" size="sm" onClick={() => handleRevokeInvite(row.id)}>

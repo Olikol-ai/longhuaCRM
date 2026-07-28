@@ -10,15 +10,23 @@ import { Repository } from 'typeorm';
 import { JwtPayload } from '../auth/auth.service';
 import { TeacherAccessService } from '../../common/access/teacher-access.service';
 import { normalizeRole } from '../../common/constants/roles';
+import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherInviteLinkEntity } from './entities/teacher-invite-link.entity';
 
 const DEFAULT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+export type TeacherInviteListItem = TeacherInviteLinkEntity & {
+  /** Live count: students still assigned to this teacher with User.role = student. */
+  activeStudentsCount: number;
+};
 
 @Injectable()
 export class TeacherInvitesService {
   constructor(
     @InjectRepository(TeacherInviteLinkEntity)
     private readonly inviteRepo: Repository<TeacherInviteLinkEntity>,
+    @InjectRepository(StudentEntity)
+    private readonly studentRepo: Repository<StudentEntity>,
     private readonly teacherAccess: TeacherAccessService,
   ) {}
 
@@ -51,12 +59,40 @@ export class TeacherInvitesService {
     };
   }
 
-  async listMine(actor: JwtPayload): Promise<TeacherInviteLinkEntity[]> {
+  async listMine(actor: JwtPayload): Promise<TeacherInviteListItem[]> {
     const teacherId = await this.resolveTeacherIdForActor(actor);
-    return this.inviteRepo.find({
+    const rows = await this.inviteRepo.find({
       where: { teacherId },
       order: { createdAt: 'DESC' },
     });
+    const activeStudentsCount = await this.countActiveReferralStudents(teacherId);
+    return rows.map((row) =>
+      Object.assign(row, {
+        activeStudentsCount,
+        /**
+         * API `useCount` for UI = live referral students (role=student only).
+         * Historical registration total remains in DB column; exposed as registrationCount.
+         */
+        registrationCount: row.useCount,
+        useCount: activeStudentsCount,
+      }),
+    );
+  }
+
+  /**
+   * Current referral students for a teacher.
+   * Keeps referral history (assignedTeacherId) but counts only User.role = 'student'.
+   * Excludes tutors/teachers/admins and users without a linked account.
+   */
+  async countActiveReferralStudents(teacherId: string): Promise<number> {
+    if (!teacherId) return 0;
+    const raw = await this.studentRepo
+      .createQueryBuilder('s')
+      .innerJoin('users', 'u', 'u.id = s.user_id')
+      .where('s.assigned_teacher_id = :teacherId', { teacherId })
+      .andWhere('u.role = :role', { role: 'student' })
+      .getCount();
+    return Number(raw) || 0;
   }
 
   async revoke(actor: JwtPayload, id: string): Promise<TeacherInviteLinkEntity> {

@@ -365,6 +365,9 @@ export class RoleEntitySyncService {
     studentRepo: Repository<StudentEntity>,
     userId: string,
   ): Promise<void> {
+    // Keep assignedTeacherId (referral history). Unlink user and mark inactive so
+    // live referral counts (User.role = student) exclude this person until they
+    // become a student again.
     await studentRepo.update({ userId }, { userId: null, status: 'inactive' });
   }
 
@@ -465,11 +468,15 @@ export class RoleEntitySyncService {
               ? row.status
               : 'pending_assignment';
         }
-      } else if (!row.assignedTeacherId && row.status === 'active') {
+      } else if (row.assignedTeacherId) {
+        // Role restored to student (e.g. tutor → student): keep referral history,
+        // re-activate so teacher referral counts include this user again.
+        if (row.status === 'pending_assignment' || row.status === 'inactive' || wasUnlinked) {
+          row.status = 'active';
+        }
+      } else if (row.status === 'active') {
         // Idempotent sync without invite context — keep teacher null, mark queue.
         row.status = 'pending_assignment';
-      } else if (row.assignedTeacherId && row.status === 'pending_assignment') {
-        row.status = 'active';
       }
 
       await studentRepo.save(row);
