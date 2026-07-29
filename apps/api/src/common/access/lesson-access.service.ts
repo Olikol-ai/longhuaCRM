@@ -185,6 +185,37 @@ export class LessonAccessService {
     throw new ForbiddenException('Forbidden');
   }
 
+  /**
+   * Owner/admin may change individual lesson student targets via dedicated endpoint.
+   */
+  async assertCanChangeLessonStudents(
+    actor: DomainAccessActor,
+    lesson: LessonEntity,
+  ): Promise<void> {
+    if (this.isAdmin(actor)) {
+      return;
+    }
+
+    const role = normalizeRole(actor.role);
+    if (role === 'teacher') {
+      const teacherId = await this.teacherAccess.resolveTeacherId(actor);
+      if (!teacherId || lesson.teacherId !== teacherId) {
+        throw new ForbiddenException('Можно менять учеников только своих уроков');
+      }
+      return;
+    }
+
+    if (role === 'tutor') {
+      const tutorId = await this.tutorAccess.resolveTutorId(actor);
+      if (!tutorId || lesson.tutorId !== tutorId) {
+        throw new ForbiddenException('Можно менять учеников только своих уроков');
+      }
+      return;
+    }
+
+    throw new ForbiddenException('Forbidden');
+  }
+
   async scopeAttendanceFilter(
     actor: DomainAccessActor,
     where: Record<string, unknown>,

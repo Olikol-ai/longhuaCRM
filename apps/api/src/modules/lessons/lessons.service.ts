@@ -33,10 +33,15 @@ import {
   isScheduleOccupyingLessonStatus,
   LessonEntity,
 } from './entities/lesson.entity';
+import {
+  LessonStudentChangeHistoryEntity,
+  LessonStudentTargetType,
+} from './entities/lesson-student-change-history.entity';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
+import { UpdateLessonStudentsDto } from './dto/update-lesson-students.dto';
 import {
   LESSON_RESCHEDULED,
   LESSON_UPDATED,
@@ -47,6 +52,15 @@ import {
 import { formatStudentProfileDisplayName } from '../users/display-name.util';
 import { LessonsRepository } from './lessons.repository';
 import { VideoService } from '../video/video.service';
+
+/**
+ * Statuses that already deducted a lesson from the student/contact balance.
+ * Reassignment must restore the old target and deduct the new one.
+ */
+const STUDENT_SWAP_BALANCE_STATUSES = new Set([
+  'completed',
+  'missed_no_notice',
+]);
 
 /** Terminal lesson statuses a teacher cannot change again after confirming. */
 const TEACHER_LOCKED_LESSON_STATUSES = new Set([
@@ -104,6 +118,414 @@ export class LessonsService {
       throw new NotFoundException('Lesson not found');
     }
     return (await this.attachDisplayNames([row]))[0];
+  }
+
+  /**
+   * Change the primary student target on an individual / contact / tutor_student lesson.
+   * Group composition is not editable here.
+   */
+  async updateStudents(
+    actor: JwtPayload,
+    id: string,
+    dto: UpdateLessonStudentsDto,
+  ): Promise<LessonEntity> {
+    const before = await this.repository.findById(id);
+    if (!before) {
+      throw new NotFoundException('Lesson not found');
+    }
+
+    await this.lessonAccess.assertCanChangeLessonStudents(actor, before);
+
+    if (before.groupId || before.lessonType === 'group') {
+      throw new BadRequestException(
+        'Состав группового урока меняется через группу, а не через эту кнопку',
+      );
+    }
+
+    const newTarget = this.resolveUpdateStudentsTarget(dto);
+    await this.assertLessonStudentTargetAllowed(before, newTarget);
+
+    const oldTarget = this.resolveCurrentLessonTarget(before);
+    if (
+      oldTarget &&
+      oldTarget.type === newTarget.type &&
+      oldTarget.id === newTarget.id
+    ) {
+      return (await this.attachDisplayNames([before]))[0];
+    }
+
+    const needsBalanceOps = STUDENT_SWAP_BALANCE_STATUSES.has(before.status);
+
+    const updated = await this.dataSource.transaction(async (manager) => {
+      const lessonRepo = manager.getRepository(LessonEntity);
+      const locked = await lessonRepo.findOne({
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!locked) {
+        throw new NotFoundException('Lesson not found');
+      }
+
+      let balanceRestored = false;
+      if (needsBalanceOps && oldTarget) {
+        balanceRestored = await this.restoreBalanceForLessonTarget(
+          locked,
+          oldTarget,
+          manager,
+          actor.sub,
+        );
+      }
+
+      locked.primaryStudentId =
+        newTarget.type === 'student' ? newTarget.id : null;
+      locked.primaryTutorStudentId =
+        newTarget.type === 'tutor_student' ? newTarget.id : null;
+      locked.primaryTeacherStudentContactId =
+        newTarget.type === 'teacher_student_contact' ? newTarget.id : null;
+      await lessonRepo.save(locked);
+
+      await this.syncAttendanceForLessonTarget(locked, newTarget, manager);
+
+      let balanceDeducted = false;
+      if (needsBalanceOps) {
+        balanceDeducted = await this.deductBalanceForLessonTarget(
+          locked,
+          newTarget,
+          manager,
+          actor.sub,
+        );
+      }
+
+      const oldDisplayName = await this.resolveTargetDisplayName(
+        oldTarget,
+        manager,
+      );
+      const newDisplayName =
+        (await this.resolveTargetDisplayName(newTarget, manager)) ||
+        'Без имени';
+
+      await manager.getRepository(LessonStudentChangeHistoryEntity).save(
+        manager.getRepository(LessonStudentChangeHistoryEntity).create({
+          lessonId: locked.id,
+          actorUserId: actor.sub || null,
+          actorRole: normalizeRole(actor.role),
+          oldTargetType: oldTarget?.type ?? null,
+          oldTargetId: oldTarget?.id ?? null,
+          oldDisplayName: oldDisplayName,
+          newTargetType: newTarget.type,
+          newTargetId: newTarget.id,
+          newDisplayName,
+          balanceRestored,
+          balanceDeducted,
+        }),
+      );
+
+      return locked;
+    });
+
+    await this.audit.log({
+      actorUserId: actor.sub,
+      action: 'lesson_student_changed',
+      entityType: 'Lesson',
+      entityId: id,
+      summary: [
+        `Смена ученика урока.`,
+        oldTarget
+          ? `Было: ${oldTarget.type}:${oldTarget.id}`
+          : 'Было: (пусто)',
+        `Стало: ${newTarget.type}:${newTarget.id}`,
+        needsBalanceOps ? 'Баланс пересчитан.' : 'Без операций с балансом.',
+      ].join(' '),
+    });
+
+    const withNames = await this.repository.findById(updated.id);
+    return (await this.attachDisplayNames([withNames ?? updated]))[0];
+  }
+
+  async listStudentChanges(
+    actor: JwtPayload,
+    lessonId: string,
+    limit = 20,
+  ): Promise<LessonStudentChangeHistoryEntity[]> {
+    await this.lessonAccess.assertCanReadLesson(actor, lessonId);
+    const take = Math.min(Math.max(Number(limit) || 20, 1), 50);
+    return this.dataSource.getRepository(LessonStudentChangeHistoryEntity).find({
+      where: { lessonId },
+      order: { createdAt: 'DESC' },
+      take,
+    });
+  }
+
+  private resolveUpdateStudentsTarget(
+    dto: UpdateLessonStudentsDto,
+  ): { type: LessonStudentTargetType; id: string } {
+    const targets: Array<{ type: LessonStudentTargetType; id: string }> = [];
+    if (dto.student_id) {
+      targets.push({ type: 'student', id: dto.student_id });
+    }
+    if (dto.tutor_student_id) {
+      targets.push({ type: 'tutor_student', id: dto.tutor_student_id });
+    }
+    if (dto.teacher_student_contact_id) {
+      targets.push({
+        type: 'teacher_student_contact',
+        id: dto.teacher_student_contact_id,
+      });
+    }
+    if (targets.length !== 1) {
+      throw new BadRequestException(
+        'Укажите ровно одного ученика (student_id, tutor_student_id или teacher_student_contact_id)',
+      );
+    }
+    return targets[0];
+  }
+
+  private resolveCurrentLessonTarget(
+    lesson: LessonEntity,
+  ): { type: LessonStudentTargetType; id: string } | null {
+    if (lesson.primaryStudentId) {
+      return { type: 'student', id: lesson.primaryStudentId };
+    }
+    if (lesson.primaryTutorStudentId) {
+      return { type: 'tutor_student', id: lesson.primaryTutorStudentId };
+    }
+    if (lesson.primaryTeacherStudentContactId) {
+      return {
+        type: 'teacher_student_contact',
+        id: lesson.primaryTeacherStudentContactId,
+      };
+    }
+    return null;
+  }
+
+  private async assertLessonStudentTargetAllowed(
+    lesson: LessonEntity,
+    target: { type: LessonStudentTargetType; id: string },
+  ): Promise<void> {
+    if (lesson.tutorId && !lesson.teacherId) {
+      if (target.type === 'student') {
+        throw new BadRequestException(
+          'Для урока репетитора выберите ученика из блокнота',
+        );
+      }
+      if (target.type === 'tutor_student') {
+        const tutorStudent = await this.dataSource
+          .getRepository(TutorStudentEntity)
+          .findOne({ where: { id: target.id } });
+        if (!tutorStudent) {
+          throw new NotFoundException('Ученик репетитора не найден');
+        }
+        if (tutorStudent.tutorId !== lesson.tutorId) {
+          throw new BadRequestException(
+            'Ученик не принадлежит репетитору этого урока',
+          );
+        }
+        return;
+      }
+      const contact = await this.dataSource
+        .getRepository(TeacherStudentContactEntity)
+        .findOne({ where: { id: target.id } });
+      if (!contact || contact.status === 'inactive') {
+        throw new NotFoundException('Личный ученик не найден');
+      }
+      if (contact.ownerType !== 'tutor' || contact.ownerId !== lesson.tutorId) {
+        throw new BadRequestException(
+          'Личный ученик не принадлежит репетитору этого урока',
+        );
+      }
+      return;
+    }
+
+    if (!lesson.teacherId) {
+      throw new BadRequestException('У урока не указан преподаватель');
+    }
+
+    if (target.type === 'tutor_student') {
+      throw new BadRequestException(
+        'Для урока преподавателя выберите CRM-ученика или личного контакта',
+      );
+    }
+
+    if (target.type === 'student') {
+      const student = await this.dataSource
+        .getRepository(StudentEntity)
+        .findOne({ where: { id: target.id } });
+      if (!student) {
+        throw new NotFoundException('Ученик не найден');
+      }
+      if (student.assignedTeacherId !== lesson.teacherId) {
+        throw new BadRequestException(
+          'Ученик не закреплён за преподавателем этого урока',
+        );
+      }
+      return;
+    }
+
+    const contact = await this.dataSource
+      .getRepository(TeacherStudentContactEntity)
+      .findOne({ where: { id: target.id } });
+    if (!contact || contact.status === 'inactive') {
+      throw new NotFoundException('Личный ученик не найден');
+    }
+    if (
+      contact.ownerType !== 'teacher' ||
+      contact.ownerId !== lesson.teacherId
+    ) {
+      throw new BadRequestException(
+        'Личный ученик не принадлежит преподавателю этого урока',
+      );
+    }
+  }
+
+  private async restoreBalanceForLessonTarget(
+    lesson: LessonEntity,
+    target: { type: LessonStudentTargetType; id: string },
+    manager: EntityManager,
+    actorUserId: string | null,
+  ): Promise<boolean> {
+    if (target.type === 'student') {
+      return this.studentBalanceService.restoreBalanceForReassignment(
+        lesson.id,
+        target.id,
+        manager,
+      );
+    }
+    if (target.type === 'teacher_student_contact') {
+      // Contact restore reads primaryTeacherStudentContactId from the lesson —
+      // call only while the old contact FK is still set.
+      return this.contactBalanceService.restoreForCancelledLesson(
+        lesson.id,
+        manager,
+        actorUserId,
+      );
+    }
+    // TutorStudent notebook without contact balance: no balance ops.
+    return false;
+  }
+
+  private async deductBalanceForLessonTarget(
+    lesson: LessonEntity,
+    target: { type: LessonStudentTargetType; id: string },
+    manager: EntityManager,
+    actorUserId: string | null,
+  ): Promise<boolean> {
+    if (target.type === 'student') {
+      await this.studentBalanceService.handleLessonStatusUpdate(
+        lesson.id,
+        lesson.status,
+        manager,
+      );
+      const attendance = await manager.getRepository(AttendanceEntity).findOne({
+        where: { lessonId: lesson.id, studentId: target.id },
+      });
+      return Boolean(attendance?.balanceDeducted);
+    }
+    if (target.type === 'teacher_student_contact') {
+      await this.contactBalanceService.deductForCompletedLesson(
+        lesson.id,
+        manager,
+        actorUserId,
+      );
+      const attendance = await manager.getRepository(AttendanceEntity).findOne({
+        where: {
+          lessonId: lesson.id,
+          teacherStudentContactId: target.id,
+        },
+      });
+      return Boolean(attendance?.balanceDeducted);
+    }
+    // TutorStudent without contact balance: no balance ops.
+    return false;
+  }
+
+  private async syncAttendanceForLessonTarget(
+    lesson: LessonEntity,
+    target: { type: LessonStudentTargetType; id: string },
+    manager: EntityManager,
+  ): Promise<void> {
+    const attendanceRepo = manager.getRepository(AttendanceEntity);
+    const rows = await attendanceRepo.find({ where: { lessonId: lesson.id } });
+
+    const desiredStudentId = target.type === 'student' ? target.id : null;
+    const desiredTutorStudentId =
+      target.type === 'tutor_student' ? target.id : null;
+    const desiredContactId =
+      target.type === 'teacher_student_contact' ? target.id : null;
+
+    const matching = rows.find((row) => {
+      if (target.type === 'student') {
+        return row.studentId === target.id;
+      }
+      if (target.type === 'tutor_student') {
+        return row.tutorStudentId === target.id;
+      }
+      return row.teacherStudentContactId === target.id;
+    });
+
+    const applyTarget = (row: AttendanceEntity) => {
+      row.studentId = desiredStudentId;
+      row.tutorStudentId = desiredTutorStudentId;
+      row.teacherStudentContactId = desiredContactId;
+    };
+
+    if (matching) {
+      applyTarget(matching);
+      await attendanceRepo.save(matching);
+      for (const row of rows) {
+        if (row.id !== matching.id) {
+          await attendanceRepo.delete({ id: row.id });
+        }
+      }
+      return;
+    }
+
+    if (rows.length >= 1) {
+      const [keep, ...rest] = rows;
+      applyTarget(keep);
+      await attendanceRepo.save(keep);
+      for (const row of rest) {
+        await attendanceRepo.delete({ id: row.id });
+      }
+      return;
+    }
+
+    await attendanceRepo.save(
+      attendanceRepo.create({
+        lessonId: lesson.id,
+        studentId: desiredStudentId,
+        tutorStudentId: desiredTutorStudentId,
+        teacherStudentContactId: desiredContactId,
+        attendanceStatus:
+          lesson.status === 'completed' ? 'attended' : 'enrolled',
+        balanceDeducted: false,
+      }),
+    );
+  }
+
+  private async resolveTargetDisplayName(
+    target: { type: LessonStudentTargetType; id: string } | null,
+    manager: EntityManager,
+  ): Promise<string | null> {
+    if (!target) {
+      return null;
+    }
+    if (target.type === 'student') {
+      const student = await manager.getRepository(StudentEntity).findOne({
+        where: { id: target.id },
+        select: ['id', 'name', 'firstName', 'lastName'],
+      });
+      return student ? formatStudentProfileDisplayName(student) : target.id;
+    }
+    if (target.type === 'tutor_student') {
+      const tutorStudent = await manager
+        .getRepository(TutorStudentEntity)
+        .findOne({ where: { id: target.id }, select: ['id', 'name'] });
+      return tutorStudent?.name?.trim() || target.id;
+    }
+    const contact = await manager
+      .getRepository(TeacherStudentContactEntity)
+      .findOne({ where: { id: target.id }, select: ['id', 'name'] });
+    return contact?.name?.trim() || target.id;
   }
 
   /**

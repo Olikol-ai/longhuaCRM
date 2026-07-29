@@ -3,6 +3,7 @@ import { X, Edit2, Trash2, CheckCircle2, XCircle, Video, Clock, Calendar, Refres
 import { resolveLessonTeacherLabel } from "@/lib/teacherLabels";
 import { resolveLessonStudentNames } from "@/lib/studentLabels";
 import LessonAttendancePanel from "@/components/groups/LessonAttendancePanel";
+import EditLessonStudentsModal from "@/components/schedule/EditLessonStudentsModal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,17 +58,22 @@ export default function LessonDetailModal({
   lesson,
   teachers,
   students,
+  contacts = [],
+  tutorStudents = [],
   isAdmin,
   isTeacher,
+  isTutor = false,
   onUpdate,
   onDelete,
   onClose,
+  onStudentsUpdated,
   showAttendance = false,
 }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ ...lesson });
   const [confirmAttendance, setConfirmAttendance] = useState(null); // 'attended' | 'missed' | null
   const [attendanceBusy, setAttendanceBusy] = useState(false);
+  const [editingStudents, setEditingStudents] = useState(false);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -76,6 +82,7 @@ export default function LessonDetailModal({
     Boolean(isTeacher) && !isAdmin && lesson.status === "planned" && isGroupLesson;
   const showAdminStatusActions =
     Boolean(isAdmin) && lesson.status === "planned";
+  const canChangeStudents = Boolean(isAdmin || isTeacher || isTutor);
 
   const handleSave = () => {
     const primaryStudentId =
@@ -391,6 +398,16 @@ export default function LessonDetailModal({
                   <span className="text-slate-400 dark:text-slate-500 font-normal">—</span>
                 )}
               </DetailField>
+              {canChangeStudents ? (
+                <button
+                  type="button"
+                  onClick={() => setEditingStudents(true)}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  Изменить учеников
+                </button>
+              ) : null}
               {lesson.room ? (
                 <DetailField label="Кабинет" icon={MapPin}>
                   {lesson.room}
@@ -564,6 +581,19 @@ export default function LessonDetailModal({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {editingStudents ? (
+        <EditLessonStudentsModal
+          lesson={lesson}
+          students={students}
+          contacts={contacts}
+          tutorStudents={tutorStudents}
+          onClose={() => setEditingStudents(false)}
+          onUpdated={(updated) => {
+            onStudentsUpdated?.(updated);
+          }}
+        />
+      ) : null}
     </>
   );
 }

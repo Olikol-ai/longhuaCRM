@@ -582,10 +582,17 @@ export default function TeacherSchedule() {
           lesson={viewingLesson}
           teachers={allTeachers.length ? allTeachers : (teacher ? [teacher] : [])}
           students={students}
+          contacts={contacts}
           isAdmin={false}
           isTeacher
           onUpdate={handleUpdateLesson}
           onDelete={() => {}}
+          onStudentsUpdated={(updated) => {
+            setViewingLesson(updated);
+            setLessons((prev) =>
+              prev.map((row) => (row.id === updated.id ? { ...row, ...updated } : row)),
+            );
+          }}
           onClose={() => setViewingLesson(null)}
         />
       )}

@@ -257,10 +257,17 @@ export default function Schedule() {
           lesson={viewingLesson}
           teachers={teachers}
           students={students}
+          contacts={contacts}
           isAdmin={isAdmin}
           isTeacher={role === "teacher"}
           onUpdate={handleUpdate}
           onDelete={handleDelete}
+          onStudentsUpdated={(updated) => {
+            setViewingLesson(updated);
+            setLessons((prev) =>
+              prev.map((row) => (row.id === updated.id ? { ...row, ...updated } : row)),
+            );
+          }}
           onClose={() => setViewingLesson(null)}
           showAttendance={isAdmin}
         />

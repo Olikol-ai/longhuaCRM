@@ -94,21 +94,22 @@ export class TeacherStudentContactBalanceService {
   }
 
   /**
-   * Restore 1 lesson when a previously completed contact lesson is cancelled.
-   * Idempotent: only restores if attendance.balanceDeducted was true.
+   * Restore 1 lesson when a previously completed contact lesson is cancelled
+   * or reassigned. Idempotent: only restores if attendance.balanceDeducted was true.
+   * @returns true when a lesson was actually restored
    */
   async restoreForCancelledLesson(
     lessonId: string,
     manager?: EntityManager,
     createdBy?: string | null,
-  ): Promise<void> {
-    const run = async (em: EntityManager) => {
+  ): Promise<boolean> {
+    const run = async (em: EntityManager): Promise<boolean> => {
       const lesson = await em.getRepository(LessonEntity).findOne({
         where: { id: lessonId },
       });
       const contactId = lesson?.primaryTeacherStudentContactId;
       if (!lesson || !contactId) {
-        return;
+        return false;
       }
 
       const attendanceRepo = em.getRepository(AttendanceEntity);
@@ -118,7 +119,7 @@ export class TeacherStudentContactBalanceService {
       });
 
       if (!attendance?.balanceDeducted) {
-        return;
+        return false;
       }
 
       const cleared = await attendanceRepo.update(
@@ -126,7 +127,7 @@ export class TeacherStudentContactBalanceService {
         { balanceDeducted: false },
       );
       if (!cleared.affected) {
-        return;
+        return false;
       }
 
       const contactRepo = em.getRepository(TeacherStudentContactEntity);
@@ -135,7 +136,7 @@ export class TeacherStudentContactBalanceService {
         lock: { mode: 'pessimistic_write' },
       });
       if (!contact) {
-        return;
+        return false;
       }
 
       const oldBalance = contact.lessonBalance ?? 0;
@@ -150,13 +151,13 @@ export class TeacherStudentContactBalanceService {
         reason: 'Возврат за отменённый урок',
         createdBy: createdBy ?? null,
       });
+      return true;
     };
 
     if (manager) {
-      await run(manager);
-      return;
+      return run(manager);
     }
-    await this.dataSource.transaction(run);
+    return this.dataSource.transaction(run);
   }
 
   async applyManualBalance(

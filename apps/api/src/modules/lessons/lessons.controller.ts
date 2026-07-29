@@ -18,6 +18,7 @@ import { CreateLessonDto } from './dto/create-lesson.dto';
 import { FilterQueryDto } from './dto/filter-query.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
+import { UpdateLessonStudentsDto } from './dto/update-lesson-students.dto';
 import { LessonsService } from './lessons.service';
 
 @Controller('lessons')
@@ -94,6 +95,25 @@ export class LessonsController {
   @Roles('admin', 'teacher', 'tutor')
   cancel(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.lessonsService.cancel(user, id);
+  }
+
+  @Patch(':id/students')
+  @Roles('admin', 'teacher', 'tutor')
+  updateStudents(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateLessonStudentsDto,
+  ) {
+    return this.lessonsService.updateStudents(user, id, dto);
+  }
+
+  @Get(':id/student-changes')
+  @Roles('admin', 'teacher', 'tutor')
+  listStudentChanges(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+  ) {
+    return this.lessonsService.listStudentChanges(user, id);
   }
 
   @Get(':id')

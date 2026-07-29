@@ -15,6 +15,7 @@ import {
 } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import TutorLessonModal from '@/components/tutors/TutorLessonModal';
+import LessonDetailModal from '@/components/schedule/LessonDetailModal';
 import { toast } from '@/components/ui/use-toast';
 import { isOnlineLesson, lessonVideoPath } from '@/lib/lesson-video';
 
@@ -91,11 +92,12 @@ export default function TutorSchedule() {
   const [selectedDate, setSelectedDate] = useState(null);
   const [updating, setUpdating] = useState(null);
   const [selectedDay, setSelectedDay] = useState(null);
+  const [viewingLesson, setViewingLesson] = useState(null);
 
   const loadData = async () => {
     setLoadError(null);
     try {
-      const [me, allLessons, allStudents] = await Promise.all([
+      const [me, allLessons, allContacts] = await Promise.all([
         api.tutors.me(),
         api.lessons.list('-date', 500),
         api.teacherStudentContacts.listMine({ ownerType: 'tutor' }),
@@ -103,7 +105,7 @@ export default function TutorSchedule() {
       setTutor(me);
       // Backend already scopes; keep client filter for safety.
       setLessons((Array.isArray(allLessons) ? allLessons : []).filter((l) => l.tutor_id === me.id));
-      setStudents((Array.isArray(allStudents) ? allStudents : []).filter((s) => s.status !== 'inactive'));
+      setStudents((Array.isArray(allContacts) ? allContacts : []).filter((s) => s.status !== 'inactive'));
     } catch (err) {
       setLoadError(err?.message || 'Не удалось загрузить расписание');
       setTutor(null);
@@ -225,7 +227,7 @@ export default function TutorSchedule() {
               lesson={lesson}
               students={students}
               busy={updating === lesson.id}
-              onOpen={() => setSelectedDay(lesson.date)}
+              onOpen={() => setViewingLesson(lesson)}
               onComplete={(l) => markLesson(l, 'completed')}
               onCancel={(l) => markLesson(l, 'cancelled')}
             />
@@ -288,7 +290,7 @@ export default function TutorSchedule() {
                   lesson={lesson}
                   students={students}
                   busy={updating === lesson.id}
-                  onOpen={() => {}}
+                  onOpen={() => setViewingLesson(lesson)}
                   onComplete={(l) => markLesson(l, 'completed')}
                   onCancel={(l) => markLesson(l, 'cancelled')}
                 />
@@ -297,6 +299,32 @@ export default function TutorSchedule() {
           )}
         </>
       )}
+
+      {viewingLesson ? (
+        <LessonDetailModal
+          lesson={viewingLesson}
+          teachers={[]}
+          students={[]}
+          contacts={students}
+          isAdmin={false}
+          isTeacher={false}
+          isTutor
+          onUpdate={async (id, data) => {
+            await api.lessons.update(id, data);
+            toast({ title: 'Занятие обновлено' });
+            await loadData();
+            setViewingLesson(null);
+          }}
+          onDelete={() => {}}
+          onStudentsUpdated={(updated) => {
+            setViewingLesson(updated);
+            setLessons((prev) =>
+              prev.map((row) => (row.id === updated.id ? { ...row, ...updated } : row)),
+            );
+          }}
+          onClose={() => setViewingLesson(null)}
+        />
+      ) : null}
 
       <TutorLessonModal
         open={showModal}

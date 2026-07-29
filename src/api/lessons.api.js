@@ -24,5 +24,14 @@ export const lessons = {
       body: JSON.stringify(toLessonWritePayload(data)),
     });
   },
+  updateStudents(id, data) {
+    return apiFetch(`/lessons/${id}/students`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+  listStudentChanges(id) {
+    return apiFetch(`/lessons/${id}/student-changes`);
+  },
   attendance,
 };

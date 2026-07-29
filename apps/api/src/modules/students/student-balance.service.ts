@@ -90,6 +90,53 @@ export class StudentBalanceService {
     await this.dataSource.transaction(run);
   }
 
+  /**
+   * Restore 1 lesson when reassigning a CRM student after balance was deducted.
+   * Idempotent via attendance.balanceDeducted.
+   */
+  async restoreBalanceForReassignment(
+    lessonId: string,
+    studentId: string,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    const run = async (em: EntityManager): Promise<boolean> => {
+      const attendanceRepo = em.getRepository(AttendanceEntity);
+      const attendance = await attendanceRepo.findOne({
+        where: { lessonId, studentId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!attendance?.balanceDeducted) {
+        return false;
+      }
+
+      const cleared = await attendanceRepo.update(
+        { id: attendance.id, balanceDeducted: true },
+        { balanceDeducted: false },
+      );
+      if (!cleared.affected) {
+        return false;
+      }
+
+      const studentRepo = em.getRepository(StudentEntity);
+      const student = await studentRepo.findOne({
+        where: { id: studentId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!student) {
+        return false;
+      }
+
+      student.lessonBalance = (student.lessonBalance ?? 0) + 1;
+      await studentRepo.save(student);
+      return true;
+    };
+
+    if (manager) {
+      return run(manager);
+    }
+    return this.dataSource.transaction(run);
+  }
+
   private async resolveCanonicalStudentIds(
     lesson: LessonEntity,
     manager: EntityManager,
