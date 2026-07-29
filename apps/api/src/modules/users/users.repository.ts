@@ -98,6 +98,7 @@ export class UsersRepository implements OnModuleInit {
       avatarFilePath: null,
       avatarThumbPath: null,
       avatarUpdatedAt: null,
+      lastSeenAt: null,
       createdDate: now,
       updatedDate: now,
     });

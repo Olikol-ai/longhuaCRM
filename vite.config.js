@@ -74,6 +74,12 @@ export default defineConfig({
         target: process.env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:3001',
         changeOrigin: true,
       },
+      // Socket.IO for Chats (namespace /chat uses default /socket.io path)
+      '/socket.io': {
+        target: process.env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:3001',
+        changeOrigin: true,
+        ws: true,
+      },
     },
   },
 })

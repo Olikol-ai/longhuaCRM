@@ -56,6 +56,7 @@ import { LessonStudentChangeHistory1743200000000 } from './migrations/1743200000
 import { CleanupInactiveStaffAsStudents1743300000000 } from './migrations/1743300000000-CleanupInactiveStaffAsStudents';
 import { UserAvatarFields1743400000000 } from './migrations/1743400000000-UserAvatarFields';
 import { ContentTasksExamPartsHomeworkTasks1743500000000 } from './migrations/1743500000000-ContentTasksExamPartsHomeworkTasks';
+import { ChatsModule1743600000000 } from './migrations/1743600000000-ChatsModule';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -115,6 +116,7 @@ export default new DataSource({
     CleanupInactiveStaffAsStudents1743300000000,
     UserAvatarFields1743400000000,
     ContentTasksExamPartsHomeworkTasks1743500000000,
+    ChatsModule1743600000000,
   ],
   synchronize: false,
 });

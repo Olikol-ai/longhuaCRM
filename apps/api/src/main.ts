@@ -1,6 +1,7 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import {
@@ -25,6 +26,7 @@ async function bootstrap() {
     logger: ['error', 'warn', 'log'],
     rawBody: false,
   });
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   const config = app.get(ConfigService);
   const port = config.get<number>('port') ?? 3001;

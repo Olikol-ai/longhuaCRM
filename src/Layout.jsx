@@ -19,6 +19,7 @@ import {
   ClipboardList,
   CreditCard,
   NotebookPen,
+  MessageSquare,
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import { useAuth } from "@/lib/AuthContext";
@@ -30,9 +31,11 @@ import {
 } from "@/lib/auth-gate";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { buildUserAvatarUrl } from "@/api/http";
+import { chatsApi } from "@/api/chats.api";
 
 const adminNav = [
   { name: "Главная", icon: LayoutDashboard, page: "Dashboard" },
+  { name: "Чаты", icon: MessageSquare, page: "Chats" },
   { name: "Расписание", icon: Calendar, page: "Schedule" },
   { name: "Панель управления", icon: Layers, page: "AdminPanel" },
   { name: "Пользователи", icon: Users, page: "UserManagement" },
@@ -46,6 +49,7 @@ const adminNav = [
 
 const teacherNav = [
   { name: "Главная", icon: LayoutDashboard, page: "TeacherDashboard" },
+  { name: "Чаты", icon: MessageSquare, page: "Chats" },
   { name: "Моё расписание", icon: Calendar, page: "TeacherSchedule" },
   { name: "Ученики", icon: Users, page: "TeacherStudents" },
   { name: "Экзамены", icon: ClipboardList, page: "TeacherAssessment" },
@@ -59,6 +63,7 @@ const teacherNav = [
 
 const tutorNav = [
   { name: "Главная", icon: LayoutDashboard, page: "TutorDashboard" },
+  { name: "Чаты", icon: MessageSquare, page: "Chats" },
   { name: "Расписание", icon: Calendar, page: "TutorSchedule" },
   { name: "Ученики", icon: Users, page: "TutorStudents" },
   { name: "Мои вопросы", icon: BookOpen, page: "AssessmentQuestions" },
@@ -73,6 +78,7 @@ const tutorNav = [
 
 const studentNav = [
   { name: "Главная", icon: LayoutDashboard, page: "StudentDashboard" },
+  { name: "Чаты", icon: MessageSquare, page: "Chats" },
   { name: "Мои уроки", icon: Calendar, page: "StudentLessons" },
   { name: "Мои материалы", icon: BookOpen, page: "StudentLessonMaterials" },
   { name: "Мои сертификаты", icon: Award, page: "StudentCertificates" },
@@ -83,6 +89,7 @@ const studentNav = [
 ];
 
 const tutorStudentNav = [
+  { name: "Чаты", icon: MessageSquare, page: "Chats" },
   { name: "Домашние задания", icon: NotebookPen, page: "HomeworkViewer" },
   { name: "Профиль", icon: UserCircle, page: "Profile" },
   { name: "Настройки", icon: Settings, page: "Settings" },
@@ -98,6 +105,7 @@ const NAV_BY_ROLE = {
 
 export default function Layout({ children, currentPageName }) {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const [chatUnread, setChatUnread] = React.useState(0);
   const { theme, toggleTheme } = useTheme();
   const auth = useAuth();
   const { user, isAuthenticated, logout } = auth;
@@ -110,6 +118,20 @@ export default function Layout({ children, currentPageName }) {
       document.body.style.overflow = prev;
     };
   }, [sidebarOpen]);
+
+  React.useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    const refreshUnread = () => {
+      void chatsApi.unreadCount().then(({ total }) => setChatUnread(total || 0)).catch(() => {});
+    };
+    refreshUnread();
+    const interval = window.setInterval(refreshUnread, 30_000);
+    window.addEventListener('focus', refreshUnread);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshUnread);
+    };
+  }, [isAuthenticated]);
 
   if (shouldBlockProtectedUI(auth)) {
     return <AuthLoadingScreen />;
@@ -250,6 +272,11 @@ export default function Layout({ children, currentPageName }) {
               >
                 <item.icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-primary-foreground" : ""}`} />
                 <span className="text-[13px] truncate">{item.name}</span>
+                {item.page === 'Chats' && chatUnread > 0 ? (
+                  <span className={`ml-auto flex min-w-4 h-4 items-center justify-center rounded-full px-1 text-[10px] font-bold ${isActive ? 'bg-primary-foreground text-primary' : 'bg-brand text-white'}`}>
+                    {chatUnread > 99 ? '99+' : chatUnread}
+                  </span>
+                ) : null}
                 {isActive && <ChevronRight className="h-4 w-4 ml-auto shrink-0 text-primary-foreground" />}
               </Link>
             );

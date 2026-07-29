@@ -34,6 +34,8 @@ import { TeacherStudentContactAccessService } from './teacher-student-contact-ac
 import { TutorAccessService } from './tutor-access.service';
 import { TutorStudentAccessService } from './tutor-student-access.service';
 import { AssessmentAccessService } from './assessment-access.service';
+import { ChatAccessService } from './chat-access.service';
+import { ChatEntity, ChatMemberEntity, ChatDirectPairEntity } from '../../modules/chats/entities';
 
 @Global()
 @Module({
@@ -60,6 +62,9 @@ import { AssessmentAccessService } from './assessment-access.service';
       AssessmentExamAssignmentEntity,
       AssessmentAttemptEntity,
       AssessmentResultEntity,
+      ChatEntity,
+      ChatMemberEntity,
+      ChatDirectPairEntity,
     ]),
   ],
   providers: [
@@ -74,6 +79,7 @@ import { AssessmentAccessService } from './assessment-access.service';
     MaterialsDomainAccessService,
     CertificateAccessService,
     AssessmentAccessService,
+    ChatAccessService,
   ],
   exports: [
     StudentAccessService,
@@ -87,6 +93,7 @@ import { AssessmentAccessService } from './assessment-access.service';
     MaterialsDomainAccessService,
     CertificateAccessService,
     AssessmentAccessService,
+    ChatAccessService,
   ],
 })
 export class DomainAccessModule {}

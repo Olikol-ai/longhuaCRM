@@ -1,0 +1,173 @@
+import { Type } from 'class-transformer';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsDateString,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+  Max,
+  Min,
+} from 'class-validator';
+import { ChatAttachmentKind, ChatMessageType } from '../enums/chat.enums';
+
+export class CreateGroupChatDto {
+  @IsString()
+  @Length(1, 255)
+  title!: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 4000)
+  description?: string;
+
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsUUID('4', { each: true })
+  memberUserIds!: string[];
+}
+
+export class CreateDirectChatDto {
+  @IsUUID('4')
+  userId!: string;
+}
+
+export class InviteMembersDto {
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsUUID('4', { each: true })
+  memberUserIds!: string[];
+}
+
+export class CreateMessageDto {
+  @IsString()
+  @Length(1, 10000)
+  body!: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  replyToMessageId?: string;
+}
+
+export class CreateCrmCardDto {
+  @IsEnum(ChatMessageType)
+  type!: ChatMessageType;
+
+  @IsString()
+  @Length(1, 32)
+  refEntityType!: string;
+
+  @IsUUID('4')
+  refEntityId!: string;
+}
+
+export class AskAiDto {
+  @IsString()
+  @Length(1, 4000)
+  prompt!: string;
+}
+
+export class UpdateMessageDto {
+  @IsString()
+  @Length(1, 10000)
+  body!: string;
+}
+
+export class MarkReadDto {
+  @IsUUID('4')
+  messageId!: string;
+}
+
+export class ListMessagesDto {
+  @IsOptional()
+  @Type(() => Number)
+  @Min(1)
+  @Max(100)
+  limit?: number;
+
+  @IsOptional()
+  @IsDateString()
+  before?: string;
+}
+
+export class UpdateChatProfileDto {
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  nativeLanguage?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  spokenLanguage?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  timezone?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  levelLabel?: string;
+}
+
+export class ChatDirectoryQueryDto {
+  @IsOptional()
+  @IsString()
+  query?: string;
+
+  @IsOptional()
+  @IsString()
+  role?: string;
+
+  @IsOptional()
+  @IsString()
+  language?: string;
+
+  @IsOptional()
+  @IsString()
+  level?: string;
+
+  @IsOptional()
+  @IsString()
+  timezone?: string;
+}
+
+export class UploadAttachmentDto {
+  @IsOptional()
+  @IsEnum(ChatAttachmentKind)
+  kind?: ChatAttachmentKind;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(600000)
+  durationMs?: number;
+}
+
+export class CreateSubjectDto {
+  @IsString()
+  @Length(1, 255)
+  name!: string;
+
+  @IsString()
+  @Length(1, 64)
+  slug!: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+}
+
+export class AssignUserSubjectDto {
+  @IsUUID('4')
+  userId!: string;
+
+  @IsUUID('4')
+  subjectId!: string;
+}

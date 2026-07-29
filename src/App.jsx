@@ -53,6 +53,7 @@ const HomeworkAssignment = lazy(() => import('./pages/HomeworkAssignment'));
 const HomeworkResults = lazy(() => import('./pages/HomeworkResults'));
 const HomeworkViewer = lazy(() => import('./pages/HomeworkViewer'));
 const LessonVideo = lazy(() => import('./pages/LessonVideo'));
+const Chats = lazy(() => import('./pages/Chats'));
 
 /**
  * Route registration: see docs/frontend-routing.md
@@ -176,6 +177,16 @@ const AuthenticatedApp = () => {
         <Route path="/StudentExams" element={<StudentRoute><LayoutWrapper currentPageName="StudentExams"><StudentExams /></LayoutWrapper></StudentRoute>} />
         <Route path="/StudentExamTake" element={<StudentRoute><LayoutWrapper currentPageName="StudentExams"><StudentExamTake /></LayoutWrapper></StudentRoute>} />
         <Route path="/HomeworkViewer" element={<StudentRoute allowTutorStudent><LayoutWrapper currentPageName="HomeworkViewer"><HomeworkViewer /></LayoutWrapper></StudentRoute>} />
+        <Route
+          path="/Chats"
+          element={
+            <PathAccessGuard>
+              <LayoutWrapper currentPageName="Chats">
+                <Chats />
+              </LayoutWrapper>
+            </PathAccessGuard>
+          }
+        />
         <Route
           path="/lesson/:id/video"
           element={

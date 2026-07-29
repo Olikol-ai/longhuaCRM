@@ -26,6 +26,7 @@ export const ROLE_DASHBOARD_PATHS = {
 const EXACT_ROUTE_ACCESS = {
   '/Profile': ['admin', 'teacher', 'tutor', 'student', 'tutor_student'],
   '/Settings': ['admin', 'teacher', 'tutor', 'student', 'tutor_student'],
+  '/Chats': ['admin', 'teacher', 'tutor', 'student', 'tutor_student'],
   '/Welcome': ['admin', 'teacher', 'tutor', 'student', 'tutor_student'],
   [ONBOARDING_PATH]: ['admin', 'teacher', 'tutor', 'student', 'tutor_student'],
 

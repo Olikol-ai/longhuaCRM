@@ -85,6 +85,9 @@ export class UserEntity {
   @Column({ name: 'avatar_updated_at', type: 'timestamptz', nullable: true })
   avatarUpdatedAt: Date | null;
 
+  @Column({ name: 'last_seen_at', type: 'timestamptz', nullable: true })
+  lastSeenAt: Date | null;
+
   @CreateDateColumn({ name: 'created_date', type: 'timestamptz' })
   createdDate: Date;
 

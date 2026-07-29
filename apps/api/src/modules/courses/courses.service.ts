@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { FindOptionsWhere } from 'typeorm';
 import { CourseAccessService } from '../../common/access/course-access.service';
 import { JwtPayload } from '../auth/auth.service';
@@ -10,6 +10,7 @@ import { UpdateCourseTemplateDto } from './dto/update-course-template.dto';
 import { UpdateEnrollmentDto } from './dto/update-enrollment.dto';
 import { EnrollmentProgressService } from './enrollment-progress.service';
 import { CoursesRepository } from './courses.repository';
+import { ChatMembershipSyncService } from '../chats/services/chat-membership-sync.service';
 
 @Injectable()
 export class CoursesService {
@@ -17,6 +18,8 @@ export class CoursesService {
     private readonly repository: CoursesRepository,
     private readonly courseAccess: CourseAccessService,
     private readonly enrollmentProgress: EnrollmentProgressService,
+    @Inject(forwardRef(() => ChatMembershipSyncService))
+    private readonly chatMembershipSync: ChatMembershipSyncService,
   ) {}
 
   async findAllTemplates(actor: JwtPayload): Promise<CourseTemplateEntity[]> {
@@ -113,8 +116,10 @@ export class CoursesService {
     return this.enrollmentProgress.toProgress(enrollment);
   }
 
-  createEnrollment(dto: CreateEnrollmentDto): Promise<EnrollmentEntity> {
-    return this.repository.saveEnrollment(dto);
+  async createEnrollment(dto: CreateEnrollmentDto): Promise<EnrollmentEntity> {
+    const enrollment = await this.repository.saveEnrollment(dto);
+    await this.chatMembershipSync.ensureCourseChatForEnrollment(enrollment);
+    return enrollment;
   }
 
   async updateEnrollment(id: string, dto: UpdateEnrollmentDto): Promise<EnrollmentEntity> {

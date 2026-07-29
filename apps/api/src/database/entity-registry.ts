@@ -45,6 +45,7 @@ import { UserEntity } from '../modules/users/entities/user.entity';
 import { LessonConfirmationEntity } from '../modules/lesson-confirmations/entities/lesson-confirmation.entity';
 import { ASSESSMENT_ENTITIES } from '../modules/assessment/entities';
 import { HOMEWORK_ENTITIES } from '../modules/homework/entities';
+import { CHAT_ENTITIES } from '../modules/chats/entities';
 
 /** All v2 domain entities for TypeORM registration. */
 export const ALL_V2_ENTITIES = [
@@ -95,4 +96,5 @@ export const ALL_V2_ENTITIES = [
   AppSettingEntity,
   ...ASSESSMENT_ENTITIES,
   ...HOMEWORK_ENTITIES,
+  ...CHAT_ENTITIES,
 ];
