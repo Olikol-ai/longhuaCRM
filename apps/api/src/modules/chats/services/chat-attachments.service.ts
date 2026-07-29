@@ -48,7 +48,10 @@ export class ChatAttachmentsService {
           ? ChatMessageType.Voice
           : ChatMessageType.File;
 
-    const message = await this.messages.createTyped(actor, chatId, messageType, null);
+    // Persist message first without WS broadcast; emit only after attachment row exists.
+    const message = await this.messages.createTyped(actor, chatId, messageType, null, {
+      broadcast: false,
+    });
     const attachment = await this.attachmentRepo.save({
       messageId: message.id,
       kind,
@@ -65,6 +68,11 @@ export class ChatAttachmentsService {
         attachmentId: attachment.id,
         durationMs: durationMs ?? 0,
       });
+    }
+
+    const hydrated = await this.messages.getHydrated(message.id);
+    if (hydrated) {
+      await this.messages.broadcastCreated(hydrated);
     }
 
     return attachment;

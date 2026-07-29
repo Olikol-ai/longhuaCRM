@@ -15,9 +15,12 @@ function ChatRow({ chat, active, onSelect, onlineUserIds }) {
     chat.kind === 'direct' &&
     Array.isArray(onlineUserIds) &&
     onlineUserIds.some(Boolean);
+  const memberCount = chat.memberCount ?? chat.member_count;
+  const onlineCount = chat.onlineCount ?? chat.online_count;
+  const unreadCount = chat.unreadCount ?? chat.unread_count ?? 0;
   const memberMeta =
-    chat.kind !== 'direct' && (chat.memberCount != null || chat.onlineCount != null)
-      ? `👥 ${chat.memberCount ?? '—'} · Онлайн: ${chat.onlineCount ?? 0}`
+    chat.kind !== 'direct' && (memberCount != null || onlineCount != null)
+      ? `👥 ${memberCount ?? '—'} · Онлайн: ${onlineCount ?? 0}`
       : null;
 
   return (
@@ -45,9 +48,9 @@ function ChatRow({ chat, active, onSelect, onlineUserIds }) {
           <span className="block truncate text-[11px] opacity-75">{chat.description}</span>
         ) : null}
       </span>
-      {chat.unreadCount > 0 ? (
+      {unreadCount > 0 ? (
         <span className="flex min-w-4 h-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-white">
-          {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
+          {unreadCount > 99 ? '99+' : unreadCount}
         </span>
       ) : null}
     </button>

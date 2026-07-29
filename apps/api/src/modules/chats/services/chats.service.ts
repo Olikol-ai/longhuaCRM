@@ -8,6 +8,7 @@ import {
   ChatMemberEntity,
   ChatMessageEntity,
   ChatPinnedMessageEntity,
+  ChatReadReceiptEntity,
   UserChatProfileEntity,
 } from '../entities';
 import { ChatKind, ChatMemberRole } from '../enums/chat.enums';
@@ -34,6 +35,8 @@ export class ChatsService {
     @InjectRepository(ChatMessageEntity) private readonly messageRepo: Repository<ChatMessageEntity>,
     @InjectRepository(ChatPinnedMessageEntity)
     private readonly pinnedRepo: Repository<ChatPinnedMessageEntity>,
+    @InjectRepository(ChatReadReceiptEntity)
+    private readonly receiptRepo: Repository<ChatReadReceiptEntity>,
     @InjectRepository(UserChatProfileEntity)
     private readonly profileRepo: Repository<UserChatProfileEntity>,
     private readonly access: ChatAccessService,
@@ -106,6 +109,29 @@ export class ChatsService {
     });
     if (!message) throw new NotFoundException('Message not found');
     await this.memberRepo.update({ chatId, userId: actor.sub }, { lastReadMessageId: messageId });
+
+    const toMark = await this.messageRepo
+      .createQueryBuilder('message')
+      .select(['message.id'])
+      .where('message.chatId = :chatId', { chatId })
+      .andWhere('message.deletedAt IS NULL')
+      .andWhere('message.createdAt <= :createdAt', { createdAt: message.createdAt })
+      .getMany();
+
+    if (toMark.length === 0) return;
+
+    await this.receiptRepo
+      .createQueryBuilder()
+      .insert()
+      .into(ChatReadReceiptEntity)
+      .values(
+        toMark.map((row) => ({
+          messageId: row.id,
+          userId: actor.sub,
+        })),
+      )
+      .orIgnore()
+      .execute();
   }
 
   async createGroup(

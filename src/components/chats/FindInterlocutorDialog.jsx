@@ -6,10 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
-
-function displayName(user) {
-  return [user.lastName, user.firstName].filter(Boolean).join(' ') || user.email;
-}
+import { displayUserName } from '@/lib/chat-normalize';
 
 /**
  * Search users and send a DM request (does not create a chat).
@@ -99,7 +96,7 @@ export default function FindInterlocutorDialog({ open, onOpenChange, onRequestSe
               className="flex items-center justify-between gap-3 rounded-md p-2 hover:bg-muted"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{displayName(user)}</p>
+                <p className="truncate text-sm font-medium">{displayUserName(user)}</p>
                 <p className="truncate text-xs text-muted-foreground">
                   {user.email} · {user.role}
                   {!user.canRequest && user.canRequestReason

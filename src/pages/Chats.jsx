@@ -13,6 +13,14 @@ import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/lib/AuthContext';
 import {
+  messageCreatedAtMs,
+  normalizeChat,
+  normalizeChatGroups,
+  normalizeMessage,
+  normalizeMessages,
+  pickField,
+} from '@/lib/chat-normalize';
+import {
   connectChatSocket,
   disconnectChatSocket,
   emitMessageRead,
@@ -22,15 +30,20 @@ import {
 } from '@/lib/chat-socket';
 
 const emptyGroups = {};
+const PAGE_SIZE = 50;
 
 function addOrReplaceMessage(previous, message) {
-  const existing = previous.findIndex((item) => item.id === message.id);
+  const next = normalizeMessage(message);
+  if (!next?.id) return previous;
+  const existing = previous.findIndex((item) => item.id === next.id);
   if (existing === -1) {
-    return [...previous, message].sort(
-      (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
-    );
+    return [...previous, next].sort((a, b) => messageCreatedAtMs(a) - messageCreatedAtMs(b));
   }
-  return previous.map((item) => (item.id === message.id ? { ...item, ...message } : item));
+  return previous.map((item) => (item.id === next.id ? { ...item, ...next } : item));
+}
+
+function toChronological(listedNewestFirst) {
+  return [...normalizeMessages(listedNewestFirst)].reverse();
 }
 
 export default function Chats() {
@@ -49,12 +62,15 @@ export default function Chats() {
   const [requestsOpen, setRequestsOpen] = useState(searchParams.get('tab') === 'requests');
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasMoreOlder, setHasMoreOlder] = useState(true);
 
   const loadChats = useCallback(async (preferredChatId) => {
     const data = await chatsApi.list();
-    setGroups(data.groups || {});
+    const nextGroups = normalizeChatGroups(data.groups || {});
+    setGroups(nextGroups);
     setActiveChat((current) => {
-      const allChats = Object.values(data.groups || {}).flat();
+      const allChats = Object.values(nextGroups).flat();
       return (
         allChats.find((chat) => chat.id === (preferredChatId || current?.id)) ||
         allChats[0] ||
@@ -86,19 +102,22 @@ export default function Chats() {
     const refreshUnread = () =>
       void chatsApi
         .unreadCount()
-        .then(({ byChat }) =>
+        .then((summary) => {
+          const byChat = pickField(summary, 'byChat', 'by_chat') || {};
           setGroups((previous) =>
             Object.fromEntries(
               Object.entries(previous).map(([kind, chats]) => [
                 kind,
-                chats.map((chat) => ({
-                  ...chat,
-                  unreadCount: byChat?.[chat.id] || 0,
-                })),
+                chats.map((chat) =>
+                  normalizeChat({
+                    ...chat,
+                    unreadCount: byChat?.[chat.id] || 0,
+                  }),
+                ),
               ]),
             ),
-          ),
-        )
+          );
+        })
         .catch(() => {});
     const interval = window.setInterval(refreshUnread, 30_000);
     window.addEventListener('focus', refreshUnread);
@@ -113,24 +132,34 @@ export default function Chats() {
       setMessages([]);
       setMembers([]);
       setPins([]);
+      setHasMoreOlder(true);
       return undefined;
     }
     let stale = false;
     const chatId = activeChat.id;
     joinChat(chatId);
+    setHasMoreOlder(true);
     Promise.all([
-      chatsApi.messages(chatId, { limit: 100 }),
+      chatsApi.messages(chatId, { limit: PAGE_SIZE }),
       chatsApi.members(chatId),
       chatsApi.pins(chatId),
     ])
       .then(([listedMessages, chatMembers, chatPins]) => {
         if (stale) return;
-        setMessages([...listedMessages].reverse());
-        setMembers(chatMembers);
-        setPins(chatPins);
+        const chronological = toChronological(listedMessages);
+        setMessages(chronological);
+        setHasMoreOlder(Array.isArray(listedMessages) && listedMessages.length >= PAGE_SIZE);
+        setMembers(Array.isArray(chatMembers) ? chatMembers : []);
+        setPins(Array.isArray(chatPins) ? chatPins : []);
       })
-      .catch(() => {
-        if (!stale) setMessages([]);
+      .catch((err) => {
+        if (stale) return;
+        setMessages([]);
+        toast({
+          title: 'Не удалось загрузить историю',
+          description: err?.message,
+          variant: 'destructive',
+        });
       });
     return () => {
       stale = true;
@@ -142,50 +171,65 @@ export default function Chats() {
     () =>
       subscribeToChatSocket({
         'message.created': (message) => {
-          if (message.chatId !== activeChat?.id) {
+          const next = normalizeMessage(message);
+          if (!next) return;
+          if (next.chatId !== activeChat?.id) {
             void loadChats();
             return;
           }
-          setMessages((previous) => addOrReplaceMessage(previous, message));
+          setMessages((previous) => addOrReplaceMessage(previous, next));
           void loadChats(activeChat.id);
         },
         'message.updated': (message) => {
-          if (message.chatId === activeChat?.id) {
-            setMessages((previous) => addOrReplaceMessage(previous, message));
+          const next = normalizeMessage(message);
+          if (next?.chatId === activeChat?.id) {
+            setMessages((previous) => addOrReplaceMessage(previous, next));
           }
         },
-        'message.deleted': ({ chatId, messageId }) => {
-          if (chatId === activeChat?.id) {
+        'message.deleted': (payload) => {
+          const chatId = pickField(payload, 'chatId', 'chat_id');
+          const messageId = pickField(payload, 'messageId', 'message_id');
+          if (chatId === activeChat?.id && messageId) {
             setMessages((previous) => previous.filter((message) => message.id !== messageId));
           }
         },
-        'typing.start': ({ chatId, userId }) => {
-          if (chatId === activeChat?.id && userId !== user?.id) {
+        'typing.start': (payload) => {
+          const chatId = pickField(payload, 'chatId', 'chat_id');
+          const userId = pickField(payload, 'userId', 'user_id');
+          if (chatId === activeChat?.id && userId && userId !== user?.id) {
             setTypingUserIds((previous) => [...new Set([...previous, userId])]);
           }
         },
-        'typing.stop': ({ chatId, userId }) => {
-          if (chatId === activeChat?.id) {
+        'typing.stop': (payload) => {
+          const chatId = pickField(payload, 'chatId', 'chat_id');
+          const userId = pickField(payload, 'userId', 'user_id');
+          if (chatId === activeChat?.id && userId) {
             setTypingUserIds((previous) => previous.filter((id) => id !== userId));
           }
         },
-        'user.online': ({ userId }) => {
-          setOnlineUserIds((previous) => [...new Set([...previous, userId])]);
+        'user.online': (payload) => {
+          const userId = pickField(payload, 'userId', 'user_id');
+          if (userId) setOnlineUserIds((previous) => [...new Set([...previous, userId])]);
         },
-        'user.offline': ({ userId }) => {
-          setOnlineUserIds((previous) => previous.filter((id) => id !== userId));
+        'user.offline': (payload) => {
+          const userId = pickField(payload, 'userId', 'user_id');
+          if (userId) setOnlineUserIds((previous) => previous.filter((id) => id !== userId));
         },
         'chat.request.created': () => {
           void loadPendingCount();
         },
         'chat.request.accepted': (payload) => {
           void loadPendingCount();
-          void loadChats(payload?.chat?.id || payload?.createdChatId);
+          void loadChats(
+            pickField(payload?.chat, 'id') ||
+              pickField(payload, 'createdChatId', 'created_chat_id'),
+          );
         },
         'chat.created': (chat) => {
           void loadChats(chat?.id);
         },
-        'chat.deleted': ({ chatId }) => {
+        'chat.deleted': (payload) => {
+          const chatId = pickField(payload, 'chatId', 'chat_id');
           if (activeChat?.id === chatId) setActiveChat(null);
           void loadChats();
         },
@@ -194,7 +238,7 @@ export default function Chats() {
   );
 
   const selectChat = (chat) => {
-    setActiveChat(chat);
+    setActiveChat(normalizeChat(chat));
     setSidebarOpen(false);
     setRequestsOpen(false);
   };
@@ -210,6 +254,36 @@ export default function Chats() {
     [activeChat?.id],
   );
 
+  const loadOlderMessages = useCallback(async () => {
+    if (!activeChat?.id || loadingOlder || !hasMoreOlder || messages.length === 0) return;
+    const oldest = messages[0];
+    if (!oldest?.id) return;
+    setLoadingOlder(true);
+    try {
+      const listed = await chatsApi.messages(activeChat.id, {
+        limit: PAGE_SIZE,
+        before: oldest.id,
+      });
+      const older = toChronological(listed);
+      setHasMoreOlder(Array.isArray(listed) && listed.length >= PAGE_SIZE);
+      if (older.length) {
+        setMessages((previous) => {
+          const ids = new Set(previous.map((item) => item.id));
+          const merged = [...older.filter((item) => !ids.has(item.id)), ...previous];
+          return merged.sort((a, b) => messageCreatedAtMs(a) - messageCreatedAtMs(b));
+        });
+      }
+    } catch (err) {
+      toast({
+        title: 'Не удалось подгрузить сообщения',
+        description: err?.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [activeChat?.id, hasMoreOlder, loadingOlder, messages]);
+
   const addMessage = (message) => {
     setMessages((previous) => addOrReplaceMessage(previous, message));
     void loadChats(activeChat?.id);
@@ -218,8 +292,18 @@ export default function Chats() {
   const uploadedAttachment = () => {
     if (!activeChat?.id) return;
     void chatsApi
-      .messages(activeChat.id, { limit: 100 })
-      .then((listed) => setMessages([...listed].reverse()));
+      .messages(activeChat.id, { limit: PAGE_SIZE })
+      .then((listed) => {
+        setMessages(toChronological(listed));
+        setHasMoreOlder(Array.isArray(listed) && listed.length >= PAGE_SIZE);
+      })
+      .catch((err) => {
+        toast({
+          title: 'Не удалось обновить историю',
+          description: err?.message,
+          variant: 'destructive',
+        });
+      });
   };
 
   const pin = async (messageId) => {
@@ -231,7 +315,11 @@ export default function Chats() {
   const unpin = async (messageId) => {
     if (!activeChat?.id) return;
     await chatsApi.unpin(activeChat.id, messageId);
-    setPins((previous) => previous.filter((pinItem) => pinItem.messageId !== messageId));
+    setPins((previous) =>
+      previous.filter(
+        (pinItem) => pickField(pinItem, 'messageId', 'message_id') !== messageId,
+      ),
+    );
   };
 
   const hideChat = async () => {
@@ -308,6 +396,9 @@ export default function Chats() {
                   messages={messages}
                   typingUserIds={typingUserIds}
                   currentUserId={user?.id}
+                  loadingOlder={loadingOlder}
+                  hasMoreOlder={hasMoreOlder}
+                  onLoadOlder={() => void loadOlderMessages()}
                   onOpenSidebar={() => setSidebarOpen(true)}
                   onOpenInfo={() => setInfoOpen(true)}
                   onPin={(messageId) => void pin(messageId)}
@@ -331,7 +422,7 @@ export default function Chats() {
               open
               onClose={closeRequests}
               onAccepted={(accepted) => {
-                const chatId = accepted?.createdChatId || accepted?.created_chat_id;
+                const chatId = pickField(accepted, 'createdChatId', 'created_chat_id');
                 void loadChats(chatId);
                 closeRequests();
               }}
@@ -359,7 +450,7 @@ export default function Chats() {
               open
               onClose={closeRequests}
               onAccepted={(accepted) => {
-                const chatId = accepted?.createdChatId || accepted?.created_chat_id;
+                const chatId = pickField(accepted, 'createdChatId', 'created_chat_id');
                 void loadChats(chatId);
                 closeRequests();
                 setInfoOpen(false);

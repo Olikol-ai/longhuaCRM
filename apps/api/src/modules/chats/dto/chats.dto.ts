@@ -2,7 +2,6 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
-  IsDateString,
   IsEnum,
   IsInt,
   IsOptional,
@@ -114,8 +113,9 @@ export class ListMessagesDto {
   @Max(100)
   limit?: number;
 
+  /** Cursor: message UUID (preferred) or ISO datetime (legacy). */
   @IsOptional()
-  @IsDateString()
+  @IsString()
   before?: string;
 }
 

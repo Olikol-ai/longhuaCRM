@@ -169,11 +169,6 @@ export class ChatsController {
     return this.messages.softDelete(actor, messageId);
   }
 
-  @Get(':chatId')
-  get(@CurrentUser() actor: JwtPayload, @Param('chatId') chatId: string) {
-    return this.chats.getChat(actor, chatId);
-  }
-
   @Delete(':chatId/membership')
   hideMembership(@CurrentUser() actor: JwtPayload, @Param('chatId') chatId: string) {
     return this.chats.hideMembership(actor, chatId);
@@ -218,12 +213,12 @@ export class ChatsController {
     @Param('chatId') chatId: string,
     @Query() query: ListMessagesDto,
   ) {
-    return this.messages.list(
-      actor,
-      chatId,
-      query.limit,
-      query.before ? new Date(query.before) : undefined,
-    );
+    return this.messages.list(actor, chatId, query.limit, query.before);
+  }
+
+  @Get(':chatId')
+  get(@CurrentUser() actor: JwtPayload, @Param('chatId') chatId: string) {
+    return this.chats.getChat(actor, chatId);
   }
 
   @Post(':chatId/messages')

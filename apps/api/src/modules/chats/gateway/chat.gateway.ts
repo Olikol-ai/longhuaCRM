@@ -12,6 +12,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Server, Socket } from 'socket.io';
 import { Repository } from 'typeorm';
 import { ChatAccessService } from '../../../common/access/chat-access.service';
+import { entityToApiRecord } from '../../../common/utils/api-record.util';
 import { JwtPayload } from '../../auth/auth.service';
 import { UserEntity } from '../../users/entities/user.entity';
 import { ChatMessageEntity } from '../entities';
@@ -139,11 +140,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   emitMessageCreated(message: ChatMessageEntity): void {
-    this.server?.to(`chat:${message.chatId}`).emit('message.created', message);
+    this.server
+      ?.to(`chat:${message.chatId}`)
+      .emit('message.created', entityToApiRecord(message));
   }
 
   emitMessageUpdated(message: ChatMessageEntity): void {
-    this.server?.to(`chat:${message.chatId}`).emit('message.updated', message);
+    this.server
+      ?.to(`chat:${message.chatId}`)
+      .emit('message.updated', entityToApiRecord(message));
   }
 
   emitMessageDeleted(chatId: string, messageId: string): void {

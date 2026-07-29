@@ -2,11 +2,7 @@ import { useEffect, useState } from 'react';
 import { chatsApi } from '@/api/chats.api';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
-
-function displayName(user) {
-  if (!user) return 'Пользователь';
-  return [user.lastName, user.firstName].filter(Boolean).join(' ') || user.email || 'Пользователь';
-}
+import { displayUserName, pickField } from '@/lib/chat-normalize';
 
 /**
  * Incoming / outgoing DM requests panel.
@@ -71,12 +67,15 @@ export default function DmRequestsPanel({ open, onClose, onAccepted }) {
           <p className="text-sm text-muted-foreground">Нет запросов</p>
         ) : null}
         {rows.map((req) => {
-          const peer = tab === 'incoming' ? req.fromUser : req.toUser;
+          const peer =
+            tab === 'incoming'
+              ? pickField(req, 'fromUser', 'from_user')
+              : pickField(req, 'toUser', 'to_user');
           return (
             <div key={req.id} className="rounded-lg border border-border p-3 space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-sm font-medium">{displayName(peer)}</p>
+                  <p className="text-sm font-medium">{displayUserName(peer)}</p>
                   <p className="text-xs text-muted-foreground">{req.status}</p>
                 </div>
               </div>

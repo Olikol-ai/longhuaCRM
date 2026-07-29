@@ -2,6 +2,7 @@ import { Bot, Mic, Paperclip, Send, Square } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { toast } from '@/components/ui/use-toast';
 import { chatsApi } from '@/api/chats.api';
 import { emitTyping } from '@/lib/chat-socket';
 
@@ -35,6 +36,12 @@ export default function ChatComposer({ chat, disabled, onMessageCreated, onAttac
       setBody('');
       emitTyping(chat.id, false);
       onMessageCreated(message);
+    } catch (err) {
+      toast({
+        title: 'Не удалось отправить сообщение',
+        description: err?.message,
+        variant: 'destructive',
+      });
     } finally {
       setSending(false);
     }
@@ -53,8 +60,14 @@ export default function ChatComposer({ chat, disabled, onMessageCreated, onAttac
     setSending(true);
     try {
       const kind = options.kind || (file.type.startsWith('image/') ? 'image' : 'file');
-      const attachment = await chatsApi.uploadAttachment(chat.id, file, { kind, durationMs: options.durationMs });
-      onAttachmentUploaded(attachment);
+      await chatsApi.uploadAttachment(chat.id, file, { kind, durationMs: options.durationMs });
+      onAttachmentUploaded();
+    } catch (err) {
+      toast({
+        title: 'Не удалось загрузить файл',
+        description: err?.message,
+        variant: 'destructive',
+      });
     } finally {
       setSending(false);
     }
@@ -64,26 +77,34 @@ export default function ChatComposer({ chat, disabled, onMessageCreated, onAttac
 
   const toggleRecording = async () => {
     if (recording) return stopRecording();
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mimeType = supportedAudioType();
-    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-    chunksRef.current = [];
-    startedAtRef.current = Date.now();
-    recorder.ondataavailable = (event) => {
-      if (event.data.size) chunksRef.current.push(event.data);
-    };
-    recorder.onstop = async () => {
-      setRecording(false);
-      stream.getTracks().forEach((track) => track.stop());
-      const durationMs = Date.now() - (startedAtRef.current || Date.now());
-      const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
-      const extension = blob.type.includes('ogg') ? 'ogg' : 'webm';
-      const file = new File([blob], `voice-${Date.now()}.${extension}`, { type: blob.type });
-      await uploadFile(file, { kind: 'voice', durationMs });
-    };
-    recorderRef.current = recorder;
-    recorder.start();
-    setRecording(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = supportedAudioType();
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      chunksRef.current = [];
+      startedAtRef.current = Date.now();
+      recorder.ondataavailable = (event) => {
+        if (event.data.size) chunksRef.current.push(event.data);
+      };
+      recorder.onstop = async () => {
+        setRecording(false);
+        stream.getTracks().forEach((track) => track.stop());
+        const durationMs = Date.now() - (startedAtRef.current || Date.now());
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        const extension = blob.type.includes('ogg') ? 'ogg' : 'webm';
+        const file = new File([blob], `voice-${Date.now()}.${extension}`, { type: blob.type });
+        await uploadFile(file, { kind: 'voice', durationMs });
+      };
+      recorderRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+    } catch (err) {
+      toast({
+        title: 'Нет доступа к микрофону',
+        description: err?.message,
+        variant: 'destructive',
+      });
+    }
   };
 
   const askAi = async () => {
@@ -94,25 +115,46 @@ export default function ChatComposer({ chat, disabled, onMessageCreated, onAttac
       const message = await chatsApi.askAi(chat.id, prompt);
       setBody('');
       onMessageCreated(message);
+    } catch (err) {
+      toast({
+        title: 'AI не ответил',
+        description: err?.message,
+        variant: 'destructive',
+      });
     } finally {
       setSending(false);
     }
   };
 
   if (disabled) {
-    return <div className="border-t border-border px-4 py-3 text-sm text-muted-foreground">Публиковать новости может только администратор.</div>;
+    return (
+      <div className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
+        Публиковать новости может только администратор.
+      </div>
+    );
   }
 
   return (
     <div className="border-t border-border p-2">
       <div className="flex items-center gap-1">
-        <Button size="icon" variant="ghost" onClick={() => fileInputRef.current?.click()} disabled={sending} aria-label="Прикрепить файл">
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={sending}
+          aria-label="Прикрепить файл"
+        >
           <Paperclip />
         </Button>
-        <input ref={fileInputRef} type="file" className="hidden" onChange={(event) => {
-          void uploadFile(event.target.files?.[0]);
-          event.target.value = '';
-        }} />
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={(event) => {
+            void uploadFile(event.target.files?.[0]);
+            event.target.value = '';
+          }}
+        />
         <Input
           value={body}
           onChange={updateText}
@@ -125,13 +167,30 @@ export default function ChatComposer({ chat, disabled, onMessageCreated, onAttac
           placeholder="Написать сообщение…"
           disabled={sending}
         />
-        <Button size="icon" variant="ghost" onClick={() => void askAi()} disabled={!body.trim() || sending} aria-label="Спросить AI">
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={() => void askAi()}
+          disabled={!body.trim() || sending}
+          aria-label="Спросить AI"
+        >
           <Bot />
         </Button>
-        <Button size="icon" variant={recording ? 'destructive' : 'ghost'} onClick={() => void toggleRecording()} disabled={sending} aria-label="Голосовое сообщение">
+        <Button
+          size="icon"
+          variant={recording ? 'destructive' : 'ghost'}
+          onClick={() => void toggleRecording()}
+          disabled={sending}
+          aria-label="Голосовое сообщение"
+        >
           {recording ? <Square /> : <Mic />}
         </Button>
-        <Button size="icon" onClick={() => void send()} disabled={!body.trim() || sending} aria-label="Отправить">
+        <Button
+          size="icon"
+          onClick={() => void send()}
+          disabled={!body.trim() || sending}
+          aria-label="Отправить"
+        >
           <Send />
         </Button>
       </div>
