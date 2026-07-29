@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, GoneException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, MoreThan, Repository } from 'typeorm';
 import { ChatAccessService } from '../../../common/access/chat-access.service';
@@ -11,9 +11,15 @@ import {
   UserChatProfileEntity,
 } from '../entities';
 import { ChatKind, ChatMemberRole } from '../enums/chat.enums';
+import { ChatGateway } from '../gateway/chat.gateway';
 import { ChatMembershipSyncService } from './chat-membership-sync.service';
+import { ChatPresenceService } from './chat-presence.service';
 
-export type ChatListItem = ChatEntity & { unreadCount: number };
+export type ChatListItem = ChatEntity & {
+  unreadCount: number;
+  memberCount: number;
+  onlineCount: number;
+};
 
 export type ChatListResponse = {
   groups: Record<string, ChatListItem[]>;
@@ -32,12 +38,14 @@ export class ChatsService {
     private readonly profileRepo: Repository<UserChatProfileEntity>,
     private readonly access: ChatAccessService,
     private readonly membershipSync: ChatMembershipSyncService,
+    private readonly presence: ChatPresenceService,
+    @Optional() private readonly gateway?: ChatGateway,
   ) {}
 
   async listChats(actor: DomainAccessActor): Promise<ChatListResponse> {
     await this.membershipSync.ensureForUser(actor.sub);
     const memberships = await this.memberRepo.find({
-      where: { userId: actor.sub },
+      where: { userId: actor.sub, hiddenAt: IsNull() },
       relations: { chat: true, lastReadMessage: true },
     });
     const chats = this.access.isAdmin(actor)
@@ -50,8 +58,10 @@ export class ChatsService {
     const items: ChatListItem[] = [];
     for (const chat of chats) {
       const membership = membershipByChat.get(chat.id);
+      if (!this.access.isAdmin(actor) && membership?.hiddenAt) continue;
       const unreadCount = await this.countUnread(chat.id, membership);
-      items.push(Object.assign(chat, { unreadCount }));
+      const counts = await this.memberOnlineCounts(chat.id);
+      items.push(Object.assign(chat, { unreadCount, ...counts }));
     }
 
     const groups = items.reduce<Record<string, ChatListItem[]>>((acc, chat) => {
@@ -74,8 +84,10 @@ export class ChatsService {
     return { total: listed.totalUnread, byChat };
   }
 
-  async getChat(actor: DomainAccessActor, chatId: string): Promise<ChatEntity> {
-    return this.access.assertCanRead(actor, chatId);
+  async getChat(actor: DomainAccessActor, chatId: string): Promise<ChatEntity & { memberCount: number; onlineCount: number }> {
+    const chat = await this.access.assertCanRead(actor, chatId);
+    const counts = await this.memberOnlineCounts(chatId);
+    return Object.assign(chat, counts);
   }
 
   async unreadCount(actor: DomainAccessActor, chatId: string): Promise<number> {
@@ -105,9 +117,19 @@ export class ChatsService {
     return this.membershipSync.createGroup(title, actor.sub, memberUserIds, description ?? null);
   }
 
-  async createDirect(actor: DomainAccessActor, userId: string): Promise<ChatEntity> {
-    await this.access.assertCanStartDirect(actor, userId);
-    return this.membershipSync.findOrCreateDirect(actor.sub, userId);
+  async createDirect(_actor: DomainAccessActor, _userId: string): Promise<never> {
+    throw new GoneException(
+      'Прямое создание личного чата отключено. Отправьте запрос: POST /chats/dm-requests',
+    );
+  }
+
+  async hideMembership(actor: DomainAccessActor, chatId: string): Promise<void> {
+    await this.access.assertCanRead(actor, chatId);
+    const member = await this.memberRepo.findOne({ where: { chatId, userId: actor.sub } });
+    if (!member) throw new NotFoundException('Membership not found');
+    member.hiddenAt = new Date();
+    await this.memberRepo.save(member);
+    this.gateway?.emitToUser(actor.sub, 'chat.deleted', { chatId, personal: true });
   }
 
   async inviteMembers(
@@ -127,7 +149,10 @@ export class ChatsService {
     ) {
       throw new ForbiddenException('Only chat owners/admins can invite members');
     }
-    await Promise.all(memberUserIds.map((userId) => this.membershipSync.addMember(chatId, userId)));
+    for (const userId of memberUserIds) {
+      await this.access.assertCanInviteMember(actor, chatId, userId);
+      await this.membershipSync.addMember(chatId, userId);
+    }
     return this.listMembers(actor, chatId);
   }
 
@@ -169,6 +194,17 @@ export class ChatsService {
   ): Promise<UserChatProfileEntity> {
     await this.profileRepo.upsert({ userId: actor.sub, ...profile }, ['userId']);
     return this.profileRepo.findOneOrFail({ where: { userId: actor.sub } });
+  }
+
+  private async memberOnlineCounts(
+    chatId: string,
+  ): Promise<{ memberCount: number; onlineCount: number }> {
+    const members = await this.memberRepo.find({ where: { chatId } });
+    const userIds = members.map((m) => m.userId);
+    return {
+      memberCount: userIds.length,
+      onlineCount: this.presence.countOnline(userIds),
+    };
   }
 
   private async countUnread(

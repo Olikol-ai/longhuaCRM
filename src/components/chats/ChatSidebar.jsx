@@ -1,4 +1,4 @@
-import { Hash, MessageCircle, Search, Users } from 'lucide-react';
+import { Hash, Inbox, MessageCircle, Search, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
@@ -10,7 +10,16 @@ const sections = [
   { title: 'Личные', kinds: ['direct'], icon: MessageCircle },
 ];
 
-function ChatRow({ chat, active, onSelect }) {
+function ChatRow({ chat, active, onSelect, onlineUserIds }) {
+  const showOnline =
+    chat.kind === 'direct' &&
+    Array.isArray(onlineUserIds) &&
+    onlineUserIds.some(Boolean);
+  const memberMeta =
+    chat.kind !== 'direct' && (chat.memberCount != null || chat.onlineCount != null)
+      ? `👥 ${chat.memberCount ?? '—'} · Онлайн: ${chat.onlineCount ?? 0}`
+      : null;
+
   return (
     <button
       type="button"
@@ -20,9 +29,21 @@ function ChatRow({ chat, active, onSelect }) {
         active ? 'bg-brand-soft text-brand' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
       )}
     >
+      <span className="relative shrink-0">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+          {(chat.title || '?').slice(0, 1).toUpperCase()}
+        </span>
+        {showOnline ? (
+          <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-card bg-emerald-500" />
+        ) : null}
+      </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium">{chat.title}</span>
-        {chat.description ? <span className="block truncate text-[11px] opacity-75">{chat.description}</span> : null}
+        <span className="block truncate font-medium">{chat.title || 'Личный чат'}</span>
+        {memberMeta ? (
+          <span className="block truncate text-[11px] opacity-75">{memberMeta}</span>
+        ) : chat.description ? (
+          <span className="block truncate text-[11px] opacity-75">{chat.description}</span>
+        ) : null}
       </span>
       {chat.unreadCount > 0 ? (
         <span className="flex min-w-4 h-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-white">
@@ -33,7 +54,15 @@ function ChatRow({ chat, active, onSelect }) {
   );
 }
 
-export default function ChatSidebar({ groups = {}, activeChatId, onSelect, onFindInterlocutor }) {
+export default function ChatSidebar({
+  groups = {},
+  activeChatId,
+  onSelect,
+  onFindInterlocutor,
+  onOpenRequests,
+  onlineUserIds = [],
+  pendingRequestsCount = 0,
+}) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-card">
       <div className="flex items-center justify-between border-b border-border px-3 py-3">
@@ -41,13 +70,21 @@ export default function ChatSidebar({ groups = {}, activeChatId, onSelect, onFin
           <h1 className="text-base font-semibold">Чаты</h1>
           <p className="text-xs text-muted-foreground">Общение по учёбе</p>
         </div>
-        <Button variant="ghost" size="icon" onClick={onFindInterlocutor} aria-label="Найти собеседника">
+        <Button variant="ghost" size="icon" onClick={onFindInterlocutor} aria-label="Новый чат">
           <Search />
         </Button>
       </div>
-      <div className="px-3 pt-2">
+      <div className="space-y-2 px-3 pt-2">
         <Button variant="outline" size="sm" className="w-full justify-start" onClick={onFindInterlocutor}>
-          <Search /> Найти собеседника
+          <Search /> Новый чат
+        </Button>
+        <Button variant="ghost" size="sm" className="w-full justify-start" onClick={onOpenRequests}>
+          <Inbox /> Запросы
+          {pendingRequestsCount > 0 ? (
+            <span className="ml-auto rounded-full bg-brand px-1.5 text-[10px] font-bold text-white">
+              {pendingRequestsCount}
+            </span>
+          ) : null}
         </Button>
       </div>
       <ScrollArea className="min-h-0 flex-1 px-2 py-3">
@@ -60,9 +97,19 @@ export default function ChatSidebar({ groups = {}, activeChatId, onSelect, onFin
                   <Icon className="h-3.5 w-3.5" /> {title}
                 </div>
                 <div className="space-y-0.5">
-                  {chats.length ? chats.map((chat) => (
-                    <ChatRow key={chat.id} chat={chat} active={chat.id === activeChatId} onSelect={onSelect} />
-                  )) : <p className="px-2 py-1 text-xs text-muted-foreground">Нет чатов</p>}
+                  {chats.length ? (
+                    chats.map((chat) => (
+                      <ChatRow
+                        key={chat.id}
+                        chat={chat}
+                        active={chat.id === activeChatId}
+                        onSelect={onSelect}
+                        onlineUserIds={onlineUserIds}
+                      />
+                    ))
+                  ) : (
+                    <p className="px-2 py-1 text-xs text-muted-foreground">Нет чатов</p>
+                  )}
                 </div>
               </section>
             );

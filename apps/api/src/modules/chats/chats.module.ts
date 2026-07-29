@@ -2,7 +2,9 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { CourseTemplateEntity } from '../courses/entities/course-template.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { StudentEntity } from '../students/entities/student.entity';
+import { TelegramModule } from '../telegram/telegram.module';
 import { UserEntity } from '../users/entities/user.entity';
 import { CHAT_ENTITIES } from './entities';
 import { AI_PROVIDER } from './ai/ai-provider.interface';
@@ -16,7 +18,9 @@ import { ChatAttachmentsService } from './services/chat-attachments.service';
 import { ChatDirectoryService } from './services/chat-directory.service';
 import { ChatMembershipSyncService } from './services/chat-membership-sync.service';
 import { ChatMessagesService } from './services/chat-messages.service';
+import { ChatPresenceService } from './services/chat-presence.service';
 import { ChatsService } from './services/chats.service';
+import { DirectChatRequestService } from './services/direct-chat-request.service';
 
 @Module({
   imports: [
@@ -27,20 +31,24 @@ import { ChatsService } from './services/chats.service';
       CourseTemplateEntity,
     ]),
     AuthModule,
+    NotificationsModule,
+    TelegramModule,
   ],
   controllers: [ChatsController, SubjectsController],
   providers: [
+    ChatPresenceService,
     ChatMembershipSyncService,
     ChatsService,
     ChatMessagesService,
     ChatAttachmentsService,
     ChatDirectoryService,
+    DirectChatRequestService,
     ChatGateway,
     ChatAiService,
     MockAiProvider,
     OpenAiProvider,
     { provide: AI_PROVIDER, useExisting: MockAiProvider },
   ],
-  exports: [ChatMembershipSyncService, ChatsService],
+  exports: [ChatMembershipSyncService, ChatsService, ChatPresenceService],
 })
 export class ChatsModule {}

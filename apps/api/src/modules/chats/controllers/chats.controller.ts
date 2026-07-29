@@ -21,12 +21,14 @@ import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { JwtPayload } from '../../auth/auth.service';
 import { ChatAiService } from '../ai/chat-ai.service';
-import { AskAiDto, ChatDirectoryQueryDto, CreateCrmCardDto, CreateDirectChatDto, CreateGroupChatDto, CreateMessageDto, InviteMembersDto, ListMessagesDto, MarkReadDto, UpdateChatProfileDto, UpdateMessageDto, UploadAttachmentDto } from '../dto/chats.dto';
-import { ChatAttachmentKind } from '../enums/chat.enums';
+import { AskAiDto, ChatDirectoryQueryDto, CreateBlockDto, CreateCrmCardDto, CreateDirectChatDto, CreateDmRequestDto, CreateGroupChatDto, CreateMessageDto, InviteMembersDto, ListDmRequestsQueryDto, ListMessagesDto, MarkReadDto, UpdateChatProfileDto, UpdateDmPrivacyDto, UpdateMessageDto, UploadAttachmentDto } from '../dto/chats.dto';
+import { ChatAttachmentKind, DirectChatRequestStatus, DmPrivacyPolicy } from '../enums/chat.enums';
 import { ChatAttachmentsService } from '../services/chat-attachments.service';
 import { ChatDirectoryService } from '../services/chat-directory.service';
 import { ChatMessagesService } from '../services/chat-messages.service';
+import { ChatPrivacyService } from '../../../common/access/chat-privacy.service';
 import { ChatsService } from '../services/chats.service';
+import { DirectChatRequestService } from '../services/direct-chat-request.service';
 
 @Controller('chats')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -37,6 +39,8 @@ export class ChatsController {
     private readonly attachments: ChatAttachmentsService,
     private readonly directory: ChatDirectoryService,
     private readonly ai: ChatAiService,
+    private readonly dmRequests: DirectChatRequestService,
+    private readonly privacy: ChatPrivacyService,
   ) {}
 
   @Get()
@@ -67,6 +71,73 @@ export class ChatsController {
   @Post('direct')
   createDirect(@CurrentUser() actor: JwtPayload, @Body() dto: CreateDirectChatDto) {
     return this.chats.createDirect(actor, dto.userId);
+  }
+
+  @Post('dm-requests')
+  createDmRequest(@CurrentUser() actor: JwtPayload, @Body() dto: CreateDmRequestDto) {
+    return this.dmRequests.create(actor, dto.toUserId, dto.message);
+  }
+
+  @Get('dm-requests/incoming')
+  incomingDm(
+    @CurrentUser() actor: JwtPayload,
+    @Query() query: ListDmRequestsQueryDto,
+  ) {
+    return this.dmRequests.listIncoming(
+      actor,
+      query.status as DirectChatRequestStatus | undefined,
+    );
+  }
+
+  @Get('dm-requests/outgoing')
+  outgoingDm(
+    @CurrentUser() actor: JwtPayload,
+    @Query() query: ListDmRequestsQueryDto,
+  ) {
+    return this.dmRequests.listOutgoing(
+      actor,
+      query.status as DirectChatRequestStatus | undefined,
+    );
+  }
+
+  @Post('dm-requests/:id/accept')
+  acceptDm(@CurrentUser() actor: JwtPayload, @Param('id') id: string) {
+    return this.dmRequests.accept(actor, id);
+  }
+
+  @Post('dm-requests/:id/decline')
+  declineDm(@CurrentUser() actor: JwtPayload, @Param('id') id: string) {
+    return this.dmRequests.decline(actor, id);
+  }
+
+  @Post('dm-requests/:id/cancel')
+  cancelDm(@CurrentUser() actor: JwtPayload, @Param('id') id: string) {
+    return this.dmRequests.cancel(actor, id);
+  }
+
+  @Get('privacy')
+  getPrivacy(@CurrentUser() actor: JwtPayload) {
+    return this.privacy.getOrCreateSettings(actor.sub);
+  }
+
+  @Patch('privacy')
+  updatePrivacy(@CurrentUser() actor: JwtPayload, @Body() dto: UpdateDmPrivacyDto) {
+    return this.privacy.updatePolicy(actor, dto.dmPolicy as DmPrivacyPolicy);
+  }
+
+  @Get('blocks')
+  listBlocks(@CurrentUser() actor: JwtPayload) {
+    return this.privacy.listBlocks(actor);
+  }
+
+  @Post('blocks')
+  block(@CurrentUser() actor: JwtPayload, @Body() dto: CreateBlockDto) {
+    return this.privacy.blockUser(actor, dto.blockedUserId);
+  }
+
+  @Delete('blocks/:blockedUserId')
+  unblock(@CurrentUser() actor: JwtPayload, @Param('blockedUserId') blockedUserId: string) {
+    return this.privacy.unblockUser(actor, blockedUserId);
   }
 
   @Get('attachments/:attachmentId/download')
@@ -101,6 +172,11 @@ export class ChatsController {
   @Get(':chatId')
   get(@CurrentUser() actor: JwtPayload, @Param('chatId') chatId: string) {
     return this.chats.getChat(actor, chatId);
+  }
+
+  @Delete(':chatId/membership')
+  hideMembership(@CurrentUser() actor: JwtPayload, @Param('chatId') chatId: string) {
+    return this.chats.hideMembership(actor, chatId);
   }
 
   @Get(':chatId/members')

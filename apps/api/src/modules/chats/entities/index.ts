@@ -13,6 +13,9 @@ import { ChatPinnedMessageEntity } from './chat-pinned-message.entity';
 import { ChatMessageReactionEntity } from './chat-message-reaction.entity';
 import { AiConversationEntity } from './ai-conversation.entity';
 import { AiConversationTurnEntity } from './ai-conversation-turn.entity';
+import { DirectChatRequestEntity } from './direct-chat-request.entity';
+import { UserPrivacySettingsEntity } from './user-privacy-settings.entity';
+import { UserBlockEntity } from './user-block.entity';
 
 export const CHAT_ENTITIES = [
   SubjectEntity,
@@ -30,6 +33,9 @@ export const CHAT_ENTITIES = [
   ChatMessageReactionEntity,
   AiConversationEntity,
   AiConversationTurnEntity,
+  DirectChatRequestEntity,
+  UserPrivacySettingsEntity,
+  UserBlockEntity,
 ] as const;
 
 export {
@@ -48,4 +54,7 @@ export {
   ChatMessageReactionEntity,
   AiConversationEntity,
   AiConversationTurnEntity,
+  DirectChatRequestEntity,
+  UserPrivacySettingsEntity,
+  UserBlockEntity,
 };

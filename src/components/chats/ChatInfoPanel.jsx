@@ -7,13 +7,23 @@ function memberName(member) {
   return [user.lastName, user.firstName].filter(Boolean).join(' ') || user.email || 'Пользователь';
 }
 
-export default function ChatInfoPanel({ chat, members = [], pins = [], onUnpin }) {
+export default function ChatInfoPanel({ chat, members = [], pins = [], onUnpin, onHide }) {
   if (!chat) return <div className="p-4 text-sm text-muted-foreground">Выберите чат.</div>;
   return (
     <div className="flex h-full min-h-0 flex-col bg-card">
-      <div className="border-b border-border p-4">
-        <h2 className="text-sm font-semibold">{chat.title}</h2>
+      <div className="border-b border-border p-4 space-y-2">
+        <h2 className="text-sm font-semibold">{chat.title || 'Чат'}</h2>
         {chat.description ? <p className="mt-1 text-xs text-muted-foreground">{chat.description}</p> : null}
+        {(chat.memberCount != null || chat.onlineCount != null) && (
+          <p className="text-xs text-muted-foreground">
+            👥 {chat.memberCount ?? members.length} · Онлайн: {chat.onlineCount ?? 0}
+          </p>
+        )}
+        {onHide ? (
+          <Button variant="outline" size="sm" className="w-full" onClick={onHide}>
+            Удалить у себя
+          </Button>
+        ) : null}
       </div>
       <ScrollArea className="min-h-0 flex-1 p-4">
         <section>

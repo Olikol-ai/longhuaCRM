@@ -49,4 +49,8 @@ export class ChatMemberEntity {
 
   @Column({ name: 'muted_until', type: 'timestamptz', nullable: true })
   mutedUntil: Date | null;
+
+  /** Personal hide: chat disappears from actor list until new message or reopen. */
+  @Column({ name: 'hidden_at', type: 'timestamptz', nullable: true })
+  hiddenAt: Date | null;
 }

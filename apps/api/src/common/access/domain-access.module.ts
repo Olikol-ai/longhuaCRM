@@ -35,7 +35,9 @@ import { TutorAccessService } from './tutor-access.service';
 import { TutorStudentAccessService } from './tutor-student-access.service';
 import { AssessmentAccessService } from './assessment-access.service';
 import { ChatAccessService } from './chat-access.service';
-import { ChatEntity, ChatMemberEntity, ChatDirectPairEntity } from '../../modules/chats/entities';
+import { ChatPrivacyService } from './chat-privacy.service';
+import { ChatEntity, ChatMemberEntity, ChatDirectPairEntity, DirectChatRequestEntity, UserPrivacySettingsEntity, UserBlockEntity } from '../../modules/chats/entities';
+import { UserEntity } from '../../modules/users/entities/user.entity';
 
 @Global()
 @Module({
@@ -65,6 +67,10 @@ import { ChatEntity, ChatMemberEntity, ChatDirectPairEntity } from '../../module
       ChatEntity,
       ChatMemberEntity,
       ChatDirectPairEntity,
+      DirectChatRequestEntity,
+      UserPrivacySettingsEntity,
+      UserBlockEntity,
+      UserEntity,
     ]),
   ],
   providers: [
@@ -79,6 +85,7 @@ import { ChatEntity, ChatMemberEntity, ChatDirectPairEntity } from '../../module
     MaterialsDomainAccessService,
     CertificateAccessService,
     AssessmentAccessService,
+    ChatPrivacyService,
     ChatAccessService,
   ],
   exports: [
@@ -93,6 +100,7 @@ import { ChatEntity, ChatMemberEntity, ChatDirectPairEntity } from '../../module
     MaterialsDomainAccessService,
     CertificateAccessService,
     AssessmentAccessService,
+    ChatPrivacyService,
     ChatAccessService,
   ],
 })

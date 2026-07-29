@@ -90,7 +90,21 @@ export class ChatMembershipSyncService {
 
   async addMember(chatId: string, userId: string, role: ChatMemberRole = ChatMemberRole.Member): Promise<ChatMemberEntity> {
     const existing = await this.memberRepo.findOne({ where: { chatId, userId } });
-    return existing ?? this.memberRepo.save({ chatId, userId, role, lastReadMessageId: null, mutedUntil: null });
+    if (existing) {
+      if (existing.hiddenAt) {
+        existing.hiddenAt = null;
+        return this.memberRepo.save(existing);
+      }
+      return existing;
+    }
+    return this.memberRepo.save({
+      chatId,
+      userId,
+      role,
+      lastReadMessageId: null,
+      mutedUntil: null,
+      hiddenAt: null,
+    });
   }
 
   async createGroup(title: string, ownerUserId: string, memberUserIds: string[], description: string | null = null): Promise<ChatEntity> {

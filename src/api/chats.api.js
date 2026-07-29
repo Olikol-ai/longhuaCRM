@@ -22,10 +22,27 @@ export const chatsApi = {
     body: JSON.stringify({ body }),
   }),
   deleteMessage: (messageId) => apiFetch(`/chats/messages/${messageId}`, { method: 'DELETE' }),
-  createDirect: (userId) => apiFetch('/chats/direct', {
+  createDmRequest: (toUserId, message) => apiFetch('/chats/dm-requests', {
     method: 'POST',
-    body: JSON.stringify({ userId }),
+    body: JSON.stringify({ toUserId, message }),
   }),
+  listIncomingDmRequests: (params) => apiFetch(`/chats/dm-requests/incoming${queryString(params)}`),
+  listOutgoingDmRequests: (params) => apiFetch(`/chats/dm-requests/outgoing${queryString(params)}`),
+  acceptDmRequest: (id) => apiFetch(`/chats/dm-requests/${id}/accept`, { method: 'POST' }),
+  declineDmRequest: (id) => apiFetch(`/chats/dm-requests/${id}/decline`, { method: 'POST' }),
+  cancelDmRequest: (id) => apiFetch(`/chats/dm-requests/${id}/cancel`, { method: 'POST' }),
+  getPrivacy: () => apiFetch('/chats/privacy'),
+  updatePrivacy: (dmPolicy) => apiFetch('/chats/privacy', {
+    method: 'PATCH',
+    body: JSON.stringify({ dmPolicy }),
+  }),
+  listBlocks: () => apiFetch('/chats/blocks'),
+  blockUser: (blockedUserId) => apiFetch('/chats/blocks', {
+    method: 'POST',
+    body: JSON.stringify({ blockedUserId }),
+  }),
+  unblockUser: (blockedUserId) => apiFetch(`/chats/blocks/${blockedUserId}`, { method: 'DELETE' }),
+  hideMembership: (chatId) => apiFetch(`/chats/${chatId}/membership`, { method: 'DELETE' }),
   createGroup: (payload) => apiFetch('/chats/groups', {
     method: 'POST',
     body: JSON.stringify(payload),

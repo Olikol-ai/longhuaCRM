@@ -35,6 +35,32 @@ export class CreateDirectChatDto {
   userId!: string;
 }
 
+export class CreateDmRequestDto {
+  @IsUUID('4')
+  toUserId!: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 500)
+  message?: string;
+}
+
+export class UpdateDmPrivacyDto {
+  @IsString()
+  dmPolicy!: string;
+}
+
+export class CreateBlockDto {
+  @IsUUID('4')
+  blockedUserId!: string;
+}
+
+export class ListDmRequestsQueryDto {
+  @IsOptional()
+  @IsString()
+  status?: string;
+}
+
 export class InviteMembersDto {
   @IsArray()
   @ArrayMaxSize(100)

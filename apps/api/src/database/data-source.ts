@@ -58,6 +58,7 @@ import { UserAvatarFields1743400000000 } from './migrations/1743400000000-UserAv
 import { ContentTasksExamPartsHomeworkTasks1743500000000 } from './migrations/1743500000000-ContentTasksExamPartsHomeworkTasks';
 import { ChatsModule1743600000000 } from './migrations/1743600000000-ChatsModule';
 import { SplitReadingListeningTasks1743800000000 } from './migrations/1743800000000-SplitReadingListeningTasks';
+import { ChatPrivacyAndDmRequests1743900000000 } from './migrations/1743900000000-ChatPrivacyAndDmRequests';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -119,6 +120,7 @@ export default new DataSource({
     ContentTasksExamPartsHomeworkTasks1743500000000,
     ChatsModule1743600000000,
     SplitReadingListeningTasks1743800000000,
+    ChatPrivacyAndDmRequests1743900000000,
   ],
   synchronize: false,
 });

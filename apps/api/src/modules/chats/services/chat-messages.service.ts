@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { ChatAccessService } from '../../../common/access/chat-access.service';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
-import { ChatMessageEntity } from '../entities';
+import { ChatMemberEntity, ChatMessageEntity } from '../entities';
 import { ChatMessageType } from '../enums/chat.enums';
 import { ChatGateway } from '../gateway/chat.gateway';
 
@@ -11,6 +11,7 @@ import { ChatGateway } from '../gateway/chat.gateway';
 export class ChatMessagesService {
   constructor(
     @InjectRepository(ChatMessageEntity) private readonly messageRepo: Repository<ChatMessageEntity>,
+    @InjectRepository(ChatMemberEntity) private readonly memberRepo: Repository<ChatMemberEntity>,
     private readonly access: ChatAccessService,
     @Optional() private readonly gateway?: ChatGateway,
   ) {}
@@ -81,6 +82,16 @@ export class ChatMessagesService {
 
   private async persist(chatId: string, senderUserId: string | null, type: ChatMessageType, body: string | null, replyToMessageId: string | null, refEntityType: string | null = null, refEntityId: string | null = null): Promise<ChatMessageEntity> {
     const message = await this.messageRepo.save({ chatId, senderUserId, type, body, replyToMessageId, refEntityType, refEntityId, editedAt: null, deletedAt: null });
+    if (senderUserId) {
+      await this.memberRepo
+        .createQueryBuilder()
+        .update(ChatMemberEntity)
+        .set({ hiddenAt: null })
+        .where('chat_id = :chatId', { chatId })
+        .andWhere('user_id <> :senderUserId', { senderUserId })
+        .andWhere('hidden_at IS NOT NULL')
+        .execute();
+    }
     this.gateway?.emitMessageCreated(message);
     return message;
   }

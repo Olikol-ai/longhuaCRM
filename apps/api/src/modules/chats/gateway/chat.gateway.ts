@@ -15,6 +15,7 @@ import { ChatAccessService } from '../../../common/access/chat-access.service';
 import { JwtPayload } from '../../auth/auth.service';
 import { UserEntity } from '../../users/entities/user.entity';
 import { ChatMessageEntity } from '../entities';
+import { ChatPresenceService } from '../services/chat-presence.service';
 
 type TypingKey = string;
 
@@ -26,12 +27,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server!: Server;
 
-  private readonly onlineUsers = new Map<string, Set<string>>();
   private readonly typing = new Map<TypingKey, NodeJS.Timeout>();
 
   constructor(
     private readonly jwt: JwtService,
     private readonly access: ChatAccessService,
+    private readonly presence: ChatPresenceService,
     @InjectRepository(UserEntity) private readonly userRepo: Repository<UserEntity>,
   ) {}
 
@@ -42,8 +43,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const actor = await this.jwt.verifyAsync<JwtPayload>(token);
       client.data.actor = actor;
       await client.join(`user:${actor.sub}`);
-      this.markOnline(actor.sub, client.id);
-      this.server.emit('user:online', { userId: actor.sub });
+      this.presence.markOnline(actor.sub, client.id);
+      this.server.emit('user.online', { userId: actor.sub });
       await this.userRepo.update(actor.sub, { lastSeenAt: new Date() });
     } catch {
       client.disconnect(true);
@@ -53,9 +54,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async handleDisconnect(client: Socket): Promise<void> {
     const actor = client.data.actor as JwtPayload | undefined;
     if (!actor) return;
-    const stillOnline = this.markOffline(actor.sub, client.id);
+    const stillOnline = this.presence.markOffline(actor.sub, client.id);
     if (!stillOnline) {
-      this.server.emit('user:offline', { userId: actor.sub });
+      this.server.emit('user.offline', { userId: actor.sub });
       await this.userRepo.update(actor.sub, { lastSeenAt: new Date() });
     }
   }
@@ -90,7 +91,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const key = `${payload.chatId}:${actor.sub}`;
     const existing = this.typing.get(key);
     if (existing) clearTimeout(existing);
-    this.server.to(`chat:${payload.chatId}`).emit('typing:start', {
+    this.server.to(`chat:${payload.chatId}`).emit('typing.start', {
       chatId: payload.chatId,
       userId: actor.sub,
     });
@@ -98,7 +99,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       key,
       setTimeout(() => {
         this.typing.delete(key);
-        this.server.to(`chat:${payload.chatId}`).emit('typing:stop', {
+        this.server.to(`chat:${payload.chatId}`).emit('typing.stop', {
           chatId: payload.chatId,
           userId: actor.sub,
         });
@@ -116,7 +117,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const existing = this.typing.get(key);
     if (existing) clearTimeout(existing);
     this.typing.delete(key);
-    this.server.to(`chat:${payload.chatId}`).emit('typing:stop', {
+    this.server.to(`chat:${payload.chatId}`).emit('typing.stop', {
       chatId: payload.chatId,
       userId: actor.sub,
     });
@@ -129,7 +130,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ): Promise<void> {
     const actor = this.actor(client);
     await this.access.assertCanRead(actor, payload.chatId);
-    this.server.to(`chat:${payload.chatId}`).emit('message:read', {
+    this.server.to(`chat:${payload.chatId}`).emit('message.read', {
       chatId: payload.chatId,
       userId: actor.sub,
       messageId: payload.messageId,
@@ -138,20 +139,24 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   emitMessageCreated(message: ChatMessageEntity): void {
-    this.server?.to(`chat:${message.chatId}`).emit('message:created', message);
+    this.server?.to(`chat:${message.chatId}`).emit('message.created', message);
   }
 
   emitMessageUpdated(message: ChatMessageEntity): void {
-    this.server?.to(`chat:${message.chatId}`).emit('message:updated', message);
+    this.server?.to(`chat:${message.chatId}`).emit('message.updated', message);
   }
 
   emitMessageDeleted(chatId: string, messageId: string): void {
-    this.server?.to(`chat:${chatId}`).emit('message:deleted', { messageId, chatId });
+    this.server?.to(`chat:${chatId}`).emit('message.deleted', { messageId, chatId });
+  }
+
+  emitToUser(userId: string, event: string, payload: unknown): void {
+    this.server?.to(`user:${userId}`).emit(event, payload);
   }
 
   private extractToken(client: Socket): string | null {
-    const authToken = client.handshake.auth?.token;
-    if (typeof authToken === 'string' && authToken.trim()) return authToken;
+    const authToken = this.handshakeAuthToken(client);
+    if (authToken) return authToken;
     const queryToken = client.handshake.query?.token;
     if (typeof queryToken === 'string' && queryToken.trim()) return queryToken;
     const header = client.handshake.headers.authorization;
@@ -161,21 +166,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return null;
   }
 
-  private markOnline(userId: string, socketId: string): void {
-    const set = this.onlineUsers.get(userId) ?? new Set<string>();
-    set.add(socketId);
-    this.onlineUsers.set(userId, set);
-  }
-
-  private markOffline(userId: string, socketId: string): boolean {
-    const set = this.onlineUsers.get(userId);
-    if (!set) return false;
-    set.delete(socketId);
-    if (set.size === 0) {
-      this.onlineUsers.delete(userId);
-      return false;
-    }
-    return true;
+  private handshakeAuthToken(client: Socket): string | null {
+    const authToken = client.handshake.auth?.token;
+    if (typeof authToken === 'string' && authToken.trim()) return authToken;
+    return null;
   }
 
   private actor(client: Socket): JwtPayload {

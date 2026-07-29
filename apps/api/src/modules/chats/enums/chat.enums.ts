@@ -37,3 +37,24 @@ export enum ChatAttachmentKind {
   File = 'file',
   Voice = 'voice',
 }
+
+export enum DirectChatRequestStatus {
+  Pending = 'pending',
+  Accepted = 'accepted',
+  Declined = 'declined',
+  Cancelled = 'cancelled',
+  Expired = 'expired',
+}
+
+/** Exactly one active DM privacy policy per user. */
+export enum DmPrivacyPolicy {
+  AllRegistered = 'all_registered',
+  TeachersOnly = 'teachers_only',
+  TutorsOnly = 'tutors_only',
+  MyTeachers = 'my_teachers',
+  MyTutors = 'my_tutors',
+  MyStudents = 'my_students',
+  MyCourseMembers = 'my_course_members',
+  MyContacts = 'my_contacts',
+  Nobody = 'nobody',
+}

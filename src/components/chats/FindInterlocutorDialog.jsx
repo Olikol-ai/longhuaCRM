@@ -4,15 +4,23 @@ import { chatsApi } from '@/api/chats.api';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from '@/components/ui/use-toast';
 
 function displayName(user) {
   return [user.lastName, user.firstName].filter(Boolean).join(' ') || user.email;
 }
 
-export default function FindInterlocutorDialog({ open, onOpenChange, onChatCreated }) {
+/**
+ * Search users and send a DM request (does not create a chat).
+ */
+export default function FindInterlocutorDialog({ open, onOpenChange, onRequestSent }) {
   const [query, setQuery] = useState('');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+  const [selectedId, setSelectedId] = useState(null);
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -23,38 +31,99 @@ export default function FindInterlocutorDialog({ open, onOpenChange, onChatCreat
       } finally {
         setLoading(false);
       }
-    }, 250);
+    }, 300);
     return () => clearTimeout(timer);
   }, [open, query]);
 
-  const startDirect = async (userId) => {
-    const chat = await chatsApi.createDirect(userId);
-    onChatCreated(chat);
-    onOpenChange(false);
+  useEffect(() => {
+    if (!open) {
+      setMessage('');
+      setSelectedId(null);
+      setQuery('');
+    }
+  }, [open]);
+
+  const sendRequest = async (userId) => {
+    setSending(true);
+    try {
+      const request = await chatsApi.createDmRequest(userId, message.trim() || undefined);
+      toast({ title: 'Запрос отправлен' });
+      onRequestSent?.(request);
+      onOpenChange(false);
+    } catch (err) {
+      toast({
+        title: 'Не удалось отправить запрос',
+        description: err?.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Найти собеседника</DialogTitle>
-          <DialogDescription>Найдите пользователя и начните личный чат.</DialogDescription>
+          <DialogTitle>Новый чат</DialogTitle>
+          <DialogDescription>
+            Найдите пользователя и отправьте запрос на переписку.
+          </DialogDescription>
         </DialogHeader>
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Имя или email" className="pl-9" autoFocus />
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Имя или email"
+            className="pl-9"
+            autoFocus
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">
+            Сообщение (необязательно)
+          </label>
+          <Textarea
+            rows={2}
+            maxLength={500}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Короткое приветствие…"
+          />
         </div>
         <div className="max-h-80 space-y-1 overflow-y-auto">
           {users.map((user) => (
-            <div key={user.id} className="flex items-center justify-between gap-3 rounded-md p-2 hover:bg-muted">
+            <div
+              key={user.id}
+              className="flex items-center justify-between gap-3 rounded-md p-2 hover:bg-muted"
+            >
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{displayName(user)}</p>
-                <p className="truncate text-xs text-muted-foreground">{user.email} · {user.role}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {user.email} · {user.role}
+                  {!user.canRequest && user.canRequestReason
+                    ? ` · ${user.canRequestReason}`
+                    : ''}
+                </p>
               </div>
-              <Button size="sm" onClick={() => void startDirect(user.id)}>Написать</Button>
+              <Button
+                size="sm"
+                disabled={!user.canRequest || sending}
+                onClick={() => {
+                  setSelectedId(user.id);
+                  void sendRequest(user.id);
+                }}
+              >
+                {sending && selectedId === user.id ? '…' : 'Отправить запрос'}
+              </Button>
             </div>
           ))}
-          {!loading && !users.length ? <p className="p-3 text-center text-sm text-muted-foreground">Пользователи не найдены</p> : null}
+          {!loading && !users.length ? (
+            <p className="p-3 text-center text-sm text-muted-foreground">
+              Пользователи не найдены
+            </p>
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>

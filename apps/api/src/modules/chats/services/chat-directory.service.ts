@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
+import { ChatPrivacyService } from '../../../common/access/chat-privacy.service';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
 import { UserEntity } from '../../users/entities/user.entity';
 import { UserChatProfileEntity } from '../entities';
@@ -20,6 +21,8 @@ export type ChatDirectoryUser = {
   firstName: string;
   lastName: string;
   lastSeenAt: Date | null;
+  canRequest: boolean;
+  canRequestReason: string | null;
   profile: {
     nativeLanguage: string | null;
     spokenLanguage: string | null;
@@ -32,6 +35,7 @@ export type ChatDirectoryUser = {
 export class ChatDirectoryService {
   constructor(
     @InjectRepository(UserEntity) private readonly userRepo: Repository<UserEntity>,
+    private readonly privacy: ChatPrivacyService,
   ) {}
 
   async search(
@@ -87,15 +91,19 @@ export class ChatDirectoryService {
     }
 
     const rows = await query.getMany();
-    return rows.map((user) => {
+    const mapped: ChatDirectoryUser[] = [];
+    for (const user of rows) {
       const profile = (user as UserEntity & { chatProfile?: UserChatProfileEntity }).chatProfile;
-      return {
+      const eligibility = await this.privacy.canRequest(actor.sub, user.id);
+      mapped.push({
         id: user.id,
         email: user.email,
         role: user.role,
         firstName: user.firstName,
         lastName: user.lastName,
         lastSeenAt: user.lastSeenAt ?? null,
+        canRequest: eligibility.canRequest,
+        canRequestReason: eligibility.reason,
         profile: profile
           ? {
               nativeLanguage: profile.nativeLanguage,
@@ -104,7 +112,8 @@ export class ChatDirectoryService {
               levelLabel: profile.levelLabel,
             }
           : null,
-      };
-    });
+      });
+    }
+    return mapped;
   }
 }

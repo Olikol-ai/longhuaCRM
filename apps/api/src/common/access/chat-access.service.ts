@@ -6,6 +6,7 @@ import { ChatEntity } from '../../modules/chats/entities/chat.entity';
 import { ChatDirectPairEntity } from '../../modules/chats/entities/chat-direct-pair.entity';
 import { ChatMemberEntity } from '../../modules/chats/entities/chat-member.entity';
 import { ChatKind, ChatStatus } from '../../modules/chats/enums/chat.enums';
+import { ChatPrivacyService } from './chat-privacy.service';
 import { EnrollmentEntity } from '../../modules/courses/entities/enrollment.entity';
 import { GroupMemberEntity } from '../../modules/groups/entities/group-member.entity';
 import { StudentEntity } from '../../modules/students/entities/student.entity';
@@ -26,6 +27,7 @@ export class ChatAccessService {
     @InjectRepository(TutorStudentEntity) private readonly tutorStudentRepo: Repository<TutorStudentEntity>,
     @InjectRepository(GroupMemberEntity) private readonly groupMemberRepo: Repository<GroupMemberEntity>,
     @InjectRepository(EnrollmentEntity) private readonly enrollmentRepo: Repository<EnrollmentEntity>,
+    private readonly privacy: ChatPrivacyService,
   ) {}
 
   isAdmin(actor: DomainAccessActor): boolean {
@@ -46,51 +48,46 @@ export class ChatAccessService {
     if (this.isAdmin(actor)) return chat;
     if (chat.kind === ChatKind.SchoolNews) throw new ForbiddenException('Only administrators can post news');
     if (chat.status === ChatStatus.Archived) throw new ForbiddenException('Archived chats are read-only');
+    if (chat.kind === ChatKind.Direct) {
+      await this.assertDirectPeersNotBlocked(actor.sub, chatId);
+    }
     return chat;
   }
 
+  /**
+   * Creates a DM request permission check (does not create a chat).
+   * @deprecated Prefer DirectChatRequestService.create — kept name for call-site migration.
+   */
   async assertCanStartDirect(actor: DomainAccessActor, targetUserId: string): Promise<void> {
-    if (actor.sub === targetUserId || this.isAdmin(actor)) return;
-    const [actorStudent, targetStudent, actorTeacher, targetTeacher, actorTutor, targetTutor] =
-      await Promise.all([
-        this.studentRepo.findOne({ where: { userId: actor.sub } }),
-        this.studentRepo.findOne({ where: { userId: targetUserId } }),
-        this.teacherRepo.findOne({ where: { userId: actor.sub } }),
-        this.teacherRepo.findOne({ where: { userId: targetUserId } }),
-        this.tutorRepo.findOne({ where: { userId: actor.sub } }),
-        this.tutorRepo.findOne({ where: { userId: targetUserId } }),
-      ]);
+    return this.assertCanCreateDmRequest(actor, targetUserId);
+  }
 
-    if (
-      (actorStudent && targetTeacher && actorStudent.assignedTeacherId === targetTeacher.id) ||
-      (targetStudent && actorTeacher && targetStudent.assignedTeacherId === actorTeacher.id) ||
-      (actorStudent && targetTutor && actorStudent.assignedTutorId === targetTutor.id) ||
-      (targetStudent && actorTutor && targetStudent.assignedTutorId === actorTutor.id)
-    ) return;
+  async assertCanCreateDmRequest(actor: DomainAccessActor, targetUserId: string): Promise<void> {
+    if (this.isAdmin(actor)) {
+      await this.privacy.assertNotBlocked(actor.sub, targetUserId);
+      return;
+    }
+    await this.privacy.assertCanReceiveDmRequest(actor.sub, targetUserId);
+  }
 
-    const actorTutorStudent = await this.tutorStudentRepo.findOne({ where: { userId: actor.sub } });
-    const targetTutorStudent = await this.tutorStudentRepo.findOne({ where: { userId: targetUserId } });
-    if (actorTutor && targetTutorStudent) {
-      const link = await this.tutorStudentRepo.exists({ where: { tutorId: actorTutor.id, userId: targetUserId } });
-      if (link) return;
-    }
-    if (targetTutor && actorTutorStudent) {
-      const link = await this.tutorStudentRepo.exists({ where: { tutorId: targetTutor.id, userId: actor.sub } });
-      if (link) return;
-    }
-    if (actorStudent && targetStudent) {
-      const sharedGroup = await this.groupMemberRepo
-        .createQueryBuilder('a')
-        .innerJoin(GroupMemberEntity, 'b', 'b.group_id = a.group_id')
-        .where('a.student_id = :actorStudentId', { actorStudentId: actorStudent.id })
-        .andWhere('b.student_id = :targetStudentId', { targetStudentId: targetStudent.id })
-        .getExists();
-      if (sharedGroup) return;
-    }
-    throw new ForbiddenException('You cannot start a direct chat with this user');
+  async assertCanInviteMember(
+    actor: DomainAccessActor,
+    chatId: string,
+    inviteeUserId: string,
+  ): Promise<void> {
+    await this.assertCanWrite(actor, chatId);
+    await this.privacy.assertNotBlocked(actor.sub, inviteeUserId);
   }
 
   async directPairExists(userIdLow: string, userIdHigh: string): Promise<boolean> {
     return this.directPairRepo.exists({ where: { userIdLow, userIdHigh } });
+  }
+
+  private async assertDirectPeersNotBlocked(actorUserId: string, chatId: string): Promise<void> {
+    const peers = await this.memberRepo.find({ where: { chatId } });
+    for (const peer of peers) {
+      if (peer.userId === actorUserId) continue;
+      await this.privacy.assertNotBlocked(actorUserId, peer.userId);
+    }
   }
 }

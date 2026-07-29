@@ -1,12 +1,28 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from '@/api';
+import { chatsApi } from '@/api/chats.api';
 import { useAuth } from "@/lib/AuthContext";
 import { Sun, Moon, Download, Loader2, Pencil } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import { getRoleBadgeClass, getRoleLabel } from "@/lib/locale-by";
 import { createPageUrl } from "@/utils";
 import AvatarEditor from "@/components/user/AvatarEditor";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/use-toast";
+
+const DM_POLICIES = [
+  { value: 'all_registered', label: 'Все зарегистрированные' },
+  { value: 'teachers_only', label: 'Только преподаватели' },
+  { value: 'tutors_only', label: 'Только репетиторы' },
+  { value: 'my_teachers', label: 'Мои преподаватели' },
+  { value: 'my_tutors', label: 'Мои репетиторы' },
+  { value: 'my_students', label: 'Мои ученики' },
+  { value: 'my_course_members', label: 'Участники моих курсов' },
+  { value: 'my_contacts', label: 'Мои контакты' },
+  { value: 'nobody', label: 'Никто' },
+];
 
 export default function Settings() {
   const { user } = useAuth();
@@ -18,6 +34,33 @@ export default function Settings() {
     user?.full_name ||
     [user?.last_name, user?.first_name].filter(Boolean).join(" ").trim() ||
     "—";
+  const [dmPolicy, setDmPolicy] = useState('my_teachers');
+  const [privacySaving, setPrivacySaving] = useState(false);
+  const [blocks, setBlocks] = useState([]);
+  const [blockQuery, setBlockQuery] = useState('');
+  const [blockCandidates, setBlockCandidates] = useState([]);
+
+  useEffect(() => {
+    void chatsApi.getPrivacy()
+      .then((row) => setDmPolicy(row.dmPolicy || row.dm_policy || 'my_teachers'))
+      .catch(() => {});
+    void chatsApi.listBlocks()
+      .then((rows) => setBlocks(Array.isArray(rows) ? rows : []))
+      .catch(() => setBlocks([]));
+  }, []);
+
+  useEffect(() => {
+    if (!blockQuery.trim()) {
+      setBlockCandidates([]);
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      void chatsApi.directory({ query: blockQuery })
+        .then((rows) => setBlockCandidates(Array.isArray(rows) ? rows.slice(0, 8) : []))
+        .catch(() => setBlockCandidates([]));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [blockQuery]);
 
   const handleExport = async () => {
     setExporting(true);
@@ -116,6 +159,128 @@ export default function Settings() {
           </div>
         </div>
       )}
+
+      <div className="bg-card rounded-2xl border border-border p-6 space-y-4 mt-6">
+        <h3 className="text-sm font-semibold text-foreground">Приватность → Личные сообщения</h3>
+        <p className="text-xs text-muted-foreground">
+          Кто может отправлять вам запросы на переписку
+        </p>
+        <div className="space-y-2">
+          {DM_POLICIES.map((policy) => (
+            <label key={policy.value} className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="radio"
+                name="dmPolicy"
+                checked={dmPolicy === policy.value}
+                onChange={() => setDmPolicy(policy.value)}
+              />
+              {policy.label}
+            </label>
+          ))}
+        </div>
+        <Button
+          disabled={privacySaving}
+          onClick={async () => {
+            setPrivacySaving(true);
+            try {
+              await chatsApi.updatePrivacy(dmPolicy);
+              toast({ title: 'Политика сохранена' });
+            } catch (err) {
+              toast({
+                title: 'Не удалось сохранить',
+                description: err?.message,
+                variant: 'destructive',
+              });
+            } finally {
+              setPrivacySaving(false);
+            }
+          }}
+        >
+          {privacySaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+          Сохранить политику
+        </Button>
+      </div>
+
+      <div className="bg-card rounded-2xl border border-border p-6 space-y-4 mt-6">
+        <h3 className="text-sm font-semibold text-foreground">Чёрный список</h3>
+        <p className="text-xs text-muted-foreground">
+          Заблокированные пользователи не смогут писать и отправлять запросы
+        </p>
+        <Input
+          value={blockQuery}
+          onChange={(e) => setBlockQuery(e.target.value)}
+          placeholder="Поиск пользователя…"
+        />
+        {blockCandidates.length > 0 ? (
+          <ul className="space-y-1 max-h-40 overflow-y-auto">
+            {blockCandidates.map((u) => (
+              <li key={u.id} className="flex items-center justify-between gap-2 text-sm">
+                <span className="truncate">
+                  {[u.lastName, u.firstName].filter(Boolean).join(' ') || u.email}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      await chatsApi.blockUser(u.id);
+                      setBlocks(await chatsApi.listBlocks());
+                      setBlockQuery('');
+                      toast({ title: 'Пользователь заблокирован' });
+                    } catch (err) {
+                      toast({
+                        title: 'Не удалось заблокировать',
+                        description: err?.message,
+                        variant: 'destructive',
+                      });
+                    }
+                  }}
+                >
+                  Заблокировать
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <ul className="space-y-2">
+          {blocks.map((row) => {
+            const u = row.blockedUser || row.blocked_user || {};
+            const name =
+              [u.lastName || u.last_name, u.firstName || u.first_name]
+                .filter(Boolean)
+                .join(' ') || u.email || row.blockedUserId || row.blocked_user_id;
+            return (
+              <li
+                key={row.id}
+                className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm"
+              >
+                <span className="truncate">{name}</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={async () => {
+                    try {
+                      await chatsApi.unblockUser(row.blockedUserId || row.blocked_user_id);
+                      setBlocks(await chatsApi.listBlocks());
+                    } catch (err) {
+                      toast({
+                        title: 'Не удалось разблокировать',
+                        description: err?.message,
+                        variant: 'destructive',
+                      });
+                    }
+                  }}
+                >
+                  Разблокировать
+                </Button>
+              </li>
+            );
+          })}
+          {!blocks.length ? (
+            <li className="text-xs text-muted-foreground">Список пуст</li>
+          ) : null}
+        </ul>
+      </div>
 
       {isAdmin && (
         <>
