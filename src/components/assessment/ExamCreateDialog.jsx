@@ -15,8 +15,8 @@ import { DEFAULT_EXAM_RULE } from '@/lib/assessment-admin';
 import { unwrapItems } from '@/lib/assessment-ui';
 
 export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
-  const [blueprints, setBlueprints] = useState([]);
-  const [blueprintId, setBlueprintId] = useState('');
+  const [blocks, setBlocks] = useState([]);
+  const [selectedIds, setSelectedIds] = useState([]);
   const [name, setName] = useState('');
   const [duration, setDuration] = useState(String(DEFAULT_EXAM_RULE.duration_minutes));
   const [passPercent, setPassPercent] = useState(
@@ -31,24 +31,41 @@ export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
     if (!open) return;
     setName('');
     setError(null);
+    setSelectedIds([]);
     setDuration(String(DEFAULT_EXAM_RULE.duration_minutes));
     setPassPercent(String(DEFAULT_EXAM_RULE.pass_score_percent));
     setMaxAttempts(String(DEFAULT_EXAM_RULE.max_attempts));
     setLoadingMeta(true);
     api.assessment
-      .listBlueprints({ status: 'published', limit: 200 })
+      .listExamBlocks({ status: 'published', limit: 200 })
       .then((payload) => {
-        const items = unwrapItems(payload);
-        setBlueprints(items);
-        setBlueprintId(items[0]?.id || '');
+        setBlocks(unwrapItems(payload));
       })
-      .catch((err) => setError(err?.message || 'Не удалось загрузить структуры экзамена'))
+      .catch((err) => setError(err?.message || 'Не удалось загрузить блоки'))
       .finally(() => setLoadingMeta(false));
   }, [open]);
 
+  const toggleBlock = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  const moveSelected = (id, dir) => {
+    setSelectedIds((prev) => {
+      const index = prev.indexOf(id);
+      if (index < 0) return prev;
+      const target = index + dir;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
+
   const handleCreate = async () => {
-    if (!blueprintId) {
-      setError('Выберите опубликованную структуру экзамена');
+    if (selectedIds.length === 0) {
+      setError('Выберите хотя бы один активный блок');
       return;
     }
     if (!name.trim()) {
@@ -59,7 +76,7 @@ export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
     setError(null);
     try {
       const created = await api.assessment.createExam({
-        blueprint_id: blueprintId,
+        block_ids: selectedIds,
         name: name.trim(),
         rule: {
           ...DEFAULT_EXAM_RULE,
@@ -77,11 +94,15 @@ export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
     }
   };
 
+  const selectedBlocks = selectedIds
+    .map((id) => blocks.find((b) => b.id === id))
+    .filter(Boolean);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Создать экзамен из структуры</DialogTitle>
+          <DialogTitle>Создать экзамен из блоков</DialogTitle>
         </DialogHeader>
 
         {loadingMeta ? (
@@ -91,28 +112,76 @@ export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
         ) : (
           <div className="space-y-4 py-1">
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Структура → Экзамен → Вопросы (подбор при создании)
+              Вопрос → Блок → Экзамен. Порядок выбранных блоков сохранится в экзамене.
             </p>
+
             <div className="space-y-1.5">
-              <Label>Опубликованная структура экзамена</Label>
-              <select
-                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
-                value={blueprintId}
-                onChange={(e) => setBlueprintId(e.target.value)}
-              >
-                <option value="">Выберите структуру</option>
-                {blueprints.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-              {blueprints.length === 0 && (
+              <Label>Активные блоки</Label>
+              {blocks.length === 0 ? (
                 <p className="text-xs text-amber-700 dark:text-amber-300">
-                  Нет опубликованных структур. Сначала опубликуйте структуру экзамена.
+                  Нет активных блоков. Сначала создайте и активируйте блок.
                 </p>
+              ) : (
+                <ul className="max-h-40 overflow-y-auto space-y-1 rounded-md border border-input p-2">
+                  {blocks.map((b) => (
+                    <li key={b.id}>
+                      <label className="flex items-start gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={selectedIds.includes(b.id)}
+                          onChange={() => toggleBlock(b.id)}
+                        />
+                        <span>
+                          <span className="font-medium">{b.name}</span>
+                          {b.level_label ? (
+                            <span className="text-slate-500"> · {b.level_label}</span>
+                          ) : null}
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
+
+            {selectedBlocks.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Порядок блоков в экзамене</Label>
+                <ol className="space-y-1">
+                  {selectedBlocks.map((b, index) => (
+                    <li
+                      key={b.id}
+                      className="flex items-center gap-2 text-sm rounded border border-slate-200 dark:border-slate-800 px-2 py-1.5"
+                    >
+                      <span className="text-slate-400 w-5">{index + 1}.</span>
+                      <span className="flex-1 truncate">{b.name}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2"
+                        disabled={index === 0}
+                        onClick={() => moveSelected(b.id, -1)}
+                      >
+                        ↑
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2"
+                        disabled={index === selectedBlocks.length - 1}
+                        onClick={() => moveSelected(b.id, 1)}
+                      >
+                        ↓
+                      </Button>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <Label>Название экзамена</Label>
               <Input
@@ -166,7 +235,7 @@ export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
           <Button
             className="bg-primary hover:bg-primary/90"
             onClick={handleCreate}
-            disabled={saving || loadingMeta || blueprints.length === 0}
+            disabled={saving || loadingMeta || blocks.length === 0}
           >
             {saving ? (
               <>

@@ -11,22 +11,12 @@ export function useAssessmentExams({ status, search } = {}) {
     setLoading(true);
     setError(null);
     try {
-      const [examsPayload, blueprintsPayload] = await Promise.all([
-        api.assessment.listExams({
-          status: status || undefined,
-          search: search || undefined,
-          limit: 200,
-        }),
-        api.assessment.listBlueprints({ limit: 200 }),
-      ]);
-      const blueprintName = new Map(
-        unwrapItems(blueprintsPayload).map((b) => [b.id, b.name]),
-      );
-      const items = unwrapItems(examsPayload).map((exam) => ({
-        ...exam,
-        blueprint_name: blueprintName.get(exam.blueprint_id) || 'Структура экзамена',
-      }));
-      setExams(items);
+      const examsPayload = await api.assessment.listExams({
+        status: status || undefined,
+        search: search || undefined,
+        limit: 200,
+      });
+      setExams(unwrapItems(examsPayload));
     } catch (err) {
       setError(err);
       setExams([]);

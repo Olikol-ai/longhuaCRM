@@ -5,6 +5,9 @@ Module: `apps/api/src/modules/assessment`
 Related: [architecture.md](./architecture.md), [state-machine.md](./state-machine.md), [api-contract.md](./api-contract.md)  
 Storage policy: [../architecture/storage-policy.md](../architecture/storage-policy.md)
 
+
+> **Update 2026-07:** ExamTemplate/Blueprint removed. Composition is Question → ExamBlock → Exam.
+
 Snapshot strategy uses **relational tables** (`assessment_question_snapshots`, `assessment_answer_snapshots`, …) — not JSONB documents.
 
 ---
@@ -13,8 +16,9 @@ Snapshot strategy uses **relational tables** (`assessment_question_snapshots`, `
 
 LongHua Assessment — bounded context внутри LongHuaCRM для:
 
-- банка вопросов и шаблонов экзаменов;
-- генерации конкретных экзаменов по правилам (Blueprint);
+- банка вопросов;
+- сборки блоков экзамена (ExamBlock) из вопросов;
+- создания экзаменов из блоков;
 - назначения экзаменов аудитории (ученики, группы, курсы, преподаватели, публичные тесты);
 - прохождения попыток с неизменяемым **реляционным** снимком содержания;
 - **персистентного** хранения итогов (Result не пересчитывается «на лету» как единственный источник правды).
@@ -34,12 +38,11 @@ CRM остаётся источником правды о людях, курса
 | Question | `assessment_questions` | Вопрос банка (stem, тип, баллы, сложность) |
 | Answer | `assessment_answers` | Варианты / ключи правильных ответов |
 | QuestionAttachment | `assessment_question_attachments` | Единые вложения (image/audio/pdf/document) |
-| ExamTemplate | `assessment_exam_templates` | Авторский каркас экзамена |
-| Blueprint | `assessment_blueprints` | Правила набора вопросов в экзамен |
-| BlueprintSectionRule | `assessment_blueprint_section_rules` | Правила + **weight** по разделам |
+| ExamBlock | `assessment_exam_blocks` | Авторский блок вопросов |
+| ExamBlockItem | `assessment_exam_block_items` | Порядок вопросов в блоке |
 | AssessmentRule | `assessment_rules` | **Единственное** хранилище правил проведения |
-| Exam | `assessment_exams` | Опубликованный экземпляр экзамена |
-| Section | `assessment_sections` | Раздел материализованного Exam |
+| Exam | `assessment_exams` | Экземпляр экзамена (из ExamBlock) |
+| Section | `assessment_sections` | Материализованный блок внутри Exam (`source_block_id`) |
 | ExamAssignment | `assessment_exam_assignments` | Кому назначен Exam |
 | Attempt | `assessment_attempts` | Одна сдача |
 | QuestionSnapshot | `assessment_question_snapshots` | Снимок вопроса на момент Attempt |
@@ -47,7 +50,8 @@ CRM остаётся источником правды о людях, курса
 | AttemptAnswer | `assessment_attempt_answers` | Ответ участника в попытке |
 | AttemptAnswerSelection | `assessment_attempt_answer_selections` | Выбранные варианты (нормализованно, не jsonb) |
 | Result | `assessment_results` | Полный сохранённый итог попытки |
-| ResultBreakdown | `assessment_result_breakdowns` | Разбивка итога по секциям |
+| ResultBreakdown | `assessment_result_breakdowns` | Разбивка итога по секциям/блокам |
+| ChangeJournal | `assessment_change_journal` | Журнал old/new версий авторинга |
 
 ### 2.2. CRM владеет (Assessment только ссылается)
 
@@ -92,8 +96,8 @@ CRM остаётся источником правды о людях, курса
 |----------|--------------|------------|
 | **Question** (банк) | `status` | Банк = AssessmentBank + набор Question (+ Topic) |
 | **AssessmentBank** | `status` | Контейнер вопросов |
-| **ExamTemplate** | `status` | |
-| **Blueprint** | `status` | Ранее допускался `active` — **заменён** на `published` для единообразия |
+| **ExamBlock** | `status` | |
+| **ExamBlock** | `status` | Ранее допускался `active` — **заменён** на `published` для единообразия |
 | **Exam** | `status` | |
 
 ### Политика после `published`
@@ -113,9 +117,9 @@ Attempt использует отдельный lifecycle сдачи: `created` 
 ```text
 Question Bank (Topic, Question, Answer, QuestionAttachment)
         ↓
-ExamTemplate
+ExamBlock
         ↓
-Blueprint (+ BlueprintSectionRule.weight)
+ExamBlock (+ items → Exam sections with weight)
         ↓
 Exam (+ Section + AssessmentRule)     ← единственный источник правил проведения
         ↓
@@ -133,8 +137,8 @@ Result                                ← полный персистентны�
 | Уровень | Зачем |
 |---------|--------|
 | Question Bank | Переиспользуемые задания |
-| ExamTemplate | Каркас / бренд экзамена |
-| Blueprint | Сколько и каких вопросов + **вес секций** |
+| ExamBlock | Каркас / бренд экзамена |
+| ExamBlock | Сколько и каких вопросов + **вес секций** |
 | Exam | Конкретный экземпляр + замороженный Rule |
 | ExamAssignment | Кому доступен |
 | Attempt | Факт сдачи |
@@ -167,11 +171,11 @@ Result                                ← полный персистентны�
 
 Все медиа вопроса — через эту сущность и SecureFiles CRM.
 
-### 5.3. ExamTemplate / Blueprint
+### 5.3. ExamBlock / ExamBlock
 
 Lifecycle: `draft | published | archived`.
 
-### 5.4. BlueprintSectionRule (+ weight)
+### 5.4. ExamBlockItem (+ weight)
 
 | Поле | Смысл | Пример |
 |------|--------|--------|
@@ -191,10 +195,10 @@ Lifecycle: `draft | published | archived`.
 | reading | 15 | 40 |
 | writing | 10 | 30 |
 
-Сумма `weight` по Blueprint должна быть 100 (валидация при publish Blueprint/Exam).  
+Сумма `weight` по ExamBlock должна быть 100 (валидация при publish ExamBlock/Exam).  
 При расчёте Result: баллы секции нормализуются с учётом `weight` (и копируются в breakdown / учитываются в `percent`).
 
-При материализации Exam вес копируется в `Section.weight`, чтобы Attempt/Result не зависели от поздних правок Blueprint (Blueprint после publish и так immutable; копирование — защита + ясность в Exam).
+При материализации Exam вес копируется в `Section.weight`, чтобы Attempt/Result не зависели от поздних правок ExamBlock (ExamBlock после publish и так immutable; копирование — защита + ясность в Exam).
 
 ### 5.5. AssessmentRule — единственное хранилище правил проведения
 
@@ -227,7 +231,7 @@ Lifecycle: `draft | published | archived`.
 ### 5.6. Exam / Section
 
 Exam lifecycle: `draft | published | archived`.  
-Section: `title`, `section_key`, `sort_order`, **`weight`** (из Blueprint при материализации).
+Section: `title`, `section_key`, `sort_order`, **`weight`** (из ExamBlock при материализации).
 
 ### 5.7. Attempt
 
@@ -313,7 +317,7 @@ Result **создаётся при submit Attempt** и является исто
 ## 7. Snapshot-стратегия (без изменений)
 
 **Вариант A:** при start Attempt копировать вопросы/ответы в snapshot-таблицы.  
-Пул вопросов Exam фиксируется при publish Exam (Blueprint → `assessment_exam_questions`).  
+Пул вопросов Exam фиксируется при publish Exam (ExamBlock → `assessment_exam_questions`).  
 `randomize_questions` / `randomize_answers` влияют на порядок в Snapshot, не на состав (v1).
 
 ---
@@ -329,7 +333,7 @@ Result **создаётся при submit Attempt** и является исто
 
 | Сценарий | Покрытие |
 |----------|----------|
-| HSK prep | Blueprint + weights; Rule; Assignment group/course |
+| HSK prep | ExamBlock + weights; Rule; Assignment group/course |
 | Финал курса | Assignment `course`; Result → Certificate bridge |
 | Корпоративная аттестация | `corporate_group`; строгий Rule |
 | Публичный входной тест | `public` |
@@ -346,9 +350,9 @@ Result **создаётся при submit Attempt** и является исто
 4. `assessment_question_topics`  
 5. `assessment_answers`  
 6. `assessment_question_attachments`  
-7. `assessment_exam_templates`  
-8. `assessment_blueprints`  
-9. `assessment_blueprint_section_rules` (**incl. weight**)  
+7. `assessment_exam_blocks`  
+8. `assessment_exam_blocks`  
+9. `assessment_exam_block_items` (**incl. weight**)  
 10. `assessment_rules`  
 11. `assessment_exams`  
 12. `assessment_sections` (**incl. weight**)  
@@ -371,7 +375,7 @@ Topic ←N:M→ Question ←1:N→ Answer
                 ↑
          QuestionAttachment (image|audio|pdf|document)
 
-ExamTemplate 1──N Blueprint 1──N BlueprintSectionRule (weight)
+ExamBlock 1──N ExamBlockItem → Exam (weight)
        │
        └── materialize → Exam 1──1 AssessmentRule  (единственный store правил)
                             │
@@ -393,8 +397,8 @@ Exam 1──N Attempt (created→started→submitted, submit_reason)
 |---|---------|
 | D1–D6, D9–D10 | Без изменений по смыслу (bounded context, snapshot A, polymorphic assignment, …) |
 | **D7** | AssessmentRule — **единственное** место всех правил проведения; расширенный набор полей |
-| **D8** | Единый lifecycle `draft\|published\|archived` для Question, ExamTemplate, Blueprint, Exam; published = immutable |
-| **D11** | BlueprintSectionRule.`weight` (+ копирование в Section) для взвешенного итога |
+| **D8** | Единый lifecycle `draft\|published\|archived` для Question, ExamBlock, ExamBlock, Exam; published = immutable |
+| **D11** | ExamBlockItem.`weight` (+ копирование в Section) для взвешенного итога |
 | **D12** | QuestionAttachment only; kinds: image, audio, pdf, document |
 | **D13** | Result — полный персистентный итог + status SM + `evaluation_type` |
 | **D14** | Assignment `target_type` включает `teacher` |
@@ -412,9 +416,9 @@ Exam 1──N Attempt (created→started→submitted, submit_reason)
 
 | Раздел | Что изменилось |
 |--------|----------------|
-| §3 Lifecycle | Единые статусы для Bank(Question)/Template/Blueprint/Exam; published immutable |
+| §3 Lifecycle | Единые статусы для Bank(Question)/Template/ExamBlock/Exam; published immutable |
 | §5.2 Attachment | kinds: image, audio, pdf, document |
-| §5.4 BlueprintSectionRule | `weight` |
+| §5.4 ExamBlockItem | `weight` |
 | §5.5 AssessmentRule | Централизация + `auto_submit_on_timeout` = always on (инвариант) |
 | §5.7 Attempt | Только `created`→`started`→`submitted`; `submit_reason`; нет `expired` |
 | §5.8 Result | SM + `evaluation_type` (`automatic`\|`manual`\|`mixed`); `pending_review` |
@@ -425,6 +429,6 @@ Exam 1──N Attempt (created→started→submitted, submit_reason)
 
 - Bounded context Assessment **сохранён**.
 - State machines Attempt / Assignment / Result **официально зафиксированы** в [state-machine.md](./state-machine.md).
-- Цепочка Bank → Blueprint → Exam → Assignment → Attempt → Snapshot → Result **не ломается**.
+- Цепочка Question → ExamBlock → Exam → Assignment → Attempt → Snapshot → Result **не ломается**.
 - Код Entity / миграции / API **не менялись** в этом этапе.
 - **Архитектура Assessment полностью зафиксирована** — можно проектировать Entity и миграции `assessment_*`.

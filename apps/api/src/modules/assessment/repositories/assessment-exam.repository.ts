@@ -39,10 +39,6 @@ export class AssessmentExamRepository {
     return this.examRepo.find({ where, order: { createdAt: 'DESC' } });
   }
 
-  filterByBlueprintId(blueprintId: string): Promise<AssessmentExamEntity[]> {
-    return this.filter({ blueprintId });
-  }
-
   filterByStatus(status: ContentLifecycleStatus): Promise<AssessmentExamEntity[]> {
     return this.filter({ status });
   }

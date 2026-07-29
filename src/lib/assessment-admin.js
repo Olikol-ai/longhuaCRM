@@ -2,7 +2,8 @@ import { unwrapItems } from '@/lib/assessment-ui';
 
 export const LIFECYCLE_STATUS_LABEL = {
   draft: 'Черновик',
-  published: 'Опубликован',
+  /** ACTIVE in domain terms; DB value remains `published` for compatibility. */
+  published: 'Активен',
   archived: 'В архиве',
 };
 
@@ -105,53 +106,6 @@ export function slugifySectionKey(title, fallbackIndex = 0) {
     .replace(/^_+|_+$/g, '')
     .slice(0, 48);
   return base || `section_${fallbackIndex + 1}`;
-}
-
-export function sumSectionWeights(sections = []) {
-  return sections.reduce((sum, s) => sum + (Number(s.weight) || 0), 0);
-}
-
-export function canPublishBlueprint(sections = []) {
-  if (!sections.length) {
-    return { ok: false, reason: 'Добавьте хотя бы одну секцию' };
-  }
-  const total = sumSectionWeights(sections);
-  if (Math.abs(total - 100) > 0.01) {
-    return {
-      ok: false,
-      reason: `Сумма весов секций должна быть 100% (сейчас ${total.toFixed(1)}%)`,
-    };
-  }
-  return { ok: true, reason: null };
-}
-
-export function toSectionRulePayload(sections = []) {
-  const usedKeys = new Set();
-  return sections.map((s, index) => {
-    let key = (s.section_key || slugifySectionKey(s.title, index)).trim();
-    if (!key) key = `section_${index + 1}`;
-    let unique = key;
-    let n = 2;
-    while (usedKeys.has(unique)) {
-      unique = `${key}_${n}`;
-      n += 1;
-    }
-    usedKeys.add(unique);
-    const types = Array.isArray(s.question_types)
-      ? s.question_types.filter(Boolean)
-      : s.question_type
-        ? [s.question_type]
-        : ['single_choice'];
-    return {
-      section_key: unique,
-      title: (s.title || unique).trim(),
-      question_count: Math.max(1, Number(s.question_count) || 1),
-      question_types: types,
-      difficulty_min: Math.min(5, Math.max(1, Number(s.difficulty_min) || 1)),
-      difficulty_max: Math.min(5, Math.max(1, Number(s.difficulty_max) || 5)),
-      weight: Number(s.weight) || 0,
-    };
-  });
 }
 
 export const DEFAULT_EXAM_RULE = {
@@ -263,18 +217,4 @@ export function formatDurationSeconds(seconds) {
   if (h > 0) return `${h}ч ${m}м ${s}с`;
   if (m > 0) return `${m}м ${s}с`;
   return `${s}с`;
-}
-
-export function emptyBlueprintSection(index = 0) {
-  return {
-    local_id: `local-${Date.now()}-${index}`,
-    section_key: '',
-    title: '',
-    question_type: 'single_choice',
-    question_types: ['single_choice'],
-    question_count: 10,
-    weight: 0,
-    difficulty_min: 1,
-    difficulty_max: 5,
-  };
 }

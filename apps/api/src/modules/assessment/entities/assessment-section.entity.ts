@@ -35,6 +35,19 @@ export class AssessmentSectionEntity {
   @Column({ type: 'text' })
   title: string;
 
+  @Column({ type: 'text', nullable: true })
+  description: string | null;
+
+  @Column({ name: 'duration_minutes', type: 'int', nullable: true })
+  durationMinutes: number | null;
+
+  @Column({ name: 'level_label', type: 'varchar', length: 64, nullable: true })
+  levelLabel: string | null;
+
+  @Index('IDX_ASSESSMENT_SECTIONS_SOURCE_BLOCK')
+  @Column({ name: 'source_block_id', type: 'uuid', nullable: true })
+  sourceBlockId: string | null;
+
   @Column({ type: 'numeric', precision: 6, scale: 2 })
   weight: string;
 

@@ -16,8 +16,12 @@ import { AssessmentAttemptEntity } from '../src/modules/assessment/entities/asse
 import { AssessmentExamEntity } from '../src/modules/assessment/entities/assessment-exam.entity';
 import { AssessmentExamAssignmentEntity } from '../src/modules/assessment/entities/assessment-exam-assignment.entity';
 import { AssessmentResultEntity } from '../src/modules/assessment/entities/assessment-result.entity';
-import { AssessmentBlueprintEntity } from '../src/modules/assessment/entities/assessment-blueprint.entity';
-import { AssessmentExamTemplateEntity } from '../src/modules/assessment/entities/assessment-exam-template.entity';
+import { AssessmentExamBlockEntity } from '../src/modules/assessment/entities/assessment-exam-block.entity';
+import { AssessmentExamBlockItemEntity } from '../src/modules/assessment/entities/assessment-exam-block-item.entity';
+import { AssessmentQuestionEntity } from '../src/modules/assessment/entities/assessment-question.entity';
+import { AssessmentAnswerEntity } from '../src/modules/assessment/entities/assessment-answer.entity';
+import { AssessmentSectionEntity } from '../src/modules/assessment/entities/assessment-section.entity';
+import { AssessmentExamQuestionEntity } from '../src/modules/assessment/entities/assessment-exam-question.entity';
 import { AssessmentBankEntity } from '../src/modules/assessment/entities/assessment-bank.entity';
 import {
   AssignmentStatus,
@@ -25,6 +29,7 @@ import {
   AttemptStatus,
   ContentLifecycleStatus,
   EvaluationType,
+  QuestionType,
   ResultStatus,
 } from '../src/modules/assessment/enums';
 import { EnrollmentEntity } from '../src/modules/courses/entities/enrollment.entity';
@@ -101,32 +106,67 @@ describeE2E('Assessment Result → Certificate (e2e)', () => {
         createdByUserId: null,
       }),
     );
-    const template = await ds.getRepository(AssessmentExamTemplateEntity).save(
-      ds.getRepository(AssessmentExamTemplateEntity).create({
-        name: `Tpl ${randomUUID().slice(0, 6)}`,
+    const question = await ds.getRepository(AssessmentQuestionEntity).save(
+      ds.getRepository(AssessmentQuestionEntity).create({
+        bankId: bank.id,
+        type: QuestionType.SingleChoice,
+        stem: 'Demo?',
+        points: '1',
+        difficulty: 1,
         status: ContentLifecycleStatus.Published,
-        locale: 'zh-CN',
-        levelLabel: 'HSK1',
         createdByUserId: null,
       }),
     );
-    const blueprint = await ds.getRepository(AssessmentBlueprintEntity).save(
-      ds.getRepository(AssessmentBlueprintEntity).create({
-        examTemplateId: template.id,
-        bankId: bank.id,
-        name: `Bp ${randomUUID().slice(0, 6)}`,
+    await ds.getRepository(AssessmentAnswerEntity).save(
+      ds.getRepository(AssessmentAnswerEntity).create({
+        questionId: question.id,
+        text: 'Yes',
+        isCorrect: true,
+        sortOrder: 0,
+      }),
+    );
+    const block = await ds.getRepository(AssessmentExamBlockEntity).save(
+      ds.getRepository(AssessmentExamBlockEntity).create({
+        name: `Block ${randomUUID().slice(0, 6)}`,
         status: ContentLifecycleStatus.Published,
         createdByUserId: null,
+      }),
+    );
+    await ds.getRepository(AssessmentExamBlockItemEntity).save(
+      ds.getRepository(AssessmentExamBlockItemEntity).create({
+        blockId: block.id,
+        questionId: question.id,
+        sortOrder: 0,
       }),
     );
     const exam = await ds.getRepository(AssessmentExamEntity).save(
       ds.getRepository(AssessmentExamEntity).create({
-        blueprintId: blueprint.id,
         name: `Exam ${randomUUID().slice(0, 6)}`,
         status: ContentLifecycleStatus.Published,
         availableFrom: null,
         availableTo: null,
         createdByUserId: null,
+      }),
+    );
+    const section = await ds.getRepository(AssessmentSectionEntity).save(
+      ds.getRepository(AssessmentSectionEntity).create({
+        examId: exam.id,
+        sectionKey: 'block_1',
+        title: block.name,
+        description: null,
+        durationMinutes: null,
+        levelLabel: null,
+        sourceBlockId: block.id,
+        weight: '100',
+        sortOrder: 0,
+      }),
+    );
+    await ds.getRepository(AssessmentExamQuestionEntity).save(
+      ds.getRepository(AssessmentExamQuestionEntity).create({
+        examId: exam.id,
+        sectionId: section.id,
+        questionId: question.id,
+        sortOrder: 0,
       }),
     );
     const assignment = await ds.getRepository(AssessmentExamAssignmentEntity).save(

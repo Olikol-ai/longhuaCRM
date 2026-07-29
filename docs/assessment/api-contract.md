@@ -23,7 +23,7 @@ Related: [domain-model.md](./domain-model.md), [state-machine.md](./state-machin
 | Role | Meaning |
 |------|---------|
 | `admin` | Полный доступ Assessment |
-| `teacher` | Авторство банка/шаблонов/экзаменов в своём scope; просмотр результатов учеников |
+| `teacher` / `tutor` | Авторство банка/блоков/экзаменов в своём scope; просмотр результатов учеников |
 | `student` | Прохождение назначенных экзаменов; свои Attempt/Result |
 | `system` | Внутренние/фоновые вызовы (jobs); не публичный JWT-роль — зарезервировано |
 
@@ -38,7 +38,7 @@ Related: [domain-model.md](./domain-model.md), [state-machine.md](./state-machin
 | `403` | Роль или ACL не позволяют |
 | `404` | Ресурс не найден / скрыт ACL |
 | `409` | Конфликт состояния (уже published, попытка исчерпана, …) |
-| `422` | Бизнес-правило (недостаточно вопросов в банке для Blueprint preview) |
+| `422` | Бизнес-правило (блок без вопросов, exam без блоков) |
 
 ### Lifecycle actions
 
@@ -81,7 +81,7 @@ Related: [domain-model.md](./domain-model.md), [state-machine.md](./state-machin
 | | |
 |--|--|
 | **Назначение** | Создать банк (`draft`) |
-| **Доступ** | `admin`, `teacher` |
+| **Доступ** | `admin`, `teacher`, `tutor` |
 | **Тело** | `{ "name": string, "description"?: string, "locale"?: string }` |
 | **Ответ `201`** | Bank object |
 | **Ошибки** | `400`, `401`, `403` |
@@ -101,7 +101,7 @@ Related: [domain-model.md](./domain-model.md), [state-machine.md](./state-machin
 | | |
 |--|--|
 | **Назначение** | Получить банк |
-| **Доступ** | `admin`, `teacher` |
+| **Доступ** | `admin`, `teacher`, `tutor` |
 | **Ответ `200`** | Bank |
 | **Ошибки** | `401`, `403`, `404` |
 
@@ -120,7 +120,7 @@ Related: [domain-model.md](./domain-model.md), [state-machine.md](./state-machin
 | | |
 |--|--|
 | **Назначение** | Опубликовать банк |
-| **Доступ** | `admin`, `teacher` |
+| **Доступ** | `admin`, `teacher`, `tutor` |
 | **Ответ `200`** | Bank (`status: published`) |
 | **Ошибки** | `401`, `403`, `404`, `409` |
 
@@ -129,7 +129,7 @@ Related: [domain-model.md](./domain-model.md), [state-machine.md](./state-machin
 | | |
 |--|--|
 | **Назначение** | Архивировать банк |
-| **Доступ** | `admin`, `teacher` |
+| **Доступ** | `admin`, `teacher`, `tutor` |
 | **Ответ `200`** | Bank (`status: archived`) |
 | **Ошибки** | `401`, `403`, `404`, `409` |
 
@@ -142,7 +142,7 @@ Related: [domain-model.md](./domain-model.md), [state-machine.md](./state-machin
 | | |
 |--|--|
 | **Назначение** | Создать вопрос в банке |
-| **Доступ** | `admin`, `teacher` |
+| **Доступ** | `admin`, `teacher`, `tutor` |
 | **Тело** | см. ниже |
 | **Ответ `201`** | Question (с answers) |
 | **Ошибки** | `400`, `401`, `403`, `404` (bank) |
@@ -167,7 +167,7 @@ Related: [domain-model.md](./domain-model.md), [state-machine.md](./state-machin
 | | |
 |--|--|
 | **Назначение** | Поиск / фильтрация / список |
-| **Доступ** | `admin`, `teacher` |
+| **Доступ** | `admin`, `teacher`, `tutor` |
 | **Query** | `bank_id?`, `status?`, `type?`, `topic_id?`, `difficulty_min?`, `difficulty_max?`, `search?` (stem), `limit?`, `offset?` |
 | **Ответ `200`** | `{ "items": Question[], "total": number }` |
 | **Ошибки** | `400`, `401`, `403` |
@@ -178,7 +178,7 @@ Related: [domain-model.md](./domain-model.md), [state-machine.md](./state-machin
 | | |
 |--|--|
 | **Назначение** | Получить вопрос (+ answers, attachments meta) |
-| **Доступ** | `admin`, `teacher` |
+| **Доступ** | `admin`, `teacher`, `tutor` |
 | **Ответ `200`** | Question detail |
 | **Ошибки** | `401`, `403`, `404` |
 | **Примечания** | `is_correct` в answers доступен authoring-ролям |
@@ -188,7 +188,7 @@ Related: [domain-model.md](./domain-model.md), [state-machine.md](./state-machin
 | | |
 |--|--|
 | **Назначение** | Изменить вопрос (только `draft`) |
-| **Доступ** | `admin`, `teacher` |
+| **Доступ** | `admin`, `teacher`, `tutor` |
 | **Тело** | частичные поля + optional `answers` (полная замена набора, если передано) |
 | **Ответ `200`** | Question |
 | **Ошибки** | `400`, `401`, `403`, `404`, `409` |
@@ -198,7 +198,7 @@ Related: [domain-model.md](./domain-model.md), [state-machine.md](./state-machin
 | | |
 |--|--|
 | **Назначение** | Удалить вопрос (только `draft`, не используемый в published Exam) |
-| **Доступ** | `admin`, `teacher` |
+| **Доступ** | `admin`, `teacher`, `tutor` |
 | **Ответ `204`** | — |
 | **Ошибки** | `401`, `403`, `404`, `409` |
 
@@ -207,7 +207,7 @@ Related: [domain-model.md](./domain-model.md), [state-machine.md](./state-machin
 | | |
 |--|--|
 | **Назначение** | Архивировать вопрос |
-| **Доступ** | `admin`, `teacher` |
+| **Доступ** | `admin`, `teacher`, `tutor` |
 | **Ответ `200`** | Question |
 | **Ошибки** | `401`, `403`, `404`, `409` |
 
@@ -216,7 +216,7 @@ Related: [domain-model.md](./domain-model.md), [state-machine.md](./state-machin
 | | |
 |--|--|
 | **Назначение** | Загрузить вложение (multipart) |
-| **Доступ** | `admin`, `teacher` |
+| **Доступ** | `admin`, `teacher`, `tutor` |
 | **Тело** | `multipart/form-data`: `file`, `kind` = `image\|audio\|pdf\|document` |
 | **Ответ `201`** | QuestionAttachment `{ id, kind, storage_key, mime, sort_order, url? }` |
 | **Ошибки** | `400`, `401`, `403`, `404`, `413` |
@@ -227,179 +227,27 @@ Related: [domain-model.md](./domain-model.md), [state-machine.md](./state-machin
 | | |
 |--|--|
 | **Назначение** | Удалить вложение |
-| **Доступ** | `admin`, `teacher` |
+| **Доступ** | `admin`, `teacher`, `tutor` |
 | **Ответ `204`** | — |
 | **Ошибки** | `401`, `403`, `404`, `409` |
 
 ---
 
-## 4. Exam templates (`/assessment/exam-templates`)
+## 4. Exam blocks (`/assessment/blocks`)
 
-### `POST /assessment/exam-templates`
+### CRUD + lifecycle
 
-| | |
-|--|--|
-| **Назначение** | Создать шаблон |
-| **Доступ** | `admin`, `teacher` |
-| **Тело** | `{ "name", "description?", "locale?", "level_label?" }` |
-| **Ответ `201`** | ExamTemplate |
-| **Ошибки** | `400`, `401`, `403` |
+| Method | Path | Notes |
+|--------|------|-------|
+| POST | `/assessment/blocks` | Create draft block `{ name, description?, level_label?, duration_minutes?, question_ids? }` |
+| GET | `/assessment/blocks` | List (owner-scoped for teacher/tutor) |
+| GET | `/assessment/blocks/:blockId` | Detail + items |
+| PATCH | `/assessment/blocks/:blockId` | Draft only |
+| DELETE | `/assessment/blocks/:blockId` | Hard delete if unused, else archive |
+| POST | `/assessment/blocks/:blockId/publish` | ACTIVE (`published`) |
+| POST | `/assessment/blocks/:blockId/archive` | Archive |
 
-### `GET /assessment/exam-templates`
-
-| | |
-|--|--|
-| **Назначение** | Список шаблонов |
-| **Доступ** | `admin`, `teacher` |
-| **Query** | `status?`, `search?`, `limit?`, `offset?` |
-| **Ответ `200`** | `{ "items", "total" }` |
-| **Ошибки** | `401`, `403` |
-
-### `GET /assessment/exam-templates/:templateId`
-
-| | |
-|--|--|
-| **Назначение** | Получить шаблон |
-| **Доступ** | `admin`, `teacher` |
-| **Ответ `200`** | ExamTemplate |
-| **Ошибки** | `401`, `403`, `404` |
-
-### `PATCH /assessment/exam-templates/:templateId`
-
-| | |
-|--|--|
-| **Назначение** | Изменить (только `draft`) |
-| **Доступ** | `admin`, `teacher` |
-| **Ответ `200`** | ExamTemplate |
-| **Ошибки** | `400`, `401`, `403`, `404`, `409` |
-
-### `DELETE /assessment/exam-templates/:templateId`
-
-| | |
-|--|--|
-| **Назначение** | Удалить (только `draft` без связанных published Exam) |
-| **Доступ** | `admin`, `teacher` |
-| **Ответ `204`** | — |
-| **Ошибки** | `401`, `403`, `404`, `409` |
-
-### `POST /assessment/exam-templates/:templateId/publish`
-
-| | |
-|--|--|
-| **Назначение** | Опубликовать шаблон |
-| **Доступ** | `admin`, `teacher` |
-| **Ответ `200`** | ExamTemplate |
-| **Ошибки** | `401`, `403`, `404`, `409` |
-
-### `POST /assessment/exam-templates/:templateId/archive`
-
-| | |
-|--|--|
-| **Назначение** | Архивировать шаблон |
-| **Доступ** | `admin`, `teacher` |
-| **Ответ `200`** | ExamTemplate |
-| **Ошибки** | `401`, `403`, `404`, `409` |
-
----
-
-## 5. Blueprints (`/assessment/blueprints`)
-
-### `POST /assessment/blueprints`
-
-| | |
-|--|--|
-| **Назначение** | Создать Blueprint |
-| **Доступ** | `admin`, `teacher` |
-| **Тело** | |
-| **Ответ `201`** | Blueprint (+ section_rules) |
-| **Ошибки** | `400`, `401`, `403`, `404` |
-
-```json
-{
-  "exam_template_id": "uuid",
-  "bank_id": "uuid",
-  "name": "HSK1 Standard",
-  "section_rules": [
-    {
-      "section_key": "listening",
-      "title": "Listening",
-      "question_count": 10,
-      "question_types": ["listening"],
-      "difficulty_min": 1,
-      "difficulty_max": 2,
-      "topic_ids": ["uuid"],
-      "weight": 30
-    }
-  ]
-}
-```
-
-### `GET /assessment/blueprints`
-
-| | |
-|--|--|
-| **Назначение** | Список |
-| **Доступ** | `admin`, `teacher` |
-| **Query** | `exam_template_id?`, `status?`, `limit?`, `offset?` |
-| **Ответ `200`** | `{ "items", "total" }` |
-| **Ошибки** | `401`, `403` |
-
-### `GET /assessment/blueprints/:blueprintId`
-
-| | |
-|--|--|
-| **Назначение** | Детали Blueprint |
-| **Доступ** | `admin`, `teacher` |
-| **Ответ `200`** | Blueprint + section_rules |
-| **Ошибки** | `401`, `403`, `404` |
-
-### `PATCH /assessment/blueprints/:blueprintId`
-
-| | |
-|--|--|
-| **Назначение** | Изменить (только `draft`) |
-| **Доступ** | `admin`, `teacher` |
-| **Тело** | поля + optional полная замена `section_rules` |
-| **Ответ `200`** | Blueprint |
-| **Ошибки** | `400`, `401`, `403`, `404`, `409` |
-
-### `DELETE /assessment/blueprints/:blueprintId`
-
-| | |
-|--|--|
-| **Назначение** | Удалить draft |
-| **Доступ** | `admin`, `teacher` |
-| **Ответ `204`** | — |
-| **Ошибки** | `401`, `403`, `404`, `409` |
-
-### `POST /assessment/blueprints/:blueprintId/publish`
-
-| | |
-|--|--|
-| **Назначение** | Опубликовать (валидация: сумма weight = 100, пул вопросов достаточен) |
-| **Доступ** | `admin`, `teacher` |
-| **Ответ `200`** | Blueprint |
-| **Ошибки** | `401`, `403`, `404`, `409`, `422` |
-
-### `POST /assessment/blueprints/:blueprintId/archive`
-
-| | |
-|--|--|
-| **Назначение** | Архивировать |
-| **Доступ** | `admin`, `teacher` |
-| **Ответ `200`** | Blueprint |
-| **Ошибки** | `401`, `403`, `404`, `409` |
-
-### `POST /assessment/blueprints/:blueprintId/preview`
-
-| | |
-|--|--|
-| **Назначение** | Предпросмотр генерации: сколько вопросов найдено / пример состава **без** создания Exam |
-| **Доступ** | `admin`, `teacher` |
-| **Тело** | optional `{ "seed"?: number }` |
-| **Ответ `200`** | `{ "ok": boolean, "sections": [{ "section_key", "requested", "available", "sample_question_ids": [] }], "errors": [] }` |
-| **Ошибки** | `401`, `403`, `404`, `422` |
-| **Примечания** | Не пишет в БД Exam; идемпотентный read-like |
+Roles: `admin`, `teacher`, `tutor`. Hierarchy: Question → ExamBlock → Exam.
 
 ---
 
@@ -409,15 +257,15 @@ Related: [domain-model.md](./domain-model.md), [state-machine.md](./state-machin
 
 | | |
 |--|--|
-| **Назначение** | Создать Exam из Blueprint (материализация вопросов → draft Exam) |
-| **Доступ** | `admin`, `teacher` |
+| **Назначение** | Создать Exam из ExamBlocks (материализация → draft Exam) |
+| **Доступ** | `admin`, `teacher`, `tutor` |
 | **Тело** | см. ниже |
 | **Ответ `201`** | Exam detail (sections, question count, embedded `rule`) |
 | **Ошибки** | `400`, `401`, `403`, `404`, `422` |
 
 ```json
 {
-  "blueprint_id": "uuid",
+  "block_ids": ["uuid"],
   "name": "HSK1 Mock — March",
   "available_from": "ISO-8601?",
   "available_to": "ISO-8601?",
@@ -464,7 +312,7 @@ Related: [domain-model.md](./domain-model.md), [state-machine.md](./state-machin
 | | |
 |--|--|
 | **Назначение** | Изменить draft Exam (имя, окно, rule) |
-| **Доступ** | `admin`, `teacher` |
+| **Доступ** | `admin`, `teacher`, `tutor` |
 | **Тело** | частичные поля; `rule` — полная замена объекта правил |
 | **Ответ `200`** | Exam |
 | **Ошибки** | `400`, `401`, `403`, `404`, `409` |
@@ -475,7 +323,7 @@ Related: [domain-model.md](./domain-model.md), [state-machine.md](./state-machin
 | | |
 |--|--|
 | **Назначение** | Опубликовать Exam (immutable состав + rule) |
-| **Доступ** | `admin`, `teacher` |
+| **Доступ** | `admin`, `teacher`, `tutor` |
 | **Ответ `200`** | Exam |
 | **Ошибки** | `401`, `403`, `404`, `409` |
 
@@ -484,7 +332,7 @@ Related: [domain-model.md](./domain-model.md), [state-machine.md](./state-machin
 | | |
 |--|--|
 | **Назначение** | Архивировать Exam (новые Attempt закрыты) |
-| **Доступ** | `admin`, `teacher` |
+| **Доступ** | `admin`, `teacher`, `tutor` |
 | **Ответ `200`** | Exam |
 | **Ошибки** | `401`, `403`, `404`, `409` |
 
@@ -493,7 +341,7 @@ Related: [domain-model.md](./domain-model.md), [state-machine.md](./state-machin
 | | |
 |--|--|
 | **Назначение** | **Предпросмотр экзамена** для автора (структура, стемы; ключи — только authoring) |
-| **Доступ** | `admin`, `teacher` |
+| **Доступ** | `admin`, `teacher`, `tutor` |
 | **Ответ `200`** | `{ "exam", "sections": [{ "section_key", "weight", "questions": [...] }] }` |
 | **Ошибки** | `401`, `403`, `404` |
 | **Примечания** | Не путать с Blueprint preview; это preview уже материализованного Exam |
@@ -507,7 +355,7 @@ Related: [domain-model.md](./domain-model.md), [state-machine.md](./state-machin
 | | |
 |--|--|
 | **Назначение** | Назначить Exam аудитории |
-| **Доступ** | `admin`, `teacher` |
+| **Доступ** | `admin`, `teacher`, `tutor` |
 | **Тело** | |
 | **Ответ `201`** | Assignment |
 | **Ошибки** | `400`, `401`, `403`, `404`, `409` |
@@ -549,7 +397,7 @@ Exam должен быть `published` (или `409`).
 | | |
 |--|--|
 | **Назначение** | Отменить Assignment → `cancelled` |
-| **Доступ** | `admin`, `teacher` |
+| **Доступ** | `admin`, `teacher`, `tutor` |
 | **Ответ `200`** | Assignment |
 | **Ошибки** | `401`, `403`, `404`, **`409`** если есть хотя бы один Attempt в `started` |
 | **Примечания** | Отмена только **до начала первой попытки** (`started`). История `submitted` Attempt/Result не удаляется. См. [state-machine.md §5.5](./state-machine.md). |
@@ -722,7 +570,7 @@ Exam должен быть `published` (или `409`).
 | | |
 |--|--|
 | **Назначение** | Экспорт результатов (CSV) |
-| **Доступ** | `admin`, `teacher` |
+| **Доступ** | `admin`, `teacher`, `tutor` |
 | **Query** | те же фильтры, что у списка + `format=csv` |
 | **Ответ `200`** | `text/csv` или `{ "download_url" }` |
 | **Ошибки** | `401`, `403`, `400` |
@@ -746,14 +594,13 @@ Exam должен быть `published` (или `409`).
 | Health | GET | 1 |
 | Banks | POST, GET, GET:id, PATCH, publish, archive | 6 |
 | Questions | POST, GET, GET:id, PATCH, DELETE, archive, attachments POST/DELETE | 8 |
-| Exam templates | POST, GET, GET:id, PATCH, DELETE, publish, archive | 7 |
-| Blueprints | POST, GET, GET:id, PATCH, DELETE, publish, archive, preview | 8 |
+| Exam blocks | POST, GET, GET:id, PATCH, DELETE, publish, archive | 7 |
 | Exams | POST, GET, GET:id, PATCH, publish, archive, preview | 7 |
 | Assignments | POST, GET, GET:id, cancel | 4 |
 | Attempts | POST (start), GET:id, GET list, autosave PATCH, submit | 5 |
 | Snapshots / download | GET snapshots, GET download | 2 |
 | Results | GET:id, GET list, export, GET by attempt | 4 |
-| **Total** | | **52** |
+| **Total** | | **44** |
 
 ---
 
@@ -763,8 +610,7 @@ Exam должен быть `published` (или `409`).
 |----------------|--------------|
 | Bank | `/banks` |
 | Question (+ Answer, Attachment) | `/questions`, attachments |
-| ExamTemplate | `/exam-templates` |
-| Blueprint | `/blueprints` (+ preview) |
+| ExamBlock | `/blocks` |
 | Exam (+ Rule, Section) | `/exams` (+ preview) |
 | Assignment | `/assignments` |
 | Attempt | `/attempts` |
@@ -785,7 +631,7 @@ AssessmentRule — не отдельный top-level CRUD в v1: создаёт�
 4. **Public Assignment** — отдельный auth flow для гостя или только после регистрации Student?  
 5. **Export** — синхронный CSV vs async job + `system`.  
 6. **Teacher as participant** — Attempt с `teacher_id` вместо `student_id` (как в domain-model).  
-7. **Пересборка вопросов draft Exam** — нужен ли `POST /exams/:id/rebuild` из того же Blueprint?
+7. **Пересборка вопросов draft Exam** — нужен ли `POST /exams/:id/rebuild` из тех же ExamBlocks?
 
 **Закрыто официально (см. state-machine.md / domain-model):** нет `abandon`/`expired`; timeout = auto-submit; cancel Assignment при Attempt `started` → `409`; Result `pending_review` + `evaluation_type`; Assignment `status` (не boolean active); Bank table; ResultBreakdown; AttemptAnswerSelection.
 

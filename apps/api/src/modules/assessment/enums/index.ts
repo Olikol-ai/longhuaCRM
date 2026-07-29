@@ -1,4 +1,4 @@
-export { ContentLifecycleStatus } from './content-lifecycle-status.enum';
+export { ContentLifecycleStatus, isActiveContentStatus } from './content-lifecycle-status.enum';
 export { QuestionType } from './question-type.enum';
 export { AttemptStatus } from './attempt-status.enum';
 export { SubmitReason } from './submit-reason.enum';

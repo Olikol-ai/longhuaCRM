@@ -36,12 +36,23 @@ describe('Assessment HTTP unauthorized access', () => {
 
   it('denies insufficient role on assessment authoring routes', () => {
     const reflector = {
-      getAllAndOverride: jest.fn().mockReturnValue(['admin', 'teacher']),
+      getAllAndOverride: jest.fn().mockReturnValue(['admin', 'teacher', 'tutor']),
     } as unknown as Reflector;
     const rolesGuard = new RolesGuard(reflector);
 
     expect(() =>
       rolesGuard.canActivate(mockContext({ sub: 'u-1', role: 'student' })),
     ).toThrow(ForbiddenException);
+  });
+
+  it('allows tutor on assessment authoring roles including blocks', () => {
+    const reflector = {
+      getAllAndOverride: jest.fn().mockReturnValue(['admin', 'teacher', 'tutor']),
+    } as unknown as Reflector;
+    const rolesGuard = new RolesGuard(reflector);
+
+    expect(
+      rolesGuard.canActivate(mockContext({ sub: 'u-tutor', role: 'tutor' })),
+    ).toBe(true);
   });
 });

@@ -6,14 +6,14 @@ import { AssessmentScoringService } from './assessment-scoring.service';
 import { AssessmentTimeoutJobService } from './assessment-timeout-job.service';
 import { AssessmentBankService } from './assessment-bank.service';
 import { QuestionAuthoringService } from './question-authoring.service';
-import { ExamTemplateService } from './exam-template.service';
-import { BlueprintService } from './blueprint.service';
+import { ExamBlockService } from './exam-block.service';
 import { ExamService } from './exam.service';
 import { AssignmentService } from './assignment.service';
 import { AttemptService } from './attempt.service';
 import { ResultService } from './result.service';
 import { AssessmentAssignmentNotifier } from './assessment-assignment-notifier.service';
 import { AssessmentReviewNotifier } from './assessment-review-notifier.service';
+import { AssessmentChangeJournalService } from './assessment-change-journal.service';
 
 export const ASSESSMENT_SERVICES = [
   AssessmentContentGuard,
@@ -21,11 +21,11 @@ export const ASSESSMENT_SERVICES = [
   AssessmentAttachmentService,
   AssessmentScoringService,
   AssessmentTimeoutJobService,
+  AssessmentChangeJournalService,
   AssessmentService,
   AssessmentBankService,
   QuestionAuthoringService,
-  ExamTemplateService,
-  BlueprintService,
+  ExamBlockService,
   ExamService,
   AssignmentService,
   AttemptService,
@@ -41,10 +41,10 @@ export {
   AssessmentAttachmentService,
   AssessmentScoringService,
   AssessmentTimeoutJobService,
+  AssessmentChangeJournalService,
   AssessmentBankService,
   QuestionAuthoringService,
-  ExamTemplateService,
-  BlueprintService,
+  ExamBlockService,
   ExamService,
   AssignmentService,
   AttemptService,

@@ -112,9 +112,8 @@ export function getRequiredRoleForPath(pathname) {
     || pathname === '/TeacherAssessmentResults'
     || pathname === '/AssessmentBanks'
     || pathname === '/AssessmentQuestions'
-    || pathname === '/AssessmentExamTemplates'
-    || pathname === '/AssessmentBlueprints'
-    || pathname === '/AssessmentBlueprintEdit'
+    || pathname === '/AssessmentExamBlocks'
+    || pathname === '/AssessmentExamBlockEdit'
     || pathname === '/AssessmentExams'
     || pathname === '/AssessmentExamDetail'
   ) {

@@ -396,11 +396,11 @@ export default function AssessmentExamDetail() {
 
       <div className="space-y-3">
         <h2 className="font-semibold text-slate-900 dark:text-white">
-          Секции и вопросы ({totalQuestions})
+          Блоки и вопросы ({totalQuestions})
         </h2>
         {sections.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-8 text-center text-sm text-slate-500">
-            Секции ещё не загружены
+            Блоки ещё не загружены
           </div>
         ) : (
           sections.map((section) => (
@@ -412,6 +412,9 @@ export default function AssessmentExamDetail() {
                 <p className="text-xs text-slate-500">
                   {section.questions?.length || 0} вопр.
                   {section.weight != null ? ` · вес ${section.weight}%` : ''}
+                  {section.level_label || section.levelLabel
+                    ? ` · ${section.level_label || section.levelLabel}`
+                    : ''}
                 </p>
               </div>
               <ul className="space-y-2">

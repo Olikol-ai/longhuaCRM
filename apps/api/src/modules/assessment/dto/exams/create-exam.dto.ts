@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
   IsDateString,
   IsEnum,
@@ -88,9 +90,14 @@ export class ExamRuleDto {
 }
 
 export class CreateExamDto {
-  @ApiProperty()
-  @IsUUID()
-  blueprint_id!: string;
+  @ApiProperty({
+    type: [String],
+    description: 'Ordered published ExamBlock IDs',
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID('4', { each: true })
+  block_ids!: string[];
 
   @ApiProperty()
   @IsString()

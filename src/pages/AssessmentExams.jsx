@@ -190,7 +190,7 @@ export default function AssessmentExams() {
                     <LifecycleBadge status={exam.status} />
                   </div>
                   <p className="text-sm text-slate-500 dark:text-slate-400">
-                    Структура: {exam.blueprint_name}
+                    Блоки → Экзамен
                   </p>
                   <p className="text-xs text-slate-400">
                     Создан: {formatDateTime(exam.created_at)}

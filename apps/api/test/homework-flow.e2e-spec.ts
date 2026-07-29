@@ -83,6 +83,27 @@ async function ensureHomeworkTutorSchema(ds: DataSource): Promise<void> {
     ALTER TABLE homework_attempts
     ADD COLUMN IF NOT EXISTS tutor_student_id uuid NULL
   `);
+
+  await ds.query(`
+    ALTER TABLE homework_results
+    ALTER COLUMN attempt_id DROP NOT NULL
+  `);
+
+  await ds.query(`
+    ALTER TABLE homework_results
+    ALTER COLUMN score DROP NOT NULL,
+    ALTER COLUMN max_score DROP NOT NULL,
+    ALTER COLUMN percent DROP NOT NULL,
+    ALTER COLUMN passed DROP NOT NULL
+  `);
+
+  await ds.query(`
+    ALTER TABLE homework_results
+    ADD COLUMN IF NOT EXISTS owner_comment text NULL,
+    ADD COLUMN IF NOT EXISTS review_result text NULL,
+    ADD COLUMN IF NOT EXISTS completed_at timestamptz NULL,
+    ADD COLUMN IF NOT EXISTS checked_at timestamptz NULL
+  `);
 }
 
 describeE2E('Homework module (e2e)', () => {

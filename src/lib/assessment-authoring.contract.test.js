@@ -12,15 +12,20 @@ describe('Assessment authoring access', () => {
     const app = readFileSync(join(root, 'src/App.jsx'), 'utf8');
     const routing = readFileSync(join(root, 'src/lib/routing.js'), 'utf8');
     assert.match(app, /AssessmentBanks/);
+    assert.match(app, /AssessmentExamBlocks/);
     assert.match(app, /TeacherRoute allowTutor/);
-    assert.match(routing, /AssessmentBanks/);
+    assert.match(routing, /AssessmentExamBlocks/);
     assert.match(routing, /AssessmentExams/);
+    assert.doesNotMatch(app, /AssessmentExamTemplates/);
+    assert.doesNotMatch(app, /AssessmentBlueprints/);
   });
 
-  it('shows assessment authoring entries in teacher and tutor navigation', () => {
+  it('shows questions / blocks / exams in teacher and tutor navigation', () => {
     const layout = readFileSync(join(root, 'src/Layout.jsx'), 'utf8');
-    assert.match(layout, /Банк вопросов/);
-    assert.match(layout, /Конструктор экзаменов/);
+    assert.match(layout, /Мои вопросы/);
+    assert.match(layout, /Мои блоки/);
+    assert.match(layout, /Мои экзамены/);
+    assert.match(layout, /AssessmentExamBlocks/);
   });
 
   it('keeps import and export actions in the shared questions UI', () => {

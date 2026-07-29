@@ -47,6 +47,9 @@ import { TeacherStudentContacts1742300000000 } from './migrations/1742300000000-
 import { TeacherStudentContactBalance1742400000000 } from './migrations/1742400000000-TeacherStudentContactBalance';
 import { TutorMaterialAccess1742500000000 } from './migrations/1742500000000-TutorMaterialAccess';
 import { TutorHomeworkOwnership1742600000000 } from './migrations/1742600000000-TutorHomeworkOwnership';
+import { HomeworkLocalResultAsAssignmentResult1742700000000 } from './migrations/1742700000000-HomeworkLocalResultAsAssignmentResult';
+import { ExamBlocksAndChangeJournal1742800000000 } from './migrations/1742800000000-ExamBlocksAndChangeJournal';
+import { DropAssessmentBlueprintTemplate1742900000000 } from './migrations/1742900000000-DropAssessmentBlueprintTemplate';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -97,6 +100,9 @@ export default new DataSource({
     TeacherStudentContactBalance1742400000000,
     TutorMaterialAccess1742500000000,
     TutorHomeworkOwnership1742600000000,
+    HomeworkLocalResultAsAssignmentResult1742700000000,
+    ExamBlocksAndChangeJournal1742800000000,
+    DropAssessmentBlueprintTemplate1742900000000,
   ],
   synchronize: false,
 });

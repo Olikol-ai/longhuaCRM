@@ -9,21 +9,15 @@ export { UpdateQuestionDto } from './questions/update-question.dto';
 export { ListQuestionsQueryDto } from './questions/list-questions-query.dto';
 export { CreateAttachmentDto } from './questions/create-attachment.dto';
 
-export { CreateExamTemplateDto } from './exam-templates/create-exam-template.dto';
-export { UpdateExamTemplateDto } from './exam-templates/update-exam-template.dto';
-export { ListExamTemplatesQueryDto } from './exam-templates/list-exam-templates-query.dto';
-
-export {
-  CreateBlueprintDto,
-  BlueprintSectionRuleDto,
-} from './blueprints/create-blueprint.dto';
-export { UpdateBlueprintDto } from './blueprints/update-blueprint.dto';
-export { ListBlueprintsQueryDto } from './blueprints/list-blueprints-query.dto';
-export { BlueprintPreviewDto } from './blueprints/blueprint-preview.dto';
-
 export { CreateExamDto, ExamRuleDto } from './exams/create-exam.dto';
 export { UpdateExamDto } from './exams/update-exam.dto';
 export { ListExamsQueryDto } from './exams/list-exams-query.dto';
+
+export {
+  CreateExamBlockDto,
+  UpdateExamBlockDto,
+  ListExamBlocksQueryDto,
+} from './blocks/exam-block.dto';
 
 export { CreateAssignmentDto } from './assignments/create-assignment.dto';
 export { ListAssignmentsQueryDto } from './assignments/list-assignments-query.dto';

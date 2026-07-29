@@ -4,9 +4,6 @@ import { AssessmentQuestionEntity } from './assessment-question.entity';
 import { AssessmentQuestionTopicEntity } from './assessment-question-topic.entity';
 import { AssessmentAnswerEntity } from './assessment-answer.entity';
 import { AssessmentQuestionAttachmentEntity } from './assessment-question-attachment.entity';
-import { AssessmentExamTemplateEntity } from './assessment-exam-template.entity';
-import { AssessmentBlueprintEntity } from './assessment-blueprint.entity';
-import { AssessmentBlueprintSectionRuleEntity } from './assessment-blueprint-section-rule.entity';
 import { AssessmentExamEntity } from './assessment-exam.entity';
 import { AssessmentRuleEntity } from './assessment-rule.entity';
 import { AssessmentSectionEntity } from './assessment-section.entity';
@@ -19,6 +16,9 @@ import { AssessmentAttemptAnswerEntity } from './assessment-attempt-answer.entit
 import { AssessmentAttemptAnswerSelectionEntity } from './assessment-attempt-answer-selection.entity';
 import { AssessmentResultEntity } from './assessment-result.entity';
 import { AssessmentResultBreakdownEntity } from './assessment-result-breakdown.entity';
+import { AssessmentExamBlockEntity } from './assessment-exam-block.entity';
+import { AssessmentExamBlockItemEntity } from './assessment-exam-block-item.entity';
+import { AssessmentChangeJournalEntity } from './assessment-change-journal.entity';
 
 /** All Assessment TypeORM entities for module / registry registration. */
 export const ASSESSMENT_ENTITIES = [
@@ -28,9 +28,8 @@ export const ASSESSMENT_ENTITIES = [
   AssessmentQuestionTopicEntity,
   AssessmentAnswerEntity,
   AssessmentQuestionAttachmentEntity,
-  AssessmentExamTemplateEntity,
-  AssessmentBlueprintEntity,
-  AssessmentBlueprintSectionRuleEntity,
+  AssessmentExamBlockEntity,
+  AssessmentExamBlockItemEntity,
   AssessmentExamEntity,
   AssessmentRuleEntity,
   AssessmentSectionEntity,
@@ -43,6 +42,7 @@ export const ASSESSMENT_ENTITIES = [
   AssessmentAttemptAnswerSelectionEntity,
   AssessmentResultEntity,
   AssessmentResultBreakdownEntity,
+  AssessmentChangeJournalEntity,
 ] as const;
 
 export {
@@ -52,9 +52,8 @@ export {
   AssessmentQuestionTopicEntity,
   AssessmentAnswerEntity,
   AssessmentQuestionAttachmentEntity,
-  AssessmentExamTemplateEntity,
-  AssessmentBlueprintEntity,
-  AssessmentBlueprintSectionRuleEntity,
+  AssessmentExamBlockEntity,
+  AssessmentExamBlockItemEntity,
   AssessmentExamEntity,
   AssessmentRuleEntity,
   AssessmentSectionEntity,
@@ -67,4 +66,5 @@ export {
   AssessmentAttemptAnswerSelectionEntity,
   AssessmentResultEntity,
   AssessmentResultBreakdownEntity,
+  AssessmentChangeJournalEntity,
 };

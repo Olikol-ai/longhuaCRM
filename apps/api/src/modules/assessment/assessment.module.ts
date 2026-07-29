@@ -14,8 +14,7 @@ import { AssessmentAssignmentsController } from './controllers/assessment-assign
 import { AssessmentAttemptsController } from './controllers/assessment-attempts.controller';
 import { AssessmentAttachmentsController } from './controllers/assessment-attachments.controller';
 import { AssessmentBanksController } from './controllers/assessment-banks.controller';
-import { AssessmentBlueprintsController } from './controllers/assessment-blueprints.controller';
-import { AssessmentExamTemplatesController } from './controllers/assessment-exam-templates.controller';
+import { AssessmentExamBlocksController } from './controllers/assessment-exam-blocks.controller';
 import { AssessmentExamsController } from './controllers/assessment-exams.controller';
 import { AssessmentQuestionsController } from './controllers/assessment-questions.controller';
 import { AssessmentResultsController } from './controllers/assessment-results.controller';
@@ -28,7 +27,7 @@ import { ASSESSMENT_SERVICES } from './services';
  * LongHua Assessment bounded context.
  *
  * Owns exam/attempt/result domain tables (`assessment_*`).
- * Does not own users, students, teachers, payments, or schedule.
+ * Hierarchy: Question → ExamBlock → Exam.
  * Access rules live in AssessmentAccessService (DomainAccessModule).
  */
 @Module({
@@ -51,8 +50,7 @@ import { ASSESSMENT_SERVICES } from './services';
     AssessmentController,
     AssessmentBanksController,
     AssessmentQuestionsController,
-    AssessmentExamTemplatesController,
-    AssessmentBlueprintsController,
+    AssessmentExamBlocksController,
     AssessmentExamsController,
     AssessmentAssignmentsController,
     AssessmentAttemptsController,

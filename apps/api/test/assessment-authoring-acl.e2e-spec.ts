@@ -207,39 +207,16 @@ describeE2E('Assessment authoring ACL (e2e)', () => {
       })
       .expect(403);
 
-    const template = await api(app)
-      .post('/api/assessment/exam-templates')
-      .set(authHeader(teacherLogin.token))
-      .send({ name: 'Teacher Template' })
-      .expect(201);
-    await api(app)
-      .post(`/api/assessment/exam-templates/${template.body.id}/publish`)
-      .set(authHeader(teacherLogin.token))
-      .expect(201);
-
-    const blueprint = await api(app)
-      .post('/api/assessment/blueprints')
+    const teacherBlock = await api(app)
+      .post('/api/assessment/blocks')
       .set(authHeader(teacherLogin.token))
       .send({
-        exam_template_id: template.body.id,
-        bank_id: teacherBank.body.id,
-        name: 'Teacher Blueprint',
-        section_rules: [
-          {
-            section_key: 'test',
-            title: 'Test',
-            question_count: 1,
-            question_types: ['single_choice'],
-            difficulty_min: 1,
-            difficulty_max: 5,
-            topic_ids: [],
-            weight: 100,
-          },
-        ],
+        name: 'Teacher Block',
+        question_ids: [teacherQuestion.body.id],
       })
       .expect(201);
     await api(app)
-      .post(`/api/assessment/blueprints/${blueprint.body.id}/publish`)
+      .post(`/api/assessment/blocks/${teacherBlock.body.id}/publish`)
       .set(authHeader(teacherLogin.token))
       .expect(201);
 
@@ -247,7 +224,7 @@ describeE2E('Assessment authoring ACL (e2e)', () => {
       .post('/api/assessment/exams')
       .set(authHeader(tutorLogin.token))
       .send({
-        blueprint_id: blueprint.body.id,
+        block_ids: [teacherBlock.body.id],
         name: 'Foreign Tutor Exam',
         rule: {
           duration_minutes: 30,
@@ -262,7 +239,7 @@ describeE2E('Assessment authoring ACL (e2e)', () => {
       .post('/api/assessment/exams')
       .set(authHeader(teacherLogin.token))
       .send({
-        blueprint_id: blueprint.body.id,
+        block_ids: [teacherBlock.body.id],
         name: 'Teacher Exam',
         rule: {
           duration_minutes: 30,

@@ -8,10 +8,14 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { ContentLifecycleStatus } from '../enums';
-import { AssessmentBlueprintEntity } from './assessment-blueprint.entity';
+import { AssessmentExamBlockItemEntity } from './assessment-exam-block-item.entity';
 
-@Entity('assessment_exam_templates')
-export class AssessmentExamTemplateEntity {
+/**
+ * First-class ExamBlock: reusable ordered set of questions.
+ * Materialized into assessment_sections when composing an Exam.
+ */
+@Entity('assessment_exam_blocks')
+export class AssessmentExamBlockEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -21,22 +25,22 @@ export class AssessmentExamTemplateEntity {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
-  @Column({ type: 'varchar', length: 16, nullable: true })
-  locale: string | null;
-
-  @Column({ name: 'level_label', type: 'text', nullable: true })
+  @Column({ name: 'level_label', type: 'varchar', length: 64, nullable: true })
   levelLabel: string | null;
 
-  @Index('IDX_ASSESSMENT_EXAM_TEMPLATES_STATUS')
+  @Column({ name: 'duration_minutes', type: 'int', nullable: true })
+  durationMinutes: number | null;
+
+  @Index('IDX_ASSESSMENT_EXAM_BLOCKS_STATUS')
   @Column({ type: 'varchar', length: 32, default: ContentLifecycleStatus.Draft })
   status: ContentLifecycleStatus;
 
-  @Index('IDX_ASSESSMENT_EXAM_TEMPLATES_CREATED_BY')
+  @Index('IDX_ASSESSMENT_EXAM_BLOCKS_CREATED_BY')
   @Column({ name: 'created_by_user_id', type: 'uuid', nullable: true })
   createdByUserId: string | null;
 
-  @OneToMany(() => AssessmentBlueprintEntity, (b) => b.examTemplate)
-  blueprints?: AssessmentBlueprintEntity[];
+  @OneToMany(() => AssessmentExamBlockItemEntity, (item) => item.block)
+  items?: AssessmentExamBlockItemEntity[];
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

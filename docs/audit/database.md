@@ -20,9 +20,7 @@
 
 ## Native arrays (not JSONB)
 
-| Table | Columns |
-|-------|---------|
-| `assessment_blueprint_section_rules` | `question_types` (`text[]`), `topic_ids` (`uuid[]`) |
+Assessment no longer uses blueprint filter arrays. Prefer relational join tables for new filters.
 
 ## Проверка
 

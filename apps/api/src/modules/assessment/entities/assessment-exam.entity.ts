@@ -3,15 +3,12 @@ import {
   CreateDateColumn,
   Entity,
   Index,
-  JoinColumn,
-  ManyToOne,
   OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { ContentLifecycleStatus } from '../enums';
-import { AssessmentBlueprintEntity } from './assessment-blueprint.entity';
 import { AssessmentRuleEntity } from './assessment-rule.entity';
 import { AssessmentSectionEntity } from './assessment-section.entity';
 import { AssessmentExamQuestionEntity } from './assessment-exam-question.entity';
@@ -21,14 +18,6 @@ import { AssessmentExamAssignmentEntity } from './assessment-exam-assignment.ent
 export class AssessmentExamEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
-
-  @Index('IDX_ASSESSMENT_EXAMS_BLUEPRINT_ID')
-  @Column({ name: 'blueprint_id', type: 'uuid' })
-  blueprintId: string;
-
-  @ManyToOne(() => AssessmentBlueprintEntity, { nullable: false, onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'blueprint_id' })
-  blueprint?: AssessmentBlueprintEntity;
 
   @Column({ type: 'text' })
   name: string;

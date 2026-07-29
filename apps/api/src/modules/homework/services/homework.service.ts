@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { JwtPayload } from '../../auth/auth.service';
 import { AssessmentQuestionEntity } from '../../assessment/entities/assessment-question.entity';
 import { ContentLifecycleStatus, EvaluationType, QuestionType } from '../../assessment/enums';
@@ -395,6 +395,7 @@ export class HomeworkService {
     if (attemptIds.length > 0) {
       const results = await this.results.find({ where: { attemptId: In(attemptIds) } });
       for (const result of results) {
+        if (!result.attemptId) continue;
         resultByAttempt.set(result.attemptId, result);
       }
     }
@@ -707,12 +708,34 @@ export class HomeworkService {
 
     const enriched = await this.enrichAssignmentDtos([assignment], assignment.homework);
     const detail = enriched[0];
+
+    // Tutor flow for local tutor-students stores result without creating an attempt.
+    const localResult = await this.results.findOne({
+      where: { assignmentId, attemptId: IsNull() },
+    });
+
     return {
       ...detail,
       submitted_at: null,
       answers: [],
-      result:
-        assignment.manualStatus || assignment.reviewResult
+      result: localResult
+        ? {
+            id: localResult.id,
+            score: localResult.score != null ? Number(localResult.score) : null,
+            max_score: localResult.maxScore != null ? Number(localResult.maxScore) : null,
+            percent: localResult.percent != null ? Number(localResult.percent) : null,
+            passed: localResult.passed ?? null,
+            evaluation_type: localResult.evaluationType,
+            status: localResult.status,
+            duration_seconds: localResult.durationSeconds,
+            breakdown: localResult.breakdownJson ? JSON.parse(localResult.breakdownJson) : null,
+            manual: true,
+            review_result: localResult.reviewResult,
+            owner_comment: localResult.ownerComment,
+            completed_at: localResult.completedAt,
+            checked_at: localResult.checkedAt,
+          }
+        : assignment.manualStatus || assignment.reviewResult
           ? {
               score: null,
               max_score: null,
@@ -757,21 +780,63 @@ export class HomeworkService {
       throw new BadRequestException('Unsupported local homework status');
     }
 
-    assignment.manualStatus = normalized;
+    const resultStatusByNormalized: Record<string, HomeworkAssignmentStatus> = {
+      completed: HomeworkAssignmentStatus.Submitted,
+      not_completed: HomeworkAssignmentStatus.Assigned,
+      reviewed: HomeworkAssignmentStatus.Reviewed,
+      needs_revision: HomeworkAssignmentStatus.NeedsRevision,
+    };
+    const resultStatus = resultStatusByNormalized[normalized];
+    const now = new Date();
+
+    assignment.manualStatus = resultStatus;
     assignment.ownerComment = dto.comment?.trim() || null;
     assignment.reviewResult = dto.result?.trim() || null;
+
     assignment.manualCheckedAt =
-      normalized === 'reviewed' || normalized === 'needs_revision' ? new Date() : null;
+      resultStatus === HomeworkAssignmentStatus.Reviewed || resultStatus === HomeworkAssignmentStatus.NeedsRevision
+        ? now
+        : null;
     assignment.returnedForRevisionAt =
-      normalized === 'needs_revision' ? new Date() : null;
-    assignment.status =
-      normalized === 'completed'
-        ? HomeworkAssignmentStatus.Submitted
-        : normalized === 'reviewed'
-          ? HomeworkAssignmentStatus.Reviewed
-          : normalized === 'needs_revision'
-            ? HomeworkAssignmentStatus.NeedsRevision
-            : HomeworkAssignmentStatus.Assigned;
+      resultStatus === HomeworkAssignmentStatus.NeedsRevision ? now : null;
+    assignment.status = resultStatus;
+
+    // Persist local execution metadata into AssignmentResult, without creating HomeworkAttempt.
+    const completedAt = resultStatus !== HomeworkAssignmentStatus.Assigned ? now : null;
+    const checkedAt =
+      resultStatus === HomeworkAssignmentStatus.Reviewed ||
+      resultStatus === HomeworkAssignmentStatus.NeedsRevision
+        ? now
+        : null;
+
+    const existingLocalResult = await this.results.findOne({
+      where: { assignmentId: assignment.id, attemptId: IsNull() },
+    });
+
+    const localPayload = {
+      attemptId: null,
+      assignmentId: assignment.id,
+      evaluationType: EvaluationType.Manual,
+      status: resultStatus,
+      score: null,
+      maxScore: null,
+      percent: null,
+      passed: null,
+      durationSeconds: null,
+      breakdownJson: null,
+      completedAt,
+      checkedAt,
+      ownerComment: assignment.ownerComment,
+      reviewResult: assignment.reviewResult,
+    };
+
+    if (existingLocalResult) {
+      Object.assign(existingLocalResult, localPayload);
+      await this.results.save(existingLocalResult);
+    } else {
+      await this.results.save(this.results.create(localPayload));
+    }
+
     await this.assignments.save(assignment);
 
     const enriched = await this.enrichAssignmentDtos([assignment], assignment.homework);

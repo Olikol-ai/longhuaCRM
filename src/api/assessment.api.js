@@ -121,91 +121,39 @@ export const assessment = {
     });
   },
 
-  // ── Exam templates ─────────────────────────────────────────────────────
-  listExamTemplates(params) {
-    return apiFetch(`/assessment/exam-templates${toQuery(params)}`);
+  // ── Exam blocks ────────────────────────────────────────────────────────
+  listExamBlocks(params) {
+    return apiFetch(`/assessment/blocks${toQuery(params)}`);
   },
 
-  getExamTemplate(templateId) {
-    return apiFetch(`/assessment/exam-templates/${templateId}`);
+  getExamBlock(blockId) {
+    return apiFetch(`/assessment/blocks/${blockId}`);
   },
 
-  createExamTemplate(body) {
-    return apiFetch('/assessment/exam-templates', {
+  createExamBlock(body) {
+    return apiFetch('/assessment/blocks', {
       method: 'POST',
       body: JSON.stringify(body),
     });
   },
 
-  updateExamTemplate(templateId, body) {
-    return apiFetch(`/assessment/exam-templates/${templateId}`, {
+  updateExamBlock(blockId, body) {
+    return apiFetch(`/assessment/blocks/${blockId}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     });
   },
 
-  deleteExamTemplate(templateId) {
-    return apiFetch(`/assessment/exam-templates/${templateId}`, {
-      method: 'DELETE',
-    });
+  deleteExamBlock(blockId) {
+    return apiFetch(`/assessment/blocks/${blockId}`, { method: 'DELETE' });
   },
 
-  publishExamTemplate(templateId) {
-    return apiFetch(`/assessment/exam-templates/${templateId}/publish`, {
-      method: 'POST',
-    });
+  publishExamBlock(blockId) {
+    return apiFetch(`/assessment/blocks/${blockId}/publish`, { method: 'POST' });
   },
 
-  archiveExamTemplate(templateId) {
-    return apiFetch(`/assessment/exam-templates/${templateId}/archive`, {
-      method: 'POST',
-    });
-  },
-
-  // ── Blueprints ─────────────────────────────────────────────────────────
-  listBlueprints(params) {
-    return apiFetch(`/assessment/blueprints${toQuery(params)}`);
-  },
-
-  getBlueprint(blueprintId) {
-    return apiFetch(`/assessment/blueprints/${blueprintId}`);
-  },
-
-  createBlueprint(body) {
-    return apiFetch('/assessment/blueprints', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
-  },
-
-  updateBlueprint(blueprintId, body) {
-    return apiFetch(`/assessment/blueprints/${blueprintId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(body),
-    });
-  },
-
-  deleteBlueprint(blueprintId) {
-    return apiFetch(`/assessment/blueprints/${blueprintId}`, { method: 'DELETE' });
-  },
-
-  publishBlueprint(blueprintId) {
-    return apiFetch(`/assessment/blueprints/${blueprintId}/publish`, {
-      method: 'POST',
-    });
-  },
-
-  archiveBlueprint(blueprintId) {
-    return apiFetch(`/assessment/blueprints/${blueprintId}/archive`, {
-      method: 'POST',
-    });
-  },
-
-  previewBlueprint(blueprintId, body = {}) {
-    return apiFetch(`/assessment/blueprints/${blueprintId}/preview`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
+  archiveExamBlock(blockId) {
+    return apiFetch(`/assessment/blocks/${blockId}/archive`, { method: 'POST' });
   },
 
   // ── Assignments / Exams / Attempts / Results (shared) ──────────────────
@@ -237,6 +185,10 @@ export const assessment = {
       method: 'PATCH',
       body: JSON.stringify(body),
     });
+  },
+
+  deleteExam(examId) {
+    return apiFetch(`/assessment/exams/${examId}`, { method: 'DELETE' });
   },
 
   publishExam(examId) {

@@ -17,11 +17,11 @@ export class HomeworkResultEntity {
   id: string;
 
   @Index('IDX_HOMEWORK_RESULTS_ATTEMPT', { unique: true })
-  @Column({ name: 'attempt_id', type: 'uuid' })
-  attemptId: string;
+  @Column({ name: 'attempt_id', type: 'uuid', nullable: true })
+  attemptId: string | null;
 
   @OneToOne(() => HomeworkAttemptEntity, (a) => a.result, {
-    nullable: false,
+    nullable: true,
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'attempt_id' })
@@ -31,17 +31,17 @@ export class HomeworkResultEntity {
   @Column({ name: 'assignment_id', type: 'uuid' })
   assignmentId: string;
 
-  @Column({ type: 'numeric', precision: 10, scale: 2, default: 0 })
-  score: string;
+  @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true })
+  score: string | null;
 
-  @Column({ name: 'max_score', type: 'numeric', precision: 10, scale: 2, default: 0 })
-  maxScore: string;
+  @Column({ name: 'max_score', type: 'numeric', precision: 10, scale: 2, nullable: true })
+  maxScore: string | null;
 
-  @Column({ type: 'numeric', precision: 5, scale: 2, default: 0 })
-  percent: string;
+  @Column({ type: 'numeric', precision: 5, scale: 2, nullable: true })
+  percent: string | null;
 
-  @Column({ type: 'boolean', default: false })
-  passed: boolean;
+  @Column({ type: 'boolean', nullable: true })
+  passed: boolean | null;
 
   @Column({ name: 'evaluation_type', type: 'varchar', length: 32 })
   evaluationType: EvaluationType;
@@ -55,6 +55,20 @@ export class HomeworkResultEntity {
 
   @Column({ name: 'breakdown_json', type: 'text', nullable: true })
   breakdownJson: string | null;
+
+  // Local (tutor) flow for non-registered students:
+  // store completion/review metadata directly in AssignmentResult.
+  @Column({ name: 'completed_at', type: 'timestamptz', nullable: true })
+  completedAt: Date | null;
+
+  @Column({ name: 'checked_at', type: 'timestamptz', nullable: true })
+  checkedAt: Date | null;
+
+  @Column({ name: 'owner_comment', type: 'text', nullable: true })
+  ownerComment: string | null;
+
+  @Column({ name: 'review_result', type: 'text', nullable: true })
+  reviewResult: string | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

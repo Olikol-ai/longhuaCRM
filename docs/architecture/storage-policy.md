@@ -10,7 +10,7 @@ PostgreSQL stores **stable business data only in relational tables** (typed colu
 |----------------------------------|---------|
 | `jsonb` / `json` columns | Native typed columns (`uuid`, `text`, `timestamptz`, enums, …) |
 | `json_record` / `data jsonb` bag | Join tables for M:N |
-| Embedding multiple entities in one JSON document | PostgreSQL arrays **only** where explicitly designed (see Assessment blueprint filters) |
+| Embedding multiple entities in one JSON document | Prefer relational tables and join entities |
 
 Live verification (must stay empty):
 

@@ -17,8 +17,7 @@ import {
 } from '../enums';
 import { AssessmentBankService } from '../services/assessment-bank.service';
 import { QuestionAuthoringService } from '../services/question-authoring.service';
-import { ExamTemplateService } from '../services/exam-template.service';
-import { BlueprintService } from '../services/blueprint.service';
+import { ExamBlockService } from '../services/exam-block.service';
 import { ExamService } from '../services/exam.service';
 import { AssignmentService } from '../services/assignment.service';
 
@@ -26,8 +25,8 @@ import { AssignmentService } from '../services/assignment.service';
 export const ASSESSMENT_DEMO = {
   examName: 'Вступительный экзамен HSK 1',
   bankName: 'Банк вопросов HSK 1',
-  templateName: 'Шаблон HSK 1',
-  blueprintName: 'Структура HSK 1',
+  listeningBlockName: 'Блок: Аудирование HSK 1',
+  readingBlockName: 'Блок: Чтение HSK 1',
   courseName: 'Курс китайского HSK 1',
   studentEmail: 'uchenik.demo@longhua.local',
   studentPassword: 'DemoStudent123!',
@@ -37,8 +36,7 @@ export const ASSESSMENT_DEMO = {
 export type AssessmentDemoSeedResult = {
   skipped: boolean;
   bankId: string;
-  templateId: string;
-  blueprintId: string;
+  blockIds: string[];
   examId: string;
   assignmentId: string;
   studentId: string;
@@ -51,8 +49,7 @@ export type AssessmentDemoSeedDeps = {
   dataSource: DataSource;
   banks: AssessmentBankService;
   questions: QuestionAuthoringService;
-  templates: ExamTemplateService;
-  blueprints: BlueprintService;
+  blocks: ExamBlockService;
   exams: ExamService;
   assignments: AssignmentService;
   students: StudentsService;
@@ -79,8 +76,7 @@ function multiAnswers(correctIndexes: number[], options: string[]) {
 
 /**
  * Builds published HSK Demo 1 exam + assignment for a demo student.
- * Idempotent: if a published exam named "HSK Demo 1" already exists, reuses it
- * and ensures assignment for the demo student.
+ * Idempotent: if a published exam with the demo name already exists, reuses it.
  */
 export async function seedAssessmentDemo(
   deps: AssessmentDemoSeedDeps,
@@ -90,8 +86,7 @@ export async function seedAssessmentDemo(
     dataSource,
     banks,
     questions,
-    templates,
-    blueprints,
+    blocks,
     exams,
     assignments,
     students,
@@ -113,8 +108,7 @@ export async function seedAssessmentDemo(
     return {
       skipped: true,
       bankId: '',
-      templateId: '',
-      blueprintId: existing.blueprintId,
+      blockIds: [],
       examId: existing.id,
       assignmentId: assignment.id,
       studentId: student.id,
@@ -134,9 +128,7 @@ export async function seedAssessmentDemo(
   });
   await banks.publish(actor, bank.id);
 
-  const questionIds: string[] = [];
-
-  // Listening pool (5)
+  const listeningIds: string[] = [];
   for (let i = 1; i <= 5; i += 1) {
     const q = await questions.create(actor, {
       bankId: bank.id,
@@ -148,10 +140,10 @@ export async function seedAssessmentDemo(
       createdByUserId: actor.sub,
     });
     await questions.publish(actor, q.id);
-    questionIds.push(q.id);
+    listeningIds.push(q.id);
   }
 
-  // Reading pool: 3 single_choice + 2 multiple_choice = 5
+  const readingIds: string[] = [];
   for (let i = 1; i <= 3; i += 1) {
     const q = await questions.create(actor, {
       bankId: bank.id,
@@ -163,7 +155,7 @@ export async function seedAssessmentDemo(
       createdByUserId: actor.sub,
     });
     await questions.publish(actor, q.id);
-    questionIds.push(q.id);
+    readingIds.push(q.id);
   }
   for (let i = 1; i <= 2; i += 1) {
     const q = await questions.create(actor, {
@@ -176,51 +168,32 @@ export async function seedAssessmentDemo(
       createdByUserId: actor.sub,
     });
     await questions.publish(actor, q.id);
-    questionIds.push(q.id);
+    readingIds.push(q.id);
   }
 
-  const template = await templates.create({
-    name: ASSESSMENT_DEMO.templateName,
-    description: 'Шаблон вступительного экзамена HSK 1',
-    locale: 'zh-CN',
+  const listeningBlock = await blocks.create(actor, {
+    name: ASSESSMENT_DEMO.listeningBlockName,
+    description: 'Демо-блок аудирования',
     levelLabel: 'HSK 1',
+    durationMinutes: 15,
+    questionIds: listeningIds,
     createdByUserId: actor.sub,
   });
-  await templates.publish(actor, template.id);
+  await blocks.publish(actor, listeningBlock.id);
 
-  const blueprint = await blueprints.create(actor, {
-    examTemplateId: template.id,
-    bankId: bank.id,
-    name: ASSESSMENT_DEMO.blueprintName,
+  const readingBlock = await blocks.create(actor, {
+    name: ASSESSMENT_DEMO.readingBlockName,
+    description: 'Демо-блок чтения',
+    levelLabel: 'HSK 1',
+    durationMinutes: 15,
+    questionIds: readingIds,
     createdByUserId: actor.sub,
-    sectionRules: [
-      {
-        sectionKey: 'listening',
-        title: 'Аудирование',
-        questionCount: 5,
-        questionTypes: [QuestionType.Listening],
-        difficultyMin: 1,
-        difficultyMax: 5,
-        weight: 50,
-        sortOrder: 0,
-      },
-      {
-        sectionKey: 'reading',
-        title: 'Чтение',
-        questionCount: 5,
-        questionTypes: [QuestionType.SingleChoice, QuestionType.MultipleChoice],
-        difficultyMin: 1,
-        difficultyMax: 5,
-        weight: 50,
-        sortOrder: 1,
-      },
-    ],
   });
-  await blueprints.publish(actor, blueprint.id);
+  await blocks.publish(actor, readingBlock.id);
 
-  const exam = await exams.createFromBlueprint(
+  const exam = await exams.create(
     {
-      blueprintId: blueprint.id,
+      blockIds: [listeningBlock.id, readingBlock.id],
       name: ASSESSMENT_DEMO.examName,
       availableFrom: null,
       availableTo: null,
@@ -247,6 +220,7 @@ export async function seedAssessmentDemo(
   const published = await exams.publish(exam.id, actor);
 
   const assignment = await ensureAssignment(deps, published.id, student.id);
+  const questionIds = [...listeningIds, ...readingIds];
 
   log.log(
     `Demo ready: exam=${published.id} assignment=${assignment.id} student=${ASSESSMENT_DEMO.studentEmail}`,
@@ -255,8 +229,7 @@ export async function seedAssessmentDemo(
   return {
     skipped: false,
     bankId: bank.id,
-    templateId: template.id,
-    blueprintId: blueprint.id,
+    blockIds: [listeningBlock.id, readingBlock.id],
     examId: published.id,
     assignmentId: assignment.id,
     studentId: student.id,
@@ -304,8 +277,7 @@ async function ensureDemoStudent(deps: AssessmentDemoSeedDeps) {
     );
   }
 
-  const adminActor = deps.actor;
-  const all = await students.findAll(adminActor);
+  const all = await students.findAll(deps.actor);
   let student = all.find((s) => s.userId === user!.id || s.email === email);
   if (!student) {
     student = await students.create({
@@ -318,9 +290,6 @@ async function ensureDemoStudent(deps: AssessmentDemoSeedDeps) {
   return student;
 }
 
-/**
- * Ensures a course template + enrollment so Assessment→Certificate can resolve course_id.
- */
 async function ensureDemoCourseEnrollment(
   deps: AssessmentDemoSeedDeps,
   studentId: string,

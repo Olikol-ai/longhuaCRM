@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -60,12 +61,12 @@ export class AssessmentExamsController {
   @Post()
   @Roles('admin', 'teacher', 'tutor')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create exam from blueprint' })
+  @ApiOperation({ summary: 'Create exam from ExamBlocks' })
   @ApiResponse({ status: 201, description: 'Exam created' })
   create(@CurrentUser() user: JwtPayload, @Body() dto: CreateExamDto) {
-    return this.exams.createFromBlueprint(
+    return this.exams.create(
       {
-        blueprintId: dto.blueprint_id,
+        blockIds: dto.block_ids,
         name: dto.name,
         availableFrom: dto.available_from ? new Date(dto.available_from) : null,
         availableTo: dto.available_to ? new Date(dto.available_to) : null,
@@ -133,7 +134,7 @@ export class AssessmentExamsController {
 
   @Post(':examId/publish')
   @Roles('admin', 'teacher', 'tutor')
-  @ApiOperation({ summary: 'Publish exam' })
+  @ApiOperation({ summary: 'Publish exam (ACTIVE)' })
   @ApiResponse({ status: 200, description: 'Exam published' })
   publish(
     @CurrentUser() user: JwtPayload,
@@ -151,6 +152,17 @@ export class AssessmentExamsController {
     @Param('examId', ParseUUIDPipe) examId: string,
   ) {
     return this.exams.archive(examId, user);
+  }
+
+  @Delete(':examId')
+  @Roles('admin', 'teacher', 'tutor')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete unused exam or archive if used' })
+  remove(
+    @CurrentUser() user: JwtPayload,
+    @Param('examId', ParseUUIDPipe) examId: string,
+  ) {
+    return this.exams.deleteOrArchive(examId, user);
   }
 
   @Get(':examId/preview')

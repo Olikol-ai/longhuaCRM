@@ -28,7 +28,7 @@ Aligned with domain-model / api-contract on Attempt, Assignment cancel, Result.
 | State | Meaning |
 |-------|---------|
 | `draft` | Редактируется; можно менять stem/answers/attachments |
-| `published` | Доступен для отбора Blueprint / материализации Exam |
+| `published` | Доступен для включения в ExamBlock / Exam |
 | `archived` | Снят с использования в **новых** генерациях |
 
 ### 1.2. Transitions
@@ -61,7 +61,7 @@ stateDiagram-v2
 
 ---
 
-## 2. ExamTemplate
+## 2. ExamBlock
 
 ### 2.1. States
 
@@ -69,7 +69,7 @@ stateDiagram-v2
 |-------|---------|
 | `draft` | Каркас редактируется |
 | `published` | Можно строить/публиковать связанные Blueprint |
-| `archived` | Не используется для новых Blueprint/Exam |
+| `archived` | Не используется для новых Exam |
 
 ### 2.2. Transitions
 
@@ -97,7 +97,7 @@ stateDiagram-v2
 
 ---
 
-## 3. Blueprint
+## 3. ExamBlock publish notes
 
 ### 3.1. States
 
@@ -140,7 +140,7 @@ stateDiagram-v2
 
 | State | Meaning |
 |-------|---------|
-| `draft` | Материализован из Blueprint; meta/rule/rebuild допустимы |
+| `draft` | Материализован из ExamBlocks; meta/rule/rebuild допустимы |
 | `published` | Доступен для Assignment / Attempt; состав вопросов + rule immutable |
 | `archived` | Новые Assignment/Attempt запрещены; история сохраняется |
 
@@ -148,7 +148,7 @@ stateDiagram-v2
 
 ```mermaid
 stateDiagram-v2
-  [*] --> draft: create from Blueprint
+  [*] --> draft: create from ExamBlocks
   draft --> published: publish
   draft --> archived: archive
   published --> archived: archive
@@ -156,7 +156,7 @@ stateDiagram-v2
 
 | From | To | Allowed? | Who | Cause |
 |------|-----|----------|-----|--------|
-| — | `draft` | yes | `admin`, `teacher` | Create from published Blueprint |
+| — | `draft` | yes | `admin`, `teacher` | Create from published ExamBlocks |
 | `draft` | `published` | yes | `admin`, `teacher` | Publish |
 | `draft` | `archived` | yes | `admin`, `teacher` | Discard draft |
 | `published` | `archived` | yes | `admin`, `teacher` | Close exam |
@@ -165,7 +165,7 @@ stateDiagram-v2
 
 ### 4.3. Rebuild (not a status)
 
-| Exam state | Rebuild from Blueprint | Who | Cause |
+| Exam state | Rebuild from ExamBlocks | Who | Cause |
 |------------|------------------------|-----|--------|
 | `draft` | **allowed** | `admin`, `teacher` | Explicit rebuild action |
 | `published` | **forbidden** | — | — |
@@ -390,8 +390,7 @@ stateDiagram-v2
 | Entity | Initial state | Terminal states |
 |--------|---------------|-----------------|
 | Question | `draft` | `archived` |
-| ExamTemplate | `draft` | `archived` |
-| Blueprint | `draft` | `archived` |
+| ExamBlock | `draft` | `archived` |
 | Exam | `draft` | `archived` |
 | Assignment | `draft` | `completed`, `cancelled` |
 | Attempt | `created` | **`submitted` only** |
@@ -414,7 +413,7 @@ stateDiagram-v2
 11. **Result is always created when Attempt becomes `submitted`.**  
 12. **Cancel Assignment does not delete historical Attempts/Results.**  
 13. **Rebuild Exam allowed only in `draft`.**  
-14. **Blueprint/ExamTemplate/Question `published` content is immutable.**  
+14. **ExamBlock/Question `published` content is immutable.**  
 15. **Only one AssessmentRule store per Exam**; freezes with Exam publish.  
 16. **On time expiry the system always performs submit automatically** (`submit_reason=timeout`).  
 17. **Attempt never enters a separate `expired` state.**  

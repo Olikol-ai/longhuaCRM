@@ -7,7 +7,7 @@
  * Safety:
  * - Refuses production unless ASSESSMENT_DEMO_SEED_FORCE=1
  * - Requires ASSESSMENT_DEMO_SEED=1
- * - Idempotent (reuses published "HSK Demo 1" if present)
+ * - Idempotent (reuses published demo exam if present)
  */
 import 'reflect-metadata';
 import { existsSync } from 'fs';
@@ -22,8 +22,7 @@ import { StudentsService } from '../src/modules/students/students.service';
 import {
   AssessmentBankService,
   QuestionAuthoringService,
-  ExamTemplateService,
-  BlueprintService,
+  ExamBlockService,
   ExamService,
   AssignmentService,
 } from '../src/modules/assessment/services';
@@ -97,8 +96,7 @@ async function main(): Promise<void> {
       dataSource: app.get(DataSource),
       banks: app.get(AssessmentBankService),
       questions: app.get(QuestionAuthoringService),
-      templates: app.get(ExamTemplateService),
-      blueprints: app.get(BlueprintService),
+      blocks: app.get(ExamBlockService),
       exams: app.get(ExamService),
       assignments: app.get(AssignmentService),
       students: app.get(StudentsService),
@@ -109,6 +107,7 @@ async function main(): Promise<void> {
     console.log('');
     console.log('=== Assessment demo seed complete ===');
     console.log(`Exam:       ${ASSESSMENT_DEMO.examName} (${result.examId})`);
+    console.log(`Blocks:     ${result.blockIds.join(', ') || '—'}`);
     console.log(`Assignment: ${result.assignmentId}`);
     console.log(`Student:    ${result.studentEmail} / ${result.studentPassword}`);
     console.log(`Skipped:    ${result.skipped}`);

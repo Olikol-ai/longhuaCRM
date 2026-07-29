@@ -37,9 +37,8 @@ const PaymentReturn = lazy(() => import('./pages/PaymentReturn'));
 const AdminAssessment = lazy(() => import('./pages/AdminAssessment'));
 const AssessmentBanks = lazy(() => import('./pages/AssessmentBanks'));
 const AssessmentQuestions = lazy(() => import('./pages/AssessmentQuestions'));
-const AssessmentExamTemplates = lazy(() => import('./pages/AssessmentExamTemplates'));
-const AssessmentBlueprints = lazy(() => import('./pages/AssessmentBlueprints'));
-const AssessmentBlueprintEdit = lazy(() => import('./pages/AssessmentBlueprintEdit'));
+const AssessmentExamBlocks = lazy(() => import('./pages/AssessmentExamBlocks'));
+const AssessmentExamBlockEdit = lazy(() => import('./pages/AssessmentExamBlockEdit'));
 const AssessmentExams = lazy(() => import('./pages/AssessmentExams'));
 const AssessmentExamDetail = lazy(() => import('./pages/AssessmentExamDetail'));
 const AssessmentAssignments = lazy(() => import('./pages/AssessmentAssignments'));
@@ -192,9 +191,8 @@ const AuthenticatedApp = () => {
         <Route path="/AdminAssessment" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AdminAssessment /></LayoutWrapper></AdminRoute>} />
         <Route path="/AssessmentBanks" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentBanks"><AssessmentBanks /></LayoutWrapper></TeacherRoute>} />
         <Route path="/AssessmentQuestions" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentQuestions"><AssessmentQuestions /></LayoutWrapper></TeacherRoute>} />
-        <Route path="/AssessmentExamTemplates" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentExamTemplates"><AssessmentExamTemplates /></LayoutWrapper></TeacherRoute>} />
-        <Route path="/AssessmentBlueprints" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentBlueprints"><AssessmentBlueprints /></LayoutWrapper></TeacherRoute>} />
-        <Route path="/AssessmentBlueprintEdit" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentBlueprints"><AssessmentBlueprintEdit /></LayoutWrapper></TeacherRoute>} />
+        <Route path="/AssessmentExamBlocks" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentExamBlocks"><AssessmentExamBlocks /></LayoutWrapper></TeacherRoute>} />
+        <Route path="/AssessmentExamBlockEdit" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentExamBlocks"><AssessmentExamBlockEdit /></LayoutWrapper></TeacherRoute>} />
         <Route path="/AssessmentExams" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentExams"><AssessmentExams /></LayoutWrapper></TeacherRoute>} />
         <Route path="/AssessmentExamDetail" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentExams"><AssessmentExamDetail /></LayoutWrapper></TeacherRoute>} />
         <Route path="/AssessmentAssignments" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentAssignments /></LayoutWrapper></AdminRoute>} />

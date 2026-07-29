@@ -10,9 +10,11 @@ import {
 import { AttachmentKind, ContentLifecycleStatus, QuestionType } from '../enums';
 import {
   AssessmentBankRepository,
+  AssessmentExamBlockRepository,
   AssessmentExamRepository,
   AssessmentQuestionRepository,
 } from '../repositories';
+import { AssessmentChangeJournalService } from './assessment-change-journal.service';
 import { AssessmentContentGuard } from './assessment-content.guard';
 
 export type AnswerInput = {
@@ -67,8 +69,10 @@ export class QuestionAuthoringService {
     private readonly questions: AssessmentQuestionRepository,
     private readonly banks: AssessmentBankRepository,
     private readonly exams: AssessmentExamRepository,
+    private readonly blocks: AssessmentExamBlockRepository,
     private readonly guard: AssessmentContentGuard,
     private readonly access: AssessmentAccessService,
+    private readonly journal: AssessmentChangeJournalService,
   ) {}
 
   findById(id: string): Promise<AssessmentQuestionEntity | null> {
@@ -169,10 +173,19 @@ export class QuestionAuthoringService {
       await this.questions.setTopics(question.id, input.topicIds);
     }
 
-    return this.guard.requireFound(
+    const created = this.guard.requireFound(
       await this.questions.findByIdWithAnswers(question.id),
       'Question',
     );
+    await this.journal.record({
+      actorUserId: actor.sub,
+      entityType: 'Question',
+      entityId: created.id,
+      action: 'create',
+      summary: `Created question`,
+      newVersion: this.snapshot(created),
+    });
+    return created;
   }
 
   async update(
@@ -183,6 +196,7 @@ export class QuestionAuthoringService {
     const question = this.guard.requireFound(await this.questions.findById(id), 'Question');
     this.access.assertCanMutateQuestion(actor, question);
     this.assertEditable(question);
+    const before = this.snapshot(question);
 
     await this.questions.update(id, {
       ...(input.type !== undefined ? { type: input.type } : {}),
@@ -199,46 +213,90 @@ export class QuestionAuthoringService {
       await this.questions.setTopics(id, input.topicIds);
     }
 
-    return this.guard.requireFound(await this.questions.findByIdWithAnswers(id), 'Question');
+    const updated = this.guard.requireFound(
+      await this.questions.findByIdWithAnswers(id),
+      'Question',
+    );
+    await this.journal.record({
+      actorUserId: actor.sub,
+      entityType: 'Question',
+      entityId: id,
+      action: 'update',
+      summary: `Updated question`,
+      oldVersion: before,
+      newVersion: this.snapshot(updated),
+    });
+    return updated;
   }
 
   async publish(actor: JwtPayload, id: string): Promise<AssessmentQuestionEntity> {
     const question = this.guard.requireFound(await this.questions.findById(id), 'Question');
     this.access.assertCanMutateQuestion(actor, question);
     this.guard.assertCanPublish(question.status, 'Question');
+    const before = this.snapshot(question);
     const updated = await this.questions.update(id, {
       status: ContentLifecycleStatus.Published,
     });
-    return this.guard.requireFound(updated, 'Question');
+    const result = this.guard.requireFound(updated, 'Question');
+    await this.journal.record({
+      actorUserId: actor.sub,
+      entityType: 'Question',
+      entityId: id,
+      action: 'publish',
+      summary: `Published question`,
+      oldVersion: before,
+      newVersion: this.snapshot(result),
+    });
+    return result;
   }
 
   async archive(actor: JwtPayload, id: string): Promise<AssessmentQuestionEntity> {
     const question = this.guard.requireFound(await this.questions.findById(id), 'Question');
     this.access.assertCanMutateQuestion(actor, question);
     this.guard.assertCanArchive(question.status, 'Question');
+    const before = this.snapshot(question);
     const updated = await this.questions.update(id, {
       status: ContentLifecycleStatus.Archived,
     });
-    return this.guard.requireFound(updated, 'Question');
+    const result = this.guard.requireFound(updated, 'Question');
+    await this.journal.record({
+      actorUserId: actor.sub,
+      entityType: 'Question',
+      entityId: id,
+      action: 'archive',
+      summary: `Archived question`,
+      oldVersion: before,
+      newVersion: this.snapshot(result),
+    });
+    return result;
   }
 
   /**
    * Delete a question (admin or author only).
    *
-   * - Not linked to any Exam → physical delete (answers/topics/attachments cascade).
-   * - Linked to Exam(s) → soft-delete via Archive so Snapshot/Attempt history and
-   *   exam_questions RESTRICT FK stay intact.
-   * Snapshots store stem/answers immutably and do not FK to live questions.
+   * - Not linked to any Exam or ExamBlock → physical delete.
+   * - Linked → soft-delete via Archive so history and FKs stay intact.
    */
   async deleteQuestion(actor: JwtPayload, id: string): Promise<{ mode: 'hard' | 'soft' }> {
     const question = this.guard.requireFound(await this.questions.findById(id), 'Question');
     this.access.assertCanDeleteQuestion(actor, question);
+    const before = this.snapshot(question);
 
     const usedInExams = await this.exams.isQuestionUsedInExams(id);
-    if (usedInExams) {
+    const usedInBlocks = await this.blocks.isQuestionUsedInBlocks(id);
+    if (usedInExams || usedInBlocks) {
       if (question.status !== ContentLifecycleStatus.Archived) {
         await this.questions.update(id, {
           status: ContentLifecycleStatus.Archived,
+        });
+        await this.journal.record({
+          actorUserId: actor.sub,
+          entityType: 'Question',
+          entityId: id,
+          action: 'archive',
+          summary: `Archived question (in use)`,
+          oldVersion: before,
+          newVersion: { ...before, status: ContentLifecycleStatus.Archived },
         });
       }
       return { mode: 'soft' };
@@ -246,12 +304,28 @@ export class QuestionAuthoringService {
 
     try {
       await this.questions.delete(id);
+      await this.journal.record({
+        actorUserId: actor.sub,
+        entityType: 'Question',
+        entityId: id,
+        action: 'delete',
+        summary: `Hard-deleted question`,
+        oldVersion: before,
+      });
       return { mode: 'hard' };
     } catch {
-      // Race: question linked to an exam between check and delete (RESTRICT).
       if (question.status !== ContentLifecycleStatus.Archived) {
         await this.questions.update(id, {
           status: ContentLifecycleStatus.Archived,
+        });
+        await this.journal.record({
+          actorUserId: actor.sub,
+          entityType: 'Question',
+          entityId: id,
+          action: 'archive',
+          summary: `Archived question (delete race)`,
+          oldVersion: before,
+          newVersion: { ...before, status: ContentLifecycleStatus.Archived },
         });
       }
       return { mode: 'soft' };
@@ -304,6 +378,19 @@ export class QuestionAuthoringService {
     if (question.status === ContentLifecycleStatus.Archived) {
       throw new ConflictException('Question cannot be modified when archived');
     }
+  }
+
+  private snapshot(question: AssessmentQuestionEntity) {
+    return {
+      id: question.id,
+      bank_id: question.bankId,
+      type: question.type,
+      stem: question.stem,
+      points: question.points,
+      difficulty: question.difficulty,
+      status: question.status,
+      created_by_user_id: question.createdByUserId,
+    };
   }
 
   private async replaceAnswers(

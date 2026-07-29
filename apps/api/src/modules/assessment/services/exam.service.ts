@@ -2,12 +2,14 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
-  UnprocessableEntityException,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { AssessmentAccessService } from '../../../common/access/assessment-access.service';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
 import {
-  AssessmentBlueprintSectionRuleEntity,
+  AssessmentExamAssignmentEntity,
+  AssessmentExamBlockEntity,
   AssessmentExamEntity,
   AssessmentQuestionEntity,
   AssessmentRuleEntity,
@@ -19,10 +21,11 @@ import {
   ShowCorrectAnswers,
 } from '../enums';
 import {
-  AssessmentBlueprintRepository,
+  AssessmentExamBlockRepository,
   AssessmentExamRepository,
   AssessmentQuestionRepository,
 } from '../repositories';
+import { AssessmentChangeJournalService } from './assessment-change-journal.service';
 import { AssessmentContentGuard } from './assessment-content.guard';
 
 export type ExamRuleInput = {
@@ -44,7 +47,7 @@ export type ExamRuleInput = {
 };
 
 export type CreateExamInput = {
-  blueprintId: string;
+  blockIds: string[];
   name: string;
   availableFrom?: Date | null;
   availableTo?: Date | null;
@@ -63,10 +66,13 @@ export type UpdateExamInput = {
 export class ExamService {
   constructor(
     private readonly exams: AssessmentExamRepository,
-    private readonly blueprints: AssessmentBlueprintRepository,
+    private readonly blocks: AssessmentExamBlockRepository,
     private readonly questions: AssessmentQuestionRepository,
+    @InjectRepository(AssessmentExamAssignmentEntity)
+    private readonly assignments: Repository<AssessmentExamAssignmentEntity>,
     private readonly guard: AssessmentContentGuard,
     private readonly access: AssessmentAccessService,
+    private readonly journal: AssessmentChangeJournalService,
   ) {}
 
   findById(id: string): Promise<AssessmentExamEntity | null> {
@@ -90,17 +96,31 @@ export class ExamService {
     return this.access.filterReadableExams(actor, items);
   }
 
-  async createFromBlueprint(
+  async create(
     input: CreateExamInput,
     actor: DomainAccessActor,
   ): Promise<AssessmentExamEntity> {
     this.access.assertCanManageContent(actor);
-    const blueprint = this.guard.requireFound(await this.blueprints.findWithSectionRules(input.blueprintId), 'Blueprint');
-    this.access.assertCanManageCreatedContent(actor, blueprint, 'blueprint');
-    this.guard.assertPublished(blueprint.status, 'Blueprint');
+    const uniqueIds = [...new Set(input.blockIds ?? [])];
+    if (uniqueIds.length === 0) {
+      throw new BadRequestException('At least one ExamBlock is required');
+    }
+
+    const loaded = await this.blocks.findWithItemsOrdered(uniqueIds);
+    if (loaded.length !== uniqueIds.length) {
+      throw new BadRequestException('One or more ExamBlocks not found');
+    }
+
+    for (const block of loaded) {
+      this.access.assertCanManageCreatedContent(actor, block, 'exam block');
+      this.guard.assertPublished(block.status, 'ExamBlock');
+      const items = block.items ?? [];
+      if (items.length === 0) {
+        throw new BadRequestException(`ExamBlock «${block.name}» has no questions`);
+      }
+    }
 
     const exam = await this.exams.save({
-      blueprintId: blueprint.id,
       name: input.name,
       availableFrom: input.availableFrom ?? null,
       availableTo: input.availableTo ?? null,
@@ -109,9 +129,21 @@ export class ExamService {
     });
 
     await this.exams.saveRule(this.mapRule(exam.id, input.rule));
-    await this.materializeFromBlueprint(exam.id, blueprint.id, blueprint.bankId);
+    await this.materializeFromBlocks(exam.id, loaded);
 
-    return this.guard.requireFound(await this.exams.findWithStructure(exam.id), 'Exam');
+    const created = this.guard.requireFound(
+      await this.exams.findWithStructure(exam.id),
+      'Exam',
+    );
+    await this.journal.record({
+      actorUserId: actor.sub,
+      entityType: 'Exam',
+      entityId: created.id,
+      action: 'create',
+      summary: `Created exam «${created.name}» from ${loaded.length} block(s)`,
+      newVersion: this.snapshot(created),
+    });
+    return created;
   }
 
   async update(
@@ -122,6 +154,7 @@ export class ExamService {
     await this.access.assertCanManageExam(actor, id);
     const exam = this.guard.requireFound(await this.exams.findById(id), 'Exam');
     this.guard.assertDraft(exam.status, 'Exam');
+    const before = this.snapshot(exam);
 
     await this.exams.update(id, {
       ...(input.name !== undefined ? { name: input.name } : {}),
@@ -142,19 +175,41 @@ export class ExamService {
       }
     }
 
-    return this.guard.requireFound(await this.exams.findWithStructure(id), 'Exam');
+    const updated = this.guard.requireFound(await this.exams.findWithStructure(id), 'Exam');
+    await this.journal.record({
+      actorUserId: actor.sub,
+      entityType: 'Exam',
+      entityId: id,
+      action: 'update',
+      summary: `Updated exam «${updated.name}»`,
+      oldVersion: before,
+      newVersion: this.snapshot(updated),
+    });
+    return updated;
   }
 
-  /** Rebuild question pool from Blueprint — draft only. */
+  /** Rebuild question pool from source ExamBlocks — draft only. */
   async rebuild(id: string, actor: DomainAccessActor): Promise<AssessmentExamEntity> {
     await this.access.assertCanManageExam(actor, id);
-    const exam = this.guard.requireFound(await this.exams.findById(id), 'Exam');
+    const exam = this.guard.requireFound(await this.exams.findWithStructure(id), 'Exam');
     this.guard.assertDraft(exam.status, 'Exam');
-    const blueprint = this.guard.requireFound(
-      await this.blueprints.findWithSectionRules(exam.blueprintId),
-      'Blueprint',
-    );
-    await this.materializeFromBlueprint(exam.id, blueprint.id, blueprint.bankId);
+
+    const orderedIds = (exam.sections ?? [])
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((s) => s.sourceBlockId)
+      .filter((v): v is string => Boolean(v));
+
+    if (orderedIds.length === 0) {
+      throw new BadRequestException('Exam has no ExamBlocks to rebuild from');
+    }
+
+    const loaded = await this.blocks.findWithItemsOrdered(orderedIds);
+    if (loaded.length !== orderedIds.length) {
+      throw new BadRequestException('One or more source ExamBlocks not found');
+    }
+    await this.materializeFromBlocks(exam.id, loaded);
+
     return this.guard.requireFound(await this.exams.findWithStructure(id), 'Exam');
   }
 
@@ -167,18 +222,72 @@ export class ExamService {
     }
     const questions = exam.examQuestions ?? [];
     if (questions.length === 0) {
-      throw new BadRequestException('Exam has no questions; rebuild from Blueprint first');
+      throw new BadRequestException('Exam has no questions');
     }
+    const before = this.snapshot(exam);
     const updated = await this.exams.update(id, { status: ContentLifecycleStatus.Published });
-    return this.guard.requireFound(await this.exams.findWithStructure(updated!.id), 'Exam');
+    const result = this.guard.requireFound(
+      await this.exams.findWithStructure(updated!.id),
+      'Exam',
+    );
+    await this.journal.record({
+      actorUserId: actor.sub,
+      entityType: 'Exam',
+      entityId: id,
+      action: 'publish',
+      summary: `Published exam «${result.name}»`,
+      oldVersion: before,
+      newVersion: this.snapshot(result),
+    });
+    return result;
   }
 
   async archive(id: string, actor: DomainAccessActor): Promise<AssessmentExamEntity> {
     await this.access.assertCanManageExam(actor, id);
     const exam = this.guard.requireFound(await this.exams.findById(id), 'Exam');
     this.guard.assertCanArchive(exam.status, 'Exam');
+    const before = this.snapshot(exam);
     const updated = await this.exams.update(id, { status: ContentLifecycleStatus.Archived });
-    return this.guard.requireFound(updated, 'Exam');
+    const result = this.guard.requireFound(updated, 'Exam');
+    await this.journal.record({
+      actorUserId: actor.sub,
+      entityType: 'Exam',
+      entityId: id,
+      action: 'archive',
+      summary: `Archived exam «${result.name}»`,
+      oldVersion: before,
+      newVersion: this.snapshot(result),
+    });
+    return result;
+  }
+
+  async deleteOrArchive(
+    id: string,
+    actor: DomainAccessActor,
+  ): Promise<{ mode: 'hard' | 'soft'; exam?: AssessmentExamEntity }> {
+    await this.access.assertCanManageExam(actor, id);
+    const exam = this.guard.requireFound(await this.exams.findById(id), 'Exam');
+    const used = await this.isExamUsed(id);
+    if (used) {
+      if (exam.status !== ContentLifecycleStatus.Archived) {
+        const archived = await this.archive(id, actor);
+        return { mode: 'soft', exam: archived };
+      }
+      throw new ConflictException(
+        'Exam has usage history and cannot be permanently deleted',
+      );
+    }
+    const before = this.snapshot(exam);
+    await this.exams.delete(id);
+    await this.journal.record({
+      actorUserId: actor.sub,
+      entityType: 'Exam',
+      entityId: id,
+      action: 'delete',
+      summary: `Hard-deleted exam «${exam.name}»`,
+      oldVersion: before,
+    });
+    return { mode: 'hard' };
   }
 
   async preview(
@@ -188,7 +297,11 @@ export class ExamService {
     exam: AssessmentExamEntity;
     sections: Array<{
       sectionKey: string;
+      title: string;
       weight: string;
+      description: string | null;
+      durationMinutes: number | null;
+      levelLabel: string | null;
       questions: AssessmentQuestionEntity[];
     }>;
   }> {
@@ -211,7 +324,11 @@ export class ExamService {
           .filter((q): q is AssessmentQuestionEntity => Boolean(q));
         return {
           sectionKey: section.sectionKey,
+          title: section.title,
           weight: String(section.weight),
+          description: section.description,
+          durationMinutes: section.durationMinutes,
+          levelLabel: section.levelLabel,
           questions,
         };
       });
@@ -219,53 +336,51 @@ export class ExamService {
     return { exam, sections };
   }
 
-  private async materializeFromBlueprint(
+  private async isExamUsed(examId: string): Promise<boolean> {
+    const assignmentCount = await this.assignments.count({ where: { examId } });
+    if (assignmentCount > 0) return true;
+    const rows: Array<{ id: string }> = await this.assignments.manager.query(
+      `SELECT id FROM assessment_attempts WHERE exam_id = $1 LIMIT 1`,
+      [examId],
+    );
+    return rows.length > 0;
+  }
+
+  private async materializeFromBlocks(
     examId: string,
-    blueprintId: string,
-    bankId: string,
+    blocks: AssessmentExamBlockEntity[],
   ): Promise<void> {
-    const rules = await this.blueprints.findSectionRulesByBlueprintId(blueprintId);
-    if (rules.length === 0) {
-      throw new BadRequestException('Blueprint has no section rules');
+    if (blocks.length === 0) {
+      throw new BadRequestException('No ExamBlocks to materialize');
     }
 
-    const pool = await this.questions.findPublishedByBankId(bankId);
-    const topicMap = await this.loadTopicMap(pool.map((q) => q.id));
-    const usedIds = new Set<string>();
-
-    const sections: Array<{
-      sectionKey: string;
-      title: string;
-      weight: string;
-      sortOrder: number;
-      questionIds: string[];
-    }> = [];
-
-    for (let i = 0; i < rules.length; i += 1) {
-      const rule = rules[i];
-      const selected = this.selectQuestions(pool, rule, usedIds, topicMap);
-      if (selected.length < rule.questionCount) {
-        throw new UnprocessableEntityException(
-          `Insufficient questions for section "${rule.sectionKey}": need ${rule.questionCount}, found ${selected.length}`,
-        );
-      }
-      for (const q of selected) {
-        usedIds.add(q.id);
-      }
-      sections.push({
-        sectionKey: rule.sectionKey,
-        title: rule.title,
-        weight: String(rule.weight),
-        sortOrder: rule.sortOrder ?? i,
-        questionIds: selected.map((q) => q.id),
-      });
-    }
+    const weightEach = (100 / blocks.length).toFixed(2);
+    const sectionsSpec = blocks.map((block, index) => {
+      const items = (block.items ?? [])
+        .slice()
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+      return {
+        sectionKey: `block_${index + 1}`,
+        title: block.name,
+        description: block.description,
+        durationMinutes: block.durationMinutes,
+        levelLabel: block.levelLabel,
+        sourceBlockId: block.id,
+        weight: weightEach,
+        sortOrder: index,
+        questionIds: items.map((item) => item.questionId),
+      };
+    });
 
     const savedStructure = await this.exams.replaceSectionsAndQuestions(
       examId,
-      sections.map((s) => ({
+      sectionsSpec.map((s) => ({
         sectionKey: s.sectionKey,
         title: s.title,
+        description: s.description,
+        durationMinutes: s.durationMinutes,
+        levelLabel: s.levelLabel,
+        sourceBlockId: s.sourceBlockId,
         weight: s.weight,
         sortOrder: s.sortOrder,
       })),
@@ -273,10 +388,10 @@ export class ExamService {
     );
 
     const sectionByKey = new Map(savedStructure.sections.map((s) => [s.sectionKey, s]));
-    const examQuestions = sections.flatMap((s) => {
+    const examQuestions = sectionsSpec.flatMap((s) => {
       const section = sectionByKey.get(s.sectionKey);
       if (!section) {
-        throw new ConflictException(`Failed to materialize section ${s.sectionKey}`);
+        throw new ConflictException(`Failed to materialize block section ${s.sectionKey}`);
       }
       return s.questionIds.map((questionId, index) => ({
         examId,
@@ -289,47 +404,15 @@ export class ExamService {
     await this.exams.replaceExamQuestions(examId, examQuestions);
   }
 
-  private selectQuestions(
-    pool: AssessmentQuestionEntity[],
-    rule: AssessmentBlueprintSectionRuleEntity,
-    usedIds: Set<string>,
-    topicMap: Map<string, string[]>,
-  ): AssessmentQuestionEntity[] {
-    const types = new Set(rule.questionTypes ?? []);
-    const topicFilter = new Set(rule.topicIds ?? []);
-
-    const candidates = pool.filter((q) => {
-      if (usedIds.has(q.id)) return false;
-      if (types.size > 0 && !types.has(q.type)) return false;
-      if (q.difficulty < rule.difficultyMin || q.difficulty > rule.difficultyMax) return false;
-      if (topicFilter.size > 0) {
-        const topics = topicMap.get(q.id) ?? [];
-        if (!topics.some((t) => topicFilter.has(t))) return false;
-      }
-      return true;
-    });
-
-    this.shuffleInPlace(candidates);
-    return candidates.slice(0, rule.questionCount);
-  }
-
-  private async loadTopicMap(questionIds: string[]): Promise<Map<string, string[]>> {
-    const map = new Map<string, string[]>();
-    for (const id of questionIds) {
-      const rows = await this.questions.findTopicsByQuestionId(id);
-      map.set(
-        id,
-        rows.map((r) => r.topicId),
-      );
-    }
-    return map;
-  }
-
-  private shuffleInPlace<T>(items: T[]): void {
-    for (let i = items.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [items[i], items[j]] = [items[j], items[i]];
-    }
+  private snapshot(exam: AssessmentExamEntity) {
+    return {
+      id: exam.id,
+      name: exam.name,
+      status: exam.status,
+      created_by_user_id: exam.createdByUserId,
+      available_from: exam.availableFrom,
+      available_to: exam.availableTo,
+    };
   }
 
   private mapRule(examId: string, rule: ExamRuleInput): Partial<AssessmentRuleEntity> {

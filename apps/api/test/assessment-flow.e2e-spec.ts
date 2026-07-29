@@ -140,6 +140,7 @@ describeE2E('Assessment full flow (e2e)', () => {
       });
     }
 
+    const questionIds: string[] = [];
     for (const spec of questionSpecs) {
       const qRes = await api(app)
         .post('/api/assessment/questions')
@@ -153,6 +154,7 @@ describeE2E('Assessment full flow (e2e)', () => {
           answers: spec.answers,
         })
         .expect(201);
+      questionIds.push(qRes.body.id as string);
       await api(app)
         .post(`/api/assessment/questions/${qRes.body.id}/publish`)
         .set(auth)
@@ -161,50 +163,36 @@ describeE2E('Assessment full flow (e2e)', () => {
         });
     }
 
-    // ── Template + Blueprint ───────────────────────────────────────────
-    const tplRes = await api(app)
-      .post('/api/assessment/exam-templates')
+    // ── ExamBlocks ─────────────────────────────────────────────────────
+    const listeningIds = questionIds.slice(0, 5);
+    const readingIds = questionIds.slice(5);
+    const listeningBlock = await api(app)
+      .post('/api/assessment/blocks')
       .set(auth)
-      .send({ name: `E2E Template ${suffix}`, level_label: 'HSK1' })
+      .send({
+        name: `E2E Listening Block ${suffix}`,
+        level_label: 'HSK1',
+        question_ids: listeningIds,
+      })
       .expect(201);
     await api(app)
-      .post(`/api/assessment/exam-templates/${tplRes.body.id}/publish`)
+      .post(`/api/assessment/blocks/${listeningBlock.body.id}/publish`)
       .set(auth)
       .expect((res) => {
         expect([200, 201]).toContain(res.status);
       });
 
-    const bpRes = await api(app)
-      .post('/api/assessment/blueprints')
+    const readingBlock = await api(app)
+      .post('/api/assessment/blocks')
       .set(auth)
       .send({
-        exam_template_id: tplRes.body.id,
-        bank_id: bankId,
-        name: `E2E Blueprint ${suffix}`,
-        section_rules: [
-          {
-            section_key: 'listening',
-            title: 'Listening',
-            question_count: 5,
-            question_types: ['listening'],
-            difficulty_min: 1,
-            difficulty_max: 5,
-            weight: 50,
-          },
-          {
-            section_key: 'reading',
-            title: 'Reading',
-            question_count: 5,
-            question_types: ['single_choice', 'multiple_choice'],
-            difficulty_min: 1,
-            difficulty_max: 5,
-            weight: 50,
-          },
-        ],
+        name: `E2E Reading Block ${suffix}`,
+        level_label: 'HSK1',
+        question_ids: readingIds,
       })
       .expect(201);
     await api(app)
-      .post(`/api/assessment/blueprints/${bpRes.body.id}/publish`)
+      .post(`/api/assessment/blocks/${readingBlock.body.id}/publish`)
       .set(auth)
       .expect((res) => {
         expect([200, 201]).toContain(res.status);
@@ -215,7 +203,7 @@ describeE2E('Assessment full flow (e2e)', () => {
       .post('/api/assessment/exams')
       .set(auth)
       .send({
-        blueprint_id: bpRes.body.id,
+        block_ids: [listeningBlock.body.id, readingBlock.body.id],
         name: `E2E Exam ${suffix}`,
         rule: {
           duration_minutes: 30,
