@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { normalizeRole } from '../constants/roles';
 import { filterToEntityWhere } from '../utils/api-record.util';
 import { StudentEntity } from '../../modules/students/entities/student.entity';
@@ -48,7 +48,13 @@ export class StudentAccessService {
       if (!teacher) {
         return { assignedTeacherId: NO_ACCESS_UUID };
       }
-      return filterToEntityWhere({ ...where, assigned_teacher: teacher.id });
+      const scoped = filterToEntityWhere({ ...where, assigned_teacher: teacher.id });
+      // Inactive CRM shells (e.g. former student → tutor) keep assignedTeacherId for
+      // referral history but must never appear in the teacher's live notebook.
+      if (scoped.status === undefined) {
+        scoped.status = Not('inactive');
+      }
+      return scoped;
     }
 
     // Tutors must use /tutors/:id/students (tutor_students), never school students.

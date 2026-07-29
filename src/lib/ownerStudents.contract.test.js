@@ -13,11 +13,20 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '../..');
 
 describe('ownerStudents helpers', () => {
-  it('splits teacher school students by user account and includes contacts as manual', () => {
+  it('teacher: only CRM with User are registered; manual = contacts only', () => {
     const rows = buildOwnerStudentRows('teacher', {
       schoolStudents: [
         { id: 's1', name: 'Аня', user_id: 'u1', lesson_balance: 3, status: 'active' },
+        // CRM without User must NOT appear as “manual” (contacts are the manual source).
         { id: 's2', name: 'Боря', userId: null, lesson_balance: 1, status: 'active' },
+        // Inactive shell after student→tutor role change must not leak.
+        {
+          id: 's3',
+          name: 'Канцавенко Ксения',
+          userId: null,
+          status: 'inactive',
+          assigned_teacher_id: 't1',
+        },
       ],
       contacts: [
         { id: 'c1', name: 'Вася', phone: '+375', lesson_balance: 5, status: 'active' },
@@ -25,8 +34,10 @@ describe('ownerStudents helpers', () => {
     });
 
     assert.equal(rows.filter((r) => r.kind === STUDENT_KIND.REGISTERED).length, 1);
-    assert.equal(rows.filter((r) => r.kind === STUDENT_KIND.MANUAL).length, 2);
-    assert.ok(rows.some((r) => r.source === 'contact' && r.name === 'Вася'));
+    assert.equal(rows.filter((r) => r.kind === STUDENT_KIND.MANUAL).length, 1);
+    assert.ok(rows.some((r) => r.source === 'contact' && r.name === 'Вася' && r.canDelete));
+    assert.equal(rows.some((r) => r.name === 'Канцавенко Ксения'), false);
+    assert.equal(rows.some((r) => r.name === 'Боря'), false);
   });
 
   it('dedupes tutor notebook twins that match a contact name', () => {
@@ -68,6 +79,7 @@ describe('Students UI contract', () => {
     assert.match(page, /Добавить ученика/);
     assert.match(page, /teacherStudentContacts\.createMine/);
     assert.match(page, /createMyStudent/);
+    assert.match(page, /Архивировать/);
     assert.doesNotMatch(page, /api\.users\.create/);
     assert.doesNotMatch(page, /auth\.register/);
   });
@@ -79,5 +91,14 @@ describe('Students UI contract', () => {
     assert.match(teacher, /ownerType="teacher"/);
     assert.match(tutor, /PrivateStudentsNotebook/);
     assert.match(tutor, /ownerType="tutor"/);
+  });
+
+  it('teacher student ACL excludes inactive CRM shells', () => {
+    const access = readFileSync(
+      join(root, 'apps/api/src/common/access/student-access.service.ts'),
+      'utf8',
+    );
+    assert.match(access, /Not\('inactive'\)/);
+    assert.match(access, /referral history/);
   });
 });

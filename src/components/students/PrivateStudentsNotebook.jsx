@@ -269,21 +269,44 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
 
   const handleDelete = async (row) => {
     if (!row?.canDelete) return;
-    if (!window.confirm(`Удалить «${row.name}» из списка?`)) return;
+    if (row.user_id || row.userId) {
+      toast({
+        title: 'Нельзя удалить',
+        description: 'Зарегистрированный ученик удаляется только через админку.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const confirmed = window.confirm(
+      `Архивировать «${row.name}»?\n\nЗапись исчезнет из списка. Запланированные уроки будут отменены. История уроков и баланса сохранится.`,
+    );
+    if (!confirmed) return;
     setDeletingKey(row.key);
     try {
+      let cancelledLessons = 0;
       if (row.source === 'contact') {
         if (ownerType === 'tutor') {
           const twin = findMatchingTutorStudent(row.name, row.phone);
-          if (twin?.id) {
-            await api.tutors.deleteMyStudent(twin.id);
+          if (twin?.id && !twin.user_id && !twin.userId) {
+            const twinResult = await api.tutors.deleteMyStudent(twin.id);
+            cancelledLessons += Number(twinResult?.cancelled_lessons ?? twinResult?.cancelledLessons ?? 0);
           }
         }
-        await api.teacherStudentContacts.remove(row.id);
+        const result = await api.teacherStudentContacts.remove(row.id);
+        cancelledLessons += Number(result?.cancelled_lessons ?? result?.cancelledLessons ?? 0);
       } else if (row.source === 'tutor_student') {
-        await api.tutors.deleteMyStudent(row.id);
+        const result = await api.tutors.deleteMyStudent(row.id);
+        cancelledLessons += Number(result?.cancelled_lessons ?? result?.cancelledLessons ?? 0);
+      } else {
+        throw new Error('Эту запись нельзя удалить здесь');
       }
-      toast({ title: 'Запись удалена' });
+      toast({
+        title: 'Ученик архивирован',
+        description:
+          cancelledLessons > 0
+            ? `Отменено запланированных уроков: ${cancelledLessons}`
+            : undefined,
+      });
       if (selectedKey === row.key) {
         setSelectedKey(null);
         setDetail(null);

@@ -9,6 +9,7 @@ import { DataSource, In, Not, Repository } from 'typeorm';
 import { TeacherStudentContactAccessService } from '../../common/access/teacher-student-contact-access.service';
 import { JwtPayload } from '../auth/auth.service';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
+import { StudentEntity } from '../students/entities/student.entity';
 import { CreateTeacherStudentContactDto } from './dto/create-teacher-student-contact.dto';
 import { UpdateTeacherStudentContactBalanceDto } from './dto/update-teacher-student-contact-balance.dto';
 import { UpdateTeacherStudentContactDto } from './dto/update-teacher-student-contact.dto';
@@ -248,14 +249,62 @@ export class TeacherStudentContactsService {
     });
   }
 
+  /**
+   * Soft-archive a manual contact (never hard-delete: keeps lesson/balance history).
+   * Cancels planned lessons for this contact so the schedule stays consistent.
+   * Refuses if the contact is linked to a registered CRM User.
+   */
   async remove(
     actor: JwtPayload,
     id: string,
-  ): Promise<{ id: string; deleted: true }> {
+  ): Promise<{
+    id: string;
+    deleted: true;
+    cancelledLessons: number;
+    archived: true;
+  }> {
     const row = await this.contactAccess.assertCanWrite(actor, id);
-    row.status = 'inactive';
-    await this.contactRepo.save(row);
-    return { id: row.id, deleted: true };
+
+    if (row.linkedStudentId) {
+      const linked = await this.dataSource.getRepository(StudentEntity).findOne({
+        where: { id: row.linkedStudentId },
+        select: ['id', 'userId'],
+      });
+      if (linked?.userId) {
+        throw new BadRequestException(
+          'Нельзя удалить запись, связанную с зарегистрированным учеником',
+        );
+      }
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      const contactRepo = manager.getRepository(TeacherStudentContactEntity);
+      const lessonRepo = manager.getRepository(LessonEntity);
+
+      const planned = await lessonRepo.find({
+        where: {
+          primaryTeacherStudentContactId: row.id,
+          status: 'planned',
+        },
+        select: ['id'],
+      });
+      if (planned.length > 0) {
+        await lessonRepo.update(
+          { id: In(planned.map((lesson) => lesson.id)) },
+          { status: 'cancelled' },
+        );
+      }
+
+      row.status = 'inactive';
+      await contactRepo.save(row);
+
+      return {
+        id: row.id,
+        deleted: true as const,
+        archived: true as const,
+        cancelledLessons: planned.length,
+      };
+    });
   }
 
   async getActiveById(id: string): Promise<TeacherStudentContactEntity | null> {

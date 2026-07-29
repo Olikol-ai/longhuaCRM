@@ -1,6 +1,11 @@
 /**
  * Helpers for the unified teacher/tutor "Ученики" section.
- * Registered = has User account; manual = CRM/contact/notebook without User.
+ *
+ * Registered = CRM / tutor_student linked to a User account (live pupil).
+ * Manual = teacher_student_contacts (and tutor notebook twins without User).
+ *
+ * Inactive CRM shells left after role changes (student → tutor/teacher) must never
+ * appear here as “Добавленные вручную”.
  */
 
 export const STUDENT_KIND = {
@@ -29,6 +34,10 @@ export function normalizePersonName(value) {
 
 export function hasUserAccount(row) {
   return Boolean(row?.user_id || row?.userId);
+}
+
+export function isInactiveStatus(row) {
+  return String(row?.status || '').toLowerCase() === 'inactive';
 }
 
 export function displayName(row) {
@@ -61,12 +70,15 @@ export function buildOwnerStudentRows(ownerType, sources = {}) {
 
   if (ownerType === 'teacher') {
     for (const student of schoolStudents) {
-      const registered = hasUserAccount(student);
+      // Only live registered CRM pupils. Manual pupils live in contacts only.
+      if (isInactiveStatus(student) || !hasUserAccount(student)) {
+        continue;
+      }
       rows.push({
         key: `school:${student.id}`,
         id: student.id,
         source: 'school_student',
-        kind: registered ? STUDENT_KIND.REGISTERED : STUDENT_KIND.MANUAL,
+        kind: STUDENT_KIND.REGISTERED,
         name: displayName(student),
         phone: student.phone || null,
         email: student.email || null,
@@ -83,6 +95,7 @@ export function buildOwnerStudentRows(ownerType, sources = {}) {
     }
 
     for (const contact of contacts) {
+      if (isInactiveStatus(contact)) continue;
       rows.push({
         key: `contact:${contact.id}`,
         id: contact.id,
@@ -110,6 +123,7 @@ export function buildOwnerStudentRows(ownerType, sources = {}) {
     );
 
     for (const student of tutorStudents) {
+      if (isInactiveStatus(student)) continue;
       const registered = hasUserAccount(student);
       if (!registered && contactNameSet.has(normalizePersonName(displayName(student)))) {
         // Twin notebook entry created for homework; contact is the schedule/balance card.
@@ -135,6 +149,7 @@ export function buildOwnerStudentRows(ownerType, sources = {}) {
     }
 
     for (const contact of contacts) {
+      if (isInactiveStatus(contact)) continue;
       rows.push({
         key: `contact:${contact.id}`,
         id: contact.id,

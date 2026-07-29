@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { FindOptionsWhere, Not, Repository } from 'typeorm';
+import { FindOptionsWhere, In, Not, Repository } from 'typeorm';
 import { TutorAccessService } from '../../common/access/tutor-access.service';
 import { TutorStudentAccessService } from '../../common/access/tutor-student-access.service';
 import { JwtPayload } from '../auth/auth.service';
@@ -215,17 +215,42 @@ export class TutorsService {
     return this.tutorStudentRepo.save(row);
   }
 
-  /** Soft-delete notebook entry (keeps lesson history). */
+  /** Soft-delete notebook entry (keeps lesson history). Refuses registered users. */
   async deleteNotebookStudent(
     actor: JwtPayload,
     studentId: string,
     expectedTutorId?: string,
-  ): Promise<{ id: string; deleted: true }> {
+  ): Promise<{ id: string; deleted: true; cancelledLessons: number; archived: true }> {
     const row = await this.tutorStudentAccess.assertCanWriteTutorStudent(actor, studentId);
     this.assertNotebookBelongsToTutor(row, expectedTutorId);
+    if (row.userId) {
+      throw new BadRequestException(
+        'Нельзя удалить зарегистрированного ученика репетитора',
+      );
+    }
+
+    const planned = await this.lessonRepo.find({
+      where: {
+        primaryTutorStudentId: row.id,
+        status: 'planned',
+      },
+      select: ['id'],
+    });
+    if (planned.length > 0) {
+      await this.lessonRepo.update(
+        { id: In(planned.map((lesson) => lesson.id)) },
+        { status: 'cancelled' },
+      );
+    }
+
     row.status = 'inactive';
     await this.tutorStudentRepo.save(row);
-    return { id: row.id, deleted: true };
+    return {
+      id: row.id,
+      deleted: true,
+      archived: true,
+      cancelledLessons: planned.length,
+    };
   }
 
   private assertNotebookBelongsToTutor(

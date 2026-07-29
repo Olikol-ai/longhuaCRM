@@ -136,22 +136,42 @@ describe('TeacherStudentContactsService private notebook', () => {
     ).rejects.toThrow(/своих учеников/);
   });
 
-  it('soft-deletes contact as inactive', async () => {
+  it('soft-archives contact as inactive and cancels planned lessons', async () => {
     const existing = {
       id: 'c-1',
       ownerType: 'teacher',
       ownerId: teacherId,
       name: 'Иванов',
       status: 'active',
+      linkedStudentId: null,
     };
     contactAccess.assertCanWrite.mockResolvedValue(existing);
+
+    const lessonRepo = {
+      find: jest.fn().mockResolvedValue([{ id: 'l-1' }, { id: 'l-2' }]),
+      update: jest.fn().mockResolvedValue({ affected: 2 }),
+    };
+    dataSource.transaction.mockImplementation(async (fn: (m: unknown) => unknown) => {
+      const repos = [contactRepo, lessonRepo];
+      let i = 0;
+      return fn({
+        getRepository: () => repos[Math.min(i++, repos.length - 1)],
+      });
+    });
 
     const result = await service.remove(teacherActor, 'c-1');
 
     expect(contactRepo.save).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'c-1', status: 'inactive' }),
     );
-    expect(result).toEqual({ id: 'c-1', deleted: true });
+    expect(lessonRepo.find).toHaveBeenCalled();
+    expect(lessonRepo.update).toHaveBeenCalled();
+    expect(result).toEqual({
+      id: 'c-1',
+      deleted: true,
+      archived: true,
+      cancelledLessons: 2,
+    });
   });
 
   it('updates balance via balance service', async () => {
