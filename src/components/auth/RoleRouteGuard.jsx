@@ -5,11 +5,11 @@ import {
   shouldBlockProtectedUI,
   shouldBlockUntilRoleKnown,
 } from '@/lib/auth-gate';
+import ForbiddenPage from '@/pages/Forbidden';
 import {
   getRoleDashboardPath,
-  getRequiredRoleForPath,
   isOnboarding,
-  isPathAllowedForUser,
+  isPathForbiddenForUser,
   ONBOARDING_PATH,
   resolveRedirect,
 } from '@/lib/routing';
@@ -53,9 +53,13 @@ export default function RoleRouteGuard({ children }) {
     return <Navigate to={home} replace />;
   }
 
-  const requiredRole = getRequiredRoleForPath(path);
-  if (requiredRole && user.role !== requiredRole && !isPathAllowedForUser(user, path)) {
-    return <Navigate to={home} replace />;
+  if (isPathForbiddenForUser(user, path)) {
+    return (
+      <ForbiddenPage
+        description={`Страница «${path}» недоступна для роли «${user.role}». Пункт меню скрыт намеренно — прямой URL тоже запрещён.`}
+        homePath={home}
+      />
+    );
   }
 
   return children;
@@ -70,7 +74,12 @@ export function RoleHomeRedirect({ role }) {
   }
 
   if (user.role !== role) {
-    return <Navigate to={resolveRedirect(user)} replace />;
+    return (
+      <ForbiddenPage
+        description={`Вход «${role}» недоступен для роли «${user.role}».`}
+        homePath={resolveRedirect(user)}
+      />
+    );
   }
 
   return <Navigate to={getRoleDashboardPath(role)} replace />;
@@ -97,6 +106,15 @@ export function OnboardingFallback() {
 
   if (!isOnboarding(user) && shouldBlockUntilRoleKnown(user)) {
     return <AuthLoadingScreen />;
+  }
+
+  if (!isOnboarding(user) && user?.role) {
+    return (
+      <ForbiddenPage
+        description="Запрошенная страница не найдена или недоступна."
+        homePath={resolveRedirect(user)}
+      />
+    );
   }
 
   return <Navigate to={resolveRedirect(user)} replace />;

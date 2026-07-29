@@ -1,9 +1,5 @@
 export { PaginationQueryDto, paginateArray } from './common/pagination-query.dto';
 
-export { CreateBankDto } from './banks/create-bank.dto';
-export { UpdateBankDto } from './banks/update-bank.dto';
-export { ListBanksQueryDto } from './banks/list-banks-query.dto';
-
 export { CreateQuestionDto, CreateAnswerDto } from './questions/create-question.dto';
 export { UpdateQuestionDto } from './questions/update-question.dto';
 export { ListQuestionsQueryDto } from './questions/list-questions-query.dto';

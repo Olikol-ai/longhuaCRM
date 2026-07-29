@@ -3,14 +3,11 @@ import {
   CreateDateColumn,
   Entity,
   Index,
-  JoinColumn,
-  ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { ContentLifecycleStatus, QuestionType } from '../enums';
-import { AssessmentBankEntity } from './assessment-bank.entity';
 import { AssessmentAnswerEntity } from './assessment-answer.entity';
 import { AssessmentQuestionAttachmentEntity } from './assessment-question-attachment.entity';
 
@@ -18,17 +15,6 @@ import { AssessmentQuestionAttachmentEntity } from './assessment-question-attach
 export class AssessmentQuestionEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
-
-  @Index('IDX_ASSESSMENT_QUESTIONS_BANK_ID')
-  @Column({ name: 'bank_id', type: 'uuid' })
-  bankId: string;
-
-  @ManyToOne(() => AssessmentBankEntity, (bank) => bank.questions, {
-    nullable: false,
-    onDelete: 'CASCADE',
-  })
-  @JoinColumn({ name: 'bank_id' })
-  bank?: AssessmentBankEntity;
 
   @Column({ type: 'varchar', length: 32 })
   type: QuestionType;
@@ -49,6 +35,7 @@ export class AssessmentQuestionEntity {
   @Column({ type: 'varchar', length: 32, default: ContentLifecycleStatus.Draft })
   status: ContentLifecycleStatus;
 
+  /** Owner: teacher / tutor / admin user id. */
   @Index('IDX_ASSESSMENT_QUESTIONS_CREATED_BY')
   @Column({ name: 'created_by_user_id', type: 'uuid', nullable: true })
   createdByUserId: string | null;

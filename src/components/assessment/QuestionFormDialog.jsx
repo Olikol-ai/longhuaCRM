@@ -30,14 +30,11 @@ export default function QuestionFormDialog({
   onOpenChange,
   mode = 'create',
   question = null,
-  banks = [],
-  defaultBankId = '',
   onSaved,
 }) {
   const editing = mode === 'edit';
   const readOnly = editing && question?.status !== 'draft';
 
-  const [bankId, setBankId] = useState('');
   const [type, setType] = useState('single_choice');
   const [stem, setStem] = useState('');
   const [points, setPoints] = useState('1');
@@ -66,7 +63,6 @@ export default function QuestionFormDialog({
         try {
           const detail = await api.assessment.getQuestion(question.id);
           if (cancelled) return;
-          setBankId(detail.bank_id || '');
           setType(detail.type || 'single_choice');
           setStem(detail.stem || '');
           setPoints(String(detail.points ?? '1'));
@@ -90,7 +86,6 @@ export default function QuestionFormDialog({
         return;
       }
 
-      setBankId(defaultBankId || banks[0]?.id || '');
       setType('single_choice');
       setStem('');
       setPoints('1');
@@ -105,7 +100,7 @@ export default function QuestionFormDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, editing, question, defaultBankId, banks]);
+  }, [open, editing, question]);
 
   const showAnswers = needsAnswerOptions(type);
 
@@ -147,10 +142,6 @@ export default function QuestionFormDialog({
       onOpenChange(false);
       return;
     }
-    if (!bankId && !editing) {
-      setError('Выберите банк вопросов');
-      return;
-    }
     const validationError = validateQuestionForm({
       type,
       stem,
@@ -177,7 +168,7 @@ export default function QuestionFormDialog({
       if (editing) {
         saved = await api.assessment.updateQuestion(question.id, body);
       } else {
-        saved = await api.assessment.createQuestion({ ...body, bank_id: bankId });
+        saved = await api.assessment.createQuestion(body);
       }
 
       if (pendingFile && saved?.id) {
@@ -257,26 +248,6 @@ export default function QuestionFormDialog({
           </div>
         ) : (
           <div className="space-y-4 py-1">
-            {!editing && (
-              <div className="space-y-1.5">
-                <Label htmlFor="q-bank">Банк</Label>
-                <select
-                  id="q-bank"
-                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
-                  value={bankId}
-                  onChange={(e) => setBankId(e.target.value)}
-                  disabled={readOnly}
-                >
-                  <option value="">Выберите банк</option>
-                  {banks.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5 sm:col-span-1">
                 <Label htmlFor="q-type">Тип</Label>

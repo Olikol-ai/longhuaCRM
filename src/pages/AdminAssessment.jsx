@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
 import {
-  Archive,
   BookOpen,
   ClipboardList,
   FileQuestion,
@@ -22,12 +21,6 @@ import {
 } from '@/lib/assessment-admin';
 
 const SECTIONS = [
-  {
-    title: 'Банки вопросов',
-    description: 'Контейнеры вопросов: создание, черновики, архив',
-    icon: Archive,
-    page: 'AssessmentBanks',
-  },
   {
     title: 'Вопросы',
     description: 'Авторство вопросов всех типов и медиа',
@@ -75,7 +68,7 @@ export default function AdminAssessment() {
             Панель экзаменов
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Банки, вопросы, экзамены и результаты Longhua Academy
+            Вопросы, блоки, экзамены и результаты Longhua Academy
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => reload()} disabled={loading}>

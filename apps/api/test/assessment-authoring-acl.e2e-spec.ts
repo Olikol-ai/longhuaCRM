@@ -63,7 +63,7 @@ describeE2E('Assessment authoring ACL (e2e)', () => {
     if (app) await app.close();
   });
 
-  it('isolates banks, questions and exam authoring between teacher and tutor owners', async () => {
+  it('isolates questions and exam authoring between teacher and tutor owners', async () => {
     const ds = app.get(DataSource);
     const suffix = randomUUID().slice(0, 8);
 
@@ -137,46 +137,10 @@ describeE2E('Assessment authoring ACL (e2e)', () => {
     );
     const tutorLogin = await login(app, `assessment-tutor-${suffix}@test.local`, PASSWORD);
 
-    const teacherBank = await api(app)
-      .post('/api/assessment/banks')
-      .set(authHeader(teacherLogin.token))
-      .send({ name: 'Teacher Bank', description: 'teacher only' })
-      .expect(201);
-
-    await api(app)
-      .get(`/api/assessment/banks/${teacherBank.body.id}`)
-      .set(authHeader(otherTeacherLogin.token))
-      .expect(403);
-    await api(app)
-      .get(`/api/assessment/banks/${teacherBank.body.id}`)
-      .set(authHeader(tutorLogin.token))
-      .expect(403);
-
-    const tutorBank = await api(app)
-      .post('/api/assessment/banks')
-      .set(authHeader(tutorLogin.token))
-      .send({ name: 'Tutor Bank', description: 'tutor only' })
-      .expect(201);
-
-    const teacherList = await api(app)
-      .get('/api/assessment/banks')
-      .set(authHeader(teacherLogin.token))
-      .expect(200);
-    expect(teacherList.body.items).toHaveLength(1);
-    expect(teacherList.body.items[0].id).toBe(teacherBank.body.id);
-
-    const tutorList = await api(app)
-      .get('/api/assessment/banks')
-      .set(authHeader(tutorLogin.token))
-      .expect(200);
-    expect(tutorList.body.items).toHaveLength(1);
-    expect(tutorList.body.items[0].id).toBe(tutorBank.body.id);
-
     const teacherQuestion = await api(app)
       .post('/api/assessment/questions')
       .set(authHeader(teacherLogin.token))
       .send({
-        bank_id: teacherBank.body.id,
         type: 'single_choice',
         stem: 'Teacher question',
         points: 1,
@@ -186,7 +150,33 @@ describeE2E('Assessment authoring ACL (e2e)', () => {
         ],
       })
       .expect(201);
-    expect(teacherQuestion.body.bank_id).toBe(teacherBank.body.id);
+    expect(teacherQuestion.body.created_by_user_id).toBe(teacherUserId);
+
+    await api(app)
+      .get(`/api/assessment/questions/${teacherQuestion.body.id}`)
+      .set(authHeader(otherTeacherLogin.token))
+      .expect(403);
+    await api(app)
+      .get(`/api/assessment/questions/${teacherQuestion.body.id}`)
+      .set(authHeader(tutorLogin.token))
+      .expect(403);
+
+    const teacherList = await api(app)
+      .get('/api/assessment/questions')
+      .set(authHeader(teacherLogin.token))
+      .expect(200);
+    expect(
+      teacherList.body.items.some((item: { id: string }) => item.id === teacherQuestion.body.id),
+    ).toBe(true);
+
+    const tutorList = await api(app)
+      .get('/api/assessment/questions')
+      .set(authHeader(tutorLogin.token))
+      .expect(200);
+    expect(
+      tutorList.body.items.some((item: { id: string }) => item.id === teacherQuestion.body.id),
+    ).toBe(false);
+
     await api(app)
       .post(`/api/assessment/questions/${teacherQuestion.body.id}/publish`)
       .set(authHeader(teacherLogin.token))
@@ -196,16 +186,15 @@ describeE2E('Assessment authoring ACL (e2e)', () => {
       .post('/api/assessment/questions')
       .set(authHeader(tutorLogin.token))
       .send({
-        bank_id: teacherBank.body.id,
         type: 'single_choice',
-        stem: 'Foreign question',
+        stem: 'Tutor own question',
         points: 1,
         answers: [
           { text: 'A', is_correct: true },
           { text: 'B', is_correct: false },
         ],
       })
-      .expect(403);
+      .expect(201);
 
     const teacherBlock = await api(app)
       .post('/api/assessment/blocks')
@@ -219,6 +208,15 @@ describeE2E('Assessment authoring ACL (e2e)', () => {
       .post(`/api/assessment/blocks/${teacherBlock.body.id}/publish`)
       .set(authHeader(teacherLogin.token))
       .expect(201);
+
+    await api(app)
+      .post('/api/assessment/blocks')
+      .set(authHeader(tutorLogin.token))
+      .send({
+        name: 'Foreign Tutor Block',
+        question_ids: [teacherQuestion.body.id],
+      })
+      .expect(403);
 
     await api(app)
       .post('/api/assessment/exams')
@@ -249,5 +247,43 @@ describeE2E('Assessment authoring ACL (e2e)', () => {
         },
       })
       .expect(201);
+  });
+
+  it('rejects student API access to assessment authoring endpoints', async () => {
+    const ds = app.get(DataSource);
+    const suffix = randomUUID().slice(0, 8);
+    await seedUser(
+      ds,
+      'student',
+      `assessment-student-${suffix}@test.local`,
+      'Student',
+      'NoAccess',
+    );
+    const studentLogin = await login(
+      app,
+      `assessment-student-${suffix}@test.local`,
+      PASSWORD,
+    );
+
+    await api(app)
+      .get('/api/assessment/questions')
+      .set(authHeader(studentLogin.token))
+      .expect(403);
+    await api(app)
+      .post('/api/assessment/questions')
+      .set(authHeader(studentLogin.token))
+      .send({
+        type: 'single_choice',
+        stem: 'Nope',
+        answers: [
+          { text: 'A', is_correct: true },
+          { text: 'B', is_correct: false },
+        ],
+      })
+      .expect(403);
+    await api(app)
+      .get('/api/assessment/blocks')
+      .set(authHeader(studentLogin.token))
+      .expect(403);
   });
 });

@@ -10,7 +10,6 @@ import {
   login,
 } from './e2e-helpers';
 import { ContentLifecycleStatus, QuestionType } from '../src/modules/assessment/enums';
-import { AssessmentBankEntity } from '../src/modules/assessment/entities/assessment-bank.entity';
 import { AssessmentQuestionEntity } from '../src/modules/assessment/entities/assessment-question.entity';
 import { AssessmentAnswerEntity } from '../src/modules/assessment/entities/assessment-answer.entity';
 import { TeacherEntity } from '../src/modules/teachers/entities/teacher.entity';
@@ -156,17 +155,8 @@ describeE2E('Homework module (e2e)', () => {
       assignedTeacherId: teacher.id,
     } as StudentEntity);
 
-    const bank = await ds.getRepository(AssessmentBankEntity).save({
-      id: randomUUID(),
-      name: `HW Bank ${suffix}`,
-      description: null,
-      status: ContentLifecycleStatus.Published,
-      createdByUserId: teacherUserId,
-    } as AssessmentBankEntity);
-
     const question = await ds.getRepository(AssessmentQuestionEntity).save({
       id: randomUUID(),
-      bankId: bank.id,
       type: QuestionType.SingleChoice,
       stem: 'Что означает 你好?',
       points: '1',
@@ -376,16 +366,8 @@ describeE2E('Homework module (e2e)', () => {
       inviteLinkId: null,
     } as TutorStudentEntity);
 
-    const bank = await ds.getRepository(AssessmentBankEntity).save({
-      id: randomUUID(),
-      name: `Tutor HW Bank ${suffix}`,
-      description: null,
-      status: ContentLifecycleStatus.Published,
-      createdByUserId: tutorUserId,
-    } as AssessmentBankEntity);
     const question = await ds.getRepository(AssessmentQuestionEntity).save({
       id: randomUUID(),
-      bankId: bank.id,
       type: QuestionType.SingleChoice,
       stem: 'Выберите перевод 你好',
       points: '1',

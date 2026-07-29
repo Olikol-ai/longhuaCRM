@@ -101,17 +101,7 @@ describeE2E('Assessment full flow (e2e)', () => {
     const suffix = randomUUID().slice(0, 8);
     const auth = authHeader(adminToken);
 
-    // ── Bank + questions ───────────────────────────────────────────────
-    const bankRes = await api(app)
-      .post('/api/assessment/banks')
-      .set(auth)
-      .send({ name: `E2E Bank ${suffix}`, description: 'assessment e2e', locale: 'ru' })
-      .expect(201);
-    const bankId = bankRes.body.id as string;
-    await api(app).post(`/api/assessment/banks/${bankId}/publish`).set(auth).expect((res) => {
-      expect([200, 201]).toContain(res.status);
-    });
-
+    // ── Questions ──────────────────────────────────────────────────────
     const questionSpecs: Array<{
       type: string;
       stem: string;
@@ -146,7 +136,6 @@ describeE2E('Assessment full flow (e2e)', () => {
         .post('/api/assessment/questions')
         .set(auth)
         .send({
-          bank_id: bankId,
           type: spec.type,
           stem: spec.stem,
           points: 1,

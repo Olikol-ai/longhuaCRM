@@ -32,7 +32,7 @@ import { formatDateTime } from '@/lib/assessment-admin';
 export default function AssessmentExamBlocks() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const assessmentHomePage = user?.role === 'admin' ? 'AdminAssessment' : 'AssessmentBanks';
+  const assessmentHomePage = user?.role === 'admin' ? 'AdminAssessment' : 'AssessmentQuestions';
   const [statusFilter, setStatusFilter] = useState('');
   const { blocks, loading, error, reload } = useAssessmentExamBlocks({
     status: statusFilter,

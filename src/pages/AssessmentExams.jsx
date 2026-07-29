@@ -33,7 +33,7 @@ import { formatDateTime } from '@/lib/assessment-admin';
 export default function AssessmentExams() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const assessmentHomePage = user?.role === 'admin' ? 'AdminAssessment' : 'AssessmentBanks';
+  const assessmentHomePage = user?.role === 'admin' ? 'AdminAssessment' : 'AssessmentQuestions';
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
   const [searchApplied, setSearchApplied] = useState('');

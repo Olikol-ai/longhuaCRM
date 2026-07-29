@@ -58,9 +58,9 @@ export class AssessmentQuestionRepository {
       .getMany();
   }
 
-  findPublishedByBankId(bankId: string): Promise<AssessmentQuestionEntity[]> {
+  findPublished(): Promise<AssessmentQuestionEntity[]> {
     return this.questionRepo.find({
-      where: { bankId, status: ContentLifecycleStatus.Published },
+      where: { status: ContentLifecycleStatus.Published },
       order: { createdAt: 'ASC' },
     });
   }
@@ -69,8 +69,8 @@ export class AssessmentQuestionRepository {
     return this.questionRepo.find({ where, order: { createdAt: 'DESC' } });
   }
 
-  filterByBankId(bankId: string): Promise<AssessmentQuestionEntity[]> {
-    return this.filter({ bankId });
+  filterByOwner(createdByUserId: string): Promise<AssessmentQuestionEntity[]> {
+    return this.filter({ createdByUserId });
   }
 
   filterByStatus(status: ContentLifecycleStatus): Promise<AssessmentQuestionEntity[]> {

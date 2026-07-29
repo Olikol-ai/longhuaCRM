@@ -54,11 +54,10 @@ export class AssessmentQuestionsController {
   @Post()
   @Roles('admin', 'teacher', 'tutor')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create question in bank' })
+  @ApiOperation({ summary: 'Create standalone question' })
   @ApiResponse({ status: 201, description: 'Question created' })
   create(@CurrentUser() user: JwtPayload, @Body() dto: CreateQuestionDto) {
     return this.questions.create(user, {
-      bankId: dto.bank_id,
       type: dto.type,
       stem: dto.stem,
       points: dto.points,
@@ -76,11 +75,10 @@ export class AssessmentQuestionsController {
 
   @Get()
   @Roles('admin', 'teacher', 'tutor')
-  @ApiOperation({ summary: 'List and filter questions' })
+  @ApiOperation({ summary: 'List and filter own questions (admin: all)' })
   @ApiResponse({ status: 200, description: 'Paginated question list' })
   async list(@CurrentUser() user: JwtPayload, @Query() query: ListQuestionsQueryDto) {
     const items = await this.questions.listFiltered(user, {
-      bankId: query.bank_id,
       status: query.status,
       type: query.type,
       topicId: query.topic_id,

@@ -20,7 +20,6 @@ import { AppModule } from '../src/app.module';
 import { UsersRepository } from '../src/modules/users/users.repository';
 import { StudentsService } from '../src/modules/students/students.service';
 import {
-  AssessmentBankService,
   QuestionAuthoringService,
   ExamBlockService,
   ExamService,
@@ -94,7 +93,6 @@ async function main(): Promise<void> {
 
     const result = await seedAssessmentDemo({
       dataSource: app.get(DataSource),
-      banks: app.get(AssessmentBankService),
       questions: app.get(QuestionAuthoringService),
       blocks: app.get(ExamBlockService),
       exams: app.get(ExamService),

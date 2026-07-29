@@ -20,10 +20,6 @@ describe('ExamBlockService', () => {
     findByIdsWithAnswers: jest.fn(),
   };
 
-  const banks = {
-    findById: jest.fn(),
-  };
-
   const assignments = {
     manager: { query: jest.fn() },
   };
@@ -42,7 +38,6 @@ describe('ExamBlockService', () => {
   const service = new ExamBlockService(
     blocks as never,
     questions as never,
-    banks as never,
     assignments as never,
     new AssessmentContentGuard(),
     access as never,

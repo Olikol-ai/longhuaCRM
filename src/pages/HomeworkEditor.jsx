@@ -21,7 +21,6 @@ export default function HomeworkEditor() {
   const id = params.get('id');
   const [loading, setLoading] = useState(Boolean(id));
   const [saving, setSaving] = useState(false);
-  const [banks, setBanks] = useState([]);
   const [questions, setQuestions] = useState([]);
   const [form, setForm] = useState({
     title: '',
@@ -35,21 +34,9 @@ export default function HomeworkEditor() {
   useEffect(() => {
     (async () => {
       try {
-        const bankList = await api.assessment.listBanks();
-        const list = Array.isArray(bankList) ? bankList : bankList?.items || [];
-        setBanks(list);
-        const published = list.filter((b) => b.status === 'published' || b.status === 'draft');
-        const allQs = [];
-        for (const bank of published.slice(0, 10)) {
-          try {
-            const qs = await api.assessment.listQuestions({ bank_id: bank.id });
-            const rows = Array.isArray(qs) ? qs : qs?.items || [];
-            allQs.push(...rows);
-          } catch {
-            // skip bank
-          }
-        }
-        setQuestions(allQs);
+        const qs = await api.assessment.listQuestions({ status: 'published', limit: 200 });
+        const rows = Array.isArray(qs) ? qs : qs?.items || [];
+        setQuestions(rows);
 
         if (id) {
           const hw = await api.homework.get(id);
@@ -144,7 +131,7 @@ export default function HomeworkEditor() {
           {id ? 'Редактирование задания' : 'Новое домашнее задание'}
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          Вопросы берутся из общего банка заданий (тест / reading / listening)
+          Вопросы берутся из ваших опубликованных вопросов (тест / reading / listening)
         </p>
       </div>
 
@@ -208,10 +195,10 @@ export default function HomeworkEditor() {
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 space-y-3">
-        <h2 className="text-sm font-semibold">Вопросы из банка ({banks.length} банков)</h2>
+        <h2 className="text-sm font-semibold">Мои вопросы ({questions.length})</h2>
         {questions.length === 0 ? (
           <p className="text-sm text-slate-500">
-            Нет доступных вопросов. Создайте их в разделе экзаменов (банк вопросов).
+            Нет доступных вопросов. Создайте их в разделе «Мои вопросы».
           </p>
         ) : (
           <div className="max-h-80 overflow-y-auto space-y-2">

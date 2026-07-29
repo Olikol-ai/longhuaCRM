@@ -1,4 +1,3 @@
-import { AssessmentBankEntity } from './assessment-bank.entity';
 import { AssessmentTopicEntity } from './assessment-topic.entity';
 import { AssessmentQuestionEntity } from './assessment-question.entity';
 import { AssessmentQuestionTopicEntity } from './assessment-question-topic.entity';
@@ -22,7 +21,6 @@ import { AssessmentChangeJournalEntity } from './assessment-change-journal.entit
 
 /** All Assessment TypeORM entities for module / registry registration. */
 export const ASSESSMENT_ENTITIES = [
-  AssessmentBankEntity,
   AssessmentTopicEntity,
   AssessmentQuestionEntity,
   AssessmentQuestionTopicEntity,
@@ -46,7 +44,6 @@ export const ASSESSMENT_ENTITIES = [
 ] as const;
 
 export {
-  AssessmentBankEntity,
   AssessmentTopicEntity,
   AssessmentQuestionEntity,
   AssessmentQuestionTopicEntity,

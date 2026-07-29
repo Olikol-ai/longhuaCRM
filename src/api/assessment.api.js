@@ -42,37 +42,6 @@ async function apiFormFetch(path, formData, { method = 'POST' } = {}) {
  * Responses are snake_case (ApiSerializeInterceptor).
  */
 export const assessment = {
-  // ── Banks ──────────────────────────────────────────────────────────────
-  listBanks(params) {
-    return apiFetch(`/assessment/banks${toQuery(params)}`);
-  },
-
-  getBank(bankId) {
-    return apiFetch(`/assessment/banks/${bankId}`);
-  },
-
-  createBank(body) {
-    return apiFetch('/assessment/banks', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
-  },
-
-  updateBank(bankId, body) {
-    return apiFetch(`/assessment/banks/${bankId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(body),
-    });
-  },
-
-  publishBank(bankId) {
-    return apiFetch(`/assessment/banks/${bankId}/publish`, { method: 'POST' });
-  },
-
-  archiveBank(bankId) {
-    return apiFetch(`/assessment/banks/${bankId}/archive`, { method: 'POST' });
-  },
-
   // ── Questions ──────────────────────────────────────────────────────────
   listQuestions(params) {
     return apiFetch(`/assessment/questions${toQuery(params)}`);

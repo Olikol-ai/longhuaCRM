@@ -5,11 +5,6 @@ import { ContentLifecycleStatus, QuestionType } from '../../enums';
 import { PaginationQueryDto } from '../common/pagination-query.dto';
 
 export class ListQuestionsQueryDto extends PaginationQueryDto {
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsUUID()
-  bank_id?: string;
-
   @ApiPropertyOptional({ enum: ContentLifecycleStatus })
   @IsOptional()
   @IsEnum(ContentLifecycleStatus)

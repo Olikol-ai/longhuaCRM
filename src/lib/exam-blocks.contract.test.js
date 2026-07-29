@@ -47,11 +47,22 @@ describe('ExamBlocks migration contract', () => {
     assert.match(drop, /DROP TABLE IF EXISTS assessment_exam_templates/);
     assert.match(drop, /DROP COLUMN IF EXISTS blueprint_id/);
 
+    const dropBanks = readFileSync(
+      join(
+        root,
+        'apps/api/src/database/migrations/1743000000000-DropAssessmentBanks.ts',
+      ),
+      'utf8',
+    );
+    assert.match(dropBanks, /DROP TABLE IF EXISTS assessment_banks/);
+    assert.match(dropBanks, /DROP COLUMN IF EXISTS bank_id/);
+
     const moduleSrc = readFileSync(
       join(root, 'apps/api/src/modules/assessment/assessment.module.ts'),
       'utf8',
     );
     assert.match(moduleSrc, /AssessmentExamBlocksController/);
+    assert.doesNotMatch(moduleSrc, /AssessmentBanksController/);
     assert.doesNotMatch(moduleSrc, /BlueprintsController/);
     assert.doesNotMatch(moduleSrc, /ExamTemplatesController/);
   });

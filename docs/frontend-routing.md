@@ -8,11 +8,19 @@ LongHuaCRM uses three coordinated files for routing. Do not consolidate them wit
 |---------|------|------|
 | **Route registration** | `src/App.jsx` | Declares React Router `<Route>` elements, role guards, redirects |
 | **Page component registry** | `src/pages.config.js` | Maps page name → component for routes generated from `PAGES` |
-| **Path helpers & access rules** | `src/lib/routing.js` | Role home paths, onboarding path, `getRequiredRoleForPath()` |
+| **Path helpers & access rules** | `src/lib/routing.js` | Role home paths, onboarding path, **ROUTE_ACCESS allowlist**, guards |
 
-**Primary entry for new authenticated pages:** `src/App.jsx` (add a `<Route>` with the appropriate guard).
+**Menu visibility (`Layout.jsx`) is not security.** Hiding a nav item never grants or denies access. SPA enforcement is:
 
-**Secondary entry (simple CRUD-style pages):** add a file under `src/pages/` and register it in `pages.config.js` if it should appear at `/{PageName}` with layout wrapper.
+1. `RoleRouteGuard` — checks `isPathForbiddenForUser()` against `EXACT_ROUTE_ACCESS` / `PREFIX_ROUTE_ACCESS`
+2. Per-route `AdminRoute` / `TeacherRoute` / `StudentRoute` / `TutorRoute` / `PathAccessGuard` — `RoleGuard` shows **403 Forbidden** page on deny
+3. Backend `@Roles` + ownership services — primary ACL for all API calls
+
+Unauthorized direct URL → `src/pages/Forbidden.jsx` (403 UX), not a silent redirect that looks like a bug.
+
+**Primary entry for new authenticated pages:** `src/App.jsx` (add a `<Route>` with the appropriate guard) **and** add the path to `EXACT_ROUTE_ACCESS` (or `PREFIX_ROUTE_ACCESS`) in `src/lib/routing.js`.
+
+**Secondary entry (simple CRUD-style pages):** add a file under `src/pages/` and register it in `pages.config.js` if it should appear at `/{PageName}` with layout wrapper — still must be allowlisted in `routing.js`.
 
 ## How routes are created
 
@@ -31,7 +39,7 @@ LongHuaCRM uses three coordinated files for routing. Do not consolidate them wit
 | `Dashboard`, `Schedule`, `StudentDetail` | `AdminRoute` |
 | `TeacherDashboard`, `TeacherSchedule` | `TeacherRoute` |
 | `StudentDashboard`, `StudentLessons` | `StudentRoute` |
-| Others in `PAGES` | No extra guard (shared) |
+| Others in `PAGES` | Outer `RoleRouteGuard` + allowlist (still enforced) |
 
 ### 3. Manual routes (`App.jsx`)
 
@@ -39,13 +47,16 @@ These pages exist under `src/pages/` but are **not** in `pages.config.js`:
 
 | Path | Component | Guard |
 |------|-----------|-------|
-| `/AdminLessonMaterials` | `AdminLessonMaterials` | Admin |
-| `/MaterialsHub` | `MaterialsHub` | Teacher |
+| `/AdminLessonMaterials` | `AdminLessonMaterials` | Teacher+Tutor (shared materials) |
+| `/MaterialsHub` | `MaterialsHub` | Teacher+Tutor |
 | `/StudentLessonMaterials` | `StudentLessonMaterials` | Student |
 | `/UserManagement` | `UserManagement` | Admin |
 | `/AdminPanel` | `AdminPanel` | Admin |
+| `/AssessmentQuestions` … `/AssessmentExams` | Assessment authoring | Teacher+Tutor (+admin) |
+| `/HomeworkList` … | Homework | Teacher+Tutor |
+| `/HomeworkViewer` | Homework viewer | Student / tutor_student |
 
-`AdminPanel` embeds tab pages: `Analytics`, `Salary`, `ExportData`, `ShopSettingsAdmin`, `WelcomePageEditor`, `TelegramSettings`, `AdminSettings`.
+`AdminPanel` embeds tab pages: `Analytics`, `Salary`, `ExportData`, `ShopSettingsAdmin`, `WelcomePageEditor`, `TelegramSettings`, `AdminSettings`. There is **no** standalone `/Salary` route — opening unknown paths shows 403.
 
 ### 4. Redirects & legacy paths
 
@@ -54,34 +65,42 @@ These pages exist under `src/pages/` but are **not** in `pages.config.js`:
 | `/Welcome` | Redirect → `/auth/pending-approval` |
 | `/Students`, `/students` | Redirect → `/UserManagement` |
 | `/Attendance`, `/LessonSeriesAdmin` | Redirect → `/Groups` |
-| `/Groups/:groupId` | Карточка группы (расписание, ученики, посещаемость) |
-| `/`, `/admin`, `/teacher`, `/student` | Role home redirects via `RoleHomeRedirect` |
-| `*` (authenticated) | `OnboardingFallback` |
+| `/Groups/:groupId` | Карточка группы |
+| `/`, `/admin`, `/teacher`, `/student`, `/tutor` | Role home redirects |
+| `*` (authenticated) | `OnboardingFallback` → 403 if role known |
 
 Legacy path constants remain in `lib/routing.js` for guard checks (e.g. `/Students`).
 
 ## Role routing helpers (`lib/routing.js`)
 
 - `ONBOARDING_PATH` — `/auth/pending-approval`
-- `ROLE_ENTRY_PATHS` — short aliases (`/admin`, `/teacher`, `/student`)
+- `ROLE_ENTRY_PATHS` — short aliases (`/admin`, `/teacher`, `/student`, `/tutor`, `/tutor-student`)
 - `ROLE_DASHBOARD_PATHS` — dashboard URLs per role
-- `getRequiredRoleForPath()` — used by `RoleRouteGuard`
+- `getAllowedRolesForPath()` / `isPathAllowedForUser()` / `isPathForbiddenForUser()` — **SPA ACL**
+- `getRequiredRoleForPath()` — deprecated single-role helper for diagnostics
 - `resolveRedirect()` — post-login redirect target
 
-## Teacher dashboard naming
+Unknown authenticated paths return an empty allowlist → **denied** (forces explicit registration).
 
-Two distinct UIs (not duplicates):
+## Role matrix (high level)
 
-| File | Route / usage |
-|------|----------------|
-| `pages/TeacherDashboard.jsx` | `/TeacherDashboard` — full teacher home with lesson actions |
-| `components/dashboard/TeacherRoleDashboard.jsx` | Embedded in `pages/Dashboard.jsx` when `user.role === 'teacher'` |
+| Area | admin | teacher | tutor | student | tutor_student |
+|------|-------|---------|-------|---------|---------------|
+| AdminPanel / Users / Salary tabs | ✓ | ✗ | ✗ | ✗ | ✗ |
+| TeacherAssessment / Teacher* | ✓ | ✓ | ✗ | ✗ | ✗ |
+| TutorStats / Tutor* | ✓ | ✗ | ✓ | ✗ | ✗ |
+| Assessment Questions / Blocks / Exams | ✓ | ✓ | ✓ | ✗ | ✗ |
+| Materials / Homework (manage) | ✓ | ✓ | ✓ | ✗ | ✗ |
+| HomeworkViewer | ✗ | ✗ | ✗ | ✓ | ✓ |
+| StudentDashboard | ✗ | ✗ | ✗ | ✓ | ✗ |
+
+Owner scoping (own entities only) is enforced on the **API**, not by the menu.
 
 ## Adding a new page (checklist)
 
-1. Create `src/pages/MyPage.jsx`
-2. Choose registration:
-   - **Simple layout page:** add to `pages.config.js` `PAGES` and role guard list in `App.jsx` if needed
-   - **Custom path or guard:** add explicit `<Route>` in `App.jsx`
-3. If path-based access control is required, extend `getRequiredRoleForPath()` in `lib/routing.js`
-4. Add navigation link in `Layout.jsx` if the page should appear in the sidebar
+1. Create the page component under `src/pages/`
+2. Register a `<Route>` in `App.jsx` with `AdminRoute` / `TeacherRoute` / etc.
+3. Add the path to `EXACT_ROUTE_ACCESS` (or a prefix rule) in `src/lib/routing.js`
+4. Optionally add a nav item in `Layout.jsx` (cosmetic only)
+5. Ensure the NestJS controller uses `@Roles` + ownership checks
+6. Add/extend a contract test in `src/lib/routing.acl.contract.test.js` if the matrix changes

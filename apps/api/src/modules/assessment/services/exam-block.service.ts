@@ -13,7 +13,6 @@ import {
 } from '../entities';
 import { ContentLifecycleStatus } from '../enums';
 import {
-  AssessmentBankRepository,
   AssessmentExamBlockRepository,
   AssessmentQuestionRepository,
 } from '../repositories';
@@ -42,7 +41,6 @@ export class ExamBlockService {
   constructor(
     private readonly blocks: AssessmentExamBlockRepository,
     private readonly questions: AssessmentQuestionRepository,
-    private readonly banks: AssessmentBankRepository,
     @InjectRepository(AssessmentExamAssignmentEntity)
     private readonly assignments: Repository<AssessmentExamAssignmentEntity>,
     private readonly guard: AssessmentContentGuard,
@@ -262,11 +260,7 @@ export class ExamBlockService {
       if (question.status === ContentLifecycleStatus.Archived) {
         throw new BadRequestException(`Question ${question.id} is archived`);
       }
-      const bank = this.guard.requireFound(
-        await this.banks.findById(question.bankId),
-        'Bank',
-      );
-      this.access.assertCanManageCreatedContent(actor, bank, 'bank');
+      this.access.assertCanManageCreatedContent(actor, question, 'question');
     }
   }
 

@@ -15,7 +15,6 @@ import {
   RetakePolicy,
   ShowCorrectAnswers,
 } from '../enums';
-import { AssessmentBankService } from '../services/assessment-bank.service';
 import { QuestionAuthoringService } from '../services/question-authoring.service';
 import { ExamBlockService } from '../services/exam-block.service';
 import { ExamService } from '../services/exam.service';
@@ -24,7 +23,6 @@ import { AssignmentService } from '../services/assignment.service';
 /** Stable demo labels — used for idempotent re-runs. */
 export const ASSESSMENT_DEMO = {
   examName: 'Вступительный экзамен HSK 1',
-  bankName: 'Банк вопросов HSK 1',
   listeningBlockName: 'Блок: Аудирование HSK 1',
   readingBlockName: 'Блок: Чтение HSK 1',
   courseName: 'Курс китайского HSK 1',
@@ -35,7 +33,6 @@ export const ASSESSMENT_DEMO = {
 
 export type AssessmentDemoSeedResult = {
   skipped: boolean;
-  bankId: string;
   blockIds: string[];
   examId: string;
   assignmentId: string;
@@ -47,7 +44,6 @@ export type AssessmentDemoSeedResult = {
 
 export type AssessmentDemoSeedDeps = {
   dataSource: DataSource;
-  banks: AssessmentBankService;
   questions: QuestionAuthoringService;
   blocks: ExamBlockService;
   exams: ExamService;
@@ -84,7 +80,6 @@ export async function seedAssessmentDemo(
   const log = deps.logger ?? new Logger('AssessmentDemoSeed');
   const {
     dataSource,
-    banks,
     questions,
     blocks,
     exams,
@@ -107,7 +102,6 @@ export async function seedAssessmentDemo(
     const assignment = await ensureAssignment(deps, existing.id, student.id);
     return {
       skipped: true,
-      bankId: '',
       blockIds: [],
       examId: existing.id,
       assignmentId: assignment.id,
@@ -120,18 +114,9 @@ export async function seedAssessmentDemo(
 
   log.log('Creating Assessment demo: Вступительный экзамен HSK 1…');
 
-  const bank = await banks.create({
-    name: ASSESSMENT_DEMO.bankName,
-    description: 'Учебный банк вопросов для вступительного экзамена HSK 1',
-    locale: 'zh-CN',
-    createdByUserId: actor.sub,
-  });
-  await banks.publish(actor, bank.id);
-
   const listeningIds: string[] = [];
   for (let i = 1; i <= 5; i += 1) {
     const q = await questions.create(actor, {
-      bankId: bank.id,
       type: QuestionType.Listening,
       stem: `[Аудирование ${i}] 你听了什么？`,
       points: 1,
@@ -146,7 +131,6 @@ export async function seedAssessmentDemo(
   const readingIds: string[] = [];
   for (let i = 1; i <= 3; i += 1) {
     const q = await questions.create(actor, {
-      bankId: bank.id,
       type: QuestionType.SingleChoice,
       stem: `[Чтение ${i}] 选择正确的答案`,
       points: 1,
@@ -159,7 +143,6 @@ export async function seedAssessmentDemo(
   }
   for (let i = 1; i <= 2; i += 1) {
     const q = await questions.create(actor, {
-      bankId: bank.id,
       type: QuestionType.MultipleChoice,
       stem: `[Чтение ${i}] Выберите все верные ответы`,
       points: 1,
@@ -228,7 +211,6 @@ export async function seedAssessmentDemo(
 
   return {
     skipped: false,
-    bankId: bank.id,
     blockIds: [listeningBlock.id, readingBlock.id],
     examId: published.id,
     assignmentId: assignment.id,

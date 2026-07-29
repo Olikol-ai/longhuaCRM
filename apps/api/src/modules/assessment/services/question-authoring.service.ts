@@ -9,7 +9,6 @@ import {
 } from '../entities';
 import { AttachmentKind, ContentLifecycleStatus, QuestionType } from '../enums';
 import {
-  AssessmentBankRepository,
   AssessmentExamBlockRepository,
   AssessmentExamRepository,
   AssessmentQuestionRepository,
@@ -24,7 +23,6 @@ export type AnswerInput = {
 };
 
 export type CreateQuestionInput = {
-  bankId: string;
   type: QuestionType;
   stem: string;
   points?: number | string;
@@ -46,7 +44,6 @@ export type UpdateQuestionInput = {
 };
 
 export type ListQuestionsFilter = {
-  bankId?: string;
   status?: ContentLifecycleStatus;
   type?: QuestionType;
   topicId?: string;
@@ -67,7 +64,6 @@ export type AddAttachmentInput = {
 export class QuestionAuthoringService {
   constructor(
     private readonly questions: AssessmentQuestionRepository,
-    private readonly banks: AssessmentBankRepository,
     private readonly exams: AssessmentExamRepository,
     private readonly blocks: AssessmentExamBlockRepository,
     private readonly guard: AssessmentContentGuard,
@@ -84,34 +80,17 @@ export class QuestionAuthoringService {
     id: string,
   ): Promise<AssessmentQuestionEntity> {
     const question = this.guard.requireFound(await this.findById(id), 'Question');
-    const bank = this.guard.requireFound(await this.banks.findById(question.bankId), 'Bank');
-    this.access.assertCanManageCreatedContent(actor, bank, 'bank');
+    this.access.assertCanManageCreatedContent(actor, question, 'question');
     return question;
-  }
-
-  listByBank(bankId: string): Promise<AssessmentQuestionEntity[]> {
-    return this.questions.filterByBankId(bankId);
   }
 
   async listFiltered(
     actor: DomainAccessActor,
     filter: ListQuestionsFilter = {},
   ): Promise<AssessmentQuestionEntity[]> {
-    let items = filter.bankId
-      ? await this.questions.filterByBankId(filter.bankId)
-      : await this.questions.findAll();
-
-    if (!this.access.isAdmin(actor)) {
-      const allowedBankIds = new Set<string>();
-      const bankIds = [...new Set(items.map((item) => item.bankId))];
-      for (const bankId of bankIds) {
-        const bank = await this.banks.findById(bankId);
-        if (bank && this.access.canManageCreatedContent(actor, bank)) {
-          allowedBankIds.add(bankId);
-        }
-      }
-      items = items.filter((item) => allowedBankIds.has(item.bankId));
-    }
+    let items = this.access.isAdmin(actor)
+      ? await this.questions.findAll()
+      : await this.questions.filterByOwner(actor.sub);
 
     if (filter.status) {
       items = items.filter((q) => q.status === filter.status);
@@ -151,12 +130,9 @@ export class QuestionAuthoringService {
     actor: DomainAccessActor,
     input: CreateQuestionInput,
   ): Promise<AssessmentQuestionEntity> {
-    const bank = this.guard.requireFound(await this.banks.findById(input.bankId), 'Bank');
-    this.access.assertCanManageCreatedContent(actor, bank, 'bank');
-    this.guard.assertNotArchived(bank.status, 'Bank');
+    this.access.assertCanManageContent(actor);
 
     const question = await this.questions.save({
-      bankId: input.bankId,
       type: input.type,
       stem: input.stem,
       points: String(input.points ?? 1),
@@ -383,7 +359,6 @@ export class QuestionAuthoringService {
   private snapshot(question: AssessmentQuestionEntity) {
     return {
       id: question.id,
-      bank_id: question.bankId,
       type: question.type,
       stem: question.stem,
       points: question.points,

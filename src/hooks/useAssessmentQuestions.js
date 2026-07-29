@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/api';
 import { unwrapItems } from '@/lib/assessment-ui';
 
-export function useAssessmentQuestions({ bankId, type, status, search } = {}) {
+export function useAssessmentQuestions({ type, status, search } = {}) {
   const [questions, setQuestions] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -13,7 +13,6 @@ export function useAssessmentQuestions({ bankId, type, status, search } = {}) {
     setError(null);
     try {
       const payload = await api.assessment.listQuestions({
-        bank_id: bankId || undefined,
         type: type || undefined,
         status: status || undefined,
         search: search || undefined,
@@ -29,7 +28,7 @@ export function useAssessmentQuestions({ bankId, type, status, search } = {}) {
     } finally {
       setLoading(false);
     }
-  }, [bankId, type, status, search]);
+  }, [type, status, search]);
 
   useEffect(() => {
     reload();

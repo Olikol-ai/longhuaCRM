@@ -22,7 +22,6 @@ import { AssessmentQuestionEntity } from '../src/modules/assessment/entities/ass
 import { AssessmentAnswerEntity } from '../src/modules/assessment/entities/assessment-answer.entity';
 import { AssessmentSectionEntity } from '../src/modules/assessment/entities/assessment-section.entity';
 import { AssessmentExamQuestionEntity } from '../src/modules/assessment/entities/assessment-exam-question.entity';
-import { AssessmentBankEntity } from '../src/modules/assessment/entities/assessment-bank.entity';
 import {
   AssignmentStatus,
   AssignmentTargetType,
@@ -98,17 +97,8 @@ describeE2E('Assessment Result → Certificate (e2e)', () => {
 
   async function seedPassedResult(studentId: string, courseId: string) {
     const ds = app.get(DataSource);
-    const bank = await ds.getRepository(AssessmentBankEntity).save(
-      ds.getRepository(AssessmentBankEntity).create({
-        name: `Bank ${randomUUID().slice(0, 6)}`,
-        status: ContentLifecycleStatus.Published,
-        locale: 'zh-CN',
-        createdByUserId: null,
-      }),
-    );
     const question = await ds.getRepository(AssessmentQuestionEntity).save(
       ds.getRepository(AssessmentQuestionEntity).create({
-        bankId: bank.id,
         type: QuestionType.SingleChoice,
         stem: 'Demo?',
         points: '1',

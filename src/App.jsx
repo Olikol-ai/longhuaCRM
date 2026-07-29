@@ -14,7 +14,7 @@ import PendingApproval from './pages/PendingApproval';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import NameFormModal from '@/components/auth/NameFormModal';
 import RoleRouteGuard, { RoleHomeRedirect, OnboardingFallback, RootRedirect } from '@/components/auth/RoleRouteGuard';
-import { AdminRoute, TeacherRoute, StudentRoute, TutorRoute } from '@/components/auth/AdminRoute';
+import { AdminRoute, TeacherRoute, StudentRoute, TutorRoute, PathAccessGuard } from '@/components/auth/AdminRoute';
 import AppErrorBoundary from '@/components/common/AppErrorBoundary';
 import { ONBOARDING_PATH } from '@/lib/routing';
 
@@ -35,7 +35,6 @@ const CertificateVerify = lazy(() => import('./pages/CertificateVerify'));
 const Payments = lazy(() => import('./pages/Payments'));
 const PaymentReturn = lazy(() => import('./pages/PaymentReturn'));
 const AdminAssessment = lazy(() => import('./pages/AdminAssessment'));
-const AssessmentBanks = lazy(() => import('./pages/AssessmentBanks'));
 const AssessmentQuestions = lazy(() => import('./pages/AssessmentQuestions'));
 const AssessmentExamBlocks = lazy(() => import('./pages/AssessmentExamBlocks'));
 const AssessmentExamBlockEdit = lazy(() => import('./pages/AssessmentExamBlockEdit'));
@@ -76,13 +75,16 @@ const LayoutWrapper = ({ children, currentPageName }) => {
     : <>{children}</>;
 };
 
-/** Old /TeacherPayments bookmarks → AdminPanel (salary) or TeacherDashboard. */
+/** Old /TeacherPayments bookmarks → AdminPanel (salary) or role home. */
 function TeacherPaymentsLegacyRedirect() {
   const { user } = useAuth();
   if (user?.role === 'admin') {
     return <Navigate to="/AdminPanel" replace />;
   }
-  return <Navigate to="/TeacherDashboard" replace />;
+  if (user?.role === 'teacher') {
+    return <Navigate to="/TeacherDashboard" replace />;
+  }
+  return <Navigate to={user?.role === 'tutor' ? '/TutorDashboard' : '/'} replace />;
 }
 
 const AuthenticatedApp = () => {
@@ -179,9 +181,11 @@ const AuthenticatedApp = () => {
         <Route
           path="/lesson/:id/video"
           element={
-            <LayoutWrapper currentPageName="LessonVideo">
-              <LessonVideo />
-            </LayoutWrapper>
+            <PathAccessGuard>
+              <LayoutWrapper currentPageName="LessonVideo">
+                <LessonVideo />
+              </LayoutWrapper>
+            </PathAccessGuard>
           }
         />
         <Route path="/certificate/:id" element={<CertificateView />} />
@@ -189,7 +193,6 @@ const AuthenticatedApp = () => {
         <Route path="/Payments" element={<AdminRoute><LayoutWrapper currentPageName="Payments"><Payments /></LayoutWrapper></AdminRoute>} />
         <Route path="/PaymentReturn" element={<StudentRoute><LayoutWrapper currentPageName="PaymentReturn"><PaymentReturn /></LayoutWrapper></StudentRoute>} />
         <Route path="/AdminAssessment" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AdminAssessment /></LayoutWrapper></AdminRoute>} />
-        <Route path="/AssessmentBanks" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentBanks"><AssessmentBanks /></LayoutWrapper></TeacherRoute>} />
         <Route path="/AssessmentQuestions" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentQuestions"><AssessmentQuestions /></LayoutWrapper></TeacherRoute>} />
         <Route path="/AssessmentExamBlocks" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentExamBlocks"><AssessmentExamBlocks /></LayoutWrapper></TeacherRoute>} />
         <Route path="/AssessmentExamBlockEdit" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentExamBlocks"><AssessmentExamBlockEdit /></LayoutWrapper></TeacherRoute>} />

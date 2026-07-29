@@ -8,20 +8,24 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '../..');
 
 describe('Assessment authoring access', () => {
-  it('opens shared assessment authoring routes for teacher and tutor', () => {
+  it('opens shared assessment authoring routes for teacher and tutor without banks', () => {
     const app = readFileSync(join(root, 'src/App.jsx'), 'utf8');
     const routing = readFileSync(join(root, 'src/lib/routing.js'), 'utf8');
-    assert.match(app, /AssessmentBanks/);
+    assert.match(app, /AssessmentQuestions/);
     assert.match(app, /AssessmentExamBlocks/);
     assert.match(app, /TeacherRoute allowTutor/);
     assert.match(routing, /AssessmentExamBlocks/);
     assert.match(routing, /AssessmentExams/);
+    assert.doesNotMatch(app, /AssessmentBanks/);
+    assert.doesNotMatch(routing, /AssessmentBanks/);
     assert.doesNotMatch(app, /AssessmentExamTemplates/);
     assert.doesNotMatch(app, /AssessmentBlueprints/);
   });
 
-  it('shows questions / blocks / exams in teacher and tutor navigation', () => {
+  it('shows questions / blocks / exams in teacher and tutor navigation without banks', () => {
     const layout = readFileSync(join(root, 'src/Layout.jsx'), 'utf8');
+    assert.doesNotMatch(layout, /Банки вопросов/);
+    assert.doesNotMatch(layout, /AssessmentBanks/);
     assert.match(layout, /Мои вопросы/);
     assert.match(layout, /Мои блоки/);
     assert.match(layout, /Мои экзамены/);
@@ -33,5 +37,7 @@ describe('Assessment authoring access', () => {
     assert.match(questions, /Экспорт/);
     assert.match(questions, /Импорт/);
     assert.match(questions, /createQuestion/);
+    assert.doesNotMatch(questions, /bank_id/);
+    assert.doesNotMatch(questions, /AssessmentBanks/);
   });
 });

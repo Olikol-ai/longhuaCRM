@@ -1,0 +1,99 @@
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const root = join(__dirname, '../..');
+
+describe('SPA route ACL (menu is not security)', () => {
+  const routing = readFileSync(join(root, 'src/lib/routing.js'), 'utf8');
+  const forbidden = readFileSync(join(root, 'src/pages/Forbidden.jsx'), 'utf8');
+  const adminRoute = readFileSync(join(root, 'src/components/auth/AdminRoute.jsx'), 'utf8');
+  const roleGuard = readFileSync(join(root, 'src/components/auth/RoleRouteGuard.jsx'), 'utf8');
+  const layout = readFileSync(join(root, 'src/Layout.jsx'), 'utf8');
+  const app = readFileSync(join(root, 'src/App.jsx'), 'utf8');
+
+  it('exposes Forbidden 403 UX and guards that deny by role, not by menu', () => {
+    assert.match(forbidden, /403/);
+    assert.match(forbidden, /Недостаточно прав/);
+    assert.match(adminRoute, /ForbiddenPage/);
+    assert.match(adminRoute, /PathAccessGuard/);
+    assert.match(adminRoute, /RoleGuard/);
+    assert.match(roleGuard, /isPathForbiddenForUser/);
+    assert.match(roleGuard, /ForbiddenPage/);
+    assert.match(routing, /Menu visibility is NOT security/);
+  });
+
+  it('does not grant tutors every teacher-only path', () => {
+    assert.match(routing, /'\/TeacherAssessment': \['admin', 'teacher'\]/);
+    assert.match(routing, /'\/TeacherDashboard': \['admin', 'teacher'\]/);
+    assert.doesNotMatch(
+      routing,
+      /if \(required === 'teacher'\)[\s\S]*tutor/,
+    );
+  });
+
+  it('allowlists protected pages from the audit list', () => {
+    assert.match(routing, /'\/AssessmentQuestions': \['admin', 'teacher', 'tutor'\]/);
+    assert.match(routing, /'\/AssessmentExamBlocks': \['admin', 'teacher', 'tutor'\]/);
+    assert.match(routing, /'\/AssessmentExams': \['admin', 'teacher', 'tutor'\]/);
+    assert.match(routing, /'\/MaterialsHub': \['admin', 'teacher', 'tutor'\]/);
+    assert.match(routing, /'\/HomeworkList': \['admin', 'teacher', 'tutor'\]/);
+    assert.match(routing, /'\/UserManagement': \['admin'\]/);
+    assert.match(routing, /'\/AdminPanel': \['admin'\]/);
+    assert.match(routing, /'\/TutorStats': \['admin', 'tutor'\]/);
+    assert.match(routing, /'\/TeacherAssessment': \['admin', 'teacher'\]/);
+    assert.doesNotMatch(routing, /AssessmentBanks/);
+  });
+
+  it('denies students and tutor_students on authoring / admin / salary surfaces', () => {
+    for (const path of [
+      'AssessmentQuestions',
+      'AssessmentExamBlocks',
+      'AssessmentExams',
+      'MaterialsHub',
+      'HomeworkList',
+      'UserManagement',
+      'AdminPanel',
+      'TutorStats',
+    ]) {
+      const line = routing.split('\n').find((l) => l.includes(`'/${path}'`));
+      assert.ok(line, `missing allowlist for /${path}`);
+      assert.doesNotMatch(line, /'student'/);
+      assert.doesNotMatch(line, /tutor_student/);
+    }
+  });
+
+  it('wires App routes with RoleRouteGuard and role wrappers', () => {
+    assert.match(app, /RoleRouteGuard/);
+    assert.match(app, /AssessmentQuestions[\s\S]*TeacherRoute allowTutor/);
+    assert.match(app, /UserManagement[\s\S]*AdminRoute/);
+    assert.match(app, /AdminPanel[\s\S]*AdminRoute/);
+    assert.match(app, /PathAccessGuard/);
+    assert.doesNotMatch(app, /AssessmentBanks/);
+  });
+
+  it('keeps AssessmentQuestions in teacher and tutor menus', () => {
+    assert.match(layout, /Мои вопросы/);
+    assert.match(layout, /AssessmentQuestions/);
+    assert.doesNotMatch(layout, /Банки вопросов/);
+  });
+
+  it('backend questions controller enforces roles without banks', () => {
+    const questions = readFileSync(
+      join(root, 'apps/api/src/modules/assessment/controllers/assessment-questions.controller.ts'),
+      'utf8',
+    );
+    assert.match(questions, /@Roles\('admin', 'teacher', 'tutor'\)/);
+    assert.match(questions, /RolesGuard/);
+    assert.doesNotMatch(questions, /bank_id/);
+    assert.ok(
+      !readFileSync(
+        join(root, 'apps/api/src/modules/assessment/assessment.module.ts'),
+        'utf8',
+      ).includes('AssessmentBanksController'),
+    );
+  });
+});

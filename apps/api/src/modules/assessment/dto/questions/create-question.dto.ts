@@ -32,10 +32,6 @@ export class CreateAnswerDto {
 }
 
 export class CreateQuestionDto {
-  @ApiProperty()
-  @IsUUID()
-  bank_id!: string;
-
   @ApiProperty({ enum: QuestionType })
   @IsEnum(QuestionType)
   type!: QuestionType;

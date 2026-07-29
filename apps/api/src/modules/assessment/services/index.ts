@@ -4,7 +4,6 @@ import { AssessmentParticipantResolver } from './assessment-participant-resolver
 import { AssessmentAttachmentService } from './assessment-attachment.service';
 import { AssessmentScoringService } from './assessment-scoring.service';
 import { AssessmentTimeoutJobService } from './assessment-timeout-job.service';
-import { AssessmentBankService } from './assessment-bank.service';
 import { QuestionAuthoringService } from './question-authoring.service';
 import { ExamBlockService } from './exam-block.service';
 import { ExamService } from './exam.service';
@@ -23,7 +22,6 @@ export const ASSESSMENT_SERVICES = [
   AssessmentTimeoutJobService,
   AssessmentChangeJournalService,
   AssessmentService,
-  AssessmentBankService,
   QuestionAuthoringService,
   ExamBlockService,
   ExamService,
@@ -42,7 +40,6 @@ export {
   AssessmentScoringService,
   AssessmentTimeoutJobService,
   AssessmentChangeJournalService,
-  AssessmentBankService,
   QuestionAuthoringService,
   ExamBlockService,
   ExamService,

@@ -16,7 +16,8 @@ if (process.env.E2E_DATABASE_URL) {
   process.env.DATABASE_URL = process.env.E2E_DATABASE_URL;
 }
 
-process.env.NODE_ENV = process.env.NODE_ENV ?? 'test';
+// Force test mode so TypeORM dropSchema/synchronize run (do not keep NODE_ENV=development from .env).
+process.env.NODE_ENV = 'test';
 process.env.E2E_SYNC_SCHEMA = process.env.E2E_SYNC_SCHEMA ?? 'true';
 process.env.E2E_DROP_SCHEMA = process.env.E2E_DROP_SCHEMA ?? 'true';
 process.env.SERVE_FRONTEND = 'false';

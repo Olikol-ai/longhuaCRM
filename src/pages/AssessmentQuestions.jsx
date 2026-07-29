@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Archive,
@@ -31,7 +31,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/components/ui/use-toast';
 import { createPageUrl } from '@/utils';
-import { useAssessmentBanks } from '@/hooks/useAssessmentBanks';
 import { useAssessmentQuestions } from '@/hooks/useAssessmentQuestions';
 import { useAuth } from '@/lib/AuthContext';
 import {
@@ -43,15 +42,12 @@ import {
 export default function AssessmentQuestions() {
   const { user } = useAuth();
   const assessmentHomePage = user?.role === 'admin' ? 'AdminAssessment' : 'AssessmentExams';
-  const [bankId, setBankId] = useState('');
   const [type, setType] = useState('');
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
   const [searchApplied, setSearchApplied] = useState('');
 
-  const { banks } = useAssessmentBanks();
   const { questions, loading, error, reload, removeQuestion } = useAssessmentQuestions({
-    bankId,
     type,
     status,
     search: searchApplied,
@@ -63,12 +59,6 @@ export default function AssessmentQuestions() {
     (Boolean(user?.id) &&
       Boolean(question?.created_by_user_id) &&
       question.created_by_user_id === user.id);
-
-  const bankNameById = useMemo(() => {
-    const map = new Map();
-    banks.forEach((b) => map.set(b.id, b.name));
-    return map;
-  }, [banks]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const fileInputRef = useRef(null);
@@ -126,12 +116,12 @@ export default function AssessmentQuestions() {
   const confirmCopy = {
     publish: {
       title: 'Опубликовать вопрос?',
-      description: 'После публикации вопрос станет доступен для экзаменов.',
+      description: 'После публикации вопрос станет доступен для блоков и экзаменов.',
       confirmLabel: 'Подтвердить',
     },
     archive: {
       title: 'Архивировать вопрос?',
-      description: 'Вопрос будет переведён в архив и недоступен для новых экзаменов.',
+      description: 'Вопрос будет переведён в архив и недоступен для новых блоков.',
       confirmLabel: 'Подтвердить',
     },
     delete: {
@@ -142,17 +132,16 @@ export default function AssessmentQuestions() {
   };
 
   const handleExport = () => {
-    if (!bankId) {
+    if (questions.length === 0) {
       toast({
-        title: 'Сначала выберите банк',
-        description: 'Экспорт выполняется для конкретного банка вопросов.',
+        title: 'Нечего экспортировать',
+        description: 'Сначала создайте вопросы.',
         variant: 'destructive',
       });
       return;
     }
     const payload = {
-      version: 1,
-      bank_id: bankId,
+      version: 2,
       exported_at: new Date().toISOString(),
       questions: questions.map((question) => ({
         type: question.type,
@@ -171,7 +160,7 @@ export default function AssessmentQuestions() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `assessment-bank-${bankId}.json`;
+    link.download = `assessment-questions-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -180,14 +169,6 @@ export default function AssessmentQuestions() {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    if (!bankId) {
-      toast({
-        title: 'Сначала выберите банк',
-        description: 'Импорт выполняется в выбранный банк вопросов.',
-        variant: 'destructive',
-      });
-      return;
-    }
     try {
       const raw = await file.text();
       const parsed = JSON.parse(raw);
@@ -195,10 +176,9 @@ export default function AssessmentQuestions() {
       if (!Array.isArray(importedQuestions) || importedQuestions.length === 0) {
         throw new Error('Файл не содержит вопросов');
       }
-      setBusyId(`import:${bankId}`);
+      setBusyId('import');
       for (const item of importedQuestions) {
         await api.assessment.createQuestion({
-          bank_id: bankId,
           type: item.type,
           stem: item.stem,
           points: item.points,
@@ -235,10 +215,10 @@ export default function AssessmentQuestions() {
             ← Экзамены
           </Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-            Вопросы
+            Мои вопросы
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Создание и фильтрация вопросов
+            Создание и фильтрация вопросов. Блоки собирают вопросы в группы.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -246,14 +226,19 @@ export default function AssessmentQuestions() {
             <RefreshCw className="h-4 w-4 mr-2" />
             Обновить
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExport} disabled={!bankId || questions.length === 0}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            disabled={questions.length === 0}
+          >
             <Download className="h-4 w-4 mr-2" />
             Экспорт
           </Button>
           <Button
             variant="outline"
             size="sm"
-            disabled={!bankId || busyId === `import:${bankId}`}
+            disabled={busyId === 'import'}
             onClick={() => fileInputRef.current?.click()}
           >
             <Upload className="h-4 w-4 mr-2" />
@@ -263,7 +248,6 @@ export default function AssessmentQuestions() {
             className="bg-primary hover:bg-primary/90"
             size="sm"
             onClick={openCreate}
-            disabled={banks.length === 0}
           >
             <Plus className="h-4 w-4 mr-2" />
             Создать вопрос
@@ -271,18 +255,6 @@ export default function AssessmentQuestions() {
         </div>
       </div>
 
-      {banks.length === 0 && (
-        <div className="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm text-amber-800 dark:text-amber-200">
-          Сначала создайте банк вопросов в разделе{' '}
-          <Link
-            to={createPageUrl('AssessmentBanks')}
-            className="font-semibold underline"
-          >
-            Банки вопросов
-          </Link>
-          .
-        </div>
-      )}
       <input
         ref={fileInputRef}
         type="file"
@@ -291,7 +263,7 @@ export default function AssessmentQuestions() {
         onChange={handleImportFile}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
         <div className="relative sm:col-span-2 lg:col-span-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
@@ -304,18 +276,6 @@ export default function AssessmentQuestions() {
             }}
           />
         </div>
-        <select
-          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-          value={bankId}
-          onChange={(e) => setBankId(e.target.value)}
-        >
-          <option value="">Все банки</option>
-          {banks.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
         <select
           className="h-10 rounded-md border border-input bg-background px-3 text-sm"
           value={type}
@@ -370,11 +330,7 @@ export default function AssessmentQuestions() {
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Измените фильтры или создайте новый вопрос.
           </p>
-          <Button
-            className="bg-primary hover:bg-primary/90"
-            onClick={openCreate}
-            disabled={banks.length === 0}
-          >
+          <Button className="bg-primary hover:bg-primary/90" onClick={openCreate}>
             <Plus className="h-4 w-4 mr-2" />
             Создать вопрос
           </Button>
@@ -393,9 +349,6 @@ export default function AssessmentQuestions() {
                       {QUESTION_TYPE_LABEL[q.type] || q.type}
                     </span>
                     <LifecycleBadge status={q.status} />
-                    <span className="text-xs text-slate-400">
-                      {bankNameById.get(q.bank_id) || 'Банк'}
-                    </span>
                   </div>
                   <p className="text-sm sm:text-base text-slate-900 dark:text-white line-clamp-3 whitespace-pre-wrap">
                     {q.stem}
@@ -479,8 +432,6 @@ export default function AssessmentQuestions() {
         onOpenChange={setDialogOpen}
         mode={dialogMode}
         question={editing}
-        banks={banks}
-        defaultBankId={bankId}
         onSaved={() => {
           toast({
             title: editing ? 'Вопрос обновлён' : 'Вопрос создан',
