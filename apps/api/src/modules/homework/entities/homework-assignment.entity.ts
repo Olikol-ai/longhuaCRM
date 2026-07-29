@@ -30,8 +30,12 @@ export class HomeworkAssignmentEntity {
   homework?: HomeworkEntity;
 
   @Index('IDX_HOMEWORK_ASSIGNMENTS_STUDENT')
-  @Column({ name: 'student_id', type: 'uuid' })
-  studentId: string;
+  @Column({ name: 'student_id', type: 'uuid', nullable: true })
+  studentId: string | null;
+
+  @Index('IDX_HOMEWORK_ASSIGNMENTS_TUTOR_STUDENT')
+  @Column({ name: 'tutor_student_id', type: 'uuid', nullable: true })
+  tutorStudentId: string | null;
 
   @Index('IDX_HOMEWORK_ASSIGNMENTS_ASSIGNED_BY')
   @Column({ name: 'assigned_by_user_id', type: 'uuid' })
@@ -46,6 +50,21 @@ export class HomeworkAssignmentEntity {
 
   @Column({ name: 'due_at', type: 'timestamptz', nullable: true })
   dueAt: Date | null;
+
+  @Column({ name: 'manual_status', type: 'varchar', length: 32, nullable: true })
+  manualStatus: string | null;
+
+  @Column({ name: 'review_result', type: 'text', nullable: true })
+  reviewResult: string | null;
+
+  @Column({ name: 'owner_comment', type: 'text', nullable: true })
+  ownerComment: string | null;
+
+  @Column({ name: 'manual_checked_at', type: 'timestamptz', nullable: true })
+  manualCheckedAt: Date | null;
+
+  @Column({ name: 'returned_for_revision_at', type: 'timestamptz', nullable: true })
+  returnedForRevisionAt: Date | null;
 
   @Column({ name: 'assigned_at', type: 'timestamptz', default: () => 'NOW()' })
   assignedAt: Date;

@@ -4,11 +4,15 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { TelegramService } from '../../telegram/telegram.service';
-import { StudentEntity } from '../../students/entities/student.entity';
 import { UserEntity } from '../../users/entities/user.entity';
 import { HomeworkAssignmentEntity } from '../entities/homework-assignment.entity';
 import { HomeworkEntity } from '../entities/homework.entity';
 import { HomeworkResultEntity } from '../entities/homework-result.entity';
+
+interface HomeworkNotificationRecipient {
+  userId: string | null;
+  displayName: string;
+}
 
 @Injectable()
 export class HomeworkNotifierService {
@@ -25,33 +29,27 @@ export class HomeworkNotifierService {
   notifyAssigned(
     assignment: HomeworkAssignmentEntity,
     homework: HomeworkEntity,
-    student: StudentEntity,
+    learner: HomeworkNotificationRecipient,
   ): void {
-    void this.notifyAssignedSafe(assignment, homework, student);
+    void this.notifyAssignedSafe(assignment, homework, learner);
   }
 
   notifySubmitted(
     assignment: HomeworkAssignmentEntity,
     homework: HomeworkEntity,
-    student: StudentEntity,
+    learner: HomeworkNotificationRecipient,
     result: HomeworkResultEntity,
   ): void {
-    void this.notifySubmittedSafe(assignment, homework, student, result);
+    void this.notifySubmittedSafe(assignment, homework, learner, result);
   }
 
   notifyReviewed(
     assignment: HomeworkAssignmentEntity,
     homework: HomeworkEntity,
-    student: StudentEntity,
+    learner: HomeworkNotificationRecipient,
     result: HomeworkResultEntity,
   ): void {
-    void this.notifyReviewedSafe(assignment, homework, student, result);
-  }
-
-  private studentDisplayName(student: StudentEntity): string {
-    const name = String(student.name ?? '').trim();
-    if (name) return name;
-    return [student.lastName, student.firstName].filter(Boolean).join(' ').trim() || 'Ученик';
+    void this.notifyReviewedSafe(assignment, homework, learner, result);
   }
 
   private appBaseUrl(): string {
@@ -65,16 +63,16 @@ export class HomeworkNotifierService {
   private async notifyAssignedSafe(
     assignment: HomeworkAssignmentEntity,
     homework: HomeworkEntity,
-    student: StudentEntity,
+    learner: HomeworkNotificationRecipient,
   ): Promise<void> {
     try {
-      if (!student.userId) return;
+      if (!learner.userId) return;
       const title = 'Новое домашнее задание';
       const body = `Вам назначено домашнее задание «${homework.title}».`;
       const link = `${this.appBaseUrl()}/HomeworkViewer?assignmentId=${assignment.id}`;
 
       await this.notifications.create({
-        userId: student.userId,
+        userId: learner.userId,
         channel: 'in_app',
         type: 'homework_assigned',
         title,
@@ -84,7 +82,7 @@ export class HomeworkNotifierService {
         referenceId: assignment.id,
       });
 
-      const user = await this.users.findOne({ where: { id: student.userId } });
+      const user = await this.users.findOne({ where: { id: learner.userId } });
       if (user?.telegramId) {
         await this.telegram.sendMessage(
           user.telegramId,
@@ -101,12 +99,12 @@ export class HomeworkNotifierService {
   private async notifySubmittedSafe(
     assignment: HomeworkAssignmentEntity,
     homework: HomeworkEntity,
-    student: StudentEntity,
+    learner: HomeworkNotificationRecipient,
     result: HomeworkResultEntity,
   ): Promise<void> {
     try {
       const teacherUserId = assignment.assignedByUserId;
-      const studentName = this.studentDisplayName(student);
+      const studentName = learner.displayName;
       const title = 'Домашнее задание выполнено';
       const body = `Ученик ${studentName} выполнил домашнее задание «${homework.title}».`;
       const link = `${this.appBaseUrl()}/HomeworkResults?assignmentId=${assignment.id}`;
@@ -139,17 +137,17 @@ export class HomeworkNotifierService {
   private async notifyReviewedSafe(
     assignment: HomeworkAssignmentEntity,
     homework: HomeworkEntity,
-    student: StudentEntity,
+    learner: HomeworkNotificationRecipient,
     result: HomeworkResultEntity,
   ): Promise<void> {
     try {
-      if (!student.userId) return;
+      if (!learner.userId) return;
       const title = 'Домашнее задание проверено';
       const body = `Домашнее задание «${homework.title}» проверено. Результат: ${result.percent}%.`;
       const link = `${this.appBaseUrl()}/HomeworkViewer?assignmentId=${assignment.id}`;
 
       await this.notifications.create({
-        userId: student.userId,
+        userId: learner.userId,
         channel: 'in_app',
         type: 'homework_reviewed',
         title,
@@ -159,7 +157,7 @@ export class HomeworkNotifierService {
         referenceId: assignment.id,
       });
 
-      const user = await this.users.findOne({ where: { id: student.userId } });
+      const user = await this.users.findOne({ where: { id: learner.userId } });
       if (user?.telegramId) {
         await this.telegram.sendMessage(
           user.telegramId,

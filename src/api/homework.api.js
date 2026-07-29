@@ -16,6 +16,9 @@ export const homework = {
       body: JSON.stringify(data),
     });
   },
+  delete(id) {
+    return apiFetch(`/homework/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
   publish(id) {
     return apiFetch(`/homework/${encodeURIComponent(id)}/publish`, { method: 'POST', body: '{}' });
   },
@@ -54,6 +57,12 @@ export const homework = {
     return apiFetch(`/homework/attempts/${encodeURIComponent(attemptId)}/submit`, {
       method: 'POST',
       body: JSON.stringify({ answers: answers || [] }),
+    });
+  },
+  updateLocalStatus(assignmentId, data) {
+    return apiFetch(`/homework/assignments/${encodeURIComponent(assignmentId)}/local-status`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
     });
   },
 };

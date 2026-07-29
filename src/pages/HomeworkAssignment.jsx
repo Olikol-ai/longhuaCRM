@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { api } from '@/api';
+import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { createPageUrl } from '@/utils';
@@ -9,17 +10,17 @@ import { userFacingError } from '@/lib/userFacingError';
 
 export default function HomeworkAssignment() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [params] = useSearchParams();
   const homeworkId = params.get('homeworkId');
   const lessonId = params.get('lessonId');
   const preselectStudent = params.get('studentId');
+  const isTutor = user?.role === 'tutor';
 
   const [homeworks, setHomeworks] = useState([]);
   const [selectedHw, setSelectedHw] = useState(homeworkId || '');
   const [students, setStudents] = useState([]);
-  const [selectedStudents, setSelectedStudents] = useState(
-    preselectStudent ? [preselectStudent] : [],
-  );
+  const [selectedStudents, setSelectedStudents] = useState(preselectStudent ? [preselectStudent] : []);
   const [dueAt, setDueAt] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -29,13 +30,26 @@ export default function HomeworkAssignment() {
       try {
         const [hw, st] = await Promise.all([
           api.homework.list(),
-          api.students.list?.() ?? api.students.filter({}),
+          isTutor ? api.tutors.myStudents() : (api.students.list?.() ?? api.students.filter({})),
         ]);
         const hwRows = (Array.isArray(hw) ? hw : []).filter((h) => h.status === 'published');
         setHomeworks(hwRows);
         if (!selectedHw && hwRows[0]) setSelectedHw(hwRows[0].id);
         const stRows = Array.isArray(st) ? st : st?.items || [];
-        setStudents(stRows);
+        setStudents(
+          stRows
+            .filter((row) => row.status !== 'inactive')
+            .map((row) => ({
+              id: row.id,
+              name:
+                row.name ||
+                row.full_name ||
+                [row.last_name, row.first_name].filter(Boolean).join(' ') ||
+                row.email,
+              learnerType: isTutor ? 'tutor_student' : 'student',
+              hasAccount: Boolean(isTutor ? row.user_id || row.userId : true),
+            })),
+        );
       } catch (err) {
         toast({
           title: 'Ошибка загрузки',
@@ -46,7 +60,7 @@ export default function HomeworkAssignment() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [isTutor]);
 
   const toggleStudent = (id) => {
     setSelectedStudents((prev) =>
@@ -65,12 +79,23 @@ export default function HomeworkAssignment() {
     }
     setSaving(true);
     try {
+      const selected = students.filter((student) => selectedStudents.includes(student.id));
       await api.homework.assign(selectedHw, {
-        student_ids: selectedStudents,
+        student_ids: selected
+          .filter((student) => student.learnerType === 'student')
+          .map((student) => student.id),
+        tutor_student_ids: selected
+          .filter((student) => student.learnerType === 'tutor_student')
+          .map((student) => student.id),
         due_at: dueAt ? new Date(dueAt).toISOString() : undefined,
         lesson_id: lessonId || undefined,
       });
-      toast({ title: 'Задание назначено', description: 'Ученики получат уведомление.' });
+      toast({
+        title: 'Задание назначено',
+        description: isTutor
+          ? 'Зарегистрированные ученики получат уведомление. Для локальных учеников статус отмечается вручную.'
+          : 'Ученики получат уведомление.',
+      });
       navigate(createPageUrl('HomeworkResults') + `?homeworkId=${selectedHw}`);
     } catch (err) {
       toast({
@@ -140,7 +165,14 @@ export default function HomeworkAssignment() {
                   checked={selectedStudents.includes(s.id)}
                   onChange={() => toggleStudent(s.id)}
                 />
-                {s.name || [s.last_name, s.first_name].filter(Boolean).join(' ') || s.email}
+                <span>
+                  {s.name}
+                  {isTutor && (
+                    <span className="text-xs text-slate-500 ml-2">
+                      {s.hasAccount ? 'Личный кабинет' : 'Локальный ученик'}
+                    </span>
+                  )}
+                </span>
               </label>
             ))}
           </div>

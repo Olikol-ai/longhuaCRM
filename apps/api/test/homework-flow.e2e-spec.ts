@@ -15,6 +15,8 @@ import { AssessmentQuestionEntity } from '../src/modules/assessment/entities/ass
 import { AssessmentAnswerEntity } from '../src/modules/assessment/entities/assessment-answer.entity';
 import { TeacherEntity } from '../src/modules/teachers/entities/teacher.entity';
 import { StudentEntity } from '../src/modules/students/entities/student.entity';
+import { TutorEntity } from '../src/modules/tutors/entities/tutor.entity';
+import { TutorStudentEntity } from '../src/modules/tutors/entities/tutor-student.entity';
 import { UserEntity } from '../src/modules/users/entities/user.entity';
 import { NotificationEntity } from '../src/modules/notifications/entities/notification.entity';
 
@@ -55,12 +57,41 @@ async function seedUser(
   return id;
 }
 
+async function ensureHomeworkTutorSchema(ds: DataSource): Promise<void> {
+  await ds.query(`
+    ALTER TABLE homeworks
+    ADD COLUMN IF NOT EXISTS tutor_id uuid NULL
+  `);
+  await ds.query(`
+    ALTER TABLE homework_assignments
+    ALTER COLUMN student_id DROP NOT NULL
+  `);
+  await ds.query(`
+    ALTER TABLE homework_assignments
+    ADD COLUMN IF NOT EXISTS tutor_student_id uuid NULL,
+    ADD COLUMN IF NOT EXISTS manual_status varchar(32) NULL,
+    ADD COLUMN IF NOT EXISTS review_result text NULL,
+    ADD COLUMN IF NOT EXISTS owner_comment text NULL,
+    ADD COLUMN IF NOT EXISTS manual_checked_at timestamptz NULL,
+    ADD COLUMN IF NOT EXISTS returned_for_revision_at timestamptz NULL
+  `);
+  await ds.query(`
+    ALTER TABLE homework_attempts
+    ALTER COLUMN student_id DROP NOT NULL
+  `);
+  await ds.query(`
+    ALTER TABLE homework_attempts
+    ADD COLUMN IF NOT EXISTS tutor_student_id uuid NULL
+  `);
+}
+
 describeE2E('Homework module (e2e)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
     await ensureDatabaseReady();
     app = await createTestApp();
+    await ensureHomeworkTutorSchema(app.get(DataSource));
   }, 180000);
 
   afterAll(async () => {
@@ -209,5 +240,274 @@ describeE2E('Homework module (e2e)', () => {
       .set(authHeader(teacherLogin.token))
       .expect(200);
     expect(resultRes.body.result.percent).toBe(100);
+  });
+
+  it('supports tutor-owned homework with registered/local tutor students and ACL boundaries', async () => {
+    const ds = app.get(DataSource);
+    const suffix = randomUUID().slice(0, 8);
+
+    const tutorUserId = await seedUser(ds, 'tutor', `hw-tutor-${suffix}@test.local`, {
+      first: 'Ли',
+      last: 'Репетитор',
+    });
+    const otherTutorUserId = await seedUser(ds, 'tutor', `hw-other-tutor-${suffix}@test.local`, {
+      first: 'Чужой',
+      last: 'Репетитор',
+    });
+    const tutorStudentUserId = await seedUser(ds, 'tutor_student', `hw-tutor-student-${suffix}@test.local`, {
+      first: 'Чэнь',
+      last: 'Ученик',
+    });
+    const teacherUserId = await seedUser(ds, 'teacher', `hw-teacher-guard-${suffix}@test.local`, {
+      first: 'Школьный',
+      last: 'Учитель',
+    });
+    const adminUserId = await seedUser(ds, 'admin', `hw-admin-${suffix}@test.local`, {
+      first: 'Главный',
+      last: 'Админ',
+    });
+
+    const tutor = await ds.getRepository(TutorEntity).save({
+      id: randomUUID(),
+      userId: tutorUserId,
+      displayName: 'Петров П.П.',
+      status: 'active',
+      email: `hw-tutor-${suffix}@test.local`,
+      phone: null,
+      bio: null,
+      teachingExperience: null,
+      specialization: null,
+      specializations: null,
+      defaultLessonPrice: null,
+      commissionPercent: 1,
+      payoutAccountRef: null,
+    } as TutorEntity);
+    const otherTutor = await ds.getRepository(TutorEntity).save({
+      id: randomUUID(),
+      userId: otherTutorUserId,
+      displayName: 'Сидоров С.С.',
+      status: 'active',
+      email: `hw-other-tutor-${suffix}@test.local`,
+      phone: null,
+      bio: null,
+      teachingExperience: null,
+      specialization: null,
+      specializations: null,
+      defaultLessonPrice: null,
+      commissionPercent: 1,
+      payoutAccountRef: null,
+    } as TutorEntity);
+    await ds.getRepository(TeacherEntity).save({
+      id: randomUUID(),
+      userId: teacherUserId,
+      name: 'Школьный Учитель',
+      firstName: 'Школьный',
+      lastName: 'Учитель',
+      email: `hw-teacher-guard-${suffix}@test.local`,
+      status: 'active',
+      phone: null,
+      hourlyRate: null,
+    } as TeacherEntity);
+
+    const registeredTutorStudent = await ds.getRepository(TutorStudentEntity).save({
+      id: randomUUID(),
+      tutorId: tutor.id,
+      userId: tutorStudentUserId,
+      name: 'Чэнь Ученик',
+      firstName: 'Чэнь',
+      lastName: 'Ученик',
+      email: `hw-tutor-student-${suffix}@test.local`,
+      phone: null,
+      notes: null,
+      telegramId: null,
+      telegramUsername: null,
+      status: 'active',
+      inviteLinkId: null,
+    } as TutorStudentEntity);
+    const localTutorStudent = await ds.getRepository(TutorStudentEntity).save({
+      id: randomUUID(),
+      tutorId: tutor.id,
+      userId: null,
+      name: 'Локальный Ученик',
+      firstName: 'Локальный',
+      lastName: 'Ученик',
+      email: null,
+      phone: null,
+      notes: null,
+      telegramId: null,
+      telegramUsername: null,
+      status: 'active',
+      inviteLinkId: null,
+    } as TutorStudentEntity);
+    const foreignTutorStudent = await ds.getRepository(TutorStudentEntity).save({
+      id: randomUUID(),
+      tutorId: otherTutor.id,
+      userId: null,
+      name: 'Чужой Ученик',
+      firstName: 'Чужой',
+      lastName: 'Ученик',
+      email: null,
+      phone: null,
+      notes: null,
+      telegramId: null,
+      telegramUsername: null,
+      status: 'active',
+      inviteLinkId: null,
+    } as TutorStudentEntity);
+
+    const bank = await ds.getRepository(AssessmentBankEntity).save({
+      id: randomUUID(),
+      name: `Tutor HW Bank ${suffix}`,
+      description: null,
+      status: ContentLifecycleStatus.Published,
+      createdByUserId: tutorUserId,
+    } as AssessmentBankEntity);
+    const question = await ds.getRepository(AssessmentQuestionEntity).save({
+      id: randomUUID(),
+      bankId: bank.id,
+      type: QuestionType.SingleChoice,
+      stem: 'Выберите перевод 你好',
+      points: '1',
+      difficulty: 1,
+      explanation: null,
+      status: ContentLifecycleStatus.Published,
+      createdByUserId: tutorUserId,
+    } as AssessmentQuestionEntity);
+    await ds.getRepository(AssessmentAnswerEntity).save([
+      {
+        id: randomUUID(),
+        questionId: question.id,
+        text: 'Привет',
+        isCorrect: true,
+        sortOrder: 0,
+      } as AssessmentAnswerEntity,
+      {
+        id: randomUUID(),
+        questionId: question.id,
+        text: 'Пока',
+        isCorrect: false,
+        sortOrder: 1,
+      } as AssessmentAnswerEntity,
+    ]);
+
+    const tutorLogin = await login(app, `hw-tutor-${suffix}@test.local`, PASSWORD);
+    const otherTutorLogin = await login(app, `hw-other-tutor-${suffix}@test.local`, PASSWORD);
+    const tutorStudentLogin = await login(app, `hw-tutor-student-${suffix}@test.local`, PASSWORD);
+    const teacherLogin = await login(app, `hw-teacher-guard-${suffix}@test.local`, PASSWORD);
+    const adminLogin = await login(app, `hw-admin-${suffix}@test.local`, PASSWORD);
+
+    const createRes = await api(app)
+      .post('/api/homework')
+      .set(authHeader(tutorLogin.token))
+      .send({
+        title: 'Китайский язык. Домашняя работа',
+        instructions: 'Выберите правильный ответ.',
+        activity_kind: 'test',
+        items: [{ question_id: question.id, section_key: 'test', sort_order: 0 }],
+      })
+      .expect(201);
+
+    const homeworkId = createRes.body.id;
+    expect(createRes.body.owner_type).toBe('tutor');
+    expect(createRes.body.owner_name).toBe('Петров П.П.');
+
+    await api(app)
+      .post(`/api/homework/${homeworkId}/publish`)
+      .set(authHeader(tutorLogin.token))
+      .expect(201);
+
+    await api(app)
+      .post(`/api/homework/${homeworkId}/assign`)
+      .set(authHeader(tutorLogin.token))
+      .send({ tutor_student_ids: [foreignTutorStudent.id] })
+      .expect(403);
+
+    const assignRes = await api(app)
+      .post(`/api/homework/${homeworkId}/assign`)
+      .set(authHeader(tutorLogin.token))
+      .send({
+        tutor_student_ids: [registeredTutorStudent.id, localTutorStudent.id],
+      })
+      .expect(201);
+
+    expect(assignRes.body).toHaveLength(2);
+    const registeredAssignment = assignRes.body.find(
+      (row: { tutor_student_id: string }) => row.tutor_student_id === registeredTutorStudent.id,
+    );
+    const localAssignment = assignRes.body.find(
+      (row: { tutor_student_id: string }) => row.tutor_student_id === localTutorStudent.id,
+    );
+    expect(registeredAssignment.owner_type).toBe('tutor');
+    expect(localAssignment.learner_has_account).toBe(false);
+
+    await api(app)
+      .get(`/api/homework/${homeworkId}`)
+      .set(authHeader(teacherLogin.token))
+      .expect(403);
+
+    const tutorStudentCards = await api(app)
+      .get('/api/homework/assignments/mine')
+      .set(authHeader(tutorStudentLogin.token))
+      .expect(200);
+    expect(tutorStudentCards.body).toHaveLength(1);
+    expect(tutorStudentCards.body[0].owner_type).toBe('tutor');
+    expect(tutorStudentCards.body[0].owner_name).toBe('Петров П.П.');
+
+    const startRes = await api(app)
+      .post(`/api/homework/assignments/${registeredAssignment.id}/start`)
+      .set(authHeader(tutorStudentLogin.token))
+      .expect(201);
+    const correctSnap = startRes.body.questions[0].answers.find(
+      (row: { body: string }) => row.body === 'Привет',
+    );
+    const submitRes = await api(app)
+      .post(`/api/homework/attempts/${startRes.body.id}/submit`)
+      .set(authHeader(tutorStudentLogin.token))
+      .send({
+        answers: [
+          {
+            question_snapshot_id: startRes.body.questions[0].id,
+            selected_answer_snapshot_ids: [correctSnap.id],
+          },
+        ],
+      })
+      .expect(201);
+    expect(submitRes.body.result.percent).toBe(100);
+
+    const tutorNotifs = await ds.getRepository(NotificationEntity).find({
+      where: { userId: tutorUserId, type: 'homework_submitted' },
+    });
+    expect(tutorNotifs.length).toBeGreaterThanOrEqual(1);
+
+    const localStatusRes = await api(app)
+      .patch(`/api/homework/assignments/${localAssignment.id}/local-status`)
+      .set(authHeader(tutorLogin.token))
+      .send({
+        status: 'reviewed',
+        comment: 'Проверено вручную',
+        result: 'Сделано на занятии',
+      })
+      .expect(200);
+    expect(localStatusRes.body.manual_status).toBe('reviewed');
+    expect(localStatusRes.body.review_result).toBe('Сделано на занятии');
+
+    const localResultRes = await api(app)
+      .get(`/api/homework/assignments/${localAssignment.id}/result`)
+      .set(authHeader(tutorLogin.token))
+      .expect(200);
+    expect(localResultRes.body.result.manual).toBe(true);
+    expect(localResultRes.body.result.review_result).toBe('Сделано на занятии');
+
+    const adminList = await api(app)
+      .get('/api/homework')
+      .set(authHeader(adminLogin.token))
+      .expect(200);
+    expect(adminList.body.some((row: { id: string }) => row.id === homeworkId)).toBe(true);
+
+    const otherTutorList = await api(app)
+      .get('/api/homework')
+      .set(authHeader(otherTutorLogin.token))
+      .expect(200);
+    expect(otherTutorList.body.some((row: { id: string }) => row.id === homeworkId)).toBe(false);
   });
 });

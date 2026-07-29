@@ -58,6 +58,7 @@ const tutorNav = [
   { name: "Главная", icon: LayoutDashboard, page: "TutorDashboard" },
   { name: "Расписание", icon: Calendar, page: "TutorSchedule" },
   { name: "Ученики", icon: Users, page: "TutorStudents" },
+  { name: "Домашние задания", icon: NotebookPen, page: "HomeworkList" },
   { name: "Материалы", icon: BookOpen, page: "MaterialsHub" },
   { name: "Ссылки", icon: BookOpen, page: "TutorReferralLinks" },
   { name: "Статистика", icon: ClipboardList, page: "TutorStats" },
@@ -77,6 +78,7 @@ const studentNav = [
 ];
 
 const tutorStudentNav = [
+  { name: "Домашние задания", icon: NotebookPen, page: "HomeworkViewer" },
   { name: "Профиль", icon: UserCircle, page: "Profile" },
   { name: "Настройки", icon: Settings, page: "Settings" },
 ];

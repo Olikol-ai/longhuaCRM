@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, Loader2, Plus, Send } from 'lucide-react';
+import { BookOpen, Loader2, Plus, Send, Trash2 } from 'lucide-react';
 import { api } from '@/api';
+import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { createPageUrl } from '@/utils';
@@ -23,8 +24,10 @@ const ACTIVITY_LABEL = {
 
 export default function HomeworkList() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -46,6 +49,25 @@ export default function HomeworkList() {
     void load();
   }, []);
 
+  const handleDelete = async (row) => {
+    const confirmed = window.confirm(`Удалить домашнее задание «${row.title}»?`);
+    if (!confirmed) return;
+    setDeletingId(row.id);
+    try {
+      await api.homework.delete(row.id);
+      toast({ title: 'Задание удалено' });
+      await load();
+    } catch (err) {
+      toast({
+        title: 'Не удалось удалить',
+        description: userFacingError(err),
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center py-20">
@@ -60,7 +82,9 @@ export default function HomeworkList() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Домашние задания</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Создание и назначение заданий ученикам после урока
+            {user?.role === 'tutor'
+              ? 'Создание и назначение заданий только своим ученикам'
+              : 'Создание и назначение заданий ученикам после урока'}
           </p>
         </div>
         <Button
@@ -92,6 +116,7 @@ export default function HomeworkList() {
                   {' · '}
                   {STATUS_LABEL[hw.status] || hw.status}
                   {hw.item_count != null ? ` · вопросов: ${hw.item_count}` : ''}
+                  {hw.owner_name ? ` · ${hw.owner_type === 'tutor' ? 'Репетитор' : 'Преподаватель'}: ${hw.owner_name}` : ''}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -116,6 +141,15 @@ export default function HomeworkList() {
                 >
                   Результаты
                 </Link>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={deletingId === hw.id}
+                  onClick={() => handleDelete(hw)}
+                >
+                  {deletingId === hw.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 mr-1" />}
+                  Удалить
+                </Button>
               </div>
             </div>
           ))}

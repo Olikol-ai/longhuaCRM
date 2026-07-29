@@ -46,6 +46,7 @@ import { TutorProfileAndSettings1742200000000 } from './migrations/1742200000000
 import { TeacherStudentContacts1742300000000 } from './migrations/1742300000000-TeacherStudentContacts';
 import { TeacherStudentContactBalance1742400000000 } from './migrations/1742400000000-TeacherStudentContactBalance';
 import { TutorMaterialAccess1742500000000 } from './migrations/1742500000000-TutorMaterialAccess';
+import { TutorHomeworkOwnership1742600000000 } from './migrations/1742600000000-TutorHomeworkOwnership';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -95,6 +96,7 @@ export default new DataSource({
     TeacherStudentContacts1742300000000,
     TeacherStudentContactBalance1742400000000,
     TutorMaterialAccess1742500000000,
+    TutorHomeworkOwnership1742600000000,
   ],
   synchronize: false,
 });

@@ -28,13 +28,16 @@ describe('Homework module architecture', () => {
     assert.doesNotMatch(list, /[Ээ]кзамен/);
   });
 
-  it('registers homework routes and menu entries', () => {
+  it('registers homework routes and menu entries for teacher, tutor and tutor_student', () => {
     const app = readFileSync(join(root, 'src/App.jsx'), 'utf8');
     const layout = readFileSync(join(root, 'src/Layout.jsx'), 'utf8');
     assert.match(app, /HomeworkList/);
     assert.match(app, /HomeworkViewer/);
+    assert.match(app, /allowTutor/);
+    assert.match(app, /allowTutorStudent/);
     assert.match(layout, /HomeworkList/);
     assert.match(layout, /HomeworkViewer/);
+    assert.match(layout, /Домашние задания/);
   });
 
   it('AssessmentScoringService exposes shared scoreFromData', () => {

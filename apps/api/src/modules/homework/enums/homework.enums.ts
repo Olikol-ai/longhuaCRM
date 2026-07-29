@@ -22,6 +22,7 @@ export enum HomeworkAssignmentStatus {
   Submitted = 'submitted',
   Reviewed = 'reviewed',
   Overdue = 'overdue',
+  NeedsRevision = 'needs_revision',
 }
 
 export enum HomeworkAttemptStatus {

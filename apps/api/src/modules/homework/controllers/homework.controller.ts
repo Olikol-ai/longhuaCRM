@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -20,6 +21,7 @@ import {
   SaveHomeworkAnswersDto,
   SubmitHomeworkDto,
   UpdateHomeworkDto,
+  UpdateLocalHomeworkStatusDto,
 } from '../dto/homework.dto';
 import { HomeworkService } from '../services/homework.service';
 
@@ -29,25 +31,25 @@ export class HomeworkController {
   constructor(private readonly homework: HomeworkService) {}
 
   @Get()
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   list(@CurrentUser() user: JwtPayload) {
     return this.homework.listForTeacher(user);
   }
 
   @Post()
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   create(@CurrentUser() user: JwtPayload, @Body() dto: CreateHomeworkDto) {
     return this.homework.create(user, dto);
   }
 
   @Get('assignments/mine')
-  @Roles('admin', 'student')
+  @Roles('admin', 'student', 'tutor_student')
   myAssignments(@CurrentUser() user: JwtPayload) {
     return this.homework.listMyAssignments(user);
   }
 
   @Get('assignments')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   teacherAssignments(
     @CurrentUser() user: JwtPayload,
     @Query('homeworkId') homeworkId?: string,
@@ -56,7 +58,7 @@ export class HomeworkController {
   }
 
   @Get('assignments/:id/result')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   assignmentResult(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
@@ -65,7 +67,7 @@ export class HomeworkController {
   }
 
   @Post('assignments/:id/start')
-  @Roles('admin', 'student')
+  @Roles('admin', 'student', 'tutor_student')
   start(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
@@ -74,7 +76,7 @@ export class HomeworkController {
   }
 
   @Get('attempts/:id')
-  @Roles('admin', 'teacher', 'student')
+  @Roles('admin', 'teacher', 'tutor', 'student', 'tutor_student')
   attemptState(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
@@ -83,7 +85,7 @@ export class HomeworkController {
   }
 
   @Patch('attempts/:id/answers')
-  @Roles('admin', 'student')
+  @Roles('admin', 'student', 'tutor_student')
   saveAnswers(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
@@ -93,7 +95,7 @@ export class HomeworkController {
   }
 
   @Post('attempts/:id/submit')
-  @Roles('admin', 'student')
+  @Roles('admin', 'student', 'tutor_student')
   submit(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
@@ -109,7 +111,7 @@ export class HomeworkController {
   }
 
   @Patch(':id')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   update(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
@@ -119,7 +121,7 @@ export class HomeworkController {
   }
 
   @Post(':id/publish')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   publish(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
@@ -128,12 +130,28 @@ export class HomeworkController {
   }
 
   @Post(':id/assign')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   assign(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AssignHomeworkDto,
   ) {
     return this.homework.assign(user, id, dto);
+  }
+
+  @Patch('assignments/:id/local-status')
+  @Roles('admin', 'teacher', 'tutor')
+  updateLocalStatus(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateLocalHomeworkStatusDto,
+  ) {
+    return this.homework.updateLocalAssignmentStatus(user, id, dto);
+  }
+
+  @Delete(':id')
+  @Roles('admin', 'teacher', 'tutor')
+  remove(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
+    return this.homework.delete(user, id);
   }
 }

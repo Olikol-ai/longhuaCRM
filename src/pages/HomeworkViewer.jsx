@@ -59,6 +59,7 @@ export default function HomeworkViewer() {
       submitted: [],
       reviewed: [],
       overdue: [],
+      needs_revision: [],
     };
     for (const c of cards) {
       const key = buckets[c.status] ? c.status : 'assigned';
@@ -66,6 +67,22 @@ export default function HomeworkViewer() {
     }
     return buckets;
   }, [cards]);
+
+  const groupByOwner = (items) => {
+    const map = new Map();
+    for (const item of items) {
+      const key = `${item.owner_type || 'owner'}:${item.owner_name || 'Без владельца'}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          ownerType: item.owner_type || null,
+          ownerName: item.owner_name || 'Без владельца',
+          items: [],
+        });
+      }
+      map.get(key).items.push(item);
+    }
+    return [...map.values()];
+  };
 
   const handleOpen = async (card) => {
     setBusy(true);
@@ -146,6 +163,11 @@ export default function HomeworkViewer() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">{attempt.title || 'Домашнее задание'}</h1>
+            {attempt.owner_name && (
+              <p className="text-sm text-slate-500 mt-1">
+                {attempt.owner_type === 'tutor' ? 'Репетитор' : 'Преподаватель'}: {attempt.owner_name}
+              </p>
+            )}
             {attempt.instructions && (
               <div className="mt-3 text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap rounded-xl bg-slate-50 dark:bg-slate-800/60 p-4">
                 {attempt.instructions}
@@ -207,6 +229,7 @@ export default function HomeworkViewer() {
     ['in_progress', 'В работе'],
     ['submitted', 'Выполненные'],
     ['reviewed', 'Проверенные'],
+    ['needs_revision', 'На доработке'],
     ['overdue', 'Просроченные'],
   ];
 
@@ -223,21 +246,28 @@ export default function HomeworkViewer() {
           {(grouped[key] || []).length === 0 ? (
             <p className="text-xs text-slate-400">Нет</p>
           ) : (
-            grouped[key].map((card) => (
-              <button
-                key={card.id}
-                type="button"
-                disabled={busy}
-                onClick={() => handleOpen(card)}
-                className="w-full text-left bg-white dark:bg-slate-900 border rounded-xl p-4 hover:border-brand/40"
-              >
-                <div className="font-medium">{card.title}</div>
-                <div className="text-xs text-slate-500 mt-1">
-                  {STATUS_LABEL[card.status] || card.status}
-                  {card.due_at ? ` · до ${new Date(card.due_at).toLocaleString('ru-RU')}` : ''}
-                  {card.result ? ` · ${card.result.percent}%` : ''}
-                </div>
-              </button>
+            groupByOwner(grouped[key] || []).map((ownerGroup) => (
+              <div key={`${key}:${ownerGroup.ownerType}:${ownerGroup.ownerName}`} className="space-y-2">
+                <p className="text-xs font-medium text-slate-500">
+                  {ownerGroup.ownerType === 'tutor' ? 'Репетитор' : 'Преподаватель'}: {ownerGroup.ownerName}
+                </p>
+                {ownerGroup.items.map((card) => (
+                  <button
+                    key={card.id}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => handleOpen(card)}
+                    className="w-full text-left bg-white dark:bg-slate-900 border rounded-xl p-4 hover:border-brand/40"
+                  >
+                    <div className="font-medium">{card.title}</div>
+                    <div className="text-xs text-slate-500 mt-1">
+                      {STATUS_LABEL[card.status] || card.status}
+                      {card.due_at ? ` · до ${new Date(card.due_at).toLocaleString('ru-RU')}` : ''}
+                      {card.result?.percent != null ? ` · ${card.result.percent}%` : ''}
+                    </div>
+                  </button>
+                ))}
+              </div>
             ))
           )}
         </div>

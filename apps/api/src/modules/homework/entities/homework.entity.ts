@@ -42,6 +42,10 @@ export class HomeworkEntity {
   @Column({ name: 'teacher_id', type: 'uuid', nullable: true })
   teacherId: string | null;
 
+  @Index('IDX_HOMEWORKS_TUTOR')
+  @Column({ name: 'tutor_id', type: 'uuid', nullable: true })
+  tutorId: string | null;
+
   @Index('IDX_HOMEWORKS_CREATED_BY')
   @Column({ name: 'created_by_user_id', type: 'uuid' })
   createdByUserId: string;

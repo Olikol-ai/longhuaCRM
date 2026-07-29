@@ -93,10 +93,15 @@ export class UpdateHomeworkDto {
 }
 
 export class AssignHomeworkDto {
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(1)
   @IsUUID('4', { each: true })
-  student_ids!: string[];
+  student_ids?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  tutor_student_ids?: string[];
 
   @IsOptional()
   @IsDateString()
@@ -105,6 +110,23 @@ export class AssignHomeworkDto {
   @IsOptional()
   @IsUUID()
   lesson_id?: string;
+}
+
+export class UpdateLocalHomeworkStatusDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(64)
+  status!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  comment?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  result?: string;
 }
 
 export class HomeworkAnswerDto {

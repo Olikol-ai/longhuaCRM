@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { api } from '@/api';
+import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { createPageUrl } from '@/utils';
@@ -13,9 +14,11 @@ const STATUS_LABEL = {
   submitted: 'Отправлено',
   reviewed: 'Проверено',
   overdue: 'Просрочено',
+  needs_revision: 'На доработке',
 };
 
 export default function HomeworkResults() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const homeworkId = params.get('homeworkId');
@@ -23,6 +26,8 @@ export default function HomeworkResults() {
   const [rows, setRows] = useState([]);
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [savingLocal, setSavingLocal] = useState(false);
+  const isTutor = user?.role === 'tutor';
 
   useEffect(() => {
     (async () => {
@@ -59,6 +64,41 @@ export default function HomeworkResults() {
     }
   };
 
+  const updateLocalStatus = async (status) => {
+    if (!detail?.id) return;
+    const comment = window.prompt('Комментарий преподавателя/репетитора', detail.owner_comment || '') ?? detail.owner_comment ?? '';
+    const result = window.prompt('Результат проверки', detail.review_result || '') ?? detail.review_result ?? '';
+    setSavingLocal(true);
+    try {
+      const updated = await api.homework.updateLocalStatus(detail.id, {
+        status,
+        comment,
+        result,
+      });
+      setDetail((prev) => ({
+        ...prev,
+        ...updated,
+        result: {
+          ...(prev?.result || {}),
+          manual: true,
+          status: updated.manual_status || updated.status,
+          review_result: updated.review_result,
+          owner_comment: updated.owner_comment,
+        },
+      }));
+      setRows((prev) => prev.map((row) => (row.id === updated.id ? { ...row, ...updated } : row)));
+      toast({ title: 'Статус обновлён' });
+    } catch (err) {
+      toast({
+        title: 'Не удалось обновить статус',
+        description: userFacingError(err),
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingLocal(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center py-20">
@@ -88,8 +128,10 @@ export default function HomeworkResults() {
             >
               <div className="font-medium">{a.title || 'Задание'}</div>
               <div className="text-xs text-slate-500 mt-1">
+                {a.learner_name ? `${a.learner_name} · ` : ''}
                 {STATUS_LABEL[a.status] || a.status}
                 {a.due_at ? ` · срок ${new Date(a.due_at).toLocaleString('ru-RU')}` : ''}
+                {a.owner_name ? ` · ${a.owner_type === 'tutor' ? 'Репетитор' : 'Преподаватель'}: ${a.owner_name}` : ''}
               </div>
             </button>
           ))}
@@ -101,38 +143,72 @@ export default function HomeworkResults() {
           ) : (
             <div className="space-y-3" data-testid="homework-result-detail">
               <h2 className="font-semibold text-lg">{detail.title}</h2>
+              <p className="text-sm text-slate-500">
+                {detail.owner_type === 'tutor' ? 'Репетитор' : 'Преподаватель'}: {detail.owner_name || '—'}
+              </p>
+              <p className="text-sm text-slate-500">
+                Ученик: {detail.learner_name || '—'}
+              </p>
               {detail.result ? (
                 <>
-                  <p className="text-sm">
-                    Баллы: <strong>{detail.result.score}</strong> / {detail.result.max_score}
-                  </p>
-                  <p className="text-sm">Процент: <strong>{detail.result.percent}%</strong></p>
-                  <p className="text-sm">
-                    Время: {detail.result.duration_seconds != null
-                      ? `${Math.round(detail.result.duration_seconds / 60)} мин`
-                      : '—'}
-                  </p>
-                  <p className="text-sm">
-                    Дата: {detail.submitted_at
-                      ? new Date(detail.submitted_at).toLocaleString('ru-RU')
-                      : '—'}
-                  </p>
-                  <div className="border-t pt-3 space-y-2">
-                    <p className="text-xs font-semibold uppercase text-slate-400">Ответы</p>
-                    {(detail.answers || []).map((a) => (
-                      <div key={a.question_snapshot_id} className="text-sm">
-                        {a.is_correct === true && <span className="text-emerald-600">✓ верно</span>}
-                        {a.is_correct === false && <span className="text-red-600">✗ ошибка</span>}
-                        {a.is_correct == null && <span className="text-amber-600">на проверке</span>}
-                        {a.earned_points != null && (
-                          <span className="text-slate-500 ml-2">{a.earned_points} б.</span>
-                        )}
+                  {detail.result.manual ? (
+                    <div className="space-y-2">
+                      <p className="text-sm">
+                        Статус: <strong>{STATUS_LABEL[detail.result.status] || detail.result.status}</strong>
+                      </p>
+                      <p className="text-sm">Результат: {detail.result.review_result || '—'}</p>
+                      <p className="text-sm">Комментарий: {detail.result.owner_comment || '—'}</p>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm">
+                        Баллы: <strong>{detail.result.score}</strong> / {detail.result.max_score}
+                      </p>
+                      <p className="text-sm">Процент: <strong>{detail.result.percent}%</strong></p>
+                      <p className="text-sm">
+                        Время: {detail.result.duration_seconds != null
+                          ? `${Math.round(detail.result.duration_seconds / 60)} мин`
+                          : '—'}
+                      </p>
+                      <p className="text-sm">
+                        Дата: {detail.submitted_at
+                          ? new Date(detail.submitted_at).toLocaleString('ru-RU')
+                          : '—'}
+                      </p>
+                      <div className="border-t pt-3 space-y-2">
+                        <p className="text-xs font-semibold uppercase text-slate-400">Ответы</p>
+                        {(detail.answers || []).map((a) => (
+                          <div key={a.question_snapshot_id} className="text-sm">
+                            {a.is_correct === true && <span className="text-emerald-600">✓ верно</span>}
+                            {a.is_correct === false && <span className="text-red-600">✗ ошибка</span>}
+                            {a.is_correct == null && <span className="text-amber-600">на проверке</span>}
+                            {a.earned_points != null && (
+                              <span className="text-slate-500 ml-2">{a.earned_points} б.</span>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </>
+                  )}
                 </>
               ) : (
                 <p className="text-sm text-slate-500">Ещё нет результата.</p>
+              )}
+              {isTutor && detail.learner_type === 'tutor_student' && detail.learner_has_account === false && (
+                <div className="border-t pt-3 flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" disabled={savingLocal} onClick={() => updateLocalStatus('completed')}>
+                    Отметить выполнено
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={savingLocal} onClick={() => updateLocalStatus('not_completed')}>
+                    Отметить не выполнено
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={savingLocal} onClick={() => updateLocalStatus('reviewed')}>
+                    Проверено
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={savingLocal} onClick={() => updateLocalStatus('needs_revision')}>
+                    На доработку
+                  </Button>
+                </div>
               )}
               <Button
                 variant="outline"

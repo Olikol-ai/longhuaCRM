@@ -37,8 +37,12 @@ export class HomeworkAttemptEntity {
   homeworkId: string;
 
   @Index('IDX_HOMEWORK_ATTEMPTS_STUDENT')
-  @Column({ name: 'student_id', type: 'uuid' })
-  studentId: string;
+  @Column({ name: 'student_id', type: 'uuid', nullable: true })
+  studentId: string | null;
+
+  @Index('IDX_HOMEWORK_ATTEMPTS_TUTOR_STUDENT')
+  @Column({ name: 'tutor_student_id', type: 'uuid', nullable: true })
+  tutorStudentId: string | null;
 
   @Index('IDX_HOMEWORK_ATTEMPTS_USER')
   @Column({ name: 'user_id', type: 'uuid' })

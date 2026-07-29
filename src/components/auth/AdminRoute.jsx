@@ -42,7 +42,7 @@ export function TeacherRoute({ children, allowAdmin = true, allowTutor = false }
   return children;
 }
 
-export function StudentRoute({ children }) {
+export function StudentRoute({ children, allowTutorStudent = false }) {
   const auth = useAuth();
   const { user } = auth;
 
@@ -50,7 +50,9 @@ export function StudentRoute({ children }) {
     return <AuthLoadingScreen />;
   }
 
-  if (user.role !== 'student') {
+  const allowed = user.role === 'student' || (allowTutorStudent && user.role === 'tutor_student');
+
+  if (!allowed) {
     return <Navigate to={resolveRedirect(user)} replace />;
   }
 

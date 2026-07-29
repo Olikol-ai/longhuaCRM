@@ -10,6 +10,7 @@ export const ROLE_ENTRY_PATHS = {
   teacher: '/teacher',
   tutor: '/tutor',
   student: '/student',
+  tutor_student: '/tutor-student',
 };
 
 export const ROLE_DASHBOARD_PATHS = {
@@ -17,6 +18,7 @@ export const ROLE_DASHBOARD_PATHS = {
   teacher: '/TeacherDashboard',
   tutor: '/TutorDashboard',
   student: '/StudentDashboard',
+  tutor_student: '/Profile',
 };
 
 const SHARED_PATHS = new Set(['/Profile', '/Settings', '/MaterialsHub']);
@@ -33,14 +35,26 @@ export function hasDashboardAccess(user) {
 
 /** Canonical post-auth entry for each role — no student fallback. */
 export function getRoleHomePath(role) {
-  if (role === 'admin' || role === 'teacher' || role === 'tutor' || role === 'student') {
+  if (
+    role === 'admin' ||
+    role === 'teacher' ||
+    role === 'tutor' ||
+    role === 'student' ||
+    role === 'tutor_student'
+  ) {
     return ROLE_ENTRY_PATHS[role];
   }
   return ONBOARDING_PATH;
 }
 
 export function getRoleDashboardPath(role) {
-  if (role === 'admin' || role === 'teacher' || role === 'tutor' || role === 'student') {
+  if (
+    role === 'admin' ||
+    role === 'teacher' ||
+    role === 'tutor' ||
+    role === 'student' ||
+    role === 'tutor_student'
+  ) {
     return ROLE_DASHBOARD_PATHS[role];
   }
   return ONBOARDING_PATH;
@@ -131,6 +145,10 @@ export function getRequiredRoleForPath(pathname) {
     return 'student';
   }
 
+  if (pathname === '/tutor-student' || pathname === '/HomeworkViewer') {
+    return 'tutor_student';
+  }
+
   return null;
 }
 
@@ -140,6 +158,12 @@ export function isPathAllowedForUser(user, pathname) {
   if (!isValidDashboardRole(user?.role)) return false;
   if (user.role === requiredRole) return true;
   if (requiredRole === 'teacher' && user.role === 'admin' && pathname === '/MaterialsHub') {
+    return true;
+  }
+  if (requiredRole === 'tutor_student' && user.role === 'student' && pathname === '/HomeworkViewer') {
+    return true;
+  }
+  if (requiredRole === 'student' && user.role === 'tutor_student' && pathname === '/HomeworkViewer') {
     return true;
   }
   return false;

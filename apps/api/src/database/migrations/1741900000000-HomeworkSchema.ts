@@ -19,6 +19,7 @@ export class HomeworkSchema1741900000000 implements MigrationInterface {
         status varchar(32) NOT NULL DEFAULT 'draft',
         activity_kind varchar(32) NOT NULL DEFAULT 'test',
         teacher_id uuid NULL,
+        tutor_id uuid NULL,
         created_by_user_id uuid NOT NULL,
         pass_score_percent numeric(5,2) NULL,
         created_at timestamptz NOT NULL DEFAULT NOW(),
@@ -30,6 +31,9 @@ export class HomeworkSchema1741900000000 implements MigrationInterface {
     );
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS IDX_HOMEWORKS_TEACHER ON homeworks (teacher_id)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS IDX_HOMEWORKS_TUTOR ON homeworks (tutor_id)`,
     );
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS IDX_HOMEWORKS_CREATED_BY ON homeworks (created_by_user_id)`,
@@ -58,11 +62,17 @@ export class HomeworkSchema1741900000000 implements MigrationInterface {
       CREATE TABLE IF NOT EXISTS homework_assignments (
         id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
         homework_id uuid NOT NULL REFERENCES homeworks(id) ON DELETE CASCADE,
-        student_id uuid NOT NULL,
+        student_id uuid NULL,
+        tutor_student_id uuid NULL,
         assigned_by_user_id uuid NOT NULL,
         lesson_id uuid NULL,
         status varchar(32) NOT NULL DEFAULT 'assigned',
         due_at timestamptz NULL,
+        manual_status varchar(32) NULL,
+        review_result text NULL,
+        owner_comment text NULL,
+        manual_checked_at timestamptz NULL,
+        returned_for_revision_at timestamptz NULL,
         assigned_at timestamptz NOT NULL DEFAULT NOW(),
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW()
@@ -75,11 +85,20 @@ export class HomeworkSchema1741900000000 implements MigrationInterface {
       `CREATE INDEX IF NOT EXISTS IDX_HOMEWORK_ASSIGNMENTS_STUDENT ON homework_assignments (student_id)`,
     );
     await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS IDX_HOMEWORK_ASSIGNMENTS_TUTOR_STUDENT ON homework_assignments (tutor_student_id)`,
+    );
+    await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS IDX_HOMEWORK_ASSIGNMENTS_STATUS ON homework_assignments (status)`,
     );
     await queryRunner.query(
-      `CREATE UNIQUE INDEX IF NOT EXISTS UQ_HOMEWORK_ASSIGNMENTS_HW_STUDENT
-       ON homework_assignments (homework_id, student_id)`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS UQ_HOMEWORK_ASSIGNMENTS_HW_STUDENT_NONNULL
+       ON homework_assignments (homework_id, student_id)
+       WHERE student_id IS NOT NULL`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS UQ_HOMEWORK_ASSIGNMENTS_HW_TUTOR_STUDENT_NONNULL
+       ON homework_assignments (homework_id, tutor_student_id)
+       WHERE tutor_student_id IS NOT NULL`,
     );
 
     await queryRunner.query(`
@@ -87,7 +106,8 @@ export class HomeworkSchema1741900000000 implements MigrationInterface {
         id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
         assignment_id uuid NOT NULL REFERENCES homework_assignments(id) ON DELETE CASCADE,
         homework_id uuid NOT NULL,
-        student_id uuid NOT NULL,
+        student_id uuid NULL,
+        tutor_student_id uuid NULL,
         user_id uuid NOT NULL,
         status varchar(32) NOT NULL DEFAULT 'started',
         started_at timestamptz NOT NULL,
@@ -101,6 +121,9 @@ export class HomeworkSchema1741900000000 implements MigrationInterface {
     );
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS IDX_HOMEWORK_ATTEMPTS_STUDENT ON homework_attempts (student_id)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS IDX_HOMEWORK_ATTEMPTS_TUTOR_STUDENT ON homework_attempts (tutor_student_id)`,
     );
 
     await queryRunner.query(`

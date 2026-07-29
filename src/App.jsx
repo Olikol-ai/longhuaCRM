@@ -128,6 +128,7 @@ const AuthenticatedApp = () => {
         <Route path={ONBOARDING_PATH} element={<PendingApproval />} />
         <Route path="/Welcome" element={<Navigate to={ONBOARDING_PATH} replace />} />
         <Route path="/student" element={<RoleHomeRedirect role="student" />} />
+        <Route path="/tutor-student" element={<RoleHomeRedirect role="tutor_student" />} />
         <Route path="/teacher" element={<RoleHomeRedirect role="teacher" />} />
         <Route path="/tutor" element={<RoleHomeRedirect role="tutor" />} />
         <Route path="/admin" element={<RoleHomeRedirect role="admin" />} />
@@ -160,10 +161,10 @@ const AuthenticatedApp = () => {
         <Route path="/TeacherAssessmentReview" element={<TeacherRoute><LayoutWrapper currentPageName="TeacherAssessment"><TeacherAssessmentReview /></LayoutWrapper></TeacherRoute>} />
         <Route path="/TeacherAssessmentReviewDetail" element={<TeacherRoute><LayoutWrapper currentPageName="TeacherAssessment"><TeacherAssessmentReviewDetail /></LayoutWrapper></TeacherRoute>} />
         <Route path="/TeacherAssessmentResults" element={<TeacherRoute><LayoutWrapper currentPageName="TeacherAssessment"><TeacherAssessmentResults /></LayoutWrapper></TeacherRoute>} />
-        <Route path="/HomeworkList" element={<TeacherRoute><LayoutWrapper currentPageName="HomeworkList"><HomeworkList /></LayoutWrapper></TeacherRoute>} />
-        <Route path="/HomeworkEditor" element={<TeacherRoute><LayoutWrapper currentPageName="HomeworkList"><HomeworkEditor /></LayoutWrapper></TeacherRoute>} />
-        <Route path="/HomeworkAssignment" element={<TeacherRoute><LayoutWrapper currentPageName="HomeworkList"><HomeworkAssignment /></LayoutWrapper></TeacherRoute>} />
-        <Route path="/HomeworkResults" element={<TeacherRoute><LayoutWrapper currentPageName="HomeworkList"><HomeworkResults /></LayoutWrapper></TeacherRoute>} />
+        <Route path="/HomeworkList" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="HomeworkList"><HomeworkList /></LayoutWrapper></TeacherRoute>} />
+        <Route path="/HomeworkEditor" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="HomeworkList"><HomeworkEditor /></LayoutWrapper></TeacherRoute>} />
+        <Route path="/HomeworkAssignment" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="HomeworkList"><HomeworkAssignment /></LayoutWrapper></TeacherRoute>} />
+        <Route path="/HomeworkResults" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="HomeworkList"><HomeworkResults /></LayoutWrapper></TeacherRoute>} />
         <Route path="/StudentLessonMaterials" element={<StudentRoute><LayoutWrapper currentPageName="StudentLessonMaterials"><StudentLessonMaterials /></LayoutWrapper></StudentRoute>} />
         <Route path="/UserManagement" element={<AdminRoute><LayoutWrapper currentPageName="UserManagement"><UserManagement /></LayoutWrapper></AdminRoute>} />
         <Route path="/LowBalanceStudents" element={<AdminRoute><LayoutWrapper currentPageName="LowBalanceStudents"><LowBalanceStudents /></LayoutWrapper></AdminRoute>} />
@@ -175,7 +176,7 @@ const AuthenticatedApp = () => {
         <Route path="/StudentCertificates" element={<StudentRoute><LayoutWrapper currentPageName="StudentCertificates"><StudentCertificates /></LayoutWrapper></StudentRoute>} />
         <Route path="/StudentExams" element={<StudentRoute><LayoutWrapper currentPageName="StudentExams"><StudentExams /></LayoutWrapper></StudentRoute>} />
         <Route path="/StudentExamTake" element={<StudentRoute><LayoutWrapper currentPageName="StudentExams"><StudentExamTake /></LayoutWrapper></StudentRoute>} />
-        <Route path="/HomeworkViewer" element={<StudentRoute><LayoutWrapper currentPageName="HomeworkViewer"><HomeworkViewer /></LayoutWrapper></StudentRoute>} />
+        <Route path="/HomeworkViewer" element={<StudentRoute allowTutorStudent><LayoutWrapper currentPageName="HomeworkViewer"><HomeworkViewer /></LayoutWrapper></StudentRoute>} />
         <Route
           path="/lesson/:id/video"
           element={
