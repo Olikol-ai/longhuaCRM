@@ -3,62 +3,21 @@ import {
   ValidatorConstraint,
   ValidatorConstraintInterface,
 } from 'class-validator';
-
-export type LessonTargetFields = {
-  groupId?: string;
-  primaryStudentId?: string;
-  studentId?: string;
-  primaryTutorStudentId?: string;
-  tutorStudentId?: string;
-  primaryTeacherStudentContactId?: string;
-  teacherStudentContactId?: string;
-  tutorId?: string;
-  teacherId?: string;
-  lessonType?: 'individual' | 'group';
-};
-
-function resolvePrimaryStudentId(dto: LessonTargetFields): string | undefined {
-  return dto.primaryStudentId || dto.studentId || undefined;
-}
-
-function resolvePrimaryTutorStudentId(dto: LessonTargetFields): string | undefined {
-  return dto.primaryTutorStudentId || dto.tutorStudentId || undefined;
-}
-
-function resolveTeacherStudentContactId(dto: LessonTargetFields): string | undefined {
-  return dto.primaryTeacherStudentContactId || dto.teacherStudentContactId || undefined;
-}
+import {
+  isValidLessonParticipant,
+  lessonParticipantMissingMessage,
+  LessonParticipantFields,
+} from '../lesson-participant';
 
 @ValidatorConstraint({ name: 'lessonHasTarget', async: false })
 export class LessonHasTargetConstraint implements ValidatorConstraintInterface {
   validate(_value: unknown, args: ValidationArguments): boolean {
-    const dto = args.object as LessonTargetFields;
-    const primaryStudentId = resolvePrimaryStudentId(dto);
-    const primaryTutorStudentId = resolvePrimaryTutorStudentId(dto);
-    const contactId = resolveTeacherStudentContactId(dto);
-    if (dto.lessonType === 'group') {
-      return Boolean(dto.groupId);
-    }
-    if (dto.tutorId && !dto.teacherId) {
-      return Boolean(primaryTutorStudentId || contactId);
-    }
-    if (dto.lessonType === 'individual') {
-      return Boolean(primaryStudentId || contactId);
-    }
-    return Boolean(dto.groupId || primaryStudentId || primaryTutorStudentId || contactId);
+    const dto = args.object as LessonParticipantFields;
+    return isValidLessonParticipant(dto);
   }
 
   defaultMessage(args: ValidationArguments): string {
-    const dto = args.object as LessonTargetFields;
-    if (dto.lessonType === 'group') {
-      return 'Выберите группу для группового урока';
-    }
-    if (dto.tutorId && !dto.teacherId) {
-      return 'Выберите ученика репетитора для индивидуального урока';
-    }
-    if (dto.lessonType === 'individual') {
-      return 'Выберите ученика для индивидуального урока';
-    }
-    return 'Выберите ученика для индивидуального урока или группу для группового';
+    const dto = args.object as LessonParticipantFields;
+    return lessonParticipantMissingMessage(dto);
   }
 }

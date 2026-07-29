@@ -43,6 +43,10 @@ import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { UpdateLessonStudentsDto } from './dto/update-lesson-students.dto';
 import {
+  assertContactOwnedByInstructor,
+  assertLessonParticipant,
+} from './lesson-participant';
+import {
   LESSON_RESCHEDULED,
   LESSON_UPDATED,
   LessonRescheduledPayload,
@@ -550,34 +554,11 @@ export class LessonsService {
     }
 
     const duration = normalized.duration ?? 60;
+    const participant = assertLessonParticipant(normalized);
     const lessonType =
-      normalized.lessonType ?? (normalized.groupId ? 'group' : 'individual');
-    const contactId = normalized.primaryTeacherStudentContactId;
-
-    if (lessonType === 'group' && !normalized.groupId) {
-      throw new BadRequestException('Выберите группу для группового урока');
-    }
-    if (
-      lessonType === 'individual' &&
-      !normalized.primaryStudentId &&
-      !contactId
-    ) {
-      throw new BadRequestException('Выберите ученика для индивидуального урока');
-    }
-    if (
-      !normalized.groupId &&
-      !normalized.primaryStudentId &&
-      !contactId
-    ) {
-      throw new BadRequestException(
-        'Выберите ученика для индивидуального урока или группу для группового',
-      );
-    }
-    if (normalized.primaryStudentId && contactId) {
-      throw new BadRequestException(
-        'Выберите либо ученика CRM, либо личного ученика, не обоих',
-      );
-    }
+      normalized.lessonType ??
+      (participant.kind === 'group' ? 'group' : 'individual');
+    const contactId = participant.primaryTeacherStudentContactId;
 
     await this.scheduleService.assertAvailableForLesson(
       normalized.teacherId,
@@ -661,17 +642,9 @@ export class LessonsService {
         const contact = await manager
           .getRepository(TeacherStudentContactEntity)
           .findOne({ where: { id: contactId } });
-        if (!contact || contact.status === 'inactive') {
-          throw new NotFoundException('Личный ученик не найден');
-        }
-        if (
-          contact.ownerType !== 'teacher' ||
-          contact.ownerId !== normalized.teacherId
-        ) {
-          throw new BadRequestException(
-            'Личный ученик не принадлежит выбранному преподавателю',
-          );
-        }
+        assertContactOwnedByInstructor(contact, {
+          teacherId: normalized.teacherId,
+        });
       }
 
       const lessonRepo = manager.getRepository(LessonEntity);
@@ -751,27 +724,13 @@ export class LessonsService {
   private async createTutorLesson(dto: CreateLessonDto): Promise<LessonEntity> {
     const tutorId = dto.tutorId as string;
     const duration = dto.duration ?? 60;
-    const lessonType = dto.lessonType ?? 'individual';
-    const primaryTutorStudentId =
-      dto.primaryTutorStudentId || dto.tutorStudentId || undefined;
-    const contactId =
-      dto.primaryTeacherStudentContactId ||
-      dto.teacherStudentContactId ||
-      undefined;
-
-    if (lessonType === 'group' || dto.groupId) {
-      throw new BadRequestException(
-        'Групповые занятия доступны только преподавателям школы',
-      );
-    }
-    if (!primaryTutorStudentId && !contactId) {
-      throw new BadRequestException('Выберите ученика репетитора для индивидуального урока');
-    }
-    if (primaryTutorStudentId && contactId) {
-      throw new BadRequestException(
-        'Выберите либо ученика блокнота, либо личного контакта, не обоих',
-      );
-    }
+    const participant = assertLessonParticipant({
+      ...dto,
+      tutorId,
+      lessonType: dto.lessonType ?? 'individual',
+    });
+    const primaryTutorStudentId = participant.primaryTutorStudentId;
+    const contactId = participant.primaryTeacherStudentContactId;
 
     await this.scheduleService.assertNoTutorScheduleConflicts(
       tutorId,
@@ -829,14 +788,7 @@ export class LessonsService {
         const contact = await manager
           .getRepository(TeacherStudentContactEntity)
           .findOne({ where: { id: contactId } });
-        if (!contact || contact.status === 'inactive') {
-          throw new NotFoundException('Личный ученик не найден');
-        }
-        if (contact.ownerType !== 'tutor' || contact.ownerId !== tutorId) {
-          throw new BadRequestException(
-            'Личный ученик не принадлежит выбранному репетитору',
-          );
-        }
+        assertContactOwnedByInstructor(contact, { tutorId });
       }
 
       const lessonRepo = manager.getRepository(LessonEntity);
@@ -2022,6 +1974,11 @@ export class LessonsService {
     await this.dataSource.transaction(run);
   }
 
+  /**
+   * CRM Student ids for school attendance rows only.
+   * Contact / tutor_student lessons return [] — their attendance uses
+   * teacherStudentContactId / tutorStudentId columns instead.
+   */
   private async resolveLessonStudentIds(
     dto: CreateLessonDto,
     manager: EntityManager,
@@ -2038,6 +1995,16 @@ export class LessonsService {
 
     if (dto.primaryStudentId) {
       return [dto.primaryStudentId];
+    }
+
+    // Local contact or tutor-student targets: no CRM student attendance rows here.
+    if (
+      dto.primaryTeacherStudentContactId ||
+      dto.teacherStudentContactId ||
+      dto.primaryTutorStudentId ||
+      dto.tutorStudentId
+    ) {
+      return [];
     }
 
     throw new BadRequestException(

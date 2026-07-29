@@ -30,10 +30,22 @@ describe('CreateLessonDto teacher student contacts', () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 
-  it('still accepts CRM student individual lesson', async () => {
+  it('accepts tutor-owned lesson with private contact', async () => {
+    const dto = plainToInstance(CreateLessonDto, {
+      tutorId: 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+      primaryTeacherStudentContactId: CONTACT_ID,
+      date: '2026-08-01',
+      startTime: '10:00',
+      lessonType: 'individual',
+    });
+    const errors = await validate(dto);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts teacherStudentContactId alias as a valid individual target', async () => {
     const dto = plainToInstance(CreateLessonDto, {
       teacherId: TEACHER_ID,
-      primaryStudentId: STUDENT_ID,
+      teacherStudentContactId: CONTACT_ID,
       date: '2026-08-01',
       startTime: '10:00',
       lessonType: 'individual',
