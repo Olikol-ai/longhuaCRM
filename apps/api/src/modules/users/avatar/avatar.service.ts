@@ -27,6 +27,13 @@ import {
   ensureAvatarUserDir,
 } from './avatar-storage';
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string): boolean {
+  return UUID_RE.test(String(value || '').trim());
+}
+
 export type AvatarUploadResult = {
   id: string;
   has_avatar: true;
@@ -140,6 +147,10 @@ export class AvatarService {
     thumb: boolean,
     ifNoneMatch?: string,
   ): Promise<AvatarStreamResult> {
+    if (!isUuid(targetUserId)) {
+      throw new NotFoundException('User not found');
+    }
+
     const user = await this.userRepo.findOne({ where: { id: targetUserId } });
     if (!user) {
       throw new NotFoundException('User not found');

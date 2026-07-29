@@ -187,4 +187,12 @@ describeE2E('Users avatar (e2e)', () => {
     expect(authGet.status).toBe(200);
     expect(String(authGet.headers['content-type'] || '')).toMatch(/image\/webp/);
   });
+
+  it('rejects invalid avatar user id without crashing', async () => {
+    const admin = await createActiveUser(app, 'admin', 'bad-id');
+    const res = await api(app)
+      .get('/api/users/undefined/avatar')
+      .set(authHeader(admin.token));
+    expect(res.status).toBe(404);
+  });
 });
