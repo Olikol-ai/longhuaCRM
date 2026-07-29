@@ -8,7 +8,6 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { AssessmentQuestionEntity } from '../../assessment/entities/assessment-question.entity';
-import { AssessmentContentTaskEntity } from '../../assessment/entities/assessment-content-task.entity';
 import { AssessmentReadingTaskEntity } from '../../assessment/entities/assessment-reading-task.entity';
 import { AssessmentListeningTaskEntity } from '../../assessment/entities/assessment-listening-task.entity';
 import { HomeworkEntity } from './homework.entity';
@@ -60,14 +59,6 @@ export class HomeworkTaskEntity {
   @ManyToOne(() => AssessmentListeningTaskEntity, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'listening_task_id' })
   listeningTask?: AssessmentListeningTaskEntity | null;
-
-  /** @deprecated Prefer reading_task_id / listening_task_id */
-  @Column({ name: 'content_task_id', type: 'uuid', nullable: true })
-  contentTaskId: string | null;
-
-  @ManyToOne(() => AssessmentContentTaskEntity, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'content_task_id' })
-  contentTask?: AssessmentContentTaskEntity | null;
 
   @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true })
   points: string | null;

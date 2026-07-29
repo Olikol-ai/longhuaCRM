@@ -18,8 +18,6 @@ import { AssessmentResultBreakdownEntity } from './assessment-result-breakdown.e
 import { AssessmentExamBlockEntity } from './assessment-exam-block.entity';
 import { AssessmentExamBlockItemEntity } from './assessment-exam-block-item.entity';
 import { AssessmentChangeJournalEntity } from './assessment-change-journal.entity';
-import { AssessmentContentTaskEntity } from './assessment-content-task.entity';
-import { AssessmentContentTaskQuestionEntity } from './assessment-content-task-question.entity';
 import { AssessmentExamPartEntity } from './assessment-exam-part.entity';
 import { AssessmentExamPartPoolItemEntity } from './assessment-exam-part-pool-item.entity';
 import { AssessmentReadingTaskEntity } from './assessment-reading-task.entity';
@@ -36,8 +34,6 @@ export const ASSESSMENT_ENTITIES = [
   AssessmentQuestionTopicEntity,
   AssessmentAnswerEntity,
   AssessmentQuestionAttachmentEntity,
-  AssessmentContentTaskEntity,
-  AssessmentContentTaskQuestionEntity,
   AssessmentReadingTaskEntity,
   AssessmentReadingQuestionEntity,
   AssessmentReadingQuestionAnswerEntity,
@@ -69,8 +65,6 @@ export {
   AssessmentQuestionTopicEntity,
   AssessmentAnswerEntity,
   AssessmentQuestionAttachmentEntity,
-  AssessmentContentTaskEntity,
-  AssessmentContentTaskQuestionEntity,
   AssessmentReadingTaskEntity,
   AssessmentReadingQuestionEntity,
   AssessmentReadingQuestionAnswerEntity,

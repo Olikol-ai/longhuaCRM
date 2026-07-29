@@ -60,8 +60,6 @@ export type CreateExamInput = {
       questionId?: string;
       readingTaskId?: string;
       listeningTaskId?: string;
-      /** @deprecated */
-      contentTaskId?: string;
     }>;
   }>;
   name: string;
@@ -195,7 +193,7 @@ export class ExamService {
           if (!q) throw new BadRequestException(`Question ${item.questionId} not found`);
           this.access.assertCanManageCreatedContent(actor, q, 'question');
         } else if (part.partKind === 'reading') {
-          const readingTaskId = item.readingTaskId ?? item.contentTaskId;
+          const readingTaskId = item.readingTaskId;
           if (!readingTaskId) {
             throw new BadRequestException('Reading part pool requires reading_task_id');
           }
@@ -205,7 +203,7 @@ export class ExamService {
           }
           this.access.assertCanManageCreatedContent(actor, task, 'reading task');
         } else {
-          const listeningTaskId = item.listeningTaskId ?? item.contentTaskId;
+          const listeningTaskId = item.listeningTaskId;
           if (!listeningTaskId) {
             throw new BadRequestException('Listening part pool requires listening_task_id');
           }
@@ -242,15 +240,9 @@ export class ExamService {
           this.poolItems.create({
             partId: savedPart.id,
             questionId: item.questionId ?? null,
-            readingTaskId:
-              part.partKind === 'reading'
-                ? (item.readingTaskId ?? item.contentTaskId ?? null)
-                : null,
+            readingTaskId: part.partKind === 'reading' ? (item.readingTaskId ?? null) : null,
             listeningTaskId:
-              part.partKind === 'listening'
-                ? (item.listeningTaskId ?? item.contentTaskId ?? null)
-                : null,
-            contentTaskId: null,
+              part.partKind === 'listening' ? (item.listeningTaskId ?? null) : null,
           }),
         ),
       );

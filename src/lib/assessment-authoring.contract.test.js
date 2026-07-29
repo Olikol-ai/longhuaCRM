@@ -73,4 +73,20 @@ describe('Assessment authoring access', () => {
     assert.doesNotMatch(reading, /api\.assessment\.listQuestions/);
     assert.doesNotMatch(listening, /api\.assessment\.listQuestions/);
   });
+
+  it('backend module drops ContentTask and keeps Reading/Listening controllers', () => {
+    const mod = readFileSync(
+      join(root, 'apps/api/src/modules/assessment/assessment.module.ts'),
+      'utf8',
+    );
+    assert.doesNotMatch(mod, /ContentTasksController/);
+    assert.doesNotMatch(mod, /ContentTaskService/);
+    assert.match(mod, /ReadingTasksController/);
+    assert.match(mod, /ListeningTasksController/);
+    const authoring = readFileSync(
+      join(root, 'apps/api/src/modules/assessment/services/question-authoring.service.ts'),
+      'utf8',
+    );
+    assert.match(authoring, /AUTHORING_ATOMIC_QUESTION_TYPES/);
+  });
 });

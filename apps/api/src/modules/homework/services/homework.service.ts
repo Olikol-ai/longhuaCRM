@@ -160,7 +160,6 @@ export class HomeworkService {
           question_id: task.questionId,
           reading_task_id: task.readingTaskId,
           listening_task_id: task.listeningTaskId,
-          content_task_id: task.contentTaskId,
           points: task.points != null ? Number(task.points) : null,
           question: task.question
             ? { id: task.question.id, type: task.question.type, stem: task.question.stem }
@@ -985,7 +984,7 @@ export class HomeworkService {
           throw new ForbiddenException('Cannot use another author question');
         }
       } else if (task.task_kind === 'reading') {
-        const readingTaskId = task.reading_task_id ?? task.content_task_id;
+        const readingTaskId = task.reading_task_id;
         if (!readingTaskId) {
           throw new BadRequestException('reading task requires reading_task_id');
         }
@@ -1004,13 +1003,12 @@ export class HomeworkService {
             questionId: null,
             readingTaskId,
             listeningTaskId: null,
-            contentTaskId: null,
             points: task.points != null ? String(task.points) : null,
           }),
         );
         continue;
       } else if (task.task_kind === 'listening') {
-        const listeningTaskId = task.listening_task_id ?? task.content_task_id;
+        const listeningTaskId = task.listening_task_id;
         if (!listeningTaskId) {
           throw new BadRequestException('listening task requires listening_task_id');
         }
@@ -1029,7 +1027,6 @@ export class HomeworkService {
             questionId: null,
             readingTaskId: null,
             listeningTaskId,
-            contentTaskId: null,
             points: task.points != null ? String(task.points) : null,
           }),
         );
@@ -1045,7 +1042,6 @@ export class HomeworkService {
           questionId: task.question_id ?? null,
           readingTaskId: null,
           listeningTaskId: null,
-          contentTaskId: null,
           points: task.points != null ? String(task.points) : null,
         }),
       );

@@ -64,7 +64,7 @@ export default function AssessmentQuestions() {
     search: searchApplied,
   });
 
-  const [contentTasks, setContentTasks] = useState([]);
+  const [sectionTasks, setSectionTasks] = useState([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [tasksError, setTasksError] = useState(null);
 
@@ -80,7 +80,7 @@ export default function AssessmentQuestions() {
   const [ownerNames, setOwnerNames] = useState({});
   const [authorFilter, setAuthorFilter] = useState('');
 
-  const loadContentTasks = useCallback(async () => {
+  const loadSectionTasks = useCallback(async () => {
     if (tab === 'questions') return;
     setTasksLoading(true);
     setTasksError(null);
@@ -89,18 +89,18 @@ export default function AssessmentQuestions() {
         tab === 'reading'
           ? await api.assessment.listReadingTasks()
           : await api.assessment.listListeningTasks();
-      setContentTasks(Array.isArray(rows) ? rows : unwrapItems(rows));
+      setSectionTasks(Array.isArray(rows) ? rows : unwrapItems(rows));
     } catch (err) {
       setTasksError(err);
-      setContentTasks([]);
+      setSectionTasks([]);
     } finally {
       setTasksLoading(false);
     }
   }, [tab]);
 
   useEffect(() => {
-    void loadContentTasks();
-  }, [loadContentTasks]);
+    void loadSectionTasks();
+  }, [loadSectionTasks]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -186,12 +186,12 @@ export default function AssessmentQuestions() {
           if (isReading) await api.assessment.publishReadingTask(task.id);
           else await api.assessment.publishListeningTask(task.id);
           toast({ title: 'Задача опубликована' });
-          await loadContentTasks();
+          await loadSectionTasks();
         } else if (actionType === 'delete') {
           if (isReading) await api.assessment.deleteReadingTask(task.id);
           else await api.assessment.deleteListeningTask(task.id);
           toast({ title: 'Задача удалена' });
-          await loadContentTasks();
+          await loadSectionTasks();
         }
       }
       setConfirmAction(null);
@@ -300,13 +300,13 @@ export default function AssessmentQuestions() {
 
   const filteredTasks = useMemo(() => {
     const needle = searchApplied.trim().toLowerCase();
-    return contentTasks.filter((t) => {
+    return sectionTasks.filter((t) => {
       if (status && t.status !== status) return false;
       if (authorFilter && t.created_by_user_id !== authorFilter) return false;
       if (needle && !String(t.title || '').toLowerCase().includes(needle)) return false;
       return true;
     });
-  }, [contentTasks, searchApplied, status, authorFilter]);
+  }, [sectionTasks, searchApplied, status, authorFilter]);
 
   const visibleQuestions = useMemo(() => {
     if (!authorFilter) return questions;
@@ -318,14 +318,14 @@ export default function AssessmentQuestions() {
     for (const q of questions) {
       if (q.created_by_user_id) ids.add(q.created_by_user_id);
     }
-    for (const t of contentTasks) {
+    for (const t of sectionTasks) {
       if (t.created_by_user_id) ids.add(t.created_by_user_id);
     }
     return [...ids].map((id) => ({
       id,
       name: ownerNames[id] || id.slice(0, 8),
     }));
-  }, [questions, contentTasks, ownerNames]);
+  }, [questions, sectionTasks, ownerNames]);
 
   const ownerTree = useMemo(() => {
     if (!isAdmin) return null;
@@ -377,7 +377,7 @@ export default function AssessmentQuestions() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => (tab === 'questions' ? reload() : loadContentTasks())}
+            onClick={() => (tab === 'questions' ? reload() : loadSectionTasks())}
           >
             <RefreshCw className="h-4 w-4 mr-2" />
             Обновить
@@ -685,7 +685,7 @@ export default function AssessmentQuestions() {
         editing={editingTask}
         onSaved={() => {
           toast({ title: editingTask ? 'Задача обновлена' : 'Задача создана' });
-          void loadContentTasks();
+          void loadSectionTasks();
         }}
       />
 
@@ -697,7 +697,7 @@ export default function AssessmentQuestions() {
         editing={editingTask}
         onSaved={() => {
           toast({ title: editingTask ? 'Задача обновлена' : 'Задача создана' });
-          void loadContentTasks();
+          void loadSectionTasks();
         }}
       />
 

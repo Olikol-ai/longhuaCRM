@@ -11,7 +11,6 @@ import { AssessmentQuestionEntity } from './assessment-question.entity';
 import { AssessmentExamPartEntity } from './assessment-exam-part.entity';
 import { AssessmentReadingTaskEntity } from './assessment-reading-task.entity';
 import { AssessmentListeningTaskEntity } from './assessment-listening-task.entity';
-import { AssessmentContentTaskEntity } from './assessment-content-task.entity';
 
 @Entity('assessment_exam_part_pool_items')
 export class AssessmentExamPartPoolItemEntity {
@@ -49,14 +48,6 @@ export class AssessmentExamPartPoolItemEntity {
   @ManyToOne(() => AssessmentListeningTaskEntity, { nullable: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'listening_task_id' })
   listeningTask?: AssessmentListeningTaskEntity | null;
-
-  /** @deprecated Migrated to reading_task_id / listening_task_id */
-  @Column({ name: 'content_task_id', type: 'uuid', nullable: true })
-  contentTaskId: string | null;
-
-  @ManyToOne(() => AssessmentContentTaskEntity, { nullable: true, onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'content_task_id' })
-  contentTask?: AssessmentContentTaskEntity | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

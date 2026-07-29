@@ -13,7 +13,6 @@ import { UserEntity } from '../users/entities/user.entity';
 import { AssessmentAssignmentsController } from './controllers/assessment-assignments.controller';
 import { AssessmentAttemptsController } from './controllers/assessment-attempts.controller';
 import { AssessmentAttachmentsController } from './controllers/assessment-attachments.controller';
-import { AssessmentContentTasksController } from './controllers/assessment-content-tasks.controller';
 import { AssessmentReadingTasksController } from './controllers/assessment-reading-tasks.controller';
 import { AssessmentListeningTasksController } from './controllers/assessment-listening-tasks.controller';
 import { AssessmentExamBlocksController } from './controllers/assessment-exam-blocks.controller';
@@ -49,7 +48,6 @@ import { ASSESSMENT_SERVICES } from './services';
   controllers: [
     AssessmentController,
     AssessmentQuestionsController,
-    AssessmentContentTasksController,
     AssessmentReadingTasksController,
     AssessmentListeningTasksController,
     AssessmentExamBlocksController,

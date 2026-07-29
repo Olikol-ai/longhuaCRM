@@ -59,6 +59,7 @@ import { ContentTasksExamPartsHomeworkTasks1743500000000 } from './migrations/17
 import { ChatsModule1743600000000 } from './migrations/1743600000000-ChatsModule';
 import { SplitReadingListeningTasks1743800000000 } from './migrations/1743800000000-SplitReadingListeningTasks';
 import { ChatPrivacyAndDmRequests1743900000000 } from './migrations/1743900000000-ChatPrivacyAndDmRequests';
+import { DropAssessmentContentTasks1744000000000 } from './migrations/1744000000000-DropAssessmentContentTasks';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -121,6 +122,7 @@ export default new DataSource({
     ChatsModule1743600000000,
     SplitReadingListeningTasks1743800000000,
     ChatPrivacyAndDmRequests1743900000000,
+    DropAssessmentContentTasks1744000000000,
   ],
   synchronize: false,
 });
