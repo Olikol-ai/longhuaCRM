@@ -22,6 +22,10 @@ export function userToRecord(row: UserEntity): Record<string, unknown> {
       ? row.telegramConnectedAt.toISOString()
       : null,
     full_name: fullName,
+    has_avatar: Boolean(row.avatarFilePath || row.avatarThumbPath),
+    avatar_updated_at: row.avatarUpdatedAt
+      ? row.avatarUpdatedAt.toISOString()
+      : null,
     created_date: row.createdDate.toISOString(),
     updated_date: row.updatedDate.toISOString(),
   };

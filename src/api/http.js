@@ -75,15 +75,15 @@ function extractApiErrorMessage(data) {
   return 'Не удалось выполнить запрос. Попробуйте ещё раз.';
 }
 
-export async function apiUpload(file) {
+export async function apiUploadTo(path, file, fieldName = 'file') {
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append(fieldName, file);
 
   const headers = {};
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}/files/upload`, { method: 'POST', headers, body: formData });
+  const res = await fetch(`${API_BASE}${path}`, { method: 'POST', headers, body: formData });
   const text = await res.text();
   let data = {};
   try {
@@ -104,4 +104,20 @@ export async function apiUpload(file) {
   }
 
   return data;
+}
+
+export async function apiUpload(file) {
+  return apiUploadTo('/files/upload', file);
+}
+
+/** Authenticated avatar URL for <img> (Bearer cannot be sent by the browser on image requests). */
+export function buildUserAvatarUrl(userId, { thumb = true, version = null } = {}) {
+  if (!userId) return null;
+  const params = new URLSearchParams();
+  if (thumb) params.set('thumb', '1');
+  if (version) params.set('v', String(version));
+  const token = getToken();
+  if (token) params.set('access_token', token);
+  const qs = params.toString();
+  return `${API_BASE}/users/${userId}/avatar${qs ? `?${qs}` : ''}`;
 }

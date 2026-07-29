@@ -63,6 +63,8 @@ export function normalizeSessionUser(raw) {
     has_student_profile: Boolean(raw.has_student_profile ?? raw.hasStudentProfile),
     has_teacher_profile: Boolean(raw.has_teacher_profile ?? raw.hasTeacherProfile),
     has_tutor_profile: Boolean(raw.has_tutor_profile ?? raw.hasTutorProfile),
+    has_avatar: Boolean(raw.has_avatar ?? raw.hasAvatar),
+    avatar_updated_at: raw.avatar_updated_at ?? raw.avatarUpdatedAt ?? null,
   };
 }
 

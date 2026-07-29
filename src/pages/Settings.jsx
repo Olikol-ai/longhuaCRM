@@ -6,6 +6,7 @@ import { Sun, Moon, Download, Loader2, Pencil } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import { getRoleBadgeClass, getRoleLabel } from "@/lib/locale-by";
 import { createPageUrl } from "@/utils";
+import AvatarEditor from "@/components/user/AvatarEditor";
 
 export default function Settings() {
   const { user } = useAuth();
@@ -49,11 +50,7 @@ export default function Settings() {
       {user && (
         <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
           <div className="flex items-center gap-4 pb-4 border-b border-border">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-brand-active flex items-center justify-center">
-              <span className="text-xl font-bold text-primary-foreground">
-                {(displayName !== "—" ? displayName : user.email || "U")[0].toUpperCase()}
-              </span>
-            </div>
+            <AvatarEditor user={user} sizeClass="h-14 w-14" />
             <div className="min-w-0 flex-1">
               <h3 className="text-base font-semibold text-foreground" data-testid="settings-display-name">
                 {displayName}

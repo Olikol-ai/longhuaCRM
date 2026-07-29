@@ -28,6 +28,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     this.logger.error((exception as Error)?.message, (exception as Error)?.stack);
+
+    const multerCode = (exception as { code?: string })?.code;
+    if (multerCode === 'LIMIT_FILE_SIZE') {
+      response.status(HttpStatus.PAYLOAD_TOO_LARGE).json({
+        message: 'Размер файла не должен превышать 5 МБ',
+        status: HttpStatus.PAYLOAD_TOO_LARGE,
+      });
+      return;
+    }
+
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       error: 'Internal server error',
       status: HttpStatus.INTERNAL_SERVER_ERROR,

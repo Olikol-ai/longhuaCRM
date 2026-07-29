@@ -76,6 +76,15 @@ export class UserEntity {
   @Column({ name: 'telegram_notify_3h', default: true })
   telegramNotify3h: boolean;
 
+  @Column({ name: 'avatar_file_path', type: 'text', nullable: true })
+  avatarFilePath: string | null;
+
+  @Column({ name: 'avatar_thumb_path', type: 'text', nullable: true })
+  avatarThumbPath: string | null;
+
+  @Column({ name: 'avatar_updated_at', type: 'timestamptz', nullable: true })
+  avatarUpdatedAt: Date | null;
+
   @CreateDateColumn({ name: 'created_date', type: 'timestamptz' })
   createdDate: Date;
 

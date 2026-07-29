@@ -15,6 +15,8 @@ import { UserProfileService } from './user-profile.service';
 import { UsersController } from './users.controller';
 import { UsersRepository } from './users.repository';
 import { UsersService } from './users.service';
+import { AvatarController } from './avatar/avatar.controller';
+import { AvatarService } from './avatar/avatar.service';
 
 @Module({
   imports: [
@@ -30,13 +32,14 @@ import { UsersService } from './users.service';
     forwardRef(() => TutorsModule),
     forwardRef(() => StudentsModule),
   ],
-  controllers: [UsersController],
+  controllers: [AvatarController, UsersController],
   providers: [
     UsersRepository,
     UsersService,
     RoleEntitySyncService,
     ProfileRelationsService,
     UserProfileService,
+    AvatarService,
   ],
   exports: [
     UsersRepository,
@@ -44,6 +47,7 @@ import { UsersService } from './users.service';
     RoleEntitySyncService,
     ProfileRelationsService,
     UserProfileService,
+    AvatarService,
     TypeOrmModule,
   ],
 })

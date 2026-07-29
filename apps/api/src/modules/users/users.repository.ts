@@ -95,6 +95,9 @@ export class UsersRepository implements OnModuleInit {
       passwordResetExpiresAt: null,
       telegramNotify24h: true,
       telegramNotify3h: true,
+      avatarFilePath: null,
+      avatarThumbPath: null,
+      avatarUpdatedAt: null,
       createdDate: now,
       updatedDate: now,
     });

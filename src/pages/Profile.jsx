@@ -6,6 +6,7 @@ import { Save, CheckCircle2, User, Send, Link2, Loader2, Unlink, Copy, Users, Pe
 import { formatBelarusPhone, isValidBelarusPhone, PHONE_PLACEHOLDER } from "@/utils/phone";
 import { toast } from "@/components/ui/use-toast";
 import { userFacingError } from "@/lib/userFacingError";
+import AvatarEditor from "@/components/user/AvatarEditor";
 
 function inviteStorageKey(userId) {
   return `longhua_teacher_invite_url_${userId}`;
@@ -335,10 +336,8 @@ export default function Profile() {
         )}
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 flex items-center gap-4">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-brand-active flex items-center justify-center flex-shrink-0">
-          <span className="text-2xl font-bold text-white">{(user.full_name || user.email || "U")[0].toUpperCase()}</span>
-        </div>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+        <AvatarEditor user={user} sizeClass="h-16 w-16" />
         <div>
           <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100" data-testid="profile-header-name">
             {user.full_name || "—"}

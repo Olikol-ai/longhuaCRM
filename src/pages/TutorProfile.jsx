@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/api';
+import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import {
-  Loader2, User, BookOpen, Clock, Plus, X, Upload,
+  Loader2, User, BookOpen, Clock, Plus, X,
 } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { userFacingError } from '@/lib/userFacingError';
+import AvatarEditor from '@/components/user/AvatarEditor';
 
 const TABS = [
   { id: 'profile', label: 'Профиль', icon: User },
@@ -102,15 +104,14 @@ function TagListEditor({ values, onChange, placeholder }) {
  * Admin can edit the same fields via PATCH /tutors/:id.
  */
 export default function TutorProfile() {
+  const { user } = useAuth();
   const [tab, setTab] = useState('profile');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [tutorId, setTutorId] = useState(null);
   const [form, setForm] = useState({
     displayName: '',
-    photoUrl: '',
     phone: '',
     bio: '',
     teachingExperience: '',
@@ -132,7 +133,6 @@ export default function TutorProfile() {
       setTutorId(me.id);
       setForm({
         displayName: me.display_name || me.displayName || '',
-        photoUrl: me.photo_url || me.photoUrl || '',
         phone: me.phone || '',
         bio: me.bio || '',
         teachingExperience: me.teaching_experience || me.teachingExperience || '',
@@ -179,7 +179,6 @@ export default function TutorProfile() {
     try {
       await api.tutors.update(tutorId, {
         displayName: form.displayName.trim(),
-        photoUrl: form.photoUrl.trim() || null,
         phone: form.phone.trim() || null,
         bio: form.bio.trim() || null,
         teachingExperience: form.teachingExperience.trim() || null,
@@ -204,28 +203,6 @@ export default function TutorProfile() {
       });
     } finally {
       setSaving(false);
-    }
-  };
-
-  const onPhotoChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const result = await api.uploads.uploadFile({ file });
-      const url = result?.url;
-      if (!url) throw new Error('Сервер не вернул ссылку на файл');
-      setForm((f) => ({ ...f, photoUrl: url }));
-      toast({ title: 'Фото загружено — нажмите «Сохранить»' });
-    } catch (err) {
-      toast({
-        title: 'Не удалось загрузить фото',
-        description: userFacingError(err),
-        variant: 'destructive',
-      });
-    } finally {
-      setUploading(false);
-      e.target.value = '';
     }
   };
 
@@ -295,28 +272,9 @@ export default function TutorProfile() {
       <form onSubmit={save} className="space-y-5">
         {tab === 'profile' && (
           <Card className="p-5 space-y-4">
-            <div className="flex items-start gap-4">
-              <div className="h-20 w-20 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden flex items-center justify-center shrink-0">
-                {form.photoUrl ? (
-                  <img src={form.photoUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <User className="w-8 h-8 text-slate-400" />
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label>Фотография</Label>
-                <label className="inline-flex items-center gap-2 text-sm text-brand cursor-pointer">
-                  <Upload className="w-4 h-4" />
-                  {uploading ? 'Загрузка…' : 'Загрузить фото'}
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    className="hidden"
-                    disabled={uploading}
-                    onChange={onPhotoChange}
-                  />
-                </label>
-              </div>
+            <div className="space-y-2">
+              <Label>Фотография</Label>
+              <AvatarEditor user={user} sizeClass="h-20 w-20" />
             </div>
             <div className="space-y-2">
               <Label>ФИО *</Label>

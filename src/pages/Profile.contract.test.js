@@ -19,6 +19,7 @@ describe('Profile self-edit', () => {
     assert.match(source, /Профиль обновлён/);
     assert.match(source, /минимум два слова/);
     assert.match(source, /isValidBelarusPhone/);
+    assert.match(source, /AvatarEditor/);
   });
 
   it('Settings links to Profile for editing personal data', () => {
@@ -26,5 +27,18 @@ describe('Profile self-edit', () => {
     assert.match(source, /settings-edit-profile/);
     assert.match(source, /Редактировать профиль/);
     assert.match(source, /createPageUrl\(["']Profile["']\)/);
+    assert.match(source, /AvatarEditor/);
+  });
+
+  it('AvatarEditor exposes change and remove photo actions', () => {
+    const source = readFileSync(
+      join(__dirname, '..', 'components', 'user', 'AvatarEditor.jsx'),
+      'utf8',
+    );
+    assert.match(source, /Изменить фотографию/);
+    assert.match(source, /Удалить фотографию/);
+    assert.match(source, /checkAppState\?\.\(\{\s*force:\s*true\s*\}\)/);
+    assert.match(source, /api\.users\.avatar\.upload/);
+    assert.match(source, /api\.users\.avatar\.remove/);
   });
 });

@@ -1,4 +1,4 @@
-import { apiFetch } from './http';
+import { apiFetch, apiUploadTo } from './http';
 import { recordToEntityPayload } from './domain-client';
 
 export const users = {
@@ -27,5 +27,20 @@ export const users = {
 
   create() {
     return Promise.reject(new Error('Use /auth/register for user creation'));
+  },
+
+  avatar: {
+    upload({ file, userId } = {}) {
+      if (!file) {
+        return Promise.reject(new Error('Файл обязателен'));
+      }
+      const path = userId ? `/users/${userId}/avatar` : '/users/me/avatar';
+      return apiUploadTo(path, file);
+    },
+
+    remove({ userId } = {}) {
+      const path = userId ? `/users/${userId}/avatar` : '/users/me/avatar';
+      return apiFetch(path, { method: 'DELETE' });
+    },
   },
 };

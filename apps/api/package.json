@@ -42,6 +42,7 @@
     "qrcode": "^1.5.4",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
+    "sharp": "^0.33.5",
     "typeorm": "^0.3.21"
   },
   "devDependencies": {
@@ -52,6 +53,7 @@
     "@types/compression": "^1.8.1",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.14",
+    "@types/multer": "^1.4.12",
     "@types/node": "^22.13.5",
     "@types/nodemailer": "^8.0.1",
     "@types/passport-jwt": "^4.0.1",

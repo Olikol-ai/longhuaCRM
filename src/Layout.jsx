@@ -28,7 +28,8 @@ import {
   shouldBlockProtectedUI,
   shouldBlockUntilRoleKnown,
 } from "@/lib/auth-gate";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { buildUserAvatarUrl } from "@/api/http";
 
 const adminNav = [
   { name: "Главная", icon: LayoutDashboard, page: "Dashboard" },
@@ -154,6 +155,14 @@ export default function Layout({ children, currentPageName }) {
     .toUpperCase()
     .slice(0, 2);
 
+  const avatarSrc =
+    user?.has_avatar || user?.avatar_updated_at
+      ? buildUserAvatarUrl(user.id, {
+          thumb: true,
+          version: user.avatar_updated_at || 0,
+        })
+      : null;
+
   return (
     <div className="min-h-app bg-background text-foreground overflow-x-hidden">
       {sidebarOpen && (
@@ -235,6 +244,9 @@ export default function Layout({ children, currentPageName }) {
         <div className="border-t border-border p-3 shrink-0">
           <div className="flex items-center gap-3 px-2 sm:px-3 py-2">
             <Avatar className="h-8 w-8 shrink-0">
+              {avatarSrc ? (
+                <AvatarImage src={avatarSrc} alt="" className="object-cover" />
+              ) : null}
               <AvatarFallback className="bg-brand-soft text-brand text-xs font-semibold">
                 {initials}
               </AvatarFallback>

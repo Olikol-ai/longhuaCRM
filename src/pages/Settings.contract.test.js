@@ -27,6 +27,9 @@ describe('Settings role display', () => {
     // UUID only for admin technical section.
     assert.match(source, /isAdmin &&/);
     assert.match(source, /Техническая информация/);
+    // Avatar UI is theme-agnostic (no dark/light-only avatar markup).
+    assert.match(source, /AvatarEditor/);
+    assert.doesNotMatch(source, /bg-gradient-to-br from-primary to-brand-active/);
   });
 
   it('Settings source does not hardcode incomplete role maps missing tutor', () => {

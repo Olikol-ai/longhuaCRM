@@ -16,6 +16,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       jwtFromRequest: ExtractJwt.fromExtractors([
         ExtractJwt.fromAuthHeaderAsBearerToken(),
         (req: { headers?: Record<string, string> }) => req.headers?.['x-access-token'] ?? null,
+        // Allows <img src="...?access_token="> for authenticated avatar streams.
+        ExtractJwt.fromUrlQueryParameter('access_token'),
       ]),
       ignoreExpiration: false,
       secretOrKey: config.get<string>('jwt.secret') ?? 'longhua-dev-secret-change-in-production',
