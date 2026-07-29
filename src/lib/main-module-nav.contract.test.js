@@ -48,6 +48,6 @@ describe('Main module navigation (no orphan back links)', () => {
       'utf8',
     );
     assert.match(examDetail, /← Экзамены/);
-    assert.match(assignments, /← Экзамены/);
+    assert.match(assignments, /← Проверочные работы/);
   });
 });

@@ -52,7 +52,7 @@ describe('Belarus UI localization contracts', () => {
       'Сертификаты',
       'Платежи',
       'Материалы',
-      'Экзамены',
+      'Проверочные работы',
       'Настройки',
     ]) {
       assert.match(layout, new RegExp(label));

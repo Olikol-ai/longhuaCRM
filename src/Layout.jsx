@@ -40,7 +40,7 @@ const adminNav = [
   { name: "Сертификаты", icon: Award, page: "Certificates" },
   { name: "Платежи", icon: CreditCard, page: "Payments" },
   { name: "Материалы", icon: BookOpen, page: "MaterialsHub" },
-  { name: "Экзамены", icon: ClipboardList, page: "AdminAssessment" },
+  { name: "Проверочные работы", icon: ClipboardList, page: "AdminAssessment" },
   { name: "Настройки", icon: Settings, page: "Settings" },
 ];
 
@@ -217,7 +217,24 @@ export default function Layout({ children, currentPageName }) {
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto overscroll-contain min-h-0">
           {navItems.map((item) => {
-            const isActive = currentPageName === item.page;
+            const assessmentWorkspacePages = [
+              'AdminAssessment',
+              'AssessmentQuestions',
+              'AssessmentExams',
+              'AssessmentExamDetail',
+              'AssessmentAssignments',
+              'AssessmentAssignmentDetail',
+              'AssessmentResults',
+              'AssessmentResultDetail',
+              'HomeworkList',
+              'HomeworkEditor',
+              'HomeworkAssignment',
+              'HomeworkResults',
+            ];
+            const isActive =
+              currentPageName === item.page ||
+              (item.page === 'AdminAssessment' &&
+                assessmentWorkspacePages.includes(currentPageName));
             return (
               <Link
                 key={item.page}

@@ -32,6 +32,18 @@ describe('Assessment authoring access', () => {
     assert.match(layout, /Мои вопросы/);
     assert.match(layout, /Мои экзамены/);
     assert.match(layout, /Домашние задания/);
+    assert.match(layout, /Проверочные работы/);
+  });
+
+  it('admin assessment hub routes to shared questions / homework / exams pages', () => {
+    const admin = readFileSync(join(root, 'src/pages/AdminAssessment.jsx'), 'utf8');
+    assert.match(admin, /Проверочные работы/);
+    assert.match(admin, /AssessmentQuestions/);
+    assert.match(admin, /HomeworkList/);
+    assert.match(admin, /AssessmentExams/);
+    assert.doesNotMatch(admin, /\bLayers\b/);
+    assert.doesNotMatch(admin, /useAssessmentDashboard/);
+    assert.doesNotMatch(admin, /AssessmentExamBlocks/);
   });
 
   it('keeps import and export actions in the shared questions UI', () => {

@@ -65,7 +65,7 @@ export default function AssessmentResults() {
             to={createPageUrl('AdminAssessment')}
             className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
           >
-            ← Экзамены
+            ← Проверочные работы
           </Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
             Результаты

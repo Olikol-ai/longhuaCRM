@@ -77,6 +77,7 @@ export default function AssessmentQuestions() {
   const [confirmAction, setConfirmAction] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [ownerNames, setOwnerNames] = useState({});
+  const [authorFilter, setAuthorFilter] = useState('');
 
   const loadContentTasks = useCallback(async () => {
     if (tab === 'questions') return;
@@ -294,16 +295,36 @@ export default function AssessmentQuestions() {
     const needle = searchApplied.trim().toLowerCase();
     return contentTasks.filter((t) => {
       if (status && t.status !== status) return false;
+      if (authorFilter && t.created_by_user_id !== authorFilter) return false;
       if (needle && !String(t.title || '').toLowerCase().includes(needle)) return false;
       return true;
     });
-  }, [contentTasks, searchApplied, status]);
+  }, [contentTasks, searchApplied, status, authorFilter]);
+
+  const visibleQuestions = useMemo(() => {
+    if (!authorFilter) return questions;
+    return questions.filter((q) => q.created_by_user_id === authorFilter);
+  }, [questions, authorFilter]);
+
+  const authorOptions = useMemo(() => {
+    const ids = new Set();
+    for (const q of questions) {
+      if (q.created_by_user_id) ids.add(q.created_by_user_id);
+    }
+    for (const t of contentTasks) {
+      if (t.created_by_user_id) ids.add(t.created_by_user_id);
+    }
+    return [...ids].map((id) => ({
+      id,
+      name: ownerNames[id] || id.slice(0, 8),
+    }));
+  }, [questions, contentTasks, ownerNames]);
 
   const ownerTree = useMemo(() => {
     if (!isAdmin) return null;
     const items =
       tab === 'questions'
-        ? questions.map((q) => ({
+        ? visibleQuestions.map((q) => ({
             id: q.id,
             ownerId: q.created_by_user_id,
             date: q.updated_at || q.created_at,
@@ -332,7 +353,7 @@ export default function AssessmentQuestions() {
       ownerName: ownerNames[ownerId] || ownerId?.slice?.(0, 8) || 'Без автора',
       rows: rows.sort((a, b) => new Date(b.date) - new Date(a.date)),
     }));
-  }, [isAdmin, tab, questions, filteredTasks, ownerNames]);
+  }, [isAdmin, tab, visibleQuestions, filteredTasks, ownerNames]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
@@ -340,7 +361,9 @@ export default function AssessmentQuestions() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Вопросы</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Атомарные тест-вопросы и контейнеры Listening / Reading
+            {isAdmin
+              ? 'Все авторы: тест-вопросы и контейнеры Listening / Reading'
+              : 'Атомарные тест-вопросы и контейнеры Listening / Reading'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -454,6 +477,20 @@ export default function AssessmentQuestions() {
             ))}
           </select>
         )}
+        {isAdmin && (
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            value={authorFilter}
+            onChange={(e) => setAuthorFilter(e.target.value)}
+          >
+            <option value="">Все авторы</option>
+            {authorOptions.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        )}
         <select
           className="h-10 rounded-md border border-input bg-background px-3 text-sm"
           value={status}
@@ -484,7 +521,7 @@ export default function AssessmentQuestions() {
           <div className="flex justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-brand" />
           </div>
-        ) : questions.length === 0 ? (
+        ) : visibleQuestions.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-10 text-center space-y-3">
             <FileQuestion className="h-10 w-10 mx-auto text-slate-400" />
             <h2 className="text-lg font-semibold">Вопросов не найдено</h2>
@@ -498,7 +535,7 @@ export default function AssessmentQuestions() {
             {ownerTree.map((group) => (
               <section key={group.ownerId} className="space-y-3">
                 <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                  {group.ownerName}
+                  Автор: {group.ownerName}
                 </h2>
                 {group.rows.map((row) => (
                   <QuestionCardRow
@@ -508,6 +545,8 @@ export default function AssessmentQuestions() {
                     canDelete={canDeleteQuestion(row.raw)}
                     onEdit={openEdit}
                     onConfirm={setConfirmAction}
+                    authorName={group.ownerName}
+                    showAuthor={false}
                   />
                 ))}
               </section>
@@ -515,7 +554,7 @@ export default function AssessmentQuestions() {
           </div>
         ) : (
           <div className="space-y-3">
-            {questions.map((q) => (
+            {visibleQuestions.map((q) => (
               <QuestionCardRow
                 key={q.id}
                 q={q}
@@ -523,6 +562,12 @@ export default function AssessmentQuestions() {
                 canDelete={canDeleteQuestion(q)}
                 onEdit={openEdit}
                 onConfirm={setConfirmAction}
+                authorName={
+                  q.created_by_user_id
+                    ? ownerNames[q.created_by_user_id] || q.created_by_user_id.slice(0, 8)
+                    : null
+                }
+                showAuthor={isAdmin}
               />
             ))}
           </div>
@@ -663,7 +708,7 @@ export default function AssessmentQuestions() {
   );
 }
 
-function QuestionCardRow({ q, busyId, canDelete, onEdit, onConfirm }) {
+function QuestionCardRow({ q, busyId, canDelete, onEdit, onConfirm, authorName, showAuthor }) {
   return (
     <article className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/80 p-4 sm:p-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -673,13 +718,17 @@ function QuestionCardRow({ q, busyId, canDelete, onEdit, onConfirm }) {
               {QUESTION_TYPE_LABEL[q.type] || q.type}
             </span>
             <LifecycleBadge status={q.status} />
+            {showAuthor && authorName ? (
+              <span className="text-xs text-slate-500">Автор: {authorName}</span>
+            ) : null}
           </div>
           <p className="text-sm sm:text-base text-slate-900 dark:text-white line-clamp-3 whitespace-pre-wrap">
             {q.stem}
           </p>
           <p className="text-xs text-slate-400">
             {q.points != null ? `${q.points} балл(ов) · ` : ''}
-            Сложность {q.difficulty ?? '—'} · {formatDateTime(q.updated_at || q.created_at)}
+            Сложность {q.difficulty ?? '—'} · Создан: {formatDateTime(q.created_at)} · Обновлён:{' '}
+            {formatDateTime(q.updated_at || q.created_at)}
           </p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">

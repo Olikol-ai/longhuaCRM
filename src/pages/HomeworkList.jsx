@@ -25,9 +25,12 @@ const ACTIVITY_LABEL = {
 export default function HomeworkList() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [authorFilter, setAuthorFilter] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -48,6 +51,14 @@ export default function HomeworkList() {
   useEffect(() => {
     void load();
   }, []);
+
+  const authorOptions = [...new Set(rows.map((r) => r.owner_name).filter(Boolean))];
+
+  const visibleRows = rows.filter((hw) => {
+    if (statusFilter && hw.status !== statusFilter) return false;
+    if (authorFilter && hw.owner_name !== authorFilter) return false;
+    return true;
+  });
 
   const handleDelete = async (row) => {
     const confirmed = window.confirm(`Удалить домашнее задание «${row.title}»?`);
@@ -82,9 +93,11 @@ export default function HomeworkList() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Домашние задания</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            {user?.role === 'tutor'
-              ? 'Создание и назначение заданий только своим ученикам'
-              : 'Создание и назначение заданий ученикам после урока'}
+            {isAdmin
+              ? 'Все задания преподавателей и репетиторов'
+              : user?.role === 'tutor'
+                ? 'Создание и назначение заданий только своим ученикам'
+                : 'Создание и назначение заданий ученикам после урока'}
           </p>
         </div>
         <Button
@@ -97,14 +110,41 @@ export default function HomeworkList() {
         </Button>
       </div>
 
-      {rows.length === 0 ? (
+      {isAdmin && (
+        <div className="flex flex-col sm:flex-row gap-2">
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 text-sm sm:w-48"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="">Все статусы</option>
+            <option value="draft">Черновик</option>
+            <option value="published">Опубликовано</option>
+            <option value="archived">В архиве</option>
+          </select>
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 text-sm sm:w-56"
+            value={authorFilter}
+            onChange={(e) => setAuthorFilter(e.target.value)}
+          >
+            <option value="">Все авторы</option>
+            {authorOptions.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {visibleRows.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 p-10 text-center text-slate-500">
           <BookOpen className="h-8 w-8 mx-auto mb-3 opacity-50" />
           Пока нет домашних заданий. Создайте первое.
         </div>
       ) : (
         <div className="space-y-3">
-          {rows.map((hw) => (
+          {visibleRows.map((hw) => (
             <div
               key={hw.id}
               className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4 flex flex-wrap items-center justify-between gap-3"
@@ -116,7 +156,12 @@ export default function HomeworkList() {
                   {' · '}
                   {STATUS_LABEL[hw.status] || hw.status}
                   {hw.item_count != null ? ` · вопросов: ${hw.item_count}` : ''}
-                  {hw.owner_name ? ` · ${hw.owner_type === 'tutor' ? 'Репетитор' : 'Преподаватель'}: ${hw.owner_name}` : ''}
+                  {hw.owner_name
+                    ? ` · ${hw.owner_type === 'tutor' ? 'Репетитор' : 'Преподаватель'}: ${hw.owner_name}`
+                    : ''}
+                  {hw.created_at
+                    ? ` · ${new Date(hw.created_at).toLocaleDateString('ru-RU')}`
+                    : ''}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -130,7 +175,9 @@ export default function HomeworkList() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate(`${createPageUrl('HomeworkAssignment')}?homeworkId=${hw.id}`)}
+                  onClick={() =>
+                    navigate(`${createPageUrl('HomeworkAssignment')}?homeworkId=${hw.id}`)
+                  }
                 >
                   <Send className="h-3.5 w-3.5 mr-1" />
                   Назначить
@@ -147,7 +194,11 @@ export default function HomeworkList() {
                   disabled={deletingId === hw.id}
                   onClick={() => handleDelete(hw)}
                 >
-                  {deletingId === hw.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 mr-1" />}
+                  {deletingId === hw.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  )}
                   Удалить
                 </Button>
               </div>
