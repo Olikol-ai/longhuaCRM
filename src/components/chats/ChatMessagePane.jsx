@@ -1,9 +1,8 @@
 import { Info, Menu, Pin, Users } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { chatsApi } from '@/api/chats.api';
-import { getToken } from '@/api/http';
+import { chatAttachmentSrc } from '@/lib/chat-attachment-url';
 import { displayUserName } from '@/lib/chat-normalize';
 import CrmMessageCard from './CrmMessageCard';
 import VoicePlayer from './VoicePlayer';
@@ -17,30 +16,17 @@ function senderName(message) {
 }
 
 function Attachment({ attachment }) {
-  const [url, setUrl] = useState(null);
-  useEffect(() => {
-    let active = true;
-    let objectUrl = null;
-    void fetch(chatsApi.downloadUrl(attachment.id), {
-      headers: { Authorization: `Bearer ${getToken()}` },
-    }).then(async (response) => {
-      if (!response.ok) throw new Error('Attachment download failed');
-      objectUrl = URL.createObjectURL(await response.blob());
-      if (active) setUrl(objectUrl);
-    }).catch(() => setUrl(null));
-    return () => {
-      active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [attachment.id]);
+  const src = chatAttachmentSrc(attachment.id);
   if (attachment.kind === 'voice') return <VoicePlayer attachment={attachment} />;
-  if (!url) return <span className="mt-1 block text-xs text-muted-foreground">Загрузка вложения…</span>;
+  if (!src) {
+    return <span className="mt-1 block text-xs text-muted-foreground">Вложение недоступно</span>;
+  }
   if (attachment.kind === 'image') {
     return (
-      <a href={url} target="_blank" rel="noreferrer">
+      <a href={src} target="_blank" rel="noreferrer">
         <img
           className="mt-1 max-h-64 rounded-md border border-border"
-          src={url}
+          src={src}
           alt={attachment.originalFilename || 'Изображение'}
         />
       </a>
@@ -49,7 +35,7 @@ function Attachment({ attachment }) {
   return (
     <a
       className="mt-1 inline-flex text-sm text-brand hover:underline"
-      href={url}
+      href={src}
       download={attachment.originalFilename || true}
     >
       {attachment.originalFilename || 'Скачать файл'}
@@ -62,6 +48,8 @@ export default function ChatMessagePane({
   messages,
   typingUserIds,
   currentUserId,
+  historyStatus = 'idle',
+  historyError = null,
   loadingOlder = false,
   hasMoreOlder = false,
   onLoadOlder,
@@ -73,24 +61,31 @@ export default function ChatMessagePane({
   const bottomRef = useRef(null);
   const topSentinelRef = useRef(null);
   const stickToBottomRef = useRef(true);
-  const prevLenRef = useRef(0);
+  const markedForChatRef = useRef(null);
 
   useEffect(() => {
+    markedForChatRef.current = null;
+  }, [chat?.id]);
+
+  useEffect(() => {
+    if (!chat?.id || historyStatus !== 'ready') return;
     const last = messages.at(-1);
-    if (last?.id) onMarkRead(last.id);
-  }, [messages, onMarkRead]);
+    if (!last?.id) return;
+    if (markedForChatRef.current === `${chat.id}:${last.id}`) return;
+    markedForChatRef.current = `${chat.id}:${last.id}`;
+    onMarkRead(last.id);
+  }, [chat?.id, historyStatus, messages, onMarkRead]);
 
   useEffect(() => {
-    const grewAtEnd = messages.length > prevLenRef.current;
-    prevLenRef.current = messages.length;
-    if (stickToBottomRef.current && grewAtEnd) {
-      bottomRef.current?.scrollIntoView({ block: 'end' });
-    }
-  }, [messages]);
+    if (historyStatus !== 'ready') return;
+    if (!stickToBottomRef.current) return;
+    bottomRef.current?.scrollIntoView({ block: 'end' });
+  }, [messages.length, historyStatus, chat?.id]);
 
   useEffect(() => {
     const node = topSentinelRef.current;
-    if (!node || !onLoadOlder) return undefined;
+    if (!node || !onLoadOlder || !hasMoreOlder || historyStatus !== 'ready') return undefined;
+    const root = node.closest('[data-radix-scroll-area-viewport]') || null;
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
@@ -98,11 +93,11 @@ export default function ChatMessagePane({
           onLoadOlder();
         }
       },
-      { rootMargin: '80px 0px 0px 0px' },
+      { root, rootMargin: '40px 0px 0px 0px', threshold: 0 },
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [onLoadOlder, messages.length]);
+  }, [onLoadOlder, hasMoreOlder, historyStatus, chat?.id]);
 
   if (!chat) {
     return (
@@ -132,12 +127,26 @@ export default function ChatMessagePane({
         <div
           className="space-y-3 px-4 py-4"
           onScrollCapture={(event) => {
-            const el = event.currentTarget;
+            const el =
+              event.target?.closest?.('[data-radix-scroll-area-viewport]') ||
+              event.currentTarget;
+            if (!el || typeof el.scrollTop !== 'number') return;
             const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
             stickToBottomRef.current = distance < 80;
           }}
         >
           <div ref={topSentinelRef} />
+          {historyStatus === 'loading' && messages.length === 0 ? (
+            <p className="text-center text-sm text-muted-foreground">Загрузка истории…</p>
+          ) : null}
+          {historyStatus === 'error' && messages.length === 0 ? (
+            <p className="text-center text-sm text-destructive">
+              {historyError || 'Не удалось загрузить историю'}
+            </p>
+          ) : null}
+          {historyStatus === 'ready' && messages.length === 0 ? (
+            <p className="text-center text-sm text-muted-foreground">Пока нет сообщений</p>
+          ) : null}
           {loadingOlder ? (
             <p className="text-center text-xs text-muted-foreground">Загрузка истории…</p>
           ) : null}

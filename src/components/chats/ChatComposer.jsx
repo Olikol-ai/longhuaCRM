@@ -60,8 +60,11 @@ export default function ChatComposer({ chat, disabled, onMessageCreated, onAttac
     setSending(true);
     try {
       const kind = options.kind || (file.type.startsWith('image/') ? 'image' : 'file');
-      await chatsApi.uploadAttachment(chat.id, file, { kind, durationMs: options.durationMs });
-      onAttachmentUploaded();
+      const uploaded = await chatsApi.uploadAttachment(chat.id, file, {
+        kind,
+        durationMs: options.durationMs,
+      });
+      onAttachmentUploaded(uploaded);
     } catch (err) {
       toast({
         title: 'Не удалось загрузить файл',

@@ -1,6 +1,6 @@
 import { ForbiddenException, GoneException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, MoreThan, Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { ChatAccessService } from '../../../common/access/chat-access.service';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
 import {
@@ -62,7 +62,7 @@ export class ChatsService {
     for (const chat of chats) {
       const membership = membershipByChat.get(chat.id);
       if (!this.access.isAdmin(actor) && membership?.hiddenAt) continue;
-      const unreadCount = await this.countUnread(chat.id, membership);
+      const unreadCount = await this.countUnread(chat.id, membership, actor.sub);
       const counts = await this.memberOnlineCounts(chat.id);
       items.push(Object.assign(chat, { unreadCount, ...counts }));
     }
@@ -99,7 +99,7 @@ export class ChatsService {
       where: { chatId, userId: actor.sub },
       relations: { lastReadMessage: true },
     });
-    return this.countUnread(chatId, member);
+    return this.countUnread(chatId, member, actor.sub);
   }
 
   async markRead(actor: DomainAccessActor, chatId: string, messageId: string): Promise<void> {
@@ -236,14 +236,36 @@ export class ChatsService {
   private async countUnread(
     chatId: string,
     member: ChatMemberEntity | null | undefined,
+    viewerUserId?: string,
   ): Promise<number> {
-    const createdAfter = member?.lastReadMessage?.createdAt;
-    return this.messageRepo.count({
-      where: {
-        chatId,
-        deletedAt: IsNull(),
-        ...(createdAfter ? { createdAt: MoreThan(createdAfter) } : {}),
-      },
-    });
+    if (!member) return 0;
+
+    const query = this.messageRepo
+      .createQueryBuilder('message')
+      .where('message.chatId = :chatId', { chatId })
+      .andWhere('message.deletedAt IS NULL');
+
+    if (viewerUserId) {
+      query.andWhere(
+        '(message.senderUserId IS NULL OR message.senderUserId <> :viewerUserId)',
+        { viewerUserId },
+      );
+    }
+
+    let lastRead = member.lastReadMessage ?? null;
+    if (!lastRead && member.lastReadMessageId) {
+      lastRead = await this.messageRepo.findOne({
+        where: { id: member.lastReadMessageId, chatId },
+      });
+    }
+
+    if (lastRead) {
+      query.andWhere(
+        '(message.createdAt > :readAt OR (message.createdAt = :readAt AND message.id > :readId))',
+        { readAt: lastRead.createdAt, readId: lastRead.id },
+      );
+    }
+
+    return query.getCount();
   }
 }

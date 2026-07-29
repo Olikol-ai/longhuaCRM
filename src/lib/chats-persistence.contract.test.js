@@ -26,8 +26,21 @@ describe('Chat message persistence', () => {
     const page = readFileSync(join(root, 'src/pages/Chats.jsx'), 'utf8');
     assert.match(page, /chatsApi\.messages/);
     assert.match(page, /normalizeMessage/);
+    assert.match(page, /messagesByChat/);
+    assert.match(page, /loadHistory/);
     assert.match(page, /before:\s*oldest\.id/);
     assert.doesNotMatch(page, /localStorage.*messages/);
+  });
+
+  it('attachments use authenticated URL not ephemeral blob revoke race', () => {
+    const pane = readFileSync(
+      join(root, 'src/components/chats/ChatMessagePane.jsx'),
+      'utf8',
+    );
+    const urlHelper = readFileSync(join(root, 'src/lib/chat-attachment-url.js'), 'utf8');
+    assert.match(urlHelper, /access_token/);
+    assert.match(pane, /chatAttachmentSrc/);
+    assert.doesNotMatch(pane, /createObjectURL/);
   });
 
   it('composer persists via HTTP before relying on UI state', () => {

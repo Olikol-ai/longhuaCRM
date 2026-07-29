@@ -6,7 +6,7 @@ import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
 import { ChatAccessService } from '../../../common/access/chat-access.service';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
-import { ChatAttachmentEntity, ChatVoiceMessageEntity } from '../entities';
+import { ChatAttachmentEntity, ChatMessageEntity, ChatVoiceMessageEntity } from '../entities';
 import { ChatAttachmentKind, ChatMessageType } from '../enums/chat.enums';
 import { ChatMessagesService } from './chat-messages.service';
 
@@ -15,6 +15,11 @@ export interface UploadedChatFile {
   originalname: string;
   mimetype: string;
   size: number;
+}
+
+export interface ChatAttachmentUploadResult {
+  attachment: ChatAttachmentEntity;
+  message: ChatMessageEntity | null;
 }
 
 @Injectable()
@@ -34,7 +39,7 @@ export class ChatAttachmentsService {
     file: UploadedChatFile,
     kind: ChatAttachmentKind,
     durationMs?: number,
-  ): Promise<ChatAttachmentEntity> {
+  ): Promise<ChatAttachmentUploadResult> {
     await this.access.assertCanWrite(actor, chatId);
     const directory = join(process.cwd(), 'uploads', 'chat');
     mkdirSync(directory, { recursive: true });
@@ -75,7 +80,10 @@ export class ChatAttachmentsService {
       await this.messages.broadcastCreated(hydrated);
     }
 
-    return attachment;
+    return {
+      attachment,
+      message: hydrated,
+    };
   }
 
   async download(
