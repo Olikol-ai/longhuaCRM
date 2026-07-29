@@ -154,7 +154,7 @@ const AuthenticatedApp = () => {
           return <Route key={path} path={`/${path}`} element={element} />;
         })}
         <Route path="/AdminLessonMaterials" element={<Navigate to="/MaterialsHub" replace />} />
-        <Route path="/MaterialsHub" element={<TeacherRoute><LayoutWrapper currentPageName="MaterialsHub"><MaterialsHub /></LayoutWrapper></TeacherRoute>} />
+        <Route path="/MaterialsHub" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="MaterialsHub"><MaterialsHub /></LayoutWrapper></TeacherRoute>} />
         <Route path="/TeacherStudents" element={<TeacherRoute><LayoutWrapper currentPageName="TeacherStudents"><TeacherStudents /></LayoutWrapper></TeacherRoute>} />
         <Route path="/TeacherAssessment" element={<TeacherRoute><LayoutWrapper currentPageName="TeacherAssessment"><TeacherAssessment /></LayoutWrapper></TeacherRoute>} />
         <Route path="/TeacherAssessmentReview" element={<TeacherRoute><LayoutWrapper currentPageName="TeacherAssessment"><TeacherAssessmentReview /></LayoutWrapper></TeacherRoute>} />

@@ -26,24 +26,44 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
   const loadData = async () => {
     setError("");
     try {
-      const [mats, sts, grps, crs, trs] = await Promise.all([
-        api.materials.list(),
-        api.students.list(),
-        api.groups.list(),
-        api.courses.list(),
-        api.teachers.list(),
-      ]);
+      if (user?.role === "tutor") {
+        const [mats, sts] = await Promise.all([
+          api.materials.list(),
+          api.tutors.myStudents(),
+        ]);
+        setMaterials(Array.isArray(mats) ? mats : []);
+        setStudents(
+          (Array.isArray(sts) ? sts : []).map((s) => ({
+            id: s.id,
+            name: s.name || [s.first_name, s.last_name].filter(Boolean).join(" ") || s.email,
+            email: s.email || "",
+            user_id: s.user_id || null,
+            is_tutor_student: true,
+          })),
+        );
+        setGroups([]);
+        setCourses([]);
+        setTargetType("tutor_student");
+      } else {
+        const [mats, sts, grps, crs, trs] = await Promise.all([
+          api.materials.list(),
+          api.students.list(),
+          api.groups.list(),
+          api.courses.list(),
+          api.teachers.list(),
+        ]);
 
-      setMaterials(Array.isArray(mats) ? mats : []);
-      setStudents(Array.isArray(sts) ? sts : []);
-      setGroups(Array.isArray(grps) ? grps : []);
-      setCourses(Array.isArray(crs) ? crs : []);
+        setMaterials(Array.isArray(mats) ? mats : []);
+        setStudents(Array.isArray(sts) ? sts : []);
+        setGroups(Array.isArray(grps) ? grps : []);
+        setCourses(Array.isArray(crs) ? crs : []);
 
-      if (user?.teacher_profile_id) {
-        setTeacherEntityId(user.teacher_profile_id);
-      } else if (user?.has_teacher_profile) {
-        const ownTeacher = (Array.isArray(trs) ? trs : []).find((t) => t.user_id === user.id);
-        setTeacherEntityId(ownTeacher?.id ?? null);
+        if (user?.teacher_profile_id) {
+          setTeacherEntityId(user.teacher_profile_id);
+        } else if (user?.has_teacher_profile) {
+          const ownTeacher = (Array.isArray(trs) ? trs : []).find((t) => t.user_id === user.id);
+          setTeacherEntityId(ownTeacher?.id ?? null);
+        }
       }
     } catch (err) {
       setError(err.message || "Не удалось загрузить данные");
@@ -70,11 +90,19 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
     setSaving(true);
     setError("");
     try {
-      const grantRole = user?.role === "admin" ? "ADMIN" : "TEACHER";
+      const isTutor = user?.role === "tutor";
+      const grantRole = user?.role === "admin" ? "ADMIN" : isTutor ? "TUTOR" : "TEACHER";
       const matIds = Array.from(selectedMaterials);
 
       for (const targetId of selectedTargets) {
-        if (targetType === "student") {
+        if (targetType === "tutor_student" || (isTutor && targetType === "student")) {
+          await grantMaterialAccess({
+            materialIds: matIds,
+            targetType: "tutor_student",
+            targetId,
+            grantedByRole: grantRole,
+          });
+        } else if (targetType === "student") {
           const student = students.find((s) => s.id === targetId);
           if (!student?.user_id) {
             throw new Error(
@@ -112,6 +140,7 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
     }
   };
 
+  const isTutorScope = user?.role === "tutor";
   const isTeacherScope = Boolean(user?.has_teacher_profile && user?.role !== "admin");
   const visibleStudents = isTeacherScope && teacherEntityId
     ? students.filter((s) => s.assigned_teacher === teacherEntityId)
@@ -121,7 +150,14 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
     : groups;
 
   const targetList =
-    targetType === "student"
+    targetType === "tutor_student" || (isTutorScope && targetType === "student")
+      ? visibleStudents.map((s) => ({
+          id: s.id,
+          title: s.name,
+          subtitle: s.user_id ? (s.email || "Есть аккаунт") : "Локальный ученик",
+          disabled: false,
+        }))
+      : targetType === "student"
       ? visibleStudents.map((s) => ({
           id: s.id,
           title: s.name,
@@ -214,11 +250,16 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
           ) : (
             <>
               <div className="flex flex-wrap gap-2">
-                {[
-                  { id: "student", label: "Ученик", icon: Users },
-                  { id: "group", label: "Группа", icon: FolderKanban },
-                  { id: "course", label: "Курс", icon: BookOpen },
-                ].map((tab) => {
+                {(isTutorScope
+                  ? [{ id: "tutor_student", label: "Ученик", icon: Users }]
+                  : [
+                      { id: "student", label: "Ученик", icon: Users },
+                      { id: "group", label: "Группа", icon: FolderKanban },
+                      ...(user?.role === "admin"
+                        ? [{ id: "course", label: "Курс", icon: BookOpen }]
+                        : []),
+                    ]
+                ).map((tab) => {
                   const Icon = tab.icon;
                   return (
                     <button

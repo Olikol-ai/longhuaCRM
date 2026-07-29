@@ -45,6 +45,7 @@ import { StudentPendingAssignmentStatus1742100000000 } from './migrations/174210
 import { TutorProfileAndSettings1742200000000 } from './migrations/1742200000000-TutorProfileAndSettings';
 import { TeacherStudentContacts1742300000000 } from './migrations/1742300000000-TeacherStudentContacts';
 import { TeacherStudentContactBalance1742400000000 } from './migrations/1742400000000-TeacherStudentContactBalance';
+import { TutorMaterialAccess1742500000000 } from './migrations/1742500000000-TutorMaterialAccess';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -93,6 +94,7 @@ export default new DataSource({
     TutorProfileAndSettings1742200000000,
     TeacherStudentContacts1742300000000,
     TeacherStudentContactBalance1742400000000,
+    TutorMaterialAccess1742500000000,
   ],
   synchronize: false,
 });

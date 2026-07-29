@@ -17,6 +17,7 @@ describe('RoleEntitySyncService student registration teacher assignment', () => 
     find: jest.fn().mockResolvedValue([]),
   };
   const userRepo = { findOne: jest.fn(), save: jest.fn() };
+  const materialAccessRepo = { update: jest.fn().mockResolvedValue({ affected: 0 }) };
 
   const service = new RoleEntitySyncService(
     studentRepo as never,
@@ -24,6 +25,7 @@ describe('RoleEntitySyncService student registration teacher assignment', () => 
     tutorRepo as never,
     tutorStudentRepo as never,
     userRepo as never,
+    materialAccessRepo as never,
   );
 
   const user = {

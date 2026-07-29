@@ -9,6 +9,7 @@ import {
   packMaterialDescription,
   unpackMaterialDescription,
 } from '@/lib/materialMeta';
+import { TUTOR_LIBRARY_COURSE_ID, isTutorLibraryCourseId } from '@/lib/tutorMaterials';
 
 function getErrorMessage(err) {
   return err?.data?.message || err?.message || 'Не удалось сохранить материал';
@@ -52,7 +53,8 @@ export default function MaterialDialog({
       setCourseFolders([]);
       return;
     }
-    const list = folders.filter((f) => f.course_id === form.course_id);
+    const list = folders.filter((f) => f.course_id === form.course_id
+      || (isTutorLibraryCourseId(form.course_id) && !f.course_id));
     setCourseFolders(list);
   }, [form.course_id, folders]);
 
@@ -60,20 +62,20 @@ export default function MaterialDialog({
 
   const resolveFolderId = async (courseId, preferredFolderId) => {
     if (preferredFolderId) return preferredFolderId;
-    const rows = folders.filter((f) => f.course_id === courseId);
+    const rows = folders.filter((f) => f.course_id === courseId
+      || (isTutorLibraryCourseId(courseId) && !f.course_id));
     const root = rows.find((f) => !(f.parent_id || f.parent_folder_id)) ?? rows[0];
     if (root?.id) return root.id;
-    const created = await api.materials.folders.create({
-      course_id: courseId,
-      name: 'Корень',
-      sort_order: 0,
-    });
+    const payload = isTutorLibraryCourseId(courseId)
+      ? { name: 'Корень', sort_order: 0 }
+      : { course_id: courseId, name: 'Корень', sort_order: 0 };
+    const created = await api.materials.folders.create(payload);
     return created.id;
   };
 
   const canSave =
     Boolean(form.title.trim()) &&
-    Boolean(form.course_id) &&
+    Boolean(form.course_id || courses[0]?.id === TUTOR_LIBRARY_COURSE_ID) &&
     (editing
       ? sourceMode === 'link'
         ? Boolean(form.external_link.trim())

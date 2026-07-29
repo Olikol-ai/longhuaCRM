@@ -63,9 +63,9 @@ export class MaterialsController {
   }
 
   @Post('folders')
-  @Roles('admin', 'teacher')
-  createFolder(@Body() dto: CreateMaterialFolderDto) {
-    return this.materialsService.createFolder(dto);
+  @Roles('admin', 'teacher', 'tutor')
+  createFolder(@CurrentUser() user: JwtPayload, @Body() dto: CreateMaterialFolderDto) {
+    return this.materialsService.createFolder(user, dto);
   }
 
   @Patch('folders/:id')
@@ -81,13 +81,13 @@ export class MaterialsController {
   }
 
   @Post('access/grant')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   grantAccess(@CurrentUser() user: JwtPayload, @Body() dto: GrantMaterialAccessDto) {
     return this.materialAccessService.grant(dto, user);
   }
 
   @Post('access/revoke')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   revokeAccess(@CurrentUser() user: JwtPayload, @Body() dto: RevokeMaterialAccessDto) {
     return this.materialAccessService.revoke(dto, user);
   }
@@ -113,7 +113,7 @@ export class MaterialsController {
   }
 
   @Get('access/material/:materialId')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   listMaterialGrants(@Param('materialId') materialId: string) {
     return this.materialAccessService.listGrantsForMaterial(materialId);
   }
@@ -124,13 +124,13 @@ export class MaterialsController {
   }
 
   @Post()
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   createMaterial(@CurrentUser() user: JwtPayload, @Body() dto: CreateMaterialDto) {
     return this.materialsService.createMaterial(user, dto);
   }
 
   @Patch(':id')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   updateMaterial(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
@@ -140,7 +140,7 @@ export class MaterialsController {
   }
 
   @Delete(':id')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   deleteMaterial(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.materialsService.deleteMaterial(user, id);
   }

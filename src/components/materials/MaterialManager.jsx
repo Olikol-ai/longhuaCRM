@@ -18,6 +18,7 @@ import FolderTree from './FolderTree';
 import GrantAccessModal from './GrantAccessModal';
 import MaterialDialog from './MaterialDialog';
 import MaterialTable from './MaterialTable';
+import { TUTOR_LIBRARY_COURSE_ID, isTutorLibraryCourseId } from '@/lib/tutorMaterials';
 
 export default function MaterialManager() {
   const { user, isLoadingAuth } = useAuth();
@@ -39,9 +40,11 @@ export default function MaterialManager() {
 
   const isAdmin = user?.role === 'admin';
   const isTeacher = user?.role === 'teacher' || Boolean(user?.has_teacher_profile);
-  const canCreateMaterials = isAdmin || isTeacher;
+  const isTutor = user?.role === 'tutor';
+  const canCreateMaterials = isAdmin || isTeacher || isTutor;
   const canManageCourses = isAdmin;
-  const canAccess = isAdmin || isTeacher;
+  const canAccess = isAdmin || isTeacher || isTutor;
+  const canBulkUserAccess = isAdmin || isTeacher;
   const canEditMaterial = (mat) =>
     isAdmin || (Boolean(user?.id) && mat?.created_by_user_id === user.id);
   const canDragMaterials = canCreateMaterials;
@@ -51,21 +54,48 @@ export default function MaterialManager() {
     if (!user) return;
     setLoadError(null);
     try {
-      const [mats, crs, flds] = await Promise.all([
+      const requests = [
         api.materials.list('-created_date'),
-        api.courses.list(),
         api.materials.folders.list(),
-      ]);
-      const courseList = Array.isArray(crs) ? crs : [];
+      ];
+      if (!isTutor) {
+        requests.splice(1, 0, api.courses.list());
+      }
+      const results = await Promise.all(requests);
+      const mats = results[0];
+      const crs = isTutor ? [] : results[1];
+      const flds = isTutor ? results[1] : results[2];
+
+      const courseList = isTutor
+        ? [{ id: TUTOR_LIBRARY_COURSE_ID, name: 'Мои материалы', sort_order: 0 }]
+        : (Array.isArray(crs) ? crs : []);
       const activeCourseIds = new Set(courseList.map((c) => c.id).filter(Boolean));
-      setMaterials(Array.isArray(mats) ? mats.filter((m) => m.status !== 'deleted') : []);
+
+      const mappedFolders = (Array.isArray(flds) ? flds : [])
+        .filter((f) => {
+          if (isTutor) return !f.course_id;
+          return !f.course_id || activeCourseIds.has(f.course_id);
+        })
+        .map((f) => (
+          isTutor
+            ? { ...f, course_id: f.course_id || TUTOR_LIBRARY_COURSE_ID }
+            : f
+        ));
+
+      const mappedMaterials = (Array.isArray(mats) ? mats : [])
+        .filter((m) => m.status !== 'deleted')
+        .map((m) => (
+          isTutor
+            ? { ...m, course_id: m.course_id || TUTOR_LIBRARY_COURSE_ID }
+            : m
+        ));
+
+      setMaterials(mappedMaterials);
       setCourses(courseList);
-      // Hide folders of archived/deleted courses from the Materials tree
-      setFolders(
-        Array.isArray(flds)
-          ? flds.filter((f) => !f.course_id || activeCourseIds.has(f.course_id))
-          : [],
-      );
+      setFolders(mappedFolders);
+      if (isTutor) {
+        setSelectedCourseId((prev) => prev || TUTOR_LIBRARY_COURSE_ID);
+      }
     } catch (err) {
       setMaterials([]);
       setCourses([]);
@@ -74,7 +104,7 @@ export default function MaterialManager() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, isTutor]);
 
   useEffect(() => {
     if (isLoadingAuth) return;
@@ -105,7 +135,7 @@ export default function MaterialManager() {
   }, [materials, search, selectedCourseId, selectedFolderId, filterType]);
 
   const openCreate = () => {
-    const courseId = selectedCourseId || courses[0]?.id;
+    const courseId = selectedCourseId || courses[0]?.id || (isTutor ? TUTOR_LIBRARY_COURSE_ID : null);
     if (!courseId) {
       alert('Сначала создайте курс в меню слева («Создать курс»).');
       return;
@@ -144,11 +174,10 @@ export default function MaterialManager() {
     const rows = folders.filter((f) => f.course_id === courseId);
     const root = rows.find((f) => !(f.parent_id || f.parent_folder_id)) ?? rows[0];
     if (root?.id) return root.id;
-    const created = await api.materials.folders.create({
-      course_id: courseId,
-      name: 'Корень',
-      sort_order: 0,
-    });
+    const payload = isTutorLibraryCourseId(courseId)
+      ? { name: 'Корень', sort_order: 0 }
+      : { course_id: courseId, name: 'Корень', sort_order: 0 };
+    const created = await api.materials.folders.create(payload);
     return created.id;
   };
 
@@ -221,10 +250,14 @@ export default function MaterialManager() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Материалы уроков</h1>
-          <p className="text-sm text-muted-foreground mt-1">Библиотека файлов и ссылок по курсам</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {isTutor
+              ? 'Ваша личная библиотека файлов и ссылок для учеников'
+              : 'Библиотека файлов и ссылок по курсам'}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {canAccess && (
+          {canBulkUserAccess && (
             <Button
               variant={view === 'users-access' ? 'default' : 'outline'}
               onClick={() => setView(view === 'users-access' ? 'library' : 'users-access')}
@@ -266,7 +299,7 @@ export default function MaterialManager() {
               }}
               className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
             >
-              <option value="">Все курсы</option>
+              {!isTutor && <option value="">Все курсы</option>}
               {courses.map((c) => (
                 <option key={c.id} value={c.id}>{c.name || c.course_name || 'Курс'}</option>
               ))}

@@ -7,6 +7,7 @@ import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { TutorEntity } from '../tutors/entities/tutor.entity';
 import { TutorStudentEntity } from '../tutors/entities/tutor-student.entity';
+import { MaterialAccessEntity } from '../materials/entities/material-access.entity';
 import {
   composeDisplayName,
   resolveNameParts,
@@ -31,6 +32,8 @@ export class RoleEntitySyncService {
     private readonly tutorStudentRepo: Repository<TutorStudentEntity>,
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
+    @InjectRepository(MaterialAccessEntity)
+    private readonly materialAccessRepo: Repository<MaterialAccessEntity>,
   ) {}
 
   /**
@@ -404,6 +407,10 @@ export class RoleEntitySyncService {
       row.firstName = user.firstName || row.firstName;
       row.lastName = user.lastName || row.lastName;
       await tutorStudentRepo.save(row);
+
+      const accessRepo =
+        manager?.getRepository(MaterialAccessEntity) ?? this.materialAccessRepo;
+      await accessRepo.update({ tutorStudentId: row.id }, { userId: user.id });
       return;
     }
 

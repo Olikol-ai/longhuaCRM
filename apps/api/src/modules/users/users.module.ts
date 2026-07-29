@@ -7,6 +7,7 @@ import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { TutorsModule } from '../tutors/tutors.module';
 import { TutorEntity } from '../tutors/entities/tutor.entity';
 import { TutorStudentEntity } from '../tutors/entities/tutor-student.entity';
+import { MaterialAccessEntity } from '../materials/entities/material-access.entity';
 import { UserEntity } from './entities/user.entity';
 import { ProfileRelationsService } from './profile-relations.service';
 import { RoleEntitySyncService } from './role-entity-sync.service';
@@ -23,6 +24,7 @@ import { UsersService } from './users.service';
       TeacherEntity,
       TutorEntity,
       TutorStudentEntity,
+      MaterialAccessEntity,
     ]),
     forwardRef(() => TeachersModule),
     forwardRef(() => TutorsModule),

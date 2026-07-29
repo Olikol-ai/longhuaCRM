@@ -14,6 +14,7 @@ import { GroupEntity } from '../../modules/groups/entities/group.entity';
 import { GroupMemberEntity } from '../../modules/groups/entities/group-member.entity';
 import { StudentEntity } from '../../modules/students/entities/student.entity';
 import { TeacherEntity } from '../../modules/teachers/entities/teacher.entity';
+import { TutorStudentEntity } from '../../modules/tutors/entities/tutor-student.entity';
 import { NO_ACCESS_UUID } from './access.constants';
 import { DomainAccessActor } from './domain-access.types';
 
@@ -51,6 +52,8 @@ export class MaterialsDomainAccessService {
     private readonly groupRepo: Repository<GroupEntity>,
     @InjectRepository(GroupMemberEntity)
     private readonly groupMemberRepo: Repository<GroupMemberEntity>,
+    @InjectRepository(TutorStudentEntity)
+    private readonly tutorStudentRepo: Repository<TutorStudentEntity>,
   ) {}
 
   isAdmin(actor: DomainAccessActor): boolean {
@@ -66,7 +69,12 @@ export class MaterialsDomainAccessService {
     }
 
     const role = normalizeRole(actor.role);
-    if (role !== 'student' && role !== 'teacher') {
+    if (
+      role !== 'student' &&
+      role !== 'teacher' &&
+      role !== 'tutor' &&
+      role !== 'tutor_student'
+    ) {
       throw new ForbiddenException('Forbidden');
     }
 
@@ -96,6 +104,14 @@ export class MaterialsDomainAccessService {
     }
 
     const role = normalizeRole(actor.role);
+    if (role === 'tutor') {
+      // Tutors only see personal folders they own (never school course folders).
+      return {
+        ...filterToEntityWhere(where),
+        createdByUserId: actor.sub,
+      };
+    }
+
     if (role === 'student' || role === 'teacher') {
       const courseTemplateIds = await this.resolveAccessibleCourseTemplateIds(actor);
       if (courseTemplateIds.length === 0) {
@@ -110,6 +126,11 @@ export class MaterialsDomainAccessService {
         return { ...scoped, courseTemplateId: requested };
       }
       return { ...scoped, courseTemplateId: In(courseTemplateIds) };
+    }
+
+    if (role === 'tutor_student') {
+      // Folder tree is unused for tutor students; they open materials via ACL list.
+      return { id: NO_ACCESS_UUID };
     }
 
     throw new ForbiddenException('Forbidden');
@@ -218,7 +239,7 @@ export class MaterialsDomainAccessService {
     }
 
     const role = normalizeRole(actor.role);
-    if (role === 'teacher') {
+    if (role === 'teacher' || role === 'tutor') {
       // Authors always see materials they created (even if a personal grant row is missing).
       const owned = await this.materialRepo.find({
         where: { createdByUserId: actor.sub, status: 'active' },
@@ -229,11 +250,29 @@ export class MaterialsDomainAccessService {
       }
     }
 
+    if (role === 'tutor_student') {
+      const tutorStudents = await this.tutorStudentRepo.find({
+        where: { userId: actor.sub },
+        select: ['id'],
+      });
+      const tutorStudentIds = tutorStudents.map((row) => row.id);
+      if (tutorStudentIds.length > 0) {
+        const viaTutorStudent = await this.accessRepo.find({
+          where: { tutorStudentId: In(tutorStudentIds), access: true },
+          select: ['materialId'],
+        });
+        for (const row of viaTutorStudent) {
+          personal.add(row.materialId);
+        }
+      }
+    }
+
     if (role === 'student') {
       await this.fillStudentBuckets(actor.sub, course, group);
     } else if (role === 'teacher') {
       await this.fillTeacherBuckets(actor.sub, course, group);
     }
+    // Tutors intentionally skip school course/group inheritance.
 
     return { personal, course, group };
   }

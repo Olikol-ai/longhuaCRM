@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
-import { grantAccess, revokeAccess } from "@/lib/materialAccess";
+import { grantAccess, grantMaterialAccess, revokeAccess } from "@/lib/materialAccess";
 import { X, Users, Lock, Save, Loader2, BookOpen, FolderKanban, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getMaterialTypeInfo } from "@/lib/materialIcons";
@@ -25,24 +25,34 @@ export default function AccessControlModal({ material, course, folders = [], onC
     setError("");
     setLoading(true);
     try {
-      const [sts, grantPayload] = await Promise.all([
-        api.students.list(),
-        api.materials.access.listForMaterial(material.id),
-      ]);
+      const grantPayloadPromise = api.materials.access.listForMaterial(material.id);
+      let visibleStudents = [];
 
-      let visibleStudents = Array.isArray(sts) ? sts : [];
-      if (user?.role === "teacher") {
-        const teacherId =
-          user.teacher_profile_id ||
-          (await api.teachers.filter({ user_id: user.id }))[0]?.id;
-        visibleStudents = teacherId
-          ? visibleStudents.filter((s) => s.assigned_teacher === teacherId)
-          : [];
+      if (user?.role === "tutor") {
+        const sts = await api.tutors.myStudents();
+        visibleStudents = (Array.isArray(sts) ? sts : []).map((s) => ({
+          id: s.id,
+          name: s.name || [s.first_name, s.last_name].filter(Boolean).join(" ") || s.email,
+          email: s.email || "",
+          user_id: s.user_id || null,
+          is_tutor_student: true,
+        }));
+      } else {
+        const sts = await api.students.list();
+        visibleStudents = Array.isArray(sts) ? sts : [];
+        if (user?.role === "teacher") {
+          const teacherId =
+            user.teacher_profile_id ||
+            (await api.teachers.filter({ user_id: user.id }))[0]?.id;
+          visibleStudents = teacherId
+            ? visibleStudents.filter((s) => s.assigned_teacher === teacherId)
+            : [];
+        }
       }
 
+      const grantPayload = await grantPayloadPromise;
       setStudents(visibleStudents);
       setGrants(grantPayload);
-      // Checkbox list is only for NEW grants; already granted students live in «Текущие права».
       setSelectedStudentIds([]);
     } catch (err) {
       setError(err.message || "Не удалось загрузить доступы");
@@ -62,11 +72,22 @@ export default function AccessControlModal({ material, course, folders = [], onC
     );
   };
 
-  const handleRevokePersonal = async (userId) => {
-    setRevokingKey(`user:${userId}`);
+  const handleRevokePersonal = async (row) => {
+    const key = row.tutor_student_id
+      ? `tutor_student:${row.tutor_student_id}`
+      : `user:${row.user_id}`;
+    setRevokingKey(key);
     setError("");
     try {
-      await revokeAccess(userId, material.id);
+      if (row.tutor_student_id) {
+        await api.materials.access.revoke({
+          material_ids: [material.id],
+          target_type: "tutor_student",
+          target_id: row.tutor_student_id,
+        });
+      } else if (row.user_id) {
+        await revokeAccess(row.user_id, material.id);
+      }
       await load();
       onSave?.();
     } catch (err) {
@@ -120,14 +141,32 @@ export default function AccessControlModal({ material, course, folders = [], onC
     setSaving(true);
     setError("");
     try {
-      const grantRole = user?.role === "admin" ? "ADMIN" : "TEACHER";
-      const currentGranted = new Set(grants?.user_ids || []);
+      const isTutor = user?.role === "tutor";
+      const grantRole = user?.role === "admin" ? "ADMIN" : isTutor ? "TUTOR" : "TEACHER";
+      const grantedUserIds = new Set(grants?.user_ids || []);
+      const grantedTutorStudentIds = new Set(grants?.tutor_student_ids || []);
+
       const toGrant = selectedStudentIds
         .map((id) => students.find((s) => s.id === id))
-        .filter((s) => s?.user_id && !currentGranted.has(s.user_id));
+        .filter(Boolean)
+        .filter((s) => {
+          if (isTutor || s.is_tutor_student) {
+            return !grantedTutorStudentIds.has(s.id);
+          }
+          return s.user_id && !grantedUserIds.has(s.user_id);
+        });
 
       for (const student of toGrant) {
-        await grantAccess(student.user_id, material.id, grantRole);
+        if (isTutor || student.is_tutor_student) {
+          await grantMaterialAccess({
+            materialIds: [material.id],
+            targetType: "tutor_student",
+            targetId: student.id,
+            grantedByRole: grantRole,
+          });
+        } else {
+          await grantAccess(student.user_id, material.id, grantRole);
+        }
       }
 
       toast({
@@ -163,11 +202,20 @@ export default function AccessControlModal({ material, course, folders = [], onC
   const hasAnyCurrent =
     personal.length > 0 || groupGrants.length > 0 || courseGrants.length > 0 || Boolean(folderCourse);
   const grantedUserIds = new Set(Array.isArray(grants?.user_ids) ? grants.user_ids : []);
-  // Already granted → only in «Текущие права»; checkbox list is for new grants only.
-  const studentsWithoutAccess = students.filter(
-    (s) => s.user_id && !grantedUserIds.has(s.user_id),
+  const grantedTutorStudentIds = new Set(
+    Array.isArray(grants?.tutor_student_ids) ? grants.tutor_student_ids : [],
   );
-  const studentsWithoutAccount = students.filter((s) => !s.user_id);
+  const isTutorScope = user?.role === "tutor";
+  // Already granted → only in «Текущие права»; checkbox list is for new grants only.
+  const studentsWithoutAccess = students.filter((s) => {
+    if (isTutorScope || s.is_tutor_student) {
+      return !grantedTutorStudentIds.has(s.id);
+    }
+    return s.user_id && !grantedUserIds.has(s.user_id);
+  });
+  const studentsWithoutAccount = isTutorScope
+    ? []
+    : students.filter((s) => !s.user_id);
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
@@ -285,15 +333,21 @@ export default function AccessControlModal({ material, course, folders = [], onC
                   </div>
                 )}
 
-                {personal.map((row) => (
+                {personal.map((row) => {
+                  const revokeKey = row.tutor_student_id
+                    ? `tutor_student:${row.tutor_student_id}`
+                    : `user:${row.user_id}`;
+                  return (
                   <div
-                    key={row.user_id}
+                    key={row.tutor_student_id || row.user_id}
                     className="flex items-center justify-between gap-3 p-3 rounded-xl border border-border"
-                    data-testid={`access-personal-${row.user_id}`}
+                    data-testid={`access-personal-${row.tutor_student_id || row.user_id}`}
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground">{row.name}</p>
-                      <p className="text-xs text-muted-foreground">{row.email || row.user_id}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {row.email || row.user_id || (row.tutor_student_id ? "Локальный ученик" : "")}
+                      </p>
                       <AccessSourceBadges
                         sources={[{ type: "personal", label: row.label }]}
                         className="mt-2"
@@ -303,10 +357,10 @@ export default function AccessControlModal({ material, course, folders = [], onC
                       variant="outline"
                       size="sm"
                       className="shrink-0 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-950/50"
-                      disabled={revokingKey === `user:${row.user_id}`}
-                      onClick={() => handleRevokePersonal(row.user_id)}
+                      disabled={revokingKey === revokeKey}
+                      onClick={() => handleRevokePersonal(row)}
                     >
-                      {revokingKey === `user:${row.user_id}` ? (
+                      {revokingKey === revokeKey ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
                         <>
@@ -316,7 +370,8 @@ export default function AccessControlModal({ material, course, folders = [], onC
                       )}
                     </Button>
                   </div>
-                ))}
+                  );
+                })}
 
                 {groupGrants.map((row) => (
                   <div

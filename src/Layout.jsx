@@ -58,6 +58,7 @@ const tutorNav = [
   { name: "Главная", icon: LayoutDashboard, page: "TutorDashboard" },
   { name: "Расписание", icon: Calendar, page: "TutorSchedule" },
   { name: "Ученики", icon: Users, page: "TutorStudents" },
+  { name: "Материалы", icon: BookOpen, page: "MaterialsHub" },
   { name: "Ссылки", icon: BookOpen, page: "TutorReferralLinks" },
   { name: "Статистика", icon: ClipboardList, page: "TutorStats" },
   { name: "Профиль", icon: UserCircle, page: "TutorProfile" },

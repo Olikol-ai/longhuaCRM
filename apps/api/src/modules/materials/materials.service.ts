@@ -56,7 +56,12 @@ export class MaterialsService {
       ...dto,
       createdByUserId: actor.sub,
     });
-    const grantedByRole = normalizeRole(actor.role) === 'admin' ? 'ADMIN' : 'TEACHER';
+    const grantedByRole =
+      normalizeRole(actor.role) === 'admin'
+        ? 'ADMIN'
+        : normalizeRole(actor.role) === 'tutor'
+          ? 'TUTOR'
+          : 'TEACHER';
     await this.materialAccessService.grantPersonalAccess(
       actor.sub,
       [created.id],
@@ -196,7 +201,8 @@ export class MaterialsService {
     if (this.materialsAccess.isAdmin(actor)) {
       return;
     }
-    if (normalizeRole(actor.role) !== 'teacher') {
+    const role = normalizeRole(actor.role);
+    if (role !== 'teacher' && role !== 'tutor') {
       throw new ForbiddenException('Недостаточно прав для изменения материала');
     }
     if (material.createdByUserId !== actor.sub) {
@@ -242,7 +248,7 @@ export class MaterialsService {
     if (!row) {
       throw new NotFoundException('Material folder not found');
     }
-    if (!this.materialsAccess.isAdmin(actor) && row.courseTemplateId) {
+    if (!this.materialsAccess.isAdmin(actor)) {
       const folders = await this.findAllFolders(actor);
       if (!folders.some((folder) => folder.id === id)) {
         throw new NotFoundException('Material folder not found');
@@ -251,8 +257,27 @@ export class MaterialsService {
     return row;
   }
 
-  createFolder(dto: CreateMaterialFolderDto): Promise<MaterialFolderEntity> {
-    return this.repository.saveFolder(dto);
+  async createFolder(
+    actor: JwtPayload,
+    dto: CreateMaterialFolderDto,
+  ): Promise<MaterialFolderEntity> {
+    const role = normalizeRole(actor.role);
+    if (role === 'tutor') {
+      if (dto.courseTemplateId) {
+        throw new ForbiddenException(
+          'Репетитор не может создавать папки курсов школы',
+        );
+      }
+      return this.repository.saveFolder({
+        ...dto,
+        courseTemplateId: null,
+        createdByUserId: actor.sub,
+      });
+    }
+    return this.repository.saveFolder({
+      ...dto,
+      createdByUserId: actor.sub,
+    });
   }
 
   async updateFolder(id: string, dto: UpdateMaterialFolderDto): Promise<MaterialFolderEntity> {

@@ -14,6 +14,8 @@ import { GroupEntity } from '../groups/entities/group.entity';
 import { GroupMemberEntity } from '../groups/entities/group-member.entity';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
+import { TutorEntity } from '../tutors/entities/tutor.entity';
+import { TutorStudentEntity } from '../tutors/entities/tutor-student.entity';
 import { GrantedByRole, MaterialAccessEntity } from './entities/material-access.entity';
 import { MaterialCourseGrantEntity } from './entities/material-course-grant.entity';
 import { MaterialFolderEntity } from './entities/material-folder.entity';
@@ -50,6 +52,10 @@ export class MaterialAccessService {
     private readonly studentRepo: Repository<StudentEntity>,
     @InjectRepository(TeacherEntity)
     private readonly teacherRepo: Repository<TeacherEntity>,
+    @InjectRepository(TutorEntity)
+    private readonly tutorRepo: Repository<TutorEntity>,
+    @InjectRepository(TutorStudentEntity)
+    private readonly tutorStudentRepo: Repository<TutorStudentEntity>,
     @InjectRepository(GroupEntity)
     private readonly groupRepo: Repository<GroupEntity>,
     @InjectRepository(GroupMemberEntity)
@@ -66,13 +72,22 @@ export class MaterialAccessService {
   ): Promise<MaterialAccessMutationResult> {
     await this.assertActorCanMutateTarget(actor, dto.targetType, dto.targetId);
     const materialIds = await this.assertActiveMaterials(dto.materialIds);
-    const role = dto.grantedByRole ?? 'ADMIN';
+    await this.assertActorCanGrantMaterials(actor, materialIds);
+    const role =
+      dto.grantedByRole ??
+      (normalizeRole(actor?.role) === 'tutor'
+        ? 'TUTOR'
+        : normalizeRole(actor?.role) === 'teacher'
+          ? 'TEACHER'
+          : 'ADMIN');
 
     switch (dto.targetType) {
       case 'user':
         return this.grantToUser(dto.targetId, materialIds, role);
       case 'student':
         return this.grantToStudent(dto.targetId, materialIds, role);
+      case 'tutor_student':
+        return this.grantToTutorStudent(dto.targetId, materialIds, role);
       case 'group':
         return this.grantToGroup(dto.targetId, materialIds, role);
       case 'course':
@@ -88,11 +103,13 @@ export class MaterialAccessService {
   async listGrantsForMaterial(materialId: string): Promise<{
     material_id: string;
     user_ids: string[];
+    tutor_student_ids: string[];
     group_ids: string[];
     course_template_ids: string[];
     personal: Array<{
-      user_id: string;
+      user_id: string | null;
       student_id: string | null;
+      tutor_student_id: string | null;
       name: string;
       email: string;
       source: 'personal';
@@ -130,7 +147,7 @@ export class MaterialAccessService {
     const [personalRows, groupRows, courseRows] = await Promise.all([
       this.accessRepo.find({
         where: { materialId, access: true },
-        select: ['userId'],
+        select: ['userId', 'tutorStudentId'],
       }),
       this.groupGrantRepo.find({
         where: { materialId },
@@ -142,7 +159,12 @@ export class MaterialAccessService {
       }),
     ]);
 
-    const userIds = personalRows.map((row) => row.userId);
+    const userIds = personalRows
+      .map((row) => row.userId)
+      .filter((id): id is string => Boolean(id));
+    const tutorStudentIds = personalRows
+      .map((row) => row.tutorStudentId)
+      .filter((id): id is string => Boolean(id));
     const groupIds = groupRows.map((row) => row.groupId);
     const courseIds = courseRows.map((row) => row.courseTemplateId);
 
@@ -153,6 +175,12 @@ export class MaterialAccessService {
     const studentByUser = new Map(
       students.filter((row) => row.userId).map((row) => [row.userId as string, row]),
     );
+
+    const tutorStudents =
+      tutorStudentIds.length > 0
+        ? await this.tutorStudentRepo.find({ where: { id: In(tutorStudentIds) } })
+        : [];
+    const tutorStudentById = new Map(tutorStudents.map((row) => [row.id, row]));
 
     const groups =
       groupIds.length > 0
@@ -195,17 +223,30 @@ export class MaterialAccessService {
     return {
       material_id: materialId,
       user_ids: userIds,
+      tutor_student_ids: tutorStudentIds,
       group_ids: groupIds,
       course_template_ids: courseIds,
-      personal: userIds.map((userId) => {
-        const student = studentByUser.get(userId);
+      personal: personalRows.map((row) => {
+        const tutorStudent = row.tutorStudentId
+          ? tutorStudentById.get(row.tutorStudentId)
+          : undefined;
+        const student = row.userId ? studentByUser.get(row.userId) : undefined;
         return {
-          user_id: userId,
+          user_id: row.userId,
           student_id: student?.id ?? null,
-          name: student?.name || student?.email || userId,
-          email: student?.email || '',
+          tutor_student_id: row.tutorStudentId,
+          name:
+            tutorStudent?.name ||
+            student?.name ||
+            student?.email ||
+            row.userId ||
+            row.tutorStudentId ||
+            'Ученик',
+          email: tutorStudent?.email || student?.email || '',
           source: 'personal' as const,
-          label: 'Персональный доступ',
+          label: tutorStudent
+            ? 'Персональный доступ (ученик репетитора)'
+            : 'Персональный доступ',
           revocable: true as const,
         };
       }),
@@ -242,6 +283,8 @@ export class MaterialAccessService {
         return this.revokeFromUser(dto.targetId, materialIds);
       case 'student':
         return this.revokeFromStudent(dto.targetId, materialIds);
+      case 'tutor_student':
+        return this.revokeFromTutorStudent(dto.targetId, materialIds);
       case 'group':
         return this.revokeFromGroup(dto.targetId, materialIds);
       case 'course':
@@ -475,6 +518,35 @@ export class MaterialAccessService {
       }
     }
 
+    if (role === 'tutor') {
+      const owned = await this.materialRepo.find({
+        where: { createdByUserId: userId, status: 'active' },
+        select: ['id'],
+      });
+      for (const row of owned) {
+        ids.add(row.id);
+      }
+    }
+
+    if (role === 'tutor_student') {
+      const tutorStudents = await this.tutorStudentRepo.find({
+        where: { userId },
+        select: ['id'],
+      });
+      if (tutorStudents.length > 0) {
+        const viaTutorStudent = await this.accessRepo.find({
+          where: {
+            tutorStudentId: In(tutorStudents.map((row) => row.id)),
+            access: true,
+          },
+          select: ['materialId'],
+        });
+        for (const row of viaTutorStudent) {
+          ids.add(row.materialId);
+        }
+      }
+    }
+
     if (ids.size === 0) {
       return [];
     }
@@ -528,6 +600,98 @@ export class MaterialAccessService {
       throw new NotFoundException('Ученик или аккаунт ученика не найден');
     }
     return this.revokeFromUser(student.userId, materialIds);
+  }
+
+  private async grantToTutorStudent(
+    tutorStudentId: string,
+    materialIds: string[],
+    role: GrantedByRole,
+  ): Promise<MaterialAccessMutationResult> {
+    const tutorStudent = await this.tutorStudentRepo.findOne({
+      where: { id: tutorStudentId },
+    });
+    if (!tutorStudent || tutorStudent.status === 'inactive') {
+      throw new NotFoundException('Ученик репетитора не найден');
+    }
+
+    let grantedCount = 0;
+    let skippedCount = 0;
+    for (const materialId of materialIds) {
+      const existing = await this.findTutorStudentAccess(tutorStudentId, materialId);
+      if (existing?.access) {
+        if (tutorStudent.userId && existing.userId !== tutorStudent.userId) {
+          existing.userId = tutorStudent.userId;
+          await this.accessRepo.save(existing);
+        }
+        skippedCount += 1;
+        continue;
+      }
+      await this.upsertTutorStudentAccess(tutorStudent, materialId, true, role);
+      grantedCount += 1;
+    }
+
+    return {
+      success: true,
+      grantedCount,
+      revokedCount: 0,
+      skippedCount,
+      message:
+        grantedCount > 0
+          ? `Доступ выдан (${grantedCount}).`
+          : 'Доступ уже был выдан ранее.',
+    };
+  }
+
+  private async revokeFromTutorStudent(
+    tutorStudentId: string,
+    materialIds: string[],
+  ): Promise<MaterialAccessMutationResult> {
+    const tutorStudent = await this.tutorStudentRepo.findOne({
+      where: { id: tutorStudentId },
+    });
+    if (!tutorStudent) {
+      throw new NotFoundException('Ученик репетитора не найден');
+    }
+
+    let revokedCount = 0;
+    let skippedCount = 0;
+    for (const materialId of materialIds) {
+      const existing = await this.findTutorStudentAccess(tutorStudentId, materialId);
+      if (!existing?.access) {
+        skippedCount += 1;
+        continue;
+      }
+      await this.upsertTutorStudentAccess(
+        tutorStudent,
+        materialId,
+        false,
+        existing.grantedByRole,
+      );
+      revokedCount += 1;
+    }
+
+    return {
+      success: true,
+      grantedCount: 0,
+      revokedCount,
+      skippedCount,
+      message:
+        revokedCount > 0
+          ? `Доступ отозван (${revokedCount}).`
+          : 'Активный доступ не найден.',
+    };
+  }
+
+  /**
+   * After a local tutor student registers and links to a user, attach user_id
+   * on existing MaterialAccess rows so grants survive automatically.
+   */
+  async attachUserIdToTutorStudentGrants(
+    tutorStudentId: string,
+    userId: string,
+  ): Promise<number> {
+    const result = await this.accessRepo.update({ tutorStudentId }, { userId });
+    return result.affected ?? 0;
   }
 
   /**
@@ -726,6 +890,42 @@ export class MaterialAccessService {
     await this.accessRepo.save(
       this.accessRepo.create({
         userId,
+        tutorStudentId: null,
+        materialId,
+        access,
+        grantedByRole,
+      }),
+    );
+  }
+
+  private async findTutorStudentAccess(
+    tutorStudentId: string,
+    materialId: string,
+  ): Promise<MaterialAccessEntity | null> {
+    return this.accessRepo.findOne({ where: { tutorStudentId, materialId } });
+  }
+
+  private async upsertTutorStudentAccess(
+    tutorStudent: TutorStudentEntity,
+    materialId: string,
+    access: boolean,
+    grantedByRole: GrantedByRole,
+  ): Promise<void> {
+    const existing = await this.findTutorStudentAccess(tutorStudent.id, materialId);
+    if (existing) {
+      existing.access = access;
+      existing.grantedByRole = grantedByRole;
+      existing.tutorStudentId = tutorStudent.id;
+      if (tutorStudent.userId) {
+        existing.userId = tutorStudent.userId;
+      }
+      await this.accessRepo.save(existing);
+      return;
+    }
+    await this.accessRepo.save(
+      this.accessRepo.create({
+        userId: tutorStudent.userId,
+        tutorStudentId: tutorStudent.id,
         materialId,
         access,
         grantedByRole,
@@ -735,6 +935,7 @@ export class MaterialAccessService {
 
   /**
    * Teachers may only grant/revoke for their assigned students / own groups.
+   * Tutors may only grant/revoke for their own tutor_students.
    * Course-wide grants stay admin-only.
    */
   private async assertActorCanMutateTarget(
@@ -745,9 +946,48 @@ export class MaterialAccessService {
     if (!actor || normalizeRole(actor.role) === 'admin') {
       return;
     }
-    if (normalizeRole(actor.role) !== 'teacher') {
+
+    const role = normalizeRole(actor.role);
+
+    if (role === 'tutor') {
+      if (targetType === 'course' || targetType === 'group' || targetType === 'student') {
+        throw new ForbiddenException(
+          'Репетитор может выдавать доступ только своим ученикам',
+        );
+      }
+
+      const tutor = await this.tutorRepo.findOne({ where: { userId: actor.sub } });
+      if (!tutor) {
+        throw new ForbiddenException('Профиль репетитора не найден');
+      }
+
+      if (targetType === 'tutor_student') {
+        const tutorStudent = await this.tutorStudentRepo.findOne({
+          where: { id: targetId },
+        });
+        if (!tutorStudent || tutorStudent.tutorId !== tutor.id) {
+          throw new ForbiddenException('Можно выдавать доступ только своим ученикам');
+        }
+        return;
+      }
+
+      if (targetType === 'user') {
+        const tutorStudent = await this.tutorStudentRepo.findOne({
+          where: { userId: targetId, tutorId: tutor.id },
+        });
+        if (!tutorStudent) {
+          throw new ForbiddenException('Можно выдавать доступ только своим ученикам');
+        }
+        return;
+      }
+
       throw new ForbiddenException('Недостаточно прав для изменения доступа');
     }
+
+    if (role !== 'teacher') {
+      throw new ForbiddenException('Недостаточно прав для изменения доступа');
+    }
+
     const teacher = await this.teacherRepo.findOne({ where: { userId: actor.sub } });
     if (!teacher) {
       throw new ForbiddenException('Профиль преподавателя не найден');
@@ -756,6 +996,12 @@ export class MaterialAccessService {
     if (targetType === 'course') {
       throw new ForbiddenException(
         'Выдавать доступ через курс может только администратор',
+      );
+    }
+
+    if (targetType === 'tutor_student') {
+      throw new ForbiddenException(
+        'Преподаватель не может выдавать материалы ученикам репетитора',
       );
     }
 
@@ -780,6 +1026,28 @@ export class MaterialAccessService {
       if (!group || group.teacherId !== teacher.id) {
         throw new ForbiddenException('Можно выдавать доступ только своим группам');
       }
+    }
+  }
+
+  /**
+   * Tutors may grant only materials they created.
+   */
+  private async assertActorCanGrantMaterials(
+    actor: JwtPayload | undefined,
+    materialIds: string[],
+  ): Promise<void> {
+    if (!actor || normalizeRole(actor.role) === 'admin') {
+      return;
+    }
+    if (normalizeRole(actor.role) !== 'tutor') {
+      return;
+    }
+    const rows = await this.materialRepo.find({
+      where: { id: In(materialIds), status: 'active' },
+      select: ['id', 'createdByUserId'],
+    });
+    if (rows.some((row) => row.createdByUserId !== actor.sub)) {
+      throw new ForbiddenException('Можно выдавать доступ только к своим материалам');
     }
   }
 

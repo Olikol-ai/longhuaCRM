@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { CourseTemplateEntity } from '../../courses/entities/course-template.entity';
+import { UserEntity } from '../../users/entities/user.entity';
 
 @Entity('material_folders')
 export class MaterialFolderEntity {
@@ -22,6 +23,15 @@ export class MaterialFolderEntity {
   @ManyToOne(() => CourseTemplateEntity, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'course_template_id' })
   courseTemplate?: CourseTemplateEntity | null;
+
+  /** Owner of personal (non-course) folders — used for tutor isolation. */
+  @Index('IDX_MATERIAL_FOLDERS_CREATED_BY_USER')
+  @Column({ name: 'created_by_user_id', type: 'uuid', nullable: true })
+  createdByUserId: string | null;
+
+  @ManyToOne(() => UserEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'created_by_user_id' })
+  createdByUser?: UserEntity | null;
 
   @Index('IDX_MATERIAL_FOLDER_PARENT_ID')
   @Column({ name: 'parent_id', type: 'uuid', nullable: true })

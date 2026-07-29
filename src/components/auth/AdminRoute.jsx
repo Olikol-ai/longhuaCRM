@@ -22,7 +22,7 @@ export function AdminRoute({ children }) {
   return children;
 }
 
-export function TeacherRoute({ children, allowAdmin = true }) {
+export function TeacherRoute({ children, allowAdmin = true, allowTutor = false }) {
   const auth = useAuth();
   const { user } = auth;
 
@@ -31,7 +31,9 @@ export function TeacherRoute({ children, allowAdmin = true }) {
   }
 
   const allowed =
-    user.role === 'teacher' || (allowAdmin && user.role === 'admin');
+    user.role === 'teacher' ||
+    (allowTutor && user.role === 'tutor') ||
+    (allowAdmin && user.role === 'admin');
 
   if (!allowed) {
     return <Navigate to={resolveRedirect(user)} replace />;

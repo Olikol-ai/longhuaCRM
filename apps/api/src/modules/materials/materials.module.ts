@@ -6,6 +6,8 @@ import { GroupEntity } from '../groups/entities/group.entity';
 import { GroupMemberEntity } from '../groups/entities/group-member.entity';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
+import { TutorEntity } from '../tutors/entities/tutor.entity';
+import { TutorStudentEntity } from '../tutors/entities/tutor-student.entity';
 import { MaterialAccessEntity } from './entities/material-access.entity';
 import { MaterialCourseGrantEntity } from './entities/material-course-grant.entity';
 import { MaterialFolderEntity } from './entities/material-folder.entity';
@@ -29,6 +31,8 @@ import { MaterialAccessService } from './material-access.service';
       MaterialLinkEntity,
       StudentEntity,
       TeacherEntity,
+      TutorEntity,
+      TutorStudentEntity,
       GroupEntity,
       GroupMemberEntity,
       EnrollmentEntity,
