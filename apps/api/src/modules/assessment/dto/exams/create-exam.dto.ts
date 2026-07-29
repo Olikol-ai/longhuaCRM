@@ -98,6 +98,17 @@ export class ExamPartPoolItemDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUID()
+  reading_task_id?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  listening_task_id?: string;
+
+  /** @deprecated Prefer reading_task_id / listening_task_id */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
   content_task_id?: string;
 }
 

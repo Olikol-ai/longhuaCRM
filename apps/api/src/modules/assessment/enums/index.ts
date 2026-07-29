@@ -1,5 +1,5 @@
 export { ContentLifecycleStatus, isActiveContentStatus } from './content-lifecycle-status.enum';
-export { QuestionType, AUTHORING_ATOMIC_QUESTION_TYPES } from './question-type.enum';
+export { QuestionType, AUTHORING_ATOMIC_QUESTION_TYPES, LEGACY_BANK_CONTENT_TYPES } from './question-type.enum';
 export { AttemptStatus } from './attempt-status.enum';
 export { SubmitReason } from './submit-reason.enum';
 export { AssignmentStatus } from './assignment-status.enum';

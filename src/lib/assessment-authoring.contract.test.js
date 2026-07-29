@@ -51,8 +51,26 @@ describe('Assessment authoring access', () => {
     assert.match(questions, /Экспорт/);
     assert.match(questions, /Импорт/);
     assert.match(questions, /createQuestion/);
-    assert.match(questions, /listContentTasks|ContentTaskFormDialog/);
+    assert.match(questions, /ReadingTaskEditor|ListeningTaskEditor/);
+    assert.doesNotMatch(questions, /listQuestions\(\{\s*status:\s*'published'[\s\S]*ContentTask/);
+    assert.doesNotMatch(questions, /listContentTasks/);
+    assert.doesNotMatch(questions, /ContentTaskFormDialog/);
     assert.doesNotMatch(questions, /bank_id/);
     assert.doesNotMatch(questions, /AssessmentBanks/);
+  });
+
+  it('Reading/Listening editors create nested questions without bank listQuestions', () => {
+    const reading = readFileSync(
+      join(root, 'src/components/assessment/ReadingTaskEditor.jsx'),
+      'utf8',
+    );
+    const listening = readFileSync(
+      join(root, 'src/components/assessment/ListeningTaskEditor.jsx'),
+      'utf8',
+    );
+    assert.match(reading, /createReadingTask|updateReadingTask/);
+    assert.match(listening, /createListeningTask|updateListeningTask/);
+    assert.doesNotMatch(reading, /api\.assessment\.listQuestions/);
+    assert.doesNotMatch(listening, /api\.assessment\.listQuestions/);
   });
 });

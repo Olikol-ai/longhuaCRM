@@ -10,8 +10,10 @@ const root = join(__dirname, '../..');
 describe('Exam generation and legacy ExamBlocks contract', () => {
   it('creates exams from generation parts in UI', () => {
     const api = readFileSync(join(root, 'src/api/assessment.api.js'), 'utf8');
-    assert.match(api, /listContentTasks/);
+    assert.match(api, /listReadingTasks/);
+    assert.match(api, /listListeningTasks/);
     assert.match(api, /createExam/);
+    assert.doesNotMatch(api, /listContentTasks/);
     assert.doesNotMatch(api, /exam-templates/);
     assert.doesNotMatch(api, /\/assessment\/blueprints/);
 
@@ -21,7 +23,9 @@ describe('Exam generation and legacy ExamBlocks contract', () => {
     );
     assert.match(dialog, /parts/);
     assert.match(dialog, /select_count/);
-    assert.match(dialog, /listContentTasks/);
+    assert.match(dialog, /listReadingTasks/);
+    assert.match(dialog, /listListeningTasks/);
+    assert.doesNotMatch(dialog, /listContentTasks/);
     assert.doesNotMatch(dialog, /block_ids/);
     assert.doesNotMatch(dialog, /blueprint/);
   });
@@ -63,7 +67,8 @@ describe('Exam generation and legacy ExamBlocks contract', () => {
       'utf8',
     );
     assert.match(moduleSrc, /AssessmentExamBlocksController/);
-    assert.match(moduleSrc, /AssessmentContentTasksController/);
+    assert.match(moduleSrc, /AssessmentReadingTasksController/);
+    assert.match(moduleSrc, /AssessmentListeningTasksController/);
     assert.doesNotMatch(moduleSrc, /AssessmentBanksController/);
     assert.doesNotMatch(moduleSrc, /BlueprintsController/);
     assert.doesNotMatch(moduleSrc, /ExamTemplatesController/);

@@ -22,6 +22,12 @@ import { AssessmentContentTaskEntity } from './assessment-content-task.entity';
 import { AssessmentContentTaskQuestionEntity } from './assessment-content-task-question.entity';
 import { AssessmentExamPartEntity } from './assessment-exam-part.entity';
 import { AssessmentExamPartPoolItemEntity } from './assessment-exam-part-pool-item.entity';
+import { AssessmentReadingTaskEntity } from './assessment-reading-task.entity';
+import { AssessmentReadingQuestionEntity } from './assessment-reading-question.entity';
+import { AssessmentReadingQuestionAnswerEntity } from './assessment-reading-question-answer.entity';
+import { AssessmentListeningTaskEntity } from './assessment-listening-task.entity';
+import { AssessmentListeningQuestionEntity } from './assessment-listening-question.entity';
+import { AssessmentListeningQuestionAnswerEntity } from './assessment-listening-question-answer.entity';
 
 /** All Assessment TypeORM entities for module / registry registration. */
 export const ASSESSMENT_ENTITIES = [
@@ -32,6 +38,12 @@ export const ASSESSMENT_ENTITIES = [
   AssessmentQuestionAttachmentEntity,
   AssessmentContentTaskEntity,
   AssessmentContentTaskQuestionEntity,
+  AssessmentReadingTaskEntity,
+  AssessmentReadingQuestionEntity,
+  AssessmentReadingQuestionAnswerEntity,
+  AssessmentListeningTaskEntity,
+  AssessmentListeningQuestionEntity,
+  AssessmentListeningQuestionAnswerEntity,
   AssessmentExamBlockEntity,
   AssessmentExamBlockItemEntity,
   AssessmentExamEntity,
@@ -59,6 +71,12 @@ export {
   AssessmentQuestionAttachmentEntity,
   AssessmentContentTaskEntity,
   AssessmentContentTaskQuestionEntity,
+  AssessmentReadingTaskEntity,
+  AssessmentReadingQuestionEntity,
+  AssessmentReadingQuestionAnswerEntity,
+  AssessmentListeningTaskEntity,
+  AssessmentListeningQuestionEntity,
+  AssessmentListeningQuestionAnswerEntity,
   AssessmentExamBlockEntity,
   AssessmentExamBlockItemEntity,
   AssessmentExamEntity,

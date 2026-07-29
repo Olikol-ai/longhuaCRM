@@ -25,7 +25,8 @@ describe('ExamService create from blocks', () => {
 
   const parts = { save: jest.fn(), delete: jest.fn(), create: jest.fn() };
   const poolItems = { save: jest.fn(), delete: jest.fn(), create: jest.fn() };
-  const contentTasks = {};
+  const readingTasks = {};
+  const listeningTasks = {};
 
   const service = new ExamService(
     exams as never,
@@ -34,7 +35,8 @@ describe('ExamService create from blocks', () => {
     assignments as never,
     parts as never,
     poolItems as never,
-    contentTasks as never,
+    readingTasks as never,
+    listeningTasks as never,
     new AssessmentContentGuard(),
     access as never,
     journal as never,

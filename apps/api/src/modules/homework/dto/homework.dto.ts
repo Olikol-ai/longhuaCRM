@@ -84,6 +84,15 @@ export class HomeworkTaskDto {
 
   @IsOptional()
   @IsUUID()
+  reading_task_id?: string;
+
+  @IsOptional()
+  @IsUUID()
+  listening_task_id?: string;
+
+  /** @deprecated Prefer reading_task_id / listening_task_id */
+  @IsOptional()
+  @IsUUID()
   content_task_id?: string;
 
   @IsOptional()

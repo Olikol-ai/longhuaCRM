@@ -67,6 +67,7 @@ describe('AttemptService', () => {
     new AssessmentContentGuard(),
     participants,
     access as never,
+    { findOne: jest.fn() } as never,
   );
 
   beforeEach(() => {

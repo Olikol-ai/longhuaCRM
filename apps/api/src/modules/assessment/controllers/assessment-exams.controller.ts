@@ -73,6 +73,8 @@ export class AssessmentExamsController {
           selectCount: part.select_count,
           pool: part.pool.map((item) => ({
             questionId: item.question_id,
+            readingTaskId: item.reading_task_id,
+            listeningTaskId: item.listening_task_id,
             contentTaskId: item.content_task_id,
           })),
         })),

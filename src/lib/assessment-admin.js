@@ -16,7 +16,7 @@ export const QUESTION_TYPE_LABEL = {
   reading: 'Чтение (legacy)',
 };
 
-/** Atomic types for new authoring; Listening/Reading are content_tasks. */
+/** Atomic types for Test bank and nested Reading/Listening questions. */
 export const QUESTION_TYPES = [
   'single_choice',
   'multiple_choice',
@@ -27,6 +27,7 @@ export const QUESTION_TYPES = [
 export const CONTENT_TASK_TYPE_LABEL = {
   listening: 'Аудирование',
   reading: 'Чтение',
+  test: 'Тест',
 };
 
 export const ATTACHMENT_KIND_LABEL = {

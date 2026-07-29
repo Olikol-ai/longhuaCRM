@@ -85,8 +85,12 @@ export default function AssessmentExamDetail() {
           select_count: part.select_count,
           pool_size: (part.pool_items || []).length,
           questions: (part.pool_items || []).map((item) => ({
-            id: item.question_id || item.content_task_id || item.id,
-            stem: item.question?.stem || item.content_task?.title || 'Элемент пула',
+            id: item.question_id || item.reading_task_id || item.listening_task_id || item.id,
+            stem:
+              item.question?.stem ||
+              item.reading_task?.title ||
+              item.listening_task?.title ||
+              'Элемент пула',
             type: item.question?.type || part.part_kind,
           })),
         }));

@@ -9,13 +9,14 @@ import {
 } from 'typeorm';
 import { AssessmentQuestionEntity } from '../../assessment/entities/assessment-question.entity';
 import { AssessmentContentTaskEntity } from '../../assessment/entities/assessment-content-task.entity';
+import { AssessmentReadingTaskEntity } from '../../assessment/entities/assessment-reading-task.entity';
+import { AssessmentListeningTaskEntity } from '../../assessment/entities/assessment-listening-task.entity';
 import { HomeworkEntity } from './homework.entity';
 
 export type HomeworkTaskKind = 'question' | 'listening' | 'reading';
 
 /**
- * Homework composition entry: atomic question or Listening/Reading container.
- * Expanded into attempt snapshots at start (containers → nested questions).
+ * Homework composition: atomic TestQuestion or Reading/Listening task container.
  */
 @Entity('homework_tasks')
 export class HomeworkTaskEntity {
@@ -46,6 +47,21 @@ export class HomeworkTaskEntity {
   @JoinColumn({ name: 'question_id' })
   question?: AssessmentQuestionEntity | null;
 
+  @Column({ name: 'reading_task_id', type: 'uuid', nullable: true })
+  readingTaskId: string | null;
+
+  @ManyToOne(() => AssessmentReadingTaskEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'reading_task_id' })
+  readingTask?: AssessmentReadingTaskEntity | null;
+
+  @Column({ name: 'listening_task_id', type: 'uuid', nullable: true })
+  listeningTaskId: string | null;
+
+  @ManyToOne(() => AssessmentListeningTaskEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'listening_task_id' })
+  listeningTask?: AssessmentListeningTaskEntity | null;
+
+  /** @deprecated Prefer reading_task_id / listening_task_id */
   @Column({ name: 'content_task_id', type: 'uuid', nullable: true })
   contentTaskId: string | null;
 

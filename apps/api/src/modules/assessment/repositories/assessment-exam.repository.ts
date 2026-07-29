@@ -54,10 +54,12 @@ export class AssessmentExamRepository {
         'parts.poolItems',
         'parts.poolItems.question',
         'parts.poolItems.question.answers',
-        'parts.poolItems.contentTask',
-        'parts.poolItems.contentTask.questions',
-        'parts.poolItems.contentTask.questions.question',
-        'parts.poolItems.contentTask.questions.question.answers',
+        'parts.poolItems.readingTask',
+        'parts.poolItems.readingTask.questions',
+        'parts.poolItems.readingTask.questions.answers',
+        'parts.poolItems.listeningTask',
+        'parts.poolItems.listeningTask.questions',
+        'parts.poolItems.listeningTask.questions.answers',
       ],
     });
   }

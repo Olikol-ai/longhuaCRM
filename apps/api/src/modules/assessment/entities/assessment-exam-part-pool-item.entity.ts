@@ -8,8 +8,10 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { AssessmentQuestionEntity } from './assessment-question.entity';
-import { AssessmentContentTaskEntity } from './assessment-content-task.entity';
 import { AssessmentExamPartEntity } from './assessment-exam-part.entity';
+import { AssessmentReadingTaskEntity } from './assessment-reading-task.entity';
+import { AssessmentListeningTaskEntity } from './assessment-listening-task.entity';
+import { AssessmentContentTaskEntity } from './assessment-content-task.entity';
 
 @Entity('assessment_exam_part_pool_items')
 export class AssessmentExamPartPoolItemEntity {
@@ -27,7 +29,6 @@ export class AssessmentExamPartPoolItemEntity {
   @JoinColumn({ name: 'part_id' })
   part?: AssessmentExamPartEntity;
 
-  /** Atomic question for test parts. */
   @Column({ name: 'question_id', type: 'uuid', nullable: true })
   questionId: string | null;
 
@@ -35,7 +36,21 @@ export class AssessmentExamPartPoolItemEntity {
   @JoinColumn({ name: 'question_id' })
   question?: AssessmentQuestionEntity | null;
 
-  /** Listening/Reading container for listening/reading parts. */
+  @Column({ name: 'reading_task_id', type: 'uuid', nullable: true })
+  readingTaskId: string | null;
+
+  @ManyToOne(() => AssessmentReadingTaskEntity, { nullable: true, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'reading_task_id' })
+  readingTask?: AssessmentReadingTaskEntity | null;
+
+  @Column({ name: 'listening_task_id', type: 'uuid', nullable: true })
+  listeningTaskId: string | null;
+
+  @ManyToOne(() => AssessmentListeningTaskEntity, { nullable: true, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'listening_task_id' })
+  listeningTask?: AssessmentListeningTaskEntity | null;
+
+  /** @deprecated Migrated to reading_task_id / listening_task_id */
   @Column({ name: 'content_task_id', type: 'uuid', nullable: true })
   contentTaskId: string | null;
 

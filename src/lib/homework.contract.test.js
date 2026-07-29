@@ -37,7 +37,9 @@ describe('Homework module architecture', () => {
     assert.match(dto, /task_kind/);
     assert.match(editor, /Добавить тест/);
     assert.match(editor, /listQuestions/);
-    assert.match(editor, /listContentTasks/);
+    assert.match(editor, /listReadingTasks/);
+    assert.match(editor, /listListeningTasks/);
+    assert.doesNotMatch(editor, /listContentTasks/);
     assert.doesNotMatch(editor, /ExamBlock/);
   });
 

@@ -42,8 +42,9 @@ import {
   HomeworkResultEntity,
   HomeworkTaskEntity,
 } from '../entities';
-import { AssessmentContentTaskEntity } from '../../assessment/entities/assessment-content-task.entity';
+import { AssessmentListeningTaskEntity } from '../../assessment/entities/assessment-listening-task.entity';
 import { AssessmentQuestionEntity } from '../../assessment/entities/assessment-question.entity';
+import { AssessmentReadingTaskEntity } from '../../assessment/entities/assessment-reading-task.entity';
 import { HomeworkNotifierService } from './homework-notifier.service';
 
 type HomeworkOwnerType = 'teacher' | 'tutor';
@@ -101,8 +102,10 @@ export class HomeworkService {
     private readonly homeworkTasks: Repository<HomeworkTaskEntity>,
     @InjectRepository(AssessmentQuestionEntity)
     private readonly assessmentQuestions: Repository<AssessmentQuestionEntity>,
-    @InjectRepository(AssessmentContentTaskEntity)
-    private readonly contentTasks: Repository<AssessmentContentTaskEntity>,
+    @InjectRepository(AssessmentReadingTaskEntity)
+    private readonly readingTasks: Repository<AssessmentReadingTaskEntity>,
+    @InjectRepository(AssessmentListeningTaskEntity)
+    private readonly listeningTasks: Repository<AssessmentListeningTaskEntity>,
     @InjectRepository(TeacherEntity)
     private readonly teachers: Repository<TeacherEntity>,
     @InjectRepository(StudentEntity)
@@ -134,7 +137,8 @@ export class HomeworkService {
         'items.answers',
         'tasks',
         'tasks.question',
-        'tasks.contentTask',
+        'tasks.readingTask',
+        'tasks.listeningTask',
       ],
     });
     if (!hw) throw new NotFoundException('Homework not found');
@@ -154,17 +158,25 @@ export class HomeworkService {
           task_kind: task.taskKind,
           sort_order: task.sortOrder,
           question_id: task.questionId,
+          reading_task_id: task.readingTaskId,
+          listening_task_id: task.listeningTaskId,
           content_task_id: task.contentTaskId,
           points: task.points != null ? Number(task.points) : null,
           question: task.question
             ? { id: task.question.id, type: task.question.type, stem: task.question.stem }
             : null,
-          content_task: task.contentTask
+          reading_task: task.readingTask
             ? {
-                id: task.contentTask.id,
-                task_type: task.contentTask.taskType,
-                title: task.contentTask.title,
-                status: task.contentTask.status,
+                id: task.readingTask.id,
+                title: task.readingTask.title,
+                status: task.readingTask.status,
+              }
+            : null,
+          listening_task: task.listeningTask
+            ? {
+                id: task.listeningTask.id,
+                title: task.listeningTask.title,
+                status: task.listeningTask.status,
               }
             : null,
         })),
@@ -972,22 +984,58 @@ export class HomeworkService {
         if (q.createdByUserId && q.createdByUserId !== user.sub && user.role !== 'admin') {
           throw new ForbiddenException('Cannot use another author question');
         }
+      } else if (task.task_kind === 'reading') {
+        const readingTaskId = task.reading_task_id ?? task.content_task_id;
+        if (!readingTaskId) {
+          throw new BadRequestException('reading task requires reading_task_id');
+        }
+        const rt = await this.readingTasks.findOne({ where: { id: readingTaskId } });
+        if (!rt) {
+          throw new BadRequestException(`Reading task ${readingTaskId} not found`);
+        }
+        if (rt.createdByUserId && rt.createdByUserId !== user.sub && user.role !== 'admin') {
+          throw new ForbiddenException('Cannot use another author reading task');
+        }
+        await this.homeworkTasks.save(
+          this.homeworkTasks.create({
+            homeworkId,
+            taskKind: task.task_kind,
+            sortOrder: task.sort_order ?? idx,
+            questionId: null,
+            readingTaskId,
+            listeningTaskId: null,
+            contentTaskId: null,
+            points: task.points != null ? String(task.points) : null,
+          }),
+        );
+        continue;
+      } else if (task.task_kind === 'listening') {
+        const listeningTaskId = task.listening_task_id ?? task.content_task_id;
+        if (!listeningTaskId) {
+          throw new BadRequestException('listening task requires listening_task_id');
+        }
+        const lt = await this.listeningTasks.findOne({ where: { id: listeningTaskId } });
+        if (!lt) {
+          throw new BadRequestException(`Listening task ${listeningTaskId} not found`);
+        }
+        if (lt.createdByUserId && lt.createdByUserId !== user.sub && user.role !== 'admin') {
+          throw new ForbiddenException('Cannot use another author listening task');
+        }
+        await this.homeworkTasks.save(
+          this.homeworkTasks.create({
+            homeworkId,
+            taskKind: task.task_kind,
+            sortOrder: task.sort_order ?? idx,
+            questionId: null,
+            readingTaskId: null,
+            listeningTaskId,
+            contentTaskId: null,
+            points: task.points != null ? String(task.points) : null,
+          }),
+        );
+        continue;
       } else {
-        if (!task.content_task_id) {
-          throw new BadRequestException(`${task.task_kind} task requires content_task_id`);
-        }
-        const ct = await this.contentTasks.findOne({
-          where: { id: task.content_task_id },
-        });
-        if (!ct) {
-          throw new BadRequestException(`Content task ${task.content_task_id} not found`);
-        }
-        if (ct.createdByUserId && ct.createdByUserId !== user.sub && user.role !== 'admin') {
-          throw new ForbiddenException('Cannot use another author content task');
-        }
-        if (ct.taskType !== task.task_kind) {
-          throw new BadRequestException('content_task type mismatch');
-        }
+        throw new BadRequestException(`Unknown task_kind: ${task.task_kind}`);
       }
       await this.homeworkTasks.save(
         this.homeworkTasks.create({
@@ -995,7 +1043,9 @@ export class HomeworkService {
           taskKind: task.task_kind,
           sortOrder: task.sort_order ?? idx,
           questionId: task.question_id ?? null,
-          contentTaskId: task.content_task_id ?? null,
+          readingTaskId: null,
+          listeningTaskId: null,
+          contentTaskId: null,
           points: task.points != null ? String(task.points) : null,
         }),
       );
@@ -1010,10 +1060,12 @@ export class HomeworkService {
       relations: [
         'question',
         'question.answers',
-        'contentTask',
-        'contentTask.questions',
-        'contentTask.questions.question',
-        'contentTask.questions.question.answers',
+        'readingTask',
+        'readingTask.questions',
+        'readingTask.questions.answers',
+        'listeningTask',
+        'listeningTask.questions',
+        'listeningTask.questions.answers',
       ],
     });
     if (!tasks.length) return;
@@ -1038,27 +1090,47 @@ export class HomeworkService {
         });
         continue;
       }
-      const ct = task.contentTask;
-      if (!ct) continue;
-      const nested = [...(ct.questions ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
-      for (const link of nested) {
-        const q = link.question;
-        if (!q) continue;
-        items.push({
-          type: q.type as QuestionType,
-          stem: q.stem,
-          points: Number(q.points),
-          difficulty: q.difficulty,
-          explanation: q.explanation ?? undefined,
-          section_key: ct.taskType,
-          passage_text: ct.taskType === 'reading' ? ct.textContent ?? undefined : undefined,
-          source_question_id: q.id,
-          answers: (q.answers ?? []).map((a) => ({
-            text: a.text,
-            is_correct: a.isCorrect,
-            sort_order: a.sortOrder,
-          })),
-        });
+      if (task.taskKind === 'reading' && task.readingTask) {
+        const rt = task.readingTask;
+        const nested = [...(rt.questions ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
+        for (const q of nested) {
+          items.push({
+            type: q.type as QuestionType,
+            stem: q.stem,
+            points: Number(q.points),
+            difficulty: 1,
+            explanation: q.explanation ?? undefined,
+            section_key: 'reading',
+            passage_text: rt.textContent ?? undefined,
+            source_question_id: q.id,
+            answers: (q.answers ?? []).map((a) => ({
+              text: a.text,
+              is_correct: a.isCorrect,
+              sort_order: a.sortOrder,
+            })),
+          });
+        }
+        continue;
+      }
+      if (task.taskKind === 'listening' && task.listeningTask) {
+        const lt = task.listeningTask;
+        const nested = [...(lt.questions ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
+        for (const q of nested) {
+          items.push({
+            type: q.type as QuestionType,
+            stem: q.stem,
+            points: Number(q.points),
+            difficulty: 1,
+            explanation: q.explanation ?? undefined,
+            section_key: 'listening',
+            source_question_id: q.id,
+            answers: (q.answers ?? []).map((a) => ({
+              text: a.text,
+              is_correct: a.isCorrect,
+              sort_order: a.sortOrder,
+            })),
+          });
+        }
       }
     }
     if (items.length) {

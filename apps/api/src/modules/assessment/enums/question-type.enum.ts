@@ -13,10 +13,16 @@ export enum QuestionType {
   Matching = 'matching',
 }
 
-/** Types allowed in new authoring UI (Listening/Reading live as content_tasks). */
+/** Types allowed in the Test bank and nested Reading/Listening questions. */
 export const AUTHORING_ATOMIC_QUESTION_TYPES: ReadonlySet<QuestionType> = new Set([
   QuestionType.SingleChoice,
   QuestionType.MultipleChoice,
   QuestionType.ShortText,
   QuestionType.Translation,
+]);
+
+/** Legacy bank types — archived; use ReadingTask / ListeningTask instead. */
+export const LEGACY_BANK_CONTENT_TYPES: ReadonlySet<QuestionType> = new Set([
+  QuestionType.Reading,
+  QuestionType.Listening,
 ]);

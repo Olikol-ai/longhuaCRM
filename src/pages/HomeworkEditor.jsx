@@ -27,7 +27,8 @@ function emptyTask(kind = 'question') {
     localKey: `task-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     task_kind: kind,
     question_id: '',
-    content_task_id: '',
+    reading_task_id: '',
+    listening_task_id: '',
     points: '',
   };
 }
@@ -39,7 +40,8 @@ export default function HomeworkEditor() {
   const [loading, setLoading] = useState(Boolean(id));
   const [saving, setSaving] = useState(false);
   const [libraryQuestions, setLibraryQuestions] = useState([]);
-  const [libraryTasks, setLibraryTasks] = useState([]);
+  const [libraryReading, setLibraryReading] = useState([]);
+  const [libraryListening, setLibraryListening] = useState([]);
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -52,16 +54,20 @@ export default function HomeworkEditor() {
   useEffect(() => {
     Promise.all([
       api.assessment.listQuestions({ status: 'published', limit: 500 }),
-      api.assessment.listContentTasks(),
+      api.assessment.listReadingTasks(),
+      api.assessment.listListeningTasks(),
     ])
-      .then(([qs, tasks]) => {
+      .then(([qs, reading, listening]) => {
         setLibraryQuestions(unwrapItems(qs));
-        const list = Array.isArray(tasks) ? tasks : unwrapItems(tasks);
-        setLibraryTasks(list.filter((t) => t.status === 'published'));
+        const r = Array.isArray(reading) ? reading : unwrapItems(reading);
+        const l = Array.isArray(listening) ? listening : unwrapItems(listening);
+        setLibraryReading(r.filter((t) => t.status === 'published'));
+        setLibraryListening(l.filter((t) => t.status === 'published'));
       })
       .catch(() => {
         setLibraryQuestions([]);
-        setLibraryTasks([]);
+        setLibraryReading([]);
+        setLibraryListening([]);
       });
   }, []);
 
@@ -77,7 +83,8 @@ export default function HomeworkEditor() {
           localKey: task.id || `existing-${idx}`,
           task_kind: task.task_kind,
           question_id: task.question_id || '',
-          content_task_id: task.content_task_id || '',
+          reading_task_id: task.reading_task_id || '',
+          listening_task_id: task.listening_task_id || '',
           points: task.points ?? '',
         }));
         setForm({
@@ -136,9 +143,17 @@ export default function HomeworkEditor() {
           points: task.points !== '' ? Number(task.points) : undefined,
         };
       }
+      if (task.task_kind === 'reading') {
+        return {
+          task_kind: 'reading',
+          reading_task_id: task.reading_task_id,
+          sort_order: idx,
+          points: task.points !== '' ? Number(task.points) : undefined,
+        };
+      }
       return {
-        task_kind: task.task_kind,
-        content_task_id: task.content_task_id,
+        task_kind: 'listening',
+        listening_task_id: task.listening_task_id,
         sort_order: idx,
         points: task.points !== '' ? Number(task.points) : undefined,
       };
@@ -162,10 +177,18 @@ export default function HomeworkEditor() {
         });
         return;
       }
-      if (task.task_kind !== 'question' && !task.content_task_id) {
+      if (task.task_kind === 'reading' && !task.reading_task_id) {
         toast({
           title: `Задача ${index + 1}`,
-          description: 'Выберите аудирование или чтение',
+          description: 'Выберите задачу чтения',
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (task.task_kind === 'listening' && !task.listening_task_id) {
+        toast({
+          title: `Задача ${index + 1}`,
+          description: 'Выберите задачу аудирования',
           variant: 'destructive',
         });
         return;
@@ -215,8 +238,8 @@ export default function HomeworkEditor() {
     );
   }
 
-  const listeningOptions = libraryTasks.filter((t) => t.task_type === 'listening');
-  const readingOptions = libraryTasks.filter((t) => t.task_type === 'reading');
+  const listeningOptions = libraryListening;
+  const readingOptions = libraryReading;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-6" data-testid="homework-editor">
@@ -359,8 +382,19 @@ export default function HomeworkEditor() {
                   {CONTENT_TASK_TYPE_LABEL[task.task_kind]}
                 </label>
                 <select
-                  value={task.content_task_id}
-                  onChange={(e) => updateTask(task.localKey, { content_task_id: e.target.value })}
+                  value={
+                    task.task_kind === 'listening'
+                      ? task.listening_task_id
+                      : task.reading_task_id
+                  }
+                  onChange={(e) =>
+                    updateTask(
+                      task.localKey,
+                      task.task_kind === 'listening'
+                        ? { listening_task_id: e.target.value }
+                        : { reading_task_id: e.target.value },
+                    )
+                  }
                   className="w-full px-3 py-2 text-sm border rounded-lg"
                 >
                   <option value="">Выберите…</option>

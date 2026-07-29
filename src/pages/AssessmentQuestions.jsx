@@ -16,9 +16,10 @@ import {
   Upload,
 } from 'lucide-react';
 import { api } from '@/api';
-import ContentTaskFormDialog from '@/components/assessment/ContentTaskFormDialog';
+import ListeningTaskEditor from '@/components/assessment/ListeningTaskEditor';
 import LifecycleBadge from '@/components/assessment/LifecycleBadge';
 import QuestionFormDialog from '@/components/assessment/QuestionFormDialog';
+import ReadingTaskEditor from '@/components/assessment/ReadingTaskEditor';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -84,7 +85,10 @@ export default function AssessmentQuestions() {
     setTasksLoading(true);
     setTasksError(null);
     try {
-      const rows = await api.assessment.listContentTasks({ task_type: tab });
+      const rows =
+        tab === 'reading'
+          ? await api.assessment.listReadingTasks()
+          : await api.assessment.listListeningTasks();
       setContentTasks(Array.isArray(rows) ? rows : unwrapItems(rows));
     } catch (err) {
       setTasksError(err);
@@ -177,12 +181,15 @@ export default function AssessmentQuestions() {
         }
       } else if (action.task) {
         const { task, type: actionType } = action;
+        const isReading = tab === 'reading';
         if (actionType === 'publish') {
-          await api.assessment.publishContentTask(task.id);
+          if (isReading) await api.assessment.publishReadingTask(task.id);
+          else await api.assessment.publishListeningTask(task.id);
           toast({ title: 'Задача опубликована' });
           await loadContentTasks();
         } else if (actionType === 'delete') {
-          await api.assessment.deleteContentTask(task.id);
+          if (isReading) await api.assessment.deleteReadingTask(task.id);
+          else await api.assessment.deleteListeningTask(task.id);
           toast({ title: 'Задача удалена' });
           await loadContentTasks();
         }
@@ -670,10 +677,23 @@ export default function AssessmentQuestions() {
         }}
       />
 
-      <ContentTaskFormDialog
-        open={taskDialogOpen}
-        onOpenChange={setTaskDialogOpen}
-        taskType={taskDialogType}
+      <ReadingTaskEditor
+        open={taskDialogOpen && taskDialogType === 'reading'}
+        onOpenChange={(open) => {
+          if (!open) setTaskDialogOpen(false);
+        }}
+        editing={editingTask}
+        onSaved={() => {
+          toast({ title: editingTask ? 'Задача обновлена' : 'Задача создана' });
+          void loadContentTasks();
+        }}
+      />
+
+      <ListeningTaskEditor
+        open={taskDialogOpen && taskDialogType === 'listening'}
+        onOpenChange={(open) => {
+          if (!open) setTaskDialogOpen(false);
+        }}
         editing={editingTask}
         onSaved={() => {
           toast({ title: editingTask ? 'Задача обновлена' : 'Задача создана' });

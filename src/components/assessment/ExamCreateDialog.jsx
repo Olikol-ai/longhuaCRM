@@ -46,7 +46,8 @@ export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
   const [maxAttempts, setMaxAttempts] = useState(String(DEFAULT_EXAM_RULE.max_attempts));
   const [parts, setParts] = useState([emptyPart('test')]);
   const [questions, setQuestions] = useState([]);
-  const [contentTasks, setContentTasks] = useState([]);
+  const [readingTasks, setReadingTasks] = useState([]);
+  const [listeningTasks, setListeningTasks] = useState([]);
   const [loadingMeta, setLoadingMeta] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -62,12 +63,15 @@ export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
     setLoadingMeta(true);
     Promise.all([
       api.assessment.listQuestions({ status: 'published', limit: 500 }),
-      api.assessment.listContentTasks(),
+      api.assessment.listReadingTasks(),
+      api.assessment.listListeningTasks(),
     ])
-      .then(([qs, tasks]) => {
+      .then(([qs, reading, listening]) => {
         setQuestions(unwrapItems(qs));
-        const list = Array.isArray(tasks) ? tasks : unwrapItems(tasks);
-        setContentTasks(list.filter((t) => t.status === 'published'));
+        const r = Array.isArray(reading) ? reading : unwrapItems(reading);
+        const l = Array.isArray(listening) ? listening : unwrapItems(listening);
+        setReadingTasks(r.filter((t) => t.status === 'published'));
+        setListeningTasks(l.filter((t) => t.status === 'published'));
       })
       .catch((err) => setError(err?.message || 'Не удалось загрузить пулы'))
       .finally(() => setLoadingMeta(false));
@@ -79,14 +83,10 @@ export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
         id: q.id,
         label: `${QUESTION_TYPE_LABEL[q.type] || q.type}: ${q.stem}`,
       })),
-      listening: contentTasks
-        .filter((t) => t.task_type === 'listening')
-        .map((t) => ({ id: t.id, label: t.title })),
-      reading: contentTasks
-        .filter((t) => t.task_type === 'reading')
-        .map((t) => ({ id: t.id, label: t.title })),
+      listening: listeningTasks.map((t) => ({ id: t.id, label: t.title })),
+      reading: readingTasks.map((t) => ({ id: t.id, label: t.title })),
     };
-  }, [questions, contentTasks]);
+  }, [questions, readingTasks, listeningTasks]);
 
   const updatePart = (localKey, patch) => {
     setParts((prev) =>
@@ -134,11 +134,11 @@ export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
           part_kind: part.part_kind,
           title: part.title,
           select_count: Math.max(1, Number(part.select_count) || 1),
-          pool: part.pool_ids.map((id) =>
-            part.part_kind === 'test'
-              ? { question_id: id }
-              : { content_task_id: id },
-          ),
+          pool: part.pool_ids.map((id) => {
+            if (part.part_kind === 'test') return { question_id: id };
+            if (part.part_kind === 'reading') return { reading_task_id: id };
+            return { listening_task_id: id };
+          }),
         })),
         rule: {
           ...DEFAULT_EXAM_RULE,

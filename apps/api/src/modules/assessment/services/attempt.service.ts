@@ -4,12 +4,15 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { AssessmentAccessService } from '../../../common/access/assessment-access.service';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
 import {
   AssessmentAnswerSnapshotEntity,
   AssessmentAttemptEntity,
   AssessmentExamEntity,
+  AssessmentListeningQuestionEntity,
   AssessmentQuestionSnapshotEntity,
   AssessmentResultEntity,
 } from '../entities';
@@ -140,6 +143,8 @@ export class AttemptService {
     private readonly guard: AssessmentContentGuard,
     private readonly participants: AssessmentParticipantResolver,
     private readonly access: AssessmentAccessService,
+    @InjectRepository(AssessmentListeningQuestionEntity)
+    private readonly listeningQuestions: Repository<AssessmentListeningQuestionEntity>,
   ) {}
 
   findById(id: string): Promise<AssessmentAttemptEntity | null> {
@@ -234,6 +239,20 @@ export class AttemptService {
           kind: a.kind,
           url: null,
         }));
+        if (attachments.length === 0 && qSnap.sectionKey === 'listening') {
+          const lq = await this.listeningQuestions.findOne({
+            where: { id: qSnap.sourceQuestionId },
+          });
+          if (lq) {
+            attachments = [
+              {
+                id: lq.listeningTaskId,
+                kind: 'audio',
+                url: `/api/assessment/listening-tasks/${lq.listeningTaskId}/audio`,
+              },
+            ];
+          }
+        }
       }
 
       section.questions.push({
@@ -682,18 +701,28 @@ export class AttemptService {
           continue;
         }
 
-        const task = item.contentTask;
+        const task =
+          part.partKind === 'reading'
+            ? item.readingTask
+            : part.partKind === 'listening'
+              ? item.listeningTask
+              : null;
         if (!task) {
-          throw new ConflictException(`Pool item missing content task for part ${part.id}`);
+          throw new ConflictException(
+            `Pool item missing ${part.partKind} task for part ${part.id}`,
+          );
         }
         const nested = [...(task.questions ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
-        for (const link of nested) {
-          const q = link.question;
-          if (!q) continue;
+        if (nested.length === 0) {
+          throw new ConflictException(
+            `Task «${task.title}» has no questions for part ${part.id}`,
+          );
+        }
+        for (const q of nested) {
           const answers = [...(q.answers ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
           if (randomizeAnswers) this.shuffleInPlace(answers);
           const passagePrefix =
-            task.taskType === 'reading' && task.textContent
+            part.partKind === 'reading' && 'textContent' in task && task.textContent
               ? `${task.textContent}\n\n`
               : '';
           prepared.push({
@@ -703,7 +732,7 @@ export class AttemptService {
             type: q.type,
             stem: `${passagePrefix}${q.stem}`,
             points: String(q.points),
-            difficulty: q.difficulty,
+            difficulty: 1,
             explanation: q.explanation,
             sortOrder: sortOrder++,
             answers: answers.map((a, idx) => ({

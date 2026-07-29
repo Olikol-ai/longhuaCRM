@@ -255,40 +255,71 @@ export const assessment = {
     return `/api/assessment/attachments/${attachmentId}/download${toQuery({ disposition })}`;
   },
 
-  // ── Content tasks (Listening / Reading containers) ─────────────────────
-  listContentTasks(params) {
-    return apiFetch(`/assessment/content-tasks${toQuery(params)}`);
+  // ── Reading tasks ──────────────────────────────────────────────────────
+  listReadingTasks() {
+    return apiFetch('/assessment/reading-tasks');
   },
 
-  getContentTask(id) {
-    return apiFetch(`/assessment/content-tasks/${id}`);
+  getReadingTask(id) {
+    return apiFetch(`/assessment/reading-tasks/${id}`);
   },
 
-  createContentTask(body) {
-    return apiFetch('/assessment/content-tasks', {
+  createReadingTask(body) {
+    return apiFetch('/assessment/reading-tasks', {
       method: 'POST',
       body: JSON.stringify(body),
     });
   },
 
-  updateContentTask(id, body) {
-    return apiFetch(`/assessment/content-tasks/${id}`, {
+  updateReadingTask(id, body) {
+    return apiFetch(`/assessment/reading-tasks/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     });
   },
 
-  uploadContentTaskAudio(id, file) {
+  publishReadingTask(id) {
+    return apiFetch(`/assessment/reading-tasks/${id}/publish`, { method: 'POST' });
+  },
+
+  deleteReadingTask(id) {
+    return apiFetch(`/assessment/reading-tasks/${id}`, { method: 'DELETE' });
+  },
+
+  // ── Listening tasks ────────────────────────────────────────────────────
+  listListeningTasks() {
+    return apiFetch('/assessment/listening-tasks');
+  },
+
+  getListeningTask(id) {
+    return apiFetch(`/assessment/listening-tasks/${id}`);
+  },
+
+  createListeningTask(body) {
+    return apiFetch('/assessment/listening-tasks', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  updateListeningTask(id, body) {
+    return apiFetch(`/assessment/listening-tasks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  },
+
+  uploadListeningTaskAudio(id, file) {
     const formData = new FormData();
     formData.append('file', file);
-    return apiFormFetch(`/assessment/content-tasks/${id}/audio`, formData);
+    return apiFormFetch(`/assessment/listening-tasks/${id}/audio`, formData);
   },
 
-  publishContentTask(id) {
-    return apiFetch(`/assessment/content-tasks/${id}/publish`, { method: 'POST' });
+  publishListeningTask(id) {
+    return apiFetch(`/assessment/listening-tasks/${id}/publish`, { method: 'POST' });
   },
 
-  deleteContentTask(id) {
-    return apiFetch(`/assessment/content-tasks/${id}`, { method: 'DELETE' });
+  deleteListeningTask(id) {
+    return apiFetch(`/assessment/listening-tasks/${id}`, { method: 'DELETE' });
   },
 };

@@ -99,7 +99,11 @@ export class QuestionAuthoringService {
 
     if (filter.status) {
       items = items.filter((q) => q.status === filter.status);
+    } else {
+      items = items.filter((q) => q.status !== ContentLifecycleStatus.Archived);
     }
+    // Test bank never includes legacy reading/listening atomic types.
+    items = items.filter((q) => AUTHORING_ATOMIC_QUESTION_TYPES.has(q.type));
     if (filter.type) {
       items = items.filter((q) => q.type === filter.type);
     }
@@ -138,7 +142,7 @@ export class QuestionAuthoringService {
     this.access.assertCanManageContent(actor);
     if (!AUTHORING_ATOMIC_QUESTION_TYPES.has(input.type)) {
       throw new BadRequestException(
-        'Listening/Reading создаются как задачи (content tasks), не как атомарные вопросы',
+        'Чтение и аудирование создаются как ReadingTask / ListeningTask, не как вопросы тестового банка',
       );
     }
 
@@ -218,6 +222,11 @@ export class QuestionAuthoringService {
   async publish(actor: JwtPayload, id: string): Promise<AssessmentQuestionEntity> {
     const question = this.guard.requireFound(await this.questions.findById(id), 'Question');
     this.access.assertCanMutateQuestion(actor, question);
+    if (!AUTHORING_ATOMIC_QUESTION_TYPES.has(question.type)) {
+      throw new BadRequestException(
+        'Legacy Reading/Listening bank questions cannot be published — use ReadingTask / ListeningTask',
+      );
+    }
     this.guard.assertCanPublish(question.status, 'Question');
     const before = this.snapshot(question);
     const updated = await this.questions.update(id, {

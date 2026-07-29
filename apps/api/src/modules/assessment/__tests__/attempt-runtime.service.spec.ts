@@ -58,6 +58,7 @@ describe('AttemptService runtime flow', () => {
     new AssessmentContentGuard(),
     participants,
     access as never,
+    { findOne: jest.fn() } as never,
   );
 
   const owner = { sub: 'user-student', role: 'student', email: 's@test.com' };

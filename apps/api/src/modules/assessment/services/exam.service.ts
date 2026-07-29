@@ -8,13 +8,14 @@ import { Repository } from 'typeorm';
 import { AssessmentAccessService } from '../../../common/access/assessment-access.service';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
 import {
-  AssessmentContentTaskEntity,
   AssessmentExamAssignmentEntity,
   AssessmentExamBlockEntity,
   AssessmentExamEntity,
   AssessmentExamPartEntity,
   AssessmentExamPartPoolItemEntity,
+  AssessmentListeningTaskEntity,
   AssessmentQuestionEntity,
+  AssessmentReadingTaskEntity,
   AssessmentRuleEntity,
 } from '../entities';
 import {
@@ -55,7 +56,13 @@ export type CreateExamInput = {
     partKind: 'test' | 'listening' | 'reading';
     title?: string | null;
     selectCount: number;
-    pool: Array<{ questionId?: string; contentTaskId?: string }>;
+    pool: Array<{
+      questionId?: string;
+      readingTaskId?: string;
+      listeningTaskId?: string;
+      /** @deprecated */
+      contentTaskId?: string;
+    }>;
   }>;
   name: string;
   availableFrom?: Date | null;
@@ -83,8 +90,10 @@ export class ExamService {
     private readonly parts: Repository<AssessmentExamPartEntity>,
     @InjectRepository(AssessmentExamPartPoolItemEntity)
     private readonly poolItems: Repository<AssessmentExamPartPoolItemEntity>,
-    @InjectRepository(AssessmentContentTaskEntity)
-    private readonly contentTasks: Repository<AssessmentContentTaskEntity>,
+    @InjectRepository(AssessmentReadingTaskEntity)
+    private readonly readingTasks: Repository<AssessmentReadingTaskEntity>,
+    @InjectRepository(AssessmentListeningTaskEntity)
+    private readonly listeningTasks: Repository<AssessmentListeningTaskEntity>,
     private readonly guard: AssessmentContentGuard,
     private readonly access: AssessmentAccessService,
     private readonly journal: AssessmentChangeJournalService,
@@ -185,24 +194,26 @@ export class ExamService {
           const q = await this.questions.findById(item.questionId);
           if (!q) throw new BadRequestException(`Question ${item.questionId} not found`);
           this.access.assertCanManageCreatedContent(actor, q, 'question');
-        } else {
-          if (!item.contentTaskId) {
-            throw new BadRequestException(
-              `${part.partKind} part pool requires content_task_id`,
-            );
+        } else if (part.partKind === 'reading') {
+          const readingTaskId = item.readingTaskId ?? item.contentTaskId;
+          if (!readingTaskId) {
+            throw new BadRequestException('Reading part pool requires reading_task_id');
           }
-          const task = await this.contentTasks.findOne({
-            where: { id: item.contentTaskId },
-          });
+          const task = await this.readingTasks.findOne({ where: { id: readingTaskId } });
           if (!task) {
-            throw new BadRequestException(`Content task ${item.contentTaskId} not found`);
+            throw new BadRequestException(`Reading task ${readingTaskId} not found`);
           }
-          this.access.assertCanManageCreatedContent(actor, task, 'content task');
-          if (task.taskType !== part.partKind) {
-            throw new BadRequestException(
-              `Content task type ${task.taskType} does not match part ${part.partKind}`,
-            );
+          this.access.assertCanManageCreatedContent(actor, task, 'reading task');
+        } else {
+          const listeningTaskId = item.listeningTaskId ?? item.contentTaskId;
+          if (!listeningTaskId) {
+            throw new BadRequestException('Listening part pool requires listening_task_id');
           }
+          const task = await this.listeningTasks.findOne({ where: { id: listeningTaskId } });
+          if (!task) {
+            throw new BadRequestException(`Listening task ${listeningTaskId} not found`);
+          }
+          this.access.assertCanManageCreatedContent(actor, task, 'listening task');
         }
       }
     }
@@ -231,7 +242,15 @@ export class ExamService {
           this.poolItems.create({
             partId: savedPart.id,
             questionId: item.questionId ?? null,
-            contentTaskId: item.contentTaskId ?? null,
+            readingTaskId:
+              part.partKind === 'reading'
+                ? (item.readingTaskId ?? item.contentTaskId ?? null)
+                : null,
+            listeningTaskId:
+              part.partKind === 'listening'
+                ? (item.listeningTaskId ?? item.contentTaskId ?? null)
+                : null,
+            contentTaskId: null,
           }),
         ),
       );
@@ -425,6 +444,7 @@ export class ExamService {
       questions: AssessmentQuestionEntity[];
       selectCount?: number;
       poolSize?: number;
+      poolTitles?: string[];
     }>;
   }> {
     await this.access.assertCanManageExam(actor, id);
@@ -435,10 +455,40 @@ export class ExamService {
         exam,
         sections: parts.map((part) => {
           const poolQs: AssessmentQuestionEntity[] = [];
+          const poolTitles: string[] = [];
           for (const item of part.poolItems ?? []) {
             if (item.question) poolQs.push(item.question);
-            for (const link of item.contentTask?.questions ?? []) {
-              if (link.question) poolQs.push(link.question);
+            if (item.readingTask) {
+              poolTitles.push(item.readingTask.title);
+              for (const q of item.readingTask.questions ?? []) {
+                poolQs.push({
+                  id: q.id,
+                  type: q.type,
+                  stem: q.stem,
+                  points: q.points,
+                  difficulty: 1,
+                  explanation: q.explanation,
+                  status: q.status,
+                  createdByUserId: null,
+                  answers: q.answers,
+                } as AssessmentQuestionEntity);
+              }
+            }
+            if (item.listeningTask) {
+              poolTitles.push(item.listeningTask.title);
+              for (const q of item.listeningTask.questions ?? []) {
+                poolQs.push({
+                  id: q.id,
+                  type: q.type,
+                  stem: q.stem,
+                  points: q.points,
+                  difficulty: 1,
+                  explanation: q.explanation,
+                  status: q.status,
+                  createdByUserId: null,
+                  answers: q.answers,
+                } as AssessmentQuestionEntity);
+              }
             }
           }
           return {
@@ -451,6 +501,7 @@ export class ExamService {
             questions: poolQs,
             selectCount: part.selectCount,
             poolSize: part.poolItems?.length ?? 0,
+            poolTitles,
           };
         }),
       };
