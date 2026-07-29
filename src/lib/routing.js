@@ -90,12 +90,6 @@ export function getRequiredRoleForPath(pathname) {
     || pathname === '/Certificates'
     || pathname === '/Payments'
     || pathname === '/AdminAssessment'
-    || pathname === '/AssessmentBanks'
-    || pathname === '/AssessmentQuestions'
-    || pathname === '/AssessmentBlueprints'
-    || pathname === '/AssessmentBlueprintEdit'
-    || pathname === '/AssessmentExams'
-    || pathname === '/AssessmentExamDetail'
     || pathname === '/AssessmentAssignments'
     || pathname === '/AssessmentAssignmentDetail'
     || pathname === '/AssessmentResults'
@@ -116,6 +110,13 @@ export function getRequiredRoleForPath(pathname) {
     || pathname === '/TeacherAssessmentReview'
     || pathname === '/TeacherAssessmentReviewDetail'
     || pathname === '/TeacherAssessmentResults'
+    || pathname === '/AssessmentBanks'
+    || pathname === '/AssessmentQuestions'
+    || pathname === '/AssessmentExamTemplates'
+    || pathname === '/AssessmentBlueprints'
+    || pathname === '/AssessmentBlueprintEdit'
+    || pathname === '/AssessmentExams'
+    || pathname === '/AssessmentExamDetail'
   ) {
     return 'teacher';
   }
@@ -158,6 +159,9 @@ export function isPathAllowedForUser(user, pathname) {
   if (!isValidDashboardRole(user?.role)) return false;
   if (user.role === requiredRole) return true;
   if (requiredRole === 'teacher' && user.role === 'admin' && pathname === '/MaterialsHub') {
+    return true;
+  }
+  if (requiredRole === 'teacher' && user.role === 'tutor') {
     return true;
   }
   if (requiredRole === 'tutor_student' && user.role === 'student' && pathname === '/HomeworkViewer') {

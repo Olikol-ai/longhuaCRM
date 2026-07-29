@@ -11,6 +11,7 @@ import {
   Send,
 } from 'lucide-react';
 import { api } from '@/api';
+import { useAuth } from '@/lib/AuthContext';
 import BlueprintCreateDialog from '@/components/assessment/BlueprintCreateDialog';
 import LifecycleBadge from '@/components/assessment/LifecycleBadge';
 import { Button } from '@/components/ui/button';
@@ -30,7 +31,9 @@ import { useAssessmentBlueprints } from '@/hooks/useAssessmentBlueprints';
 import { canPublishBlueprint, formatDateTime } from '@/lib/assessment-admin';
 
 export default function AssessmentBlueprints() {
+  const { user } = useAuth();
   const navigate = useNavigate();
+  const assessmentHomePage = user?.role === 'admin' ? 'AdminAssessment' : 'AssessmentExams';
   const [statusFilter, setStatusFilter] = useState('');
   const { blueprints, loading, error, reload } = useAssessmentBlueprints({
     status: statusFilter,
@@ -99,7 +102,7 @@ export default function AssessmentBlueprints() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <Link
-            to={createPageUrl('AdminAssessment')}
+            to={createPageUrl(assessmentHomePage)}
             className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
           >
             ← Экзамены

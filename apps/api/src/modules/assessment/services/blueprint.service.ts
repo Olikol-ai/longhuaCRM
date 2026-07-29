@@ -3,6 +3,8 @@ import {
   Injectable,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { AssessmentAccessService } from '../../../common/access/assessment-access.service';
+import { DomainAccessActor } from '../../../common/access/domain-access.types';
 import {
   AssessmentBlueprintEntity,
   AssessmentBlueprintSectionRuleEntity,
@@ -64,29 +66,52 @@ export class BlueprintService {
     private readonly banks: AssessmentBankRepository,
     private readonly questions: AssessmentQuestionRepository,
     private readonly guard: AssessmentContentGuard,
+    private readonly access: AssessmentAccessService,
   ) {}
 
   findById(id: string): Promise<AssessmentBlueprintEntity | null> {
     return this.blueprints.findWithSectionRules(id);
   }
 
+  async getForActor(
+    actor: DomainAccessActor,
+    id: string,
+  ): Promise<AssessmentBlueprintEntity> {
+    const blueprint = this.guard.requireFound(await this.findById(id), 'Blueprint');
+    this.access.assertCanManageCreatedContent(actor, blueprint, 'blueprint');
+    return blueprint;
+  }
+
   list(status?: ContentLifecycleStatus): Promise<AssessmentBlueprintEntity[]> {
     return status ? this.blueprints.filterByStatus(status) : this.blueprints.findAll();
   }
 
-  async create(input: CreateBlueprintInput): Promise<AssessmentBlueprintEntity> {
-    const template = this.guard.requireFound(
-      await this.templates.findById(input.examTemplateId),
-      'ExamTemplate',
-    );
+  async listForActor(
+    actor: DomainAccessActor,
+    status?: ContentLifecycleStatus,
+  ): Promise<AssessmentBlueprintEntity[]> {
+    const items = await this.list(status);
+    if (this.access.isAdmin(actor)) {
+      return items;
+    }
+    return items.filter((item) => this.access.canManageCreatedContent(actor, item));
+  }
+
+  async create(
+    actor: DomainAccessActor,
+    input: CreateBlueprintInput,
+  ): Promise<AssessmentBlueprintEntity> {
+    const template = this.guard.requireFound(await this.templates.findById(input.examTemplateId), 'ExamTemplate');
+    this.access.assertCanManageCreatedContent(actor, template, 'exam template');
     this.guard.assertPublished(template.status, 'ExamTemplate');
-    this.guard.requireFound(await this.banks.findById(input.bankId), 'Bank');
+    const bank = this.guard.requireFound(await this.banks.findById(input.bankId), 'Bank');
+    this.access.assertCanManageCreatedContent(actor, bank, 'bank');
 
     const blueprint = await this.blueprints.save({
       examTemplateId: input.examTemplateId,
       bankId: input.bankId,
       name: input.name,
-      createdByUserId: input.createdByUserId ?? null,
+      createdByUserId: input.createdByUserId ?? actor.sub,
       status: ContentLifecycleStatus.Draft,
     });
 
@@ -103,8 +128,12 @@ export class BlueprintService {
     );
   }
 
-  async update(id: string, input: UpdateBlueprintInput): Promise<AssessmentBlueprintEntity> {
-    const blueprint = this.guard.requireFound(await this.blueprints.findById(id), 'Blueprint');
+  async update(
+    actor: DomainAccessActor,
+    id: string,
+    input: UpdateBlueprintInput,
+  ): Promise<AssessmentBlueprintEntity> {
+    const blueprint = await this.getForActor(actor, id);
     this.guard.assertDraft(blueprint.status, 'Blueprint');
 
     if (input.name !== undefined) {
@@ -117,11 +146,11 @@ export class BlueprintService {
     return this.guard.requireFound(await this.blueprints.findWithSectionRules(id), 'Blueprint');
   }
 
-  async publish(id: string): Promise<AssessmentBlueprintEntity> {
-    const blueprint = this.guard.requireFound(
-      await this.blueprints.findWithSectionRules(id),
-      'Blueprint',
-    );
+  async publish(
+    actor: DomainAccessActor,
+    id: string,
+  ): Promise<AssessmentBlueprintEntity> {
+    const blueprint = await this.getForActor(actor, id);
     this.guard.assertCanPublish(blueprint.status, 'Blueprint');
 
     const rules = blueprint.sectionRules ?? [];
@@ -144,8 +173,11 @@ export class BlueprintService {
     );
   }
 
-  async archive(id: string): Promise<AssessmentBlueprintEntity> {
-    const blueprint = this.guard.requireFound(await this.blueprints.findById(id), 'Blueprint');
+  async archive(
+    actor: DomainAccessActor,
+    id: string,
+  ): Promise<AssessmentBlueprintEntity> {
+    const blueprint = await this.getForActor(actor, id);
     this.guard.assertCanArchive(blueprint.status, 'Blueprint');
     const updated = await this.blueprints.update(id, {
       status: ContentLifecycleStatus.Archived,
@@ -153,17 +185,18 @@ export class BlueprintService {
     return this.guard.requireFound(updated, 'Blueprint');
   }
 
-  async deleteDraft(id: string): Promise<void> {
-    const blueprint = this.guard.requireFound(await this.blueprints.findById(id), 'Blueprint');
+  async deleteDraft(actor: DomainAccessActor, id: string): Promise<void> {
+    const blueprint = await this.getForActor(actor, id);
     this.guard.assertDraft(blueprint.status, 'Blueprint');
     await this.blueprints.delete(id);
   }
 
-  async preview(id: string, seed?: number): Promise<BlueprintPreviewResult> {
-    const blueprint = this.guard.requireFound(
-      await this.blueprints.findWithSectionRules(id),
-      'Blueprint',
-    );
+  async preview(
+    actor: DomainAccessActor,
+    id: string,
+    seed?: number,
+  ): Promise<BlueprintPreviewResult> {
+    const blueprint = await this.getForActor(actor, id);
     const rules = blueprint.sectionRules ?? [];
     const pool = await this.questions.findPublishedByBankId(blueprint.bankId);
     const topicMap = await this.loadTopicMap(pool.map((q) => q.id));

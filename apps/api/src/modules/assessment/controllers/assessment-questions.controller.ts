@@ -52,12 +52,12 @@ export class AssessmentQuestionsController {
   ) {}
 
   @Post()
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create question in bank' })
   @ApiResponse({ status: 201, description: 'Question created' })
   create(@CurrentUser() user: JwtPayload, @Body() dto: CreateQuestionDto) {
-    return this.questions.create({
+    return this.questions.create(user, {
       bankId: dto.bank_id,
       type: dto.type,
       stem: dto.stem,
@@ -75,11 +75,11 @@ export class AssessmentQuestionsController {
   }
 
   @Get()
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'List and filter questions' })
   @ApiResponse({ status: 200, description: 'Paginated question list' })
-  async list(@Query() query: ListQuestionsQueryDto) {
-    const items = await this.questions.listFiltered({
+  async list(@CurrentUser() user: JwtPayload, @Query() query: ListQuestionsQueryDto) {
+    const items = await this.questions.listFiltered(user, {
       bankId: query.bank_id,
       status: query.status,
       type: query.type,
@@ -92,15 +92,18 @@ export class AssessmentQuestionsController {
   }
 
   @Get(':questionId')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Get question detail' })
   @ApiResponse({ status: 200, description: 'Question detail' })
-  async findOne(@Param('questionId', ParseUUIDPipe) questionId: string) {
-    return this.guard.requireFound(await this.questions.findById(questionId), 'Question');
+  async findOne(
+    @CurrentUser() user: JwtPayload,
+    @Param('questionId', ParseUUIDPipe) questionId: string,
+  ) {
+    return this.questions.getForActor(user, questionId);
   }
 
   @Patch(':questionId')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Update draft question' })
   @ApiResponse({ status: 200, description: 'Question updated' })
   update(
@@ -124,7 +127,7 @@ export class AssessmentQuestionsController {
   }
 
   @Delete(':questionId')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary:
@@ -140,7 +143,7 @@ export class AssessmentQuestionsController {
   }
 
   @Post(':questionId/publish')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Publish question' })
   @ApiResponse({ status: 200, description: 'Question published' })
   publish(
@@ -151,7 +154,7 @@ export class AssessmentQuestionsController {
   }
 
   @Post(':questionId/archive')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Archive question' })
   @ApiResponse({ status: 200, description: 'Question archived' })
   archive(
@@ -162,7 +165,7 @@ export class AssessmentQuestionsController {
   }
 
   @Post(':questionId/attachments')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @HttpCode(HttpStatus.CREATED)
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload question attachment' })
@@ -190,7 +193,7 @@ export class AssessmentQuestionsController {
   }
 
   @Delete(':questionId/attachments/:attachmentId')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete question attachment' })
   @ApiResponse({ status: 204, description: 'Attachment deleted' })

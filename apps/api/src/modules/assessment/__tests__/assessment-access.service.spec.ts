@@ -153,6 +153,48 @@ describe('AssessmentAccessService ACL', () => {
     ).toThrow(ForbiddenException);
   });
 
+  it('tutor can delete own question but not foreign question', () => {
+    expect(() =>
+      access.assertCanDeleteQuestion(
+        { sub: 'user-u1', role: 'tutor', email: 'u@t.com' },
+        { createdByUserId: 'user-u1' },
+      ),
+    ).not.toThrow();
+
+    expect(() =>
+      access.assertCanDeleteQuestion(
+        { sub: 'user-u1', role: 'tutor', email: 'u@t.com' },
+        { createdByUserId: 'user-t-OTHER' },
+      ),
+    ).toThrow(ForbiddenException);
+  });
+
+  it('tutor can manage own exam but not foreign teacher exam', async () => {
+    examRepo.findOne
+      .mockResolvedValueOnce({
+        id: 'exam-own',
+        createdByUserId: 'user-u1',
+      })
+      .mockResolvedValueOnce({
+        id: 'exam-foreign',
+        createdByUserId: 'user-t-OTHER',
+      });
+
+    await expect(
+      access.assertCanManageExam(
+        { sub: 'user-u1', role: 'tutor', email: 'u@t.com' },
+        'exam-own',
+      ),
+    ).resolves.toBeDefined();
+
+    await expect(
+      access.assertCanManageExam(
+        { sub: 'user-u1', role: 'tutor', email: 'u@t.com' },
+        'exam-foreign',
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
   it('admin bypass works', async () => {
     assignmentRepo.findOne.mockResolvedValue({
       id: 'asg-1',

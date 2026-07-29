@@ -12,6 +12,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { api } from '@/api';
+import { useAuth } from '@/lib/AuthContext';
 import ExamTemplateFormDialog from '@/components/assessment/ExamTemplateFormDialog';
 import LifecycleBadge from '@/components/assessment/LifecycleBadge';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,8 @@ import { useAssessmentExamTemplates } from '@/hooks/useAssessmentExamTemplates';
 import { formatDateTime } from '@/lib/assessment-admin';
 
 export default function AssessmentExamTemplates() {
+  const { user } = useAuth();
+  const assessmentHomePage = user?.role === 'admin' ? 'AdminAssessment' : 'AssessmentExams';
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
   const [searchApplied, setSearchApplied] = useState('');
@@ -150,7 +153,7 @@ export default function AssessmentExamTemplates() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <Link
-            to={createPageUrl('AdminAssessment')}
+            to={createPageUrl(assessmentHomePage)}
             className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
           >
             ← Экзамены

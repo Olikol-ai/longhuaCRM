@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Archive,
+  Download,
   Eye,
   FileQuestion,
   Loader2,
@@ -11,6 +12,7 @@ import {
   Search,
   Send,
   Trash2,
+  Upload,
 } from 'lucide-react';
 import { api } from '@/api';
 import LifecycleBadge from '@/components/assessment/LifecycleBadge';
@@ -40,6 +42,7 @@ import {
 
 export default function AssessmentQuestions() {
   const { user } = useAuth();
+  const assessmentHomePage = user?.role === 'admin' ? 'AdminAssessment' : 'AssessmentExams';
   const [bankId, setBankId] = useState('');
   const [type, setType] = useState('');
   const [status, setStatus] = useState('');
@@ -68,6 +71,7 @@ export default function AssessmentQuestions() {
   }, [banks]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const fileInputRef = useRef(null);
   const [editing, setEditing] = useState(null);
   const [dialogMode, setDialogMode] = useState('create');
   const [confirmAction, setConfirmAction] = useState(null);
@@ -137,12 +141,95 @@ export default function AssessmentQuestions() {
     },
   };
 
+  const handleExport = () => {
+    if (!bankId) {
+      toast({
+        title: 'Сначала выберите банк',
+        description: 'Экспорт выполняется для конкретного банка вопросов.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const payload = {
+      version: 1,
+      bank_id: bankId,
+      exported_at: new Date().toISOString(),
+      questions: questions.map((question) => ({
+        type: question.type,
+        stem: question.stem,
+        points: question.points,
+        difficulty: question.difficulty,
+        explanation: question.explanation,
+        answers: (question.answers || []).map((answer) => ({
+          text: answer.text || answer.body,
+          is_correct: Boolean(answer.is_correct),
+          sort_order: answer.sort_order,
+        })),
+      })),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `assessment-bank-${bankId}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!bankId) {
+      toast({
+        title: 'Сначала выберите банк',
+        description: 'Импорт выполняется в выбранный банк вопросов.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    try {
+      const raw = await file.text();
+      const parsed = JSON.parse(raw);
+      const importedQuestions = Array.isArray(parsed) ? parsed : parsed?.questions;
+      if (!Array.isArray(importedQuestions) || importedQuestions.length === 0) {
+        throw new Error('Файл не содержит вопросов');
+      }
+      setBusyId(`import:${bankId}`);
+      for (const item of importedQuestions) {
+        await api.assessment.createQuestion({
+          bank_id: bankId,
+          type: item.type,
+          stem: item.stem,
+          points: item.points,
+          difficulty: item.difficulty,
+          explanation: item.explanation,
+          answers: (item.answers || []).map((answer) => ({
+            text: answer.text || answer.body,
+            is_correct: Boolean(answer.is_correct),
+            sort_order: answer.sort_order,
+          })),
+        });
+      }
+      toast({ title: 'Вопросы импортированы' });
+      reload();
+    } catch (err) {
+      toast({
+        title: 'Не удалось импортировать',
+        description: err?.message || 'Проверьте формат JSON файла.',
+        variant: 'destructive',
+      });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <Link
-            to={createPageUrl('AdminAssessment')}
+            to={createPageUrl(assessmentHomePage)}
             className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
           >
             ← Экзамены
@@ -158,6 +245,19 @@ export default function AssessmentQuestions() {
           <Button variant="outline" size="sm" onClick={() => reload()}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Обновить
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExport} disabled={!bankId || questions.length === 0}>
+            <Download className="h-4 w-4 mr-2" />
+            Экспорт
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!bankId || busyId === `import:${bankId}`}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Импорт
           </Button>
           <Button
             className="bg-primary hover:bg-primary/90"
@@ -183,6 +283,13 @@ export default function AssessmentQuestions() {
           .
         </div>
       )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/json"
+        className="hidden"
+        onChange={handleImportFile}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
         <div className="relative sm:col-span-2 lg:col-span-1">

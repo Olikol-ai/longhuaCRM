@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { AssessmentAccessService } from '../../../common/access/assessment-access.service';
+import { DomainAccessActor } from '../../../common/access/domain-access.types';
 import { AssessmentExamTemplateEntity } from '../entities';
 import { ContentLifecycleStatus } from '../enums';
 import { AssessmentExamTemplateRepository } from '../repositories';
@@ -24,14 +26,35 @@ export class ExamTemplateService {
   constructor(
     private readonly templates: AssessmentExamTemplateRepository,
     private readonly guard: AssessmentContentGuard,
+    private readonly access: AssessmentAccessService,
   ) {}
 
   findById(id: string): Promise<AssessmentExamTemplateEntity | null> {
     return this.templates.findById(id);
   }
 
+  async getForActor(
+    actor: DomainAccessActor,
+    id: string,
+  ): Promise<AssessmentExamTemplateEntity> {
+    const template = this.guard.requireFound(await this.findById(id), 'ExamTemplate');
+    this.access.assertCanManageCreatedContent(actor, template, 'exam template');
+    return template;
+  }
+
   list(status?: ContentLifecycleStatus): Promise<AssessmentExamTemplateEntity[]> {
     return status ? this.templates.filterByStatus(status) : this.templates.findAll();
+  }
+
+  async listForActor(
+    actor: DomainAccessActor,
+    status?: ContentLifecycleStatus,
+  ): Promise<AssessmentExamTemplateEntity[]> {
+    const items = await this.list(status);
+    if (this.access.isAdmin(actor)) {
+      return items;
+    }
+    return items.filter((item) => this.access.canManageCreatedContent(actor, item));
   }
 
   create(input: CreateExamTemplateInput): Promise<AssessmentExamTemplateEntity> {
@@ -46,10 +69,11 @@ export class ExamTemplateService {
   }
 
   async update(
+    actor: DomainAccessActor,
     id: string,
     input: UpdateExamTemplateInput,
   ): Promise<AssessmentExamTemplateEntity> {
-    const template = this.guard.requireFound(await this.templates.findById(id), 'ExamTemplate');
+    const template = await this.getForActor(actor, id);
     this.guard.assertDraft(template.status, 'ExamTemplate');
     const updated = await this.templates.update(id, {
       ...(input.name !== undefined ? { name: input.name } : {}),
@@ -60,8 +84,11 @@ export class ExamTemplateService {
     return this.guard.requireFound(updated, 'ExamTemplate');
   }
 
-  async publish(id: string): Promise<AssessmentExamTemplateEntity> {
-    const template = this.guard.requireFound(await this.templates.findById(id), 'ExamTemplate');
+  async publish(
+    actor: DomainAccessActor,
+    id: string,
+  ): Promise<AssessmentExamTemplateEntity> {
+    const template = await this.getForActor(actor, id);
     this.guard.assertCanPublish(template.status, 'ExamTemplate');
     const updated = await this.templates.update(id, {
       status: ContentLifecycleStatus.Published,
@@ -69,8 +96,11 @@ export class ExamTemplateService {
     return this.guard.requireFound(updated, 'ExamTemplate');
   }
 
-  async archive(id: string): Promise<AssessmentExamTemplateEntity> {
-    const template = this.guard.requireFound(await this.templates.findById(id), 'ExamTemplate');
+  async archive(
+    actor: DomainAccessActor,
+    id: string,
+  ): Promise<AssessmentExamTemplateEntity> {
+    const template = await this.getForActor(actor, id);
     this.guard.assertCanArchive(template.status, 'ExamTemplate');
     const updated = await this.templates.update(id, {
       status: ContentLifecycleStatus.Archived,
@@ -78,8 +108,8 @@ export class ExamTemplateService {
     return this.guard.requireFound(updated, 'ExamTemplate');
   }
 
-  async deleteDraft(id: string): Promise<void> {
-    const template = this.guard.requireFound(await this.templates.findById(id), 'ExamTemplate');
+  async deleteDraft(actor: DomainAccessActor, id: string): Promise<void> {
+    const template = await this.getForActor(actor, id);
     this.guard.assertDraft(template.status, 'ExamTemplate');
     await this.templates.delete(id);
   }

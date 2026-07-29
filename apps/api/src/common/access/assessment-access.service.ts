@@ -56,6 +56,10 @@ export class AssessmentAccessService {
     return normalizeRole(actor.role) === 'teacher';
   }
 
+  isTutor(actor: DomainAccessActor): boolean {
+    return normalizeRole(actor.role) === 'tutor';
+  }
+
   isStudent(actor: DomainAccessActor): boolean {
     return normalizeRole(actor.role) === 'student';
   }
@@ -64,6 +68,7 @@ export class AssessmentAccessService {
     const role = normalizeRole(actor.role);
     if (role === 'admin') return 'admin';
     if (role === 'teacher') return 'teacher';
+    if (role === 'tutor') return 'tutor';
     if (role === 'student') return 'student';
     return 'none';
   }
@@ -79,10 +84,34 @@ export class AssessmentAccessService {
   }
 
   assertCanManageContent(actor: DomainAccessActor): void {
-    if (this.isAdmin(actor) || this.isTeacher(actor)) {
+    if (this.isAdmin(actor) || this.isTeacher(actor) || this.isTutor(actor)) {
       return;
     }
     throw new ForbiddenException('Forbidden: cannot manage assessment content');
+  }
+
+  canManageCreatedContent(
+    actor: DomainAccessActor,
+    row: { createdByUserId: string | null },
+  ): boolean {
+    if (this.isAdmin(actor)) {
+      return true;
+    }
+    if ((this.isTeacher(actor) || this.isTutor(actor)) && row.createdByUserId) {
+      return row.createdByUserId === actor.sub;
+    }
+    return false;
+  }
+
+  assertCanManageCreatedContent(
+    actor: DomainAccessActor,
+    row: { createdByUserId: string | null },
+    label = 'resource',
+  ): void {
+    if (this.canManageCreatedContent(actor, row)) {
+      return;
+    }
+    throw new ForbiddenException(`Forbidden: cannot access this ${label}`);
   }
 
   /**
@@ -105,11 +134,7 @@ export class AssessmentAccessService {
     if (this.isAdmin(actor)) {
       return;
     }
-    if (
-      this.isTeacher(actor) &&
-      question.createdByUserId &&
-      question.createdByUserId === actor.sub
-    ) {
+    if (this.canManageCreatedContent(actor, question)) {
       return;
     }
     throw new ForbiddenException('Forbidden');
@@ -122,8 +147,11 @@ export class AssessmentAccessService {
     if (this.isAdmin(actor)) {
       return exam;
     }
-    if (this.isTeacher(actor)) {
+    if (this.isTeacher(actor) || this.isTutor(actor)) {
       if (await this.teacherCanAccessExam(actor, exam)) {
+        return exam;
+      }
+      if (this.canManageCreatedContent(actor, exam)) {
         return exam;
       }
       throw new ForbiddenException('Forbidden: cannot access this Exam');
@@ -145,11 +173,11 @@ export class AssessmentAccessService {
     if (this.isAdmin(actor)) {
       return exam;
     }
-    if (this.isTeacher(actor)) {
-      if (exam.createdByUserId === actor.sub) {
+    if (this.isTeacher(actor) || this.isTutor(actor)) {
+      if (this.canManageCreatedContent(actor, exam)) {
         return exam;
       }
-      throw new ForbiddenException('Forbidden: cannot edit another teacher Exam');
+      throw new ForbiddenException('Forbidden: cannot edit another Exam');
     }
     throw new ForbiddenException('Forbidden: cannot manage Exam');
   }

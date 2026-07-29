@@ -1,5 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { AssessmentAccessService } from '../../../common/access/assessment-access.service';
+import { DomainAccessActor } from '../../../common/access/domain-access.types';
 import { JwtPayload } from '../../auth/auth.service';
 import {
   AssessmentAnswerEntity,
@@ -74,14 +75,39 @@ export class QuestionAuthoringService {
     return this.questions.findByIdWithAnswersAndAttachments(id);
   }
 
+  async getForActor(
+    actor: DomainAccessActor,
+    id: string,
+  ): Promise<AssessmentQuestionEntity> {
+    const question = this.guard.requireFound(await this.findById(id), 'Question');
+    const bank = this.guard.requireFound(await this.banks.findById(question.bankId), 'Bank');
+    this.access.assertCanManageCreatedContent(actor, bank, 'bank');
+    return question;
+  }
+
   listByBank(bankId: string): Promise<AssessmentQuestionEntity[]> {
     return this.questions.filterByBankId(bankId);
   }
 
-  async listFiltered(filter: ListQuestionsFilter = {}): Promise<AssessmentQuestionEntity[]> {
+  async listFiltered(
+    actor: DomainAccessActor,
+    filter: ListQuestionsFilter = {},
+  ): Promise<AssessmentQuestionEntity[]> {
     let items = filter.bankId
       ? await this.questions.filterByBankId(filter.bankId)
       : await this.questions.findAll();
+
+    if (!this.access.isAdmin(actor)) {
+      const allowedBankIds = new Set<string>();
+      const bankIds = [...new Set(items.map((item) => item.bankId))];
+      for (const bankId of bankIds) {
+        const bank = await this.banks.findById(bankId);
+        if (bank && this.access.canManageCreatedContent(actor, bank)) {
+          allowedBankIds.add(bankId);
+        }
+      }
+      items = items.filter((item) => allowedBankIds.has(item.bankId));
+    }
 
     if (filter.status) {
       items = items.filter((q) => q.status === filter.status);
@@ -117,8 +143,12 @@ export class QuestionAuthoringService {
     );
   }
 
-  async create(input: CreateQuestionInput): Promise<AssessmentQuestionEntity> {
+  async create(
+    actor: DomainAccessActor,
+    input: CreateQuestionInput,
+  ): Promise<AssessmentQuestionEntity> {
     const bank = this.guard.requireFound(await this.banks.findById(input.bankId), 'Bank');
+    this.access.assertCanManageCreatedContent(actor, bank, 'bank');
     this.guard.assertNotArchived(bank.status, 'Bank');
 
     const question = await this.questions.save({
@@ -128,7 +158,7 @@ export class QuestionAuthoringService {
       points: String(input.points ?? 1),
       difficulty: input.difficulty ?? 1,
       explanation: input.explanation ?? null,
-      createdByUserId: input.createdByUserId ?? null,
+      createdByUserId: input.createdByUserId ?? actor.sub,
       status: ContentLifecycleStatus.Draft,
     });
 

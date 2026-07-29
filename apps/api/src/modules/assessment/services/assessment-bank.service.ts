@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { AssessmentAccessService } from '../../../common/access/assessment-access.service';
+import { DomainAccessActor } from '../../../common/access/domain-access.types';
 import { AssessmentBankEntity } from '../entities';
 import { ContentLifecycleStatus } from '../enums';
 import { AssessmentBankRepository } from '../repositories';
@@ -22,14 +24,35 @@ export class AssessmentBankService {
   constructor(
     private readonly banks: AssessmentBankRepository,
     private readonly guard: AssessmentContentGuard,
+    private readonly access: AssessmentAccessService,
   ) {}
 
   findById(id: string): Promise<AssessmentBankEntity | null> {
     return this.banks.findById(id);
   }
 
+  async getForActor(
+    actor: DomainAccessActor,
+    id: string,
+  ): Promise<AssessmentBankEntity> {
+    const bank = this.guard.requireFound(await this.banks.findById(id), 'Bank');
+    this.access.assertCanManageCreatedContent(actor, bank, 'bank');
+    return bank;
+  }
+
   list(status?: ContentLifecycleStatus): Promise<AssessmentBankEntity[]> {
     return status ? this.banks.filterByStatus(status) : this.banks.findAll();
+  }
+
+  async listForActor(
+    actor: DomainAccessActor,
+    status?: ContentLifecycleStatus,
+  ): Promise<AssessmentBankEntity[]> {
+    const items = await this.list(status);
+    if (this.access.isAdmin(actor)) {
+      return items;
+    }
+    return items.filter((item) => this.access.canManageCreatedContent(actor, item));
   }
 
   create(input: CreateBankInput): Promise<AssessmentBankEntity> {
@@ -42,8 +65,12 @@ export class AssessmentBankService {
     });
   }
 
-  async update(id: string, input: UpdateBankInput): Promise<AssessmentBankEntity> {
-    const bank = this.guard.requireFound(await this.banks.findById(id), 'Bank');
+  async update(
+    actor: DomainAccessActor,
+    id: string,
+    input: UpdateBankInput,
+  ): Promise<AssessmentBankEntity> {
+    const bank = await this.getForActor(actor, id);
     this.guard.assertDraft(bank.status, 'Bank');
     const updated = await this.banks.update(id, {
       ...(input.name !== undefined ? { name: input.name } : {}),
@@ -53,17 +80,23 @@ export class AssessmentBankService {
     return this.guard.requireFound(updated, 'Bank');
   }
 
-  async publish(id: string): Promise<AssessmentBankEntity> {
-    const bank = this.guard.requireFound(await this.banks.findById(id), 'Bank');
+  async publish(actor: DomainAccessActor, id: string): Promise<AssessmentBankEntity> {
+    const bank = await this.getForActor(actor, id);
     this.guard.assertCanPublish(bank.status, 'Bank');
     const updated = await this.banks.update(id, { status: ContentLifecycleStatus.Published });
     return this.guard.requireFound(updated, 'Bank');
   }
 
-  async archive(id: string): Promise<AssessmentBankEntity> {
-    const bank = this.guard.requireFound(await this.banks.findById(id), 'Bank');
+  async archive(actor: DomainAccessActor, id: string): Promise<AssessmentBankEntity> {
+    const bank = await this.getForActor(actor, id);
     this.guard.assertCanArchive(bank.status, 'Bank');
     const updated = await this.banks.update(id, { status: ContentLifecycleStatus.Archived });
     return this.guard.requireFound(updated, 'Bank');
+  }
+
+  async deleteDraft(actor: DomainAccessActor, id: string): Promise<void> {
+    const bank = await this.getForActor(actor, id);
+    this.guard.assertDraft(bank.status, 'Bank');
+    await this.banks.delete(id);
   }
 }

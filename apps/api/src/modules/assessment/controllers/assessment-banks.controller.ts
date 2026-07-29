@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -42,7 +43,7 @@ export class AssessmentBanksController {
   ) {}
 
   @Post()
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create question bank' })
   @ApiResponse({ status: 201, description: 'Bank created' })
@@ -56,11 +57,11 @@ export class AssessmentBanksController {
   }
 
   @Get()
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'List question banks' })
   @ApiResponse({ status: 200, description: 'Paginated bank list' })
-  async list(@Query() query: ListBanksQueryDto) {
-    let items = await this.bankService.list(query.status);
+  async list(@CurrentUser() user: JwtPayload, @Query() query: ListBanksQueryDto) {
+    let items = await this.bankService.listForActor(user, query.status);
     if (query.search) {
       const needle = query.search.toLowerCase();
       items = items.filter(
@@ -73,19 +74,26 @@ export class AssessmentBanksController {
   }
 
   @Get(':bankId')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Get question bank by id' })
   @ApiResponse({ status: 200, description: 'Bank detail' })
-  async findOne(@Param('bankId', ParseUUIDPipe) bankId: string) {
-    return this.guard.requireFound(await this.bankService.findById(bankId), 'Bank');
+  async findOne(
+    @CurrentUser() user: JwtPayload,
+    @Param('bankId', ParseUUIDPipe) bankId: string,
+  ) {
+    return this.bankService.getForActor(user, bankId);
   }
 
   @Patch(':bankId')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Update draft question bank' })
   @ApiResponse({ status: 200, description: 'Bank updated' })
-  update(@Param('bankId', ParseUUIDPipe) bankId: string, @Body() dto: UpdateBankDto) {
-    return this.bankService.update(bankId, {
+  update(
+    @CurrentUser() user: JwtPayload,
+    @Param('bankId', ParseUUIDPipe) bankId: string,
+    @Body() dto: UpdateBankDto,
+  ) {
+    return this.bankService.update(user, bankId, {
       name: dto.name,
       description: dto.description,
       locale: dto.locale,
@@ -93,18 +101,30 @@ export class AssessmentBanksController {
   }
 
   @Post(':bankId/publish')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Publish question bank' })
   @ApiResponse({ status: 200, description: 'Bank published' })
-  publish(@Param('bankId', ParseUUIDPipe) bankId: string) {
-    return this.bankService.publish(bankId);
+  publish(@CurrentUser() user: JwtPayload, @Param('bankId', ParseUUIDPipe) bankId: string) {
+    return this.bankService.publish(user, bankId);
   }
 
   @Post(':bankId/archive')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Archive question bank' })
   @ApiResponse({ status: 200, description: 'Bank archived' })
-  archive(@Param('bankId', ParseUUIDPipe) bankId: string) {
-    return this.bankService.archive(bankId);
+  archive(@CurrentUser() user: JwtPayload, @Param('bankId', ParseUUIDPipe) bankId: string) {
+    return this.bankService.archive(user, bankId);
+  }
+
+  @Delete(':bankId')
+  @Roles('admin', 'teacher', 'tutor')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete draft question bank' })
+  @ApiResponse({ status: 204, description: 'Bank deleted' })
+  async remove(
+    @CurrentUser() user: JwtPayload,
+    @Param('bankId', ParseUUIDPipe) bankId: string,
+  ) {
+    await this.bankService.deleteDraft(user, bankId);
   }
 }

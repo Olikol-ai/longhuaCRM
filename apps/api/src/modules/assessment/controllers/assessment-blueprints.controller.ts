@@ -44,12 +44,12 @@ export class AssessmentBlueprintsController {
   ) {}
 
   @Post()
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create blueprint' })
   @ApiResponse({ status: 201, description: 'Blueprint created' })
   create(@CurrentUser() user: JwtPayload, @Body() dto: CreateBlueprintDto) {
-    return this.blueprints.create({
+    return this.blueprints.create(user, {
       examTemplateId: dto.exam_template_id,
       bankId: dto.bank_id,
       name: dto.name,
@@ -68,11 +68,11 @@ export class AssessmentBlueprintsController {
   }
 
   @Get()
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'List blueprints' })
   @ApiResponse({ status: 200, description: 'Paginated blueprint list' })
-  async list(@Query() query: ListBlueprintsQueryDto) {
-    let items = await this.blueprints.list(query.status);
+  async list(@CurrentUser() user: JwtPayload, @Query() query: ListBlueprintsQueryDto) {
+    let items = await this.blueprints.listForActor(user, query.status);
     if (query.exam_template_id) {
       items = items.filter((row) => row.examTemplateId === query.exam_template_id);
     }
@@ -80,22 +80,26 @@ export class AssessmentBlueprintsController {
   }
 
   @Get(':blueprintId')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Get blueprint detail' })
   @ApiResponse({ status: 200, description: 'Blueprint detail' })
-  async findOne(@Param('blueprintId', ParseUUIDPipe) blueprintId: string) {
-    return this.guard.requireFound(await this.blueprints.findById(blueprintId), 'Blueprint');
+  async findOne(
+    @CurrentUser() user: JwtPayload,
+    @Param('blueprintId', ParseUUIDPipe) blueprintId: string,
+  ) {
+    return this.blueprints.getForActor(user, blueprintId);
   }
 
   @Patch(':blueprintId')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Update draft blueprint' })
   @ApiResponse({ status: 200, description: 'Blueprint updated' })
   update(
+    @CurrentUser() user: JwtPayload,
     @Param('blueprintId', ParseUUIDPipe) blueprintId: string,
     @Body() dto: UpdateBlueprintDto,
   ) {
-    return this.blueprints.update(blueprintId, {
+    return this.blueprints.update(user, blueprintId, {
       name: dto.name,
       sectionRules: dto.section_rules?.map((rule) => ({
         sectionKey: rule.section_key,
@@ -111,38 +115,48 @@ export class AssessmentBlueprintsController {
   }
 
   @Delete(':blueprintId')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete draft blueprint' })
   @ApiResponse({ status: 204, description: 'Blueprint deleted' })
-  async remove(@Param('blueprintId', ParseUUIDPipe) blueprintId: string) {
-    await this.blueprints.deleteDraft(blueprintId);
+  async remove(
+    @CurrentUser() user: JwtPayload,
+    @Param('blueprintId', ParseUUIDPipe) blueprintId: string,
+  ) {
+    await this.blueprints.deleteDraft(user, blueprintId);
   }
 
   @Post(':blueprintId/publish')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Publish blueprint' })
   @ApiResponse({ status: 200, description: 'Blueprint published' })
-  publish(@Param('blueprintId', ParseUUIDPipe) blueprintId: string) {
-    return this.blueprints.publish(blueprintId);
+  publish(
+    @CurrentUser() user: JwtPayload,
+    @Param('blueprintId', ParseUUIDPipe) blueprintId: string,
+  ) {
+    return this.blueprints.publish(user, blueprintId);
   }
 
   @Post(':blueprintId/archive')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Archive blueprint' })
   @ApiResponse({ status: 200, description: 'Blueprint archived' })
-  archive(@Param('blueprintId', ParseUUIDPipe) blueprintId: string) {
-    return this.blueprints.archive(blueprintId);
+  archive(
+    @CurrentUser() user: JwtPayload,
+    @Param('blueprintId', ParseUUIDPipe) blueprintId: string,
+  ) {
+    return this.blueprints.archive(user, blueprintId);
   }
 
   @Post(':blueprintId/preview')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Preview blueprint question generation' })
   @ApiResponse({ status: 200, description: 'Blueprint preview result' })
   preview(
+    @CurrentUser() user: JwtPayload,
     @Param('blueprintId', ParseUUIDPipe) blueprintId: string,
     @Body() dto: BlueprintPreviewDto,
   ) {
-    return this.blueprints.preview(blueprintId, dto.seed);
+    return this.blueprints.preview(user, blueprintId, dto.seed);
   }
 }

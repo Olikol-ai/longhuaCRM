@@ -27,9 +27,12 @@ import {
 import { toast } from '@/components/ui/use-toast';
 import { createPageUrl } from '@/utils';
 import { useAssessmentBanks } from '@/hooks/useAssessmentBanks';
+import { useAuth } from '@/lib/AuthContext';
 import { formatDateTime } from '@/lib/assessment-admin';
 
 export default function AssessmentBanks() {
+  const { user } = useAuth();
+  const assessmentHomePage = user?.role === 'admin' ? 'AdminAssessment' : 'AssessmentExams';
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
   const [searchApplied, setSearchApplied] = useState('');
@@ -122,7 +125,7 @@ export default function AssessmentBanks() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <Link
-            to={createPageUrl('AdminAssessment')}
+            to={createPageUrl(assessmentHomePage)}
             className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
           >
             ← Экзамены
@@ -131,7 +134,7 @@ export default function AssessmentBanks() {
             Банки вопросов
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Создание и управление банками (только администратор)
+            Создание и управление собственными банками вопросов
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

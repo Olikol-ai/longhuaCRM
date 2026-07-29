@@ -4,4 +4,4 @@
  */
 
 /** Placeholder actor-facing assessment role hints used by access scaffolding. */
-export type AssessmentActorKind = 'admin' | 'teacher' | 'student' | 'none';
+export type AssessmentActorKind = 'admin' | 'teacher' | 'tutor' | 'student' | 'none';

@@ -190,13 +190,13 @@ const AuthenticatedApp = () => {
         <Route path="/Payments" element={<AdminRoute><LayoutWrapper currentPageName="Payments"><Payments /></LayoutWrapper></AdminRoute>} />
         <Route path="/PaymentReturn" element={<StudentRoute><LayoutWrapper currentPageName="PaymentReturn"><PaymentReturn /></LayoutWrapper></StudentRoute>} />
         <Route path="/AdminAssessment" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AdminAssessment /></LayoutWrapper></AdminRoute>} />
-        <Route path="/AssessmentBanks" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentBanks /></LayoutWrapper></AdminRoute>} />
-        <Route path="/AssessmentQuestions" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentQuestions /></LayoutWrapper></AdminRoute>} />
-        <Route path="/AssessmentExamTemplates" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentExamTemplates /></LayoutWrapper></AdminRoute>} />
-        <Route path="/AssessmentBlueprints" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentBlueprints /></LayoutWrapper></AdminRoute>} />
-        <Route path="/AssessmentBlueprintEdit" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentBlueprintEdit /></LayoutWrapper></AdminRoute>} />
-        <Route path="/AssessmentExams" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentExams /></LayoutWrapper></AdminRoute>} />
-        <Route path="/AssessmentExamDetail" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentExamDetail /></LayoutWrapper></AdminRoute>} />
+        <Route path="/AssessmentBanks" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentBanks"><AssessmentBanks /></LayoutWrapper></TeacherRoute>} />
+        <Route path="/AssessmentQuestions" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentQuestions"><AssessmentQuestions /></LayoutWrapper></TeacherRoute>} />
+        <Route path="/AssessmentExamTemplates" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentExamTemplates"><AssessmentExamTemplates /></LayoutWrapper></TeacherRoute>} />
+        <Route path="/AssessmentBlueprints" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentBlueprints"><AssessmentBlueprints /></LayoutWrapper></TeacherRoute>} />
+        <Route path="/AssessmentBlueprintEdit" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentBlueprints"><AssessmentBlueprintEdit /></LayoutWrapper></TeacherRoute>} />
+        <Route path="/AssessmentExams" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentExams"><AssessmentExams /></LayoutWrapper></TeacherRoute>} />
+        <Route path="/AssessmentExamDetail" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentExams"><AssessmentExamDetail /></LayoutWrapper></TeacherRoute>} />
         <Route path="/AssessmentAssignments" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentAssignments /></LayoutWrapper></AdminRoute>} />
         <Route path="/AssessmentAssignmentDetail" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentAssignmentDetail /></LayoutWrapper></AdminRoute>} />
         <Route path="/AssessmentResults" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AssessmentResults /></LayoutWrapper></AdminRoute>} />

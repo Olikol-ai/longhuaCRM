@@ -95,10 +95,8 @@ export class ExamService {
     actor: DomainAccessActor,
   ): Promise<AssessmentExamEntity> {
     this.access.assertCanManageContent(actor);
-    const blueprint = this.guard.requireFound(
-      await this.blueprints.findWithSectionRules(input.blueprintId),
-      'Blueprint',
-    );
+    const blueprint = this.guard.requireFound(await this.blueprints.findWithSectionRules(input.blueprintId), 'Blueprint');
+    this.access.assertCanManageCreatedContent(actor, blueprint, 'blueprint');
     this.guard.assertPublished(blueprint.status, 'Blueprint');
 
     const exam = await this.exams.save({
@@ -148,7 +146,8 @@ export class ExamService {
   }
 
   /** Rebuild question pool from Blueprint — draft only. */
-  async rebuild(id: string): Promise<AssessmentExamEntity> {
+  async rebuild(id: string, actor: DomainAccessActor): Promise<AssessmentExamEntity> {
+    await this.access.assertCanManageExam(actor, id);
     const exam = this.guard.requireFound(await this.exams.findById(id), 'Exam');
     this.guard.assertDraft(exam.status, 'Exam');
     const blueprint = this.guard.requireFound(

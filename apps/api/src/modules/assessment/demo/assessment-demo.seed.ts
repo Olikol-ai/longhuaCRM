@@ -132,13 +132,13 @@ export async function seedAssessmentDemo(
     locale: 'zh-CN',
     createdByUserId: actor.sub,
   });
-  await banks.publish(bank.id);
+  await banks.publish(actor, bank.id);
 
   const questionIds: string[] = [];
 
   // Listening pool (5)
   for (let i = 1; i <= 5; i += 1) {
-    const q = await questions.create({
+    const q = await questions.create(actor, {
       bankId: bank.id,
       type: QuestionType.Listening,
       stem: `[Аудирование ${i}] 你听了什么？`,
@@ -153,7 +153,7 @@ export async function seedAssessmentDemo(
 
   // Reading pool: 3 single_choice + 2 multiple_choice = 5
   for (let i = 1; i <= 3; i += 1) {
-    const q = await questions.create({
+    const q = await questions.create(actor, {
       bankId: bank.id,
       type: QuestionType.SingleChoice,
       stem: `[Чтение ${i}] 选择正确的答案`,
@@ -166,7 +166,7 @@ export async function seedAssessmentDemo(
     questionIds.push(q.id);
   }
   for (let i = 1; i <= 2; i += 1) {
-    const q = await questions.create({
+    const q = await questions.create(actor, {
       bankId: bank.id,
       type: QuestionType.MultipleChoice,
       stem: `[Чтение ${i}] Выберите все верные ответы`,
@@ -186,9 +186,9 @@ export async function seedAssessmentDemo(
     levelLabel: 'HSK 1',
     createdByUserId: actor.sub,
   });
-  await templates.publish(template.id);
+  await templates.publish(actor, template.id);
 
-  const blueprint = await blueprints.create({
+  const blueprint = await blueprints.create(actor, {
     examTemplateId: template.id,
     bankId: bank.id,
     name: ASSESSMENT_DEMO.blueprintName,
@@ -216,7 +216,7 @@ export async function seedAssessmentDemo(
       },
     ],
   });
-  await blueprints.publish(blueprint.id);
+  await blueprints.publish(actor, blueprint.id);
 
   const exam = await exams.createFromBlueprint(
     {

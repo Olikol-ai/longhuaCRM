@@ -58,7 +58,7 @@ export class AssessmentExamsController {
   constructor(private readonly exams: ExamService) {}
 
   @Post()
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create exam from blueprint' })
   @ApiResponse({ status: 201, description: 'Exam created' })
@@ -77,7 +77,7 @@ export class AssessmentExamsController {
   }
 
   @Get()
-  @Roles('admin', 'teacher', 'student')
+  @Roles('admin', 'teacher', 'tutor', 'student')
   @ApiOperation({ summary: 'List exams' })
   @ApiResponse({ status: 200, description: 'Paginated exam list' })
   async list(@CurrentUser() user: JwtPayload, @Query() query: ListExamsQueryDto) {
@@ -90,7 +90,7 @@ export class AssessmentExamsController {
   }
 
   @Get(':examId')
-  @Roles('admin', 'teacher', 'student')
+  @Roles('admin', 'teacher', 'tutor', 'student')
   @ApiOperation({ summary: 'Get exam detail' })
   @ApiResponse({ status: 200, description: 'Exam detail' })
   findOne(
@@ -101,7 +101,7 @@ export class AssessmentExamsController {
   }
 
   @Patch(':examId')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Update draft exam' })
   @ApiResponse({ status: 200, description: 'Exam updated' })
   update(
@@ -132,7 +132,7 @@ export class AssessmentExamsController {
   }
 
   @Post(':examId/publish')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Publish exam' })
   @ApiResponse({ status: 200, description: 'Exam published' })
   publish(
@@ -143,7 +143,7 @@ export class AssessmentExamsController {
   }
 
   @Post(':examId/archive')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Archive exam' })
   @ApiResponse({ status: 200, description: 'Exam archived' })
   archive(
@@ -154,7 +154,7 @@ export class AssessmentExamsController {
   }
 
   @Get(':examId/preview')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Preview materialized exam' })
   @ApiResponse({ status: 200, description: 'Exam preview' })
   preview(
