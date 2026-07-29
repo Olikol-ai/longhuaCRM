@@ -13,6 +13,7 @@ import { AssessmentRuleEntity } from './assessment-rule.entity';
 import { AssessmentSectionEntity } from './assessment-section.entity';
 import { AssessmentExamQuestionEntity } from './assessment-exam-question.entity';
 import { AssessmentExamAssignmentEntity } from './assessment-exam-assignment.entity';
+import { AssessmentExamPartEntity } from './assessment-exam-part.entity';
 
 @Entity('assessment_exams')
 export class AssessmentExamEntity {
@@ -44,6 +45,9 @@ export class AssessmentExamEntity {
 
   @OneToMany(() => AssessmentExamQuestionEntity, (q) => q.exam)
   examQuestions?: AssessmentExamQuestionEntity[];
+
+  @OneToMany(() => AssessmentExamPartEntity, (p) => p.exam)
+  parts?: AssessmentExamPartEntity[];
 
   @OneToMany(() => AssessmentExamAssignmentEntity, (a) => a.exam)
   assignments?: AssessmentExamAssignmentEntity[];

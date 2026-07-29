@@ -8,9 +8,12 @@ import { Repository } from 'typeorm';
 import { AssessmentAccessService } from '../../../common/access/assessment-access.service';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
 import {
+  AssessmentContentTaskEntity,
   AssessmentExamAssignmentEntity,
   AssessmentExamBlockEntity,
   AssessmentExamEntity,
+  AssessmentExamPartEntity,
+  AssessmentExamPartPoolItemEntity,
   AssessmentQuestionEntity,
   AssessmentRuleEntity,
 } from '../entities';
@@ -47,7 +50,13 @@ export type ExamRuleInput = {
 };
 
 export type CreateExamInput = {
-  blockIds: string[];
+  blockIds?: string[];
+  parts?: Array<{
+    partKind: 'test' | 'listening' | 'reading';
+    title?: string | null;
+    selectCount: number;
+    pool: Array<{ questionId?: string; contentTaskId?: string }>;
+  }>;
   name: string;
   availableFrom?: Date | null;
   availableTo?: Date | null;
@@ -70,6 +79,12 @@ export class ExamService {
     private readonly questions: AssessmentQuestionRepository,
     @InjectRepository(AssessmentExamAssignmentEntity)
     private readonly assignments: Repository<AssessmentExamAssignmentEntity>,
+    @InjectRepository(AssessmentExamPartEntity)
+    private readonly parts: Repository<AssessmentExamPartEntity>,
+    @InjectRepository(AssessmentExamPartPoolItemEntity)
+    private readonly poolItems: Repository<AssessmentExamPartPoolItemEntity>,
+    @InjectRepository(AssessmentContentTaskEntity)
+    private readonly contentTasks: Repository<AssessmentContentTaskEntity>,
     private readonly guard: AssessmentContentGuard,
     private readonly access: AssessmentAccessService,
     private readonly journal: AssessmentChangeJournalService,
@@ -101,9 +116,15 @@ export class ExamService {
     actor: DomainAccessActor,
   ): Promise<AssessmentExamEntity> {
     this.access.assertCanManageContent(actor);
+    const hasParts = (input.parts?.length ?? 0) > 0;
     const uniqueIds = [...new Set(input.blockIds ?? [])];
-    if (uniqueIds.length === 0) {
-      throw new BadRequestException('At least one ExamBlock is required');
+
+    if (!hasParts && uniqueIds.length === 0) {
+      throw new BadRequestException('Укажите parts (пулы) или legacy block_ids');
+    }
+
+    if (hasParts) {
+      return this.createFromParts(input, actor);
     }
 
     const loaded = await this.blocks.findWithItemsOrdered(uniqueIds);
@@ -141,6 +162,91 @@ export class ExamService {
       entityId: created.id,
       action: 'create',
       summary: `Created exam «${created.name}» from ${loaded.length} block(s)`,
+      newVersion: this.snapshot(created),
+    });
+    return created;
+  }
+
+  private async createFromParts(
+    input: CreateExamInput,
+    actor: DomainAccessActor,
+  ): Promise<AssessmentExamEntity> {
+    for (const part of input.parts ?? []) {
+      if (part.pool.length < part.selectCount) {
+        throw new BadRequestException(
+          `Пул части «${part.title ?? part.partKind}» меньше select_count`,
+        );
+      }
+      for (const item of part.pool) {
+        if (part.partKind === 'test') {
+          if (!item.questionId) {
+            throw new BadRequestException('Test part pool requires question_id');
+          }
+          const q = await this.questions.findById(item.questionId);
+          if (!q) throw new BadRequestException(`Question ${item.questionId} not found`);
+          this.access.assertCanManageCreatedContent(actor, q, 'question');
+        } else {
+          if (!item.contentTaskId) {
+            throw new BadRequestException(
+              `${part.partKind} part pool requires content_task_id`,
+            );
+          }
+          const task = await this.contentTasks.findOne({
+            where: { id: item.contentTaskId },
+          });
+          if (!task) {
+            throw new BadRequestException(`Content task ${item.contentTaskId} not found`);
+          }
+          this.access.assertCanManageCreatedContent(actor, task, 'content task');
+          if (task.taskType !== part.partKind) {
+            throw new BadRequestException(
+              `Content task type ${task.taskType} does not match part ${part.partKind}`,
+            );
+          }
+        }
+      }
+    }
+
+    const exam = await this.exams.save({
+      name: input.name,
+      availableFrom: input.availableFrom ?? null,
+      availableTo: input.availableTo ?? null,
+      createdByUserId: input.createdByUserId ?? actor.sub,
+      status: ContentLifecycleStatus.Draft,
+    });
+    await this.exams.saveRule(this.mapRule(exam.id, input.rule));
+
+    for (const [index, part] of (input.parts ?? []).entries()) {
+      const savedPart = await this.parts.save(
+        this.parts.create({
+          examId: exam.id,
+          sortOrder: index,
+          partKind: part.partKind,
+          title: part.title ?? null,
+          selectCount: part.selectCount,
+        }),
+      );
+      await this.poolItems.save(
+        part.pool.map((item) =>
+          this.poolItems.create({
+            partId: savedPart.id,
+            questionId: item.questionId ?? null,
+            contentTaskId: item.contentTaskId ?? null,
+          }),
+        ),
+      );
+    }
+
+    const created = this.guard.requireFound(
+      await this.exams.findWithStructure(exam.id),
+      'Exam',
+    );
+    await this.journal.record({
+      actorUserId: actor.sub,
+      entityType: 'Exam',
+      entityId: created.id,
+      action: 'create',
+      summary: `Created exam «${created.name}» from ${input.parts?.length ?? 0} generation part(s)`,
       newVersion: this.snapshot(created),
     });
     return created;
@@ -220,9 +326,23 @@ export class ExamService {
     if (!exam.rule) {
       throw new BadRequestException('Exam requires AssessmentRule before publish');
     }
+    const parts = exam.parts ?? [];
     const questions = exam.examQuestions ?? [];
-    if (questions.length === 0) {
-      throw new BadRequestException('Exam has no questions');
+    if (questions.length === 0 && parts.length === 0) {
+      throw new BadRequestException('Exam has no questions or generation parts');
+    }
+    for (const part of parts) {
+      const poolSize = part.poolItems?.length ?? 0;
+      if (poolSize < 1) {
+        throw new BadRequestException(
+          `Часть «${part.title ?? part.partKind}» имеет пустой пул`,
+        );
+      }
+      if (poolSize < part.selectCount) {
+        throw new BadRequestException(
+          `Пул части «${part.title ?? part.partKind}» меньше select_count`,
+        );
+      }
     }
     const before = this.snapshot(exam);
     const updated = await this.exams.update(id, { status: ContentLifecycleStatus.Published });
@@ -303,10 +423,39 @@ export class ExamService {
       durationMinutes: number | null;
       levelLabel: string | null;
       questions: AssessmentQuestionEntity[];
+      selectCount?: number;
+      poolSize?: number;
     }>;
   }> {
     await this.access.assertCanManageExam(actor, id);
     const exam = this.guard.requireFound(await this.exams.findWithStructure(id), 'Exam');
+    const parts = [...(exam.parts ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
+    if (parts.length > 0) {
+      return {
+        exam,
+        sections: parts.map((part) => {
+          const poolQs: AssessmentQuestionEntity[] = [];
+          for (const item of part.poolItems ?? []) {
+            if (item.question) poolQs.push(item.question);
+            for (const link of item.contentTask?.questions ?? []) {
+              if (link.question) poolQs.push(link.question);
+            }
+          }
+          return {
+            sectionKey: part.partKind,
+            title: part.title || part.partKind,
+            weight: '0',
+            description: `Пул: ${part.poolItems?.length ?? 0}, выбирается: ${part.selectCount}`,
+            durationMinutes: null,
+            levelLabel: null,
+            questions: poolQs,
+            selectCount: part.selectCount,
+            poolSize: part.poolItems?.length ?? 0,
+          };
+        }),
+      };
+    }
+
     const questionIds = [...new Set((exam.examQuestions ?? []).map((eq) => eq.questionId))];
     const loaded = await this.questions.findByIdsWithAnswers(questionIds);
     const byId = new Map(loaded.map((q) => [q.id, q]));

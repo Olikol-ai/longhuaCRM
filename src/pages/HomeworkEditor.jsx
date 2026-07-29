@@ -9,9 +9,9 @@ import { toast } from '@/components/ui/use-toast';
 import { createPageUrl } from '@/utils';
 import { userFacingError } from '@/lib/userFacingError';
 import {
+  CONTENT_TASK_TYPE_LABEL,
   QUESTION_TYPE_LABEL,
-  needsAnswerOptions,
-  validateQuestionForm,
+  unwrapItems,
 } from '@/lib/assessment-admin';
 
 const ACTIVITY_OPTIONS = [
@@ -22,42 +22,14 @@ const ACTIVITY_OPTIONS = [
   { value: 'writing', label: 'Writing (скоро)' },
 ];
 
-const HOMEWORK_QUESTION_TYPES = [
-  'single_choice',
-  'multiple_choice',
-  'short_text',
-  'translation',
-  'reading',
-  'listening',
-];
-
-const HOMEWORK_TYPE_LABEL = {
-  ...QUESTION_TYPE_LABEL,
-  translation: 'Перевод',
-  reading: 'Reading',
-};
-
-function emptyAnswer(sortOrder = 0) {
-  return { text: '', is_correct: false, sort_order: sortOrder };
-}
-
-function emptyQuestion(sortOrder = 0) {
+function emptyTask(kind = 'question') {
   return {
-    localKey: `q-${Date.now()}-${sortOrder}`,
-    type: 'single_choice',
-    stem: '',
-    points: 1,
-    difficulty: 1,
-    explanation: '',
-    passage_text: '',
-    section_key: 'test',
-    sort_order: sortOrder,
-    answers: [emptyAnswer(0), emptyAnswer(1)],
+    localKey: `task-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    task_kind: kind,
+    question_id: '',
+    content_task_id: '',
+    points: '',
   };
-}
-
-function itemNeedsOptions(type) {
-  return needsAnswerOptions(type);
 }
 
 export default function HomeworkEditor() {
@@ -66,14 +38,32 @@ export default function HomeworkEditor() {
   const id = params.get('id');
   const [loading, setLoading] = useState(Boolean(id));
   const [saving, setSaving] = useState(false);
+  const [libraryQuestions, setLibraryQuestions] = useState([]);
+  const [libraryTasks, setLibraryTasks] = useState([]);
   const [form, setForm] = useState({
     title: '',
     description: '',
     instructions: '',
     activity_kind: 'test',
     pass_score_percent: 60,
-    items: [emptyQuestion(0)],
+    tasks: [emptyTask('question')],
   });
+
+  useEffect(() => {
+    Promise.all([
+      api.assessment.listQuestions({ status: 'published', limit: 500 }),
+      api.assessment.listContentTasks(),
+    ])
+      .then(([qs, tasks]) => {
+        setLibraryQuestions(unwrapItems(qs));
+        const list = Array.isArray(tasks) ? tasks : unwrapItems(tasks);
+        setLibraryTasks(list.filter((t) => t.status === 'published'));
+      })
+      .catch(() => {
+        setLibraryQuestions([]);
+        setLibraryTasks([]);
+      });
+  }, []);
 
   useEffect(() => {
     if (!id) {
@@ -83,24 +73,12 @@ export default function HomeworkEditor() {
     (async () => {
       try {
         const hw = await api.homework.get(id);
-        const items = (hw.items || []).map((item, idx) => ({
-          localKey: item.id || `existing-${idx}`,
-          type: item.type || 'single_choice',
-          stem: item.stem || '',
-          points: item.points ?? 1,
-          difficulty: item.difficulty ?? 1,
-          explanation: item.explanation || '',
-          passage_text: item.passage_text || '',
-          section_key: item.section_key || 'test',
-          sort_order: item.sort_order ?? idx,
-          answers:
-            Array.isArray(item.answers) && item.answers.length > 0
-              ? item.answers.map((answer, answerIdx) => ({
-                  text: answer.text || answer.body || '',
-                  is_correct: Boolean(answer.is_correct),
-                  sort_order: answer.sort_order ?? answerIdx,
-                }))
-              : [emptyAnswer(0), emptyAnswer(1)],
+        const tasks = (hw.tasks || []).map((task, idx) => ({
+          localKey: task.id || `existing-${idx}`,
+          task_kind: task.task_kind,
+          question_id: task.question_id || '',
+          content_task_id: task.content_task_id || '',
+          points: task.points ?? '',
         }));
         setForm({
           title: hw.title || '',
@@ -108,7 +86,7 @@ export default function HomeworkEditor() {
           instructions: hw.instructions || '',
           activity_kind: hw.activity_kind || 'test',
           pass_score_percent: hw.pass_score_percent ?? 60,
-          items: items.length > 0 ? items : [emptyQuestion(0)],
+          tasks: tasks.length > 0 ? tasks : [emptyTask('question')],
         });
       } catch (err) {
         toast({
@@ -122,117 +100,47 @@ export default function HomeworkEditor() {
     })();
   }, [id]);
 
-  const updateItem = (localKey, patch) => {
+  const updateTask = (localKey, patch) => {
     setForm((prev) => ({
       ...prev,
-      items: prev.items.map((item) =>
-        item.localKey === localKey ? { ...item, ...patch } : item,
+      tasks: prev.tasks.map((task) =>
+        task.localKey === localKey ? { ...task, ...patch } : task,
       ),
     }));
   };
 
-  const updateAnswer = (localKey, answerIndex, patch) => {
+  const addTask = (kind) => {
     setForm((prev) => ({
       ...prev,
-      items: prev.items.map((item) => {
-        if (item.localKey !== localKey) return item;
-        const answers = item.answers.map((answer, idx) => {
-          if (idx !== answerIndex) {
-            if (
-              patch.is_correct &&
-              (item.type === 'single_choice' ||
-                item.type === 'listening' ||
-                item.type === 'reading')
-            ) {
-              return { ...answer, is_correct: false };
-            }
-            return answer;
-          }
-          return { ...answer, ...patch };
-        });
-        return { ...item, answers };
-      }),
+      tasks: [...prev.tasks, emptyTask(kind)],
     }));
   };
 
-  const addQuestion = () => {
+  const removeTask = (localKey) => {
     setForm((prev) => ({
       ...prev,
-      items: [...prev.items, emptyQuestion(prev.items.length)],
+      tasks:
+        prev.tasks.length <= 1
+          ? prev.tasks
+          : prev.tasks.filter((task) => task.localKey !== localKey),
     }));
   };
 
-  const removeQuestion = (localKey) => {
-    setForm((prev) => ({
-      ...prev,
-      items:
-        prev.items.length <= 1
-          ? prev.items
-          : prev.items
-              .filter((item) => item.localKey !== localKey)
-              .map((item, idx) => ({ ...item, sort_order: idx })),
-    }));
-  };
-
-  const addAnswer = (localKey) => {
-    setForm((prev) => ({
-      ...prev,
-      items: prev.items.map((item) =>
-        item.localKey === localKey
-          ? {
-              ...item,
-              answers: [...item.answers, emptyAnswer(item.answers.length)],
-            }
-          : item,
-      ),
-    }));
-  };
-
-  const removeAnswer = (localKey, answerIndex) => {
-    setForm((prev) => ({
-      ...prev,
-      items: prev.items.map((item) => {
-        if (item.localKey !== localKey || item.answers.length <= 2) return item;
+  const buildPayloadTasks = () =>
+    form.tasks.map((task, idx) => {
+      if (task.task_kind === 'question') {
         return {
-          ...item,
-          answers: item.answers
-            .filter((_, idx) => idx !== answerIndex)
-            .map((answer, idx) => ({ ...answer, sort_order: idx })),
+          task_kind: 'question',
+          question_id: task.question_id,
+          sort_order: idx,
+          points: task.points !== '' ? Number(task.points) : undefined,
         };
-      }),
-    }));
-  };
-
-  const buildPayloadItems = () =>
-    form.items.map((item, idx) => {
-      const showOptions = itemNeedsOptions(item.type);
+      }
       return {
-        type: item.type,
-        stem: item.stem.trim(),
-        points: Number(item.points) || 1,
-        difficulty: Math.min(5, Math.max(1, Number(item.difficulty) || 1)),
-        explanation: item.explanation.trim() || undefined,
-        passage_text: item.passage_text.trim() || undefined,
-        section_key:
-          item.type === 'listening'
-            ? 'listening'
-            : item.type === 'reading'
-              ? 'reading'
-              : form.activity_kind === 'listening'
-                ? 'listening'
-                : form.activity_kind === 'reading'
-                  ? 'reading'
-                  : 'test',
+        task_kind: task.task_kind,
+        content_task_id: task.content_task_id,
         sort_order: idx,
-        answers: showOptions
-          ? item.answers
-              .filter((answer) => answer.text.trim())
-              .map((answer, answerIdx) => ({
-                text: answer.text.trim(),
-                is_correct: Boolean(answer.is_correct),
-                sort_order: answerIdx,
-              }))
-          : [],
+        points: task.points !== '' ? Number(task.points) : undefined,
       };
     });
 
@@ -241,25 +149,23 @@ export default function HomeworkEditor() {
       toast({ title: 'Укажите название', variant: 'destructive' });
       return;
     }
-    if (form.items.length < 1) {
-      toast({ title: 'Добавьте хотя бы один вопрос', variant: 'destructive' });
+    if (form.tasks.length < 1) {
+      toast({ title: 'Добавьте хотя бы одну задачу', variant: 'destructive' });
       return;
     }
-    for (const [index, item] of form.items.entries()) {
-      const error = validateQuestionForm({
-        type: itemNeedsOptions(item.type) ? item.type : 'short_text',
-        stem: item.stem,
-        answers: itemNeedsOptions(item.type)
-          ? item.answers.map((answer) => ({
-              text: answer.text,
-              is_correct: answer.is_correct,
-            }))
-          : [],
-      });
-      if (error) {
+    for (const [index, task] of form.tasks.entries()) {
+      if (task.task_kind === 'question' && !task.question_id) {
         toast({
-          title: `Вопрос ${index + 1}`,
-          description: error,
+          title: `Задача ${index + 1}`,
+          description: 'Выберите тест-вопрос',
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (task.task_kind !== 'question' && !task.content_task_id) {
+        toast({
+          title: `Задача ${index + 1}`,
+          description: 'Выберите аудирование или чтение',
           variant: 'destructive',
         });
         return;
@@ -274,7 +180,7 @@ export default function HomeworkEditor() {
         instructions: form.instructions.trim() || undefined,
         activity_kind: form.activity_kind,
         pass_score_percent: Number(form.pass_score_percent) || 60,
-        items: buildPayloadItems(),
+        tasks: buildPayloadTasks(),
       };
       let hwId = id;
       if (id) {
@@ -309,6 +215,9 @@ export default function HomeworkEditor() {
     );
   }
 
+  const listeningOptions = libraryTasks.filter((t) => t.task_type === 'listening');
+  const readingOptions = libraryTasks.filter((t) => t.task_type === 'reading');
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-6" data-testid="homework-editor">
       <div>
@@ -316,7 +225,7 @@ export default function HomeworkEditor() {
           {id ? 'Редактирование задания' : 'Новое домашнее задание'}
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          Создавайте вопросы прямо внутри задания. Банк вопросов и блоки экзаменов не нужны.
+          Соберите задание из тест-вопросов, аудирования и чтения из вашей библиотеки.
         </p>
       </div>
 
@@ -384,157 +293,102 @@ export default function HomeworkEditor() {
       </div>
 
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">Вопросы ({form.items.length})</h2>
-          <Button type="button" variant="outline" size="sm" onClick={addQuestion} className="gap-1">
-            <Plus className="h-4 w-4" />
-            Добавить вопрос
-          </Button>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">Состав ({form.tasks.length})</h2>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => addTask('question')}>
+              <Plus className="h-4 w-4 mr-1" />
+              Добавить тест
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => addTask('listening')}>
+              <Plus className="h-4 w-4 mr-1" />
+              Аудирование
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => addTask('reading')}>
+              <Plus className="h-4 w-4 mr-1" />
+              Чтение
+            </Button>
+          </div>
         </div>
 
-        {form.items.map((item, index) => {
-          const showOptions = itemNeedsOptions(item.type);
-          return (
-            <div
-              key={item.localKey}
-              className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 space-y-3"
-              data-testid={`homework-question-${index}`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-medium">Вопрос {index + 1}</p>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-rose-600"
-                  disabled={form.items.length <= 1}
-                  onClick={() => removeQuestion(item.localKey)}
+        {form.tasks.map((task, index) => (
+          <div
+            key={task.localKey}
+            className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 space-y-3"
+            data-testid={`homework-question-${index}`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium">
+                {task.task_kind === 'question'
+                  ? 'Тест-вопрос'
+                  : CONTENT_TASK_TYPE_LABEL[task.task_kind] || task.task_kind}{' '}
+                #{index + 1}
+              </p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-rose-600"
+                disabled={form.tasks.length <= 1}
+                onClick={() => removeTask(task.localKey)}
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Удалить
+              </Button>
+            </div>
+
+            {task.task_kind === 'question' ? (
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Вопрос</label>
+                <select
+                  value={task.question_id}
+                  onChange={(e) => updateTask(task.localKey, { question_id: e.target.value })}
+                  className="w-full px-3 py-2 text-sm border rounded-lg"
                 >
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Удалить
-                </Button>
+                  <option value="">Выберите…</option>
+                  {libraryQuestions.map((q) => (
+                    <option key={q.id} value={q.id}>
+                      [{QUESTION_TYPE_LABEL[q.type] || q.type}] {q.stem.slice(0, 80)}
+                    </option>
+                  ))}
+                </select>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Тип</label>
-                  <select
-                    value={item.type}
-                    onChange={(e) => updateItem(item.localKey, { type: e.target.value })}
-                    className="w-full px-3 py-2 text-sm border rounded-lg"
-                  >
-                    {HOMEWORK_QUESTION_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {HOMEWORK_TYPE_LABEL[type] || type}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Баллы</label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.5"
-                    value={item.points}
-                    onChange={(e) => updateItem(item.localKey, { points: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Сложность</label>
-                  <Input
-                    type="number"
-                    min="1"
-                    max="5"
-                    value={item.difficulty}
-                    onChange={(e) => updateItem(item.localKey, { difficulty: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              {(item.type === 'reading' || form.activity_kind === 'reading') && (
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Текст для Reading
-                  </label>
-                  <Textarea
-                    rows={3}
-                    value={item.passage_text}
-                    onChange={(e) => updateItem(item.localKey, { passage_text: e.target.value })}
-                    placeholder="Вставьте текст для чтения…"
-                  />
-                </div>
-              )}
-
+            ) : (
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Текст вопроса
+                  {CONTENT_TASK_TYPE_LABEL[task.task_kind]}
                 </label>
-                <Textarea
-                  rows={2}
-                  value={item.stem}
-                  onChange={(e) => updateItem(item.localKey, { stem: e.target.value })}
-                  placeholder="Введите формулировку…"
-                />
+                <select
+                  value={task.content_task_id}
+                  onChange={(e) => updateTask(task.localKey, { content_task_id: e.target.value })}
+                  className="w-full px-3 py-2 text-sm border rounded-lg"
+                >
+                  <option value="">Выберите…</option>
+                  {(task.task_kind === 'listening' ? listeningOptions : readingOptions).map(
+                    (t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.title} ({(t.questions || []).length} вопр.)
+                      </option>
+                    ),
+                  )}
+                </select>
               </div>
+            )}
 
-              {showOptions ? (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-slate-600">Варианты ответа</label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => addAnswer(item.localKey)}
-                    >
-                      <Plus className="h-3.5 w-3.5 mr-1" />
-                      Вариант
-                    </Button>
-                  </div>
-                  {item.answers.map((answer, answerIndex) => (
-                    <div key={answerIndex} className="flex items-start gap-2">
-                      <input
-                        type={item.type === 'multiple_choice' ? 'checkbox' : 'radio'}
-                        name={`correct-${item.localKey}`}
-                        className="mt-2.5 accent-brand"
-                        checked={Boolean(answer.is_correct)}
-                        onChange={(e) =>
-                          updateAnswer(item.localKey, answerIndex, {
-                            is_correct: e.target.checked,
-                          })
-                        }
-                        title="Правильный ответ"
-                      />
-                      <Input
-                        className="flex-1"
-                        value={answer.text}
-                        onChange={(e) =>
-                          updateAnswer(item.localKey, answerIndex, { text: e.target.value })
-                        }
-                        placeholder={`Вариант ${answerIndex + 1}`}
-                      />
-                      {item.answers.length > 2 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeAnswer(item.localKey, answerIndex)}
-                        >
-                          <Trash2 className="h-4 w-4 text-rose-500" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-500">
-                  Ученик введёт ответ текстом. Проверка — вручную преподавателем.
-                </p>
-              )}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Баллы (необязательно)
+              </label>
+              <Input
+                type="number"
+                min="0"
+                step="0.5"
+                value={task.points}
+                onChange={(e) => updateTask(task.localKey, { points: e.target.value })}
+              />
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
 
       <div className="flex flex-wrap justify-end gap-2">

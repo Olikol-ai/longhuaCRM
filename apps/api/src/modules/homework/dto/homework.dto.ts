@@ -74,6 +74,29 @@ export class HomeworkItemDto {
   answers?: HomeworkItemAnswerDto[];
 }
 
+export class HomeworkTaskDto {
+  @IsEnum(['question', 'listening', 'reading'])
+  task_kind!: 'question' | 'listening' | 'reading';
+
+  @IsOptional()
+  @IsUUID()
+  question_id?: string;
+
+  @IsOptional()
+  @IsUUID()
+  content_task_id?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  points?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sort_order?: number;
+}
+
 export class CreateHomeworkDto {
   @IsString()
   @MinLength(2)
@@ -101,6 +124,12 @@ export class CreateHomeworkDto {
   @ValidateNested({ each: true })
   @Type(() => HomeworkItemDto)
   items?: HomeworkItemDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => HomeworkTaskDto)
+  tasks?: HomeworkTaskDto[];
 }
 
 export class UpdateHomeworkDto {
@@ -131,6 +160,12 @@ export class UpdateHomeworkDto {
   @ValidateNested({ each: true })
   @Type(() => HomeworkItemDto)
   items?: HomeworkItemDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => HomeworkTaskDto)
+  tasks?: HomeworkTaskDto[];
 }
 
 export class AssignHomeworkDto {

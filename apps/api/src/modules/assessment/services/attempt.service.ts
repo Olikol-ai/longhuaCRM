@@ -226,12 +226,22 @@ export class AttemptService {
         selectedIds = await this.attempts.findSelectedAnswerSnapshotIds(attemptAnswer.id);
       }
 
+      let attachments: Array<{ id: string; kind: string; url: string | null }> = [];
+      if (qSnap.sourceQuestionId) {
+        const atts = await this.questions.findAttachmentsByQuestionId(qSnap.sourceQuestionId);
+        attachments = atts.map((a) => ({
+          id: a.id,
+          kind: a.kind,
+          url: null,
+        }));
+      }
+
       section.questions.push({
         snapshotId: qSnap.id,
         type: qSnap.type,
         stem: qSnap.stem,
         points: String(qSnap.points),
-        attachments: [],
+        attachments,
         answers: answerSnaps.map((a) => ({
           snapshotId: a.id,
           text: a.text,
@@ -531,8 +541,13 @@ export class AttemptService {
       case QuestionType.MultipleChoice:
         break;
       case QuestionType.ShortText:
+      case QuestionType.Translation:
+      case QuestionType.Reading:
+        // Legacy reading/translation snapshots: free-text (manual review), no choice selections.
         if (selected.length > 0) {
-          throw new BadRequestException('short_text does not accept selected answers');
+          throw new BadRequestException(
+            `${String(qSnap.type)} does not accept selected answers`,
+          );
         }
         break;
       case QuestionType.Listening:
@@ -580,10 +595,136 @@ export class AttemptService {
 
   private isAuthoringRole(role: string): boolean {
     const normalized = role.trim().toLowerCase();
-    return normalized === 'admin' || normalized === 'teacher';
+    return normalized === 'admin' || normalized === 'teacher' || normalized === 'tutor';
   }
 
   private async createSnapshots(
+    attempt: AssessmentAttemptEntity,
+    exam: AssessmentExamEntity,
+    randomizeQuestions: boolean,
+    randomizeAnswers: boolean,
+  ): Promise<void> {
+    const parts = [...(exam.parts ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
+    if (parts.length > 0) {
+      await this.createSnapshotsFromParts(attempt, exam, parts, randomizeAnswers);
+      return;
+    }
+    await this.createSnapshotsFromExamQuestions(
+      attempt,
+      exam,
+      randomizeQuestions,
+      randomizeAnswers,
+    );
+  }
+
+  private async createSnapshotsFromParts(
+    attempt: AssessmentAttemptEntity,
+    exam: AssessmentExamEntity,
+    parts: NonNullable<AssessmentExamEntity['parts']>,
+    randomizeAnswers: boolean,
+  ): Promise<void> {
+    type QSnap = {
+      attemptId: string;
+      sourceQuestionId: string;
+      sectionKey: string;
+      type: QuestionType;
+      stem: string;
+      points: string;
+      difficulty: number;
+      explanation: string | null;
+      sortOrder: number;
+      answers: Array<{
+        text: string;
+        isCorrect: boolean;
+        sortOrder: number;
+        sourceAnswerId: string;
+      }>;
+    };
+
+    const prepared: QSnap[] = [];
+    let sortOrder = 0;
+
+    for (const part of parts) {
+      const pool = [...(part.poolItems ?? [])];
+      if (pool.length === 0) {
+        throw new ConflictException(`Exam part «${part.title ?? part.partKind}» has empty pool`);
+      }
+      const count = Math.min(Math.max(part.selectCount, 1), pool.length);
+      this.shuffleInPlace(pool);
+      const selected = pool.slice(0, count);
+      const sectionKey = part.partKind;
+
+      for (const item of selected) {
+        if (part.partKind === 'test') {
+          const q = item.question;
+          if (!q) {
+            throw new ConflictException(`Pool item missing question for part ${part.id}`);
+          }
+          const answers = [...(q.answers ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
+          if (randomizeAnswers) this.shuffleInPlace(answers);
+          prepared.push({
+            attemptId: attempt.id,
+            sourceQuestionId: q.id,
+            sectionKey,
+            type: q.type,
+            stem: q.stem,
+            points: String(q.points),
+            difficulty: q.difficulty,
+            explanation: q.explanation,
+            sortOrder: sortOrder++,
+            answers: answers.map((a, idx) => ({
+              sourceAnswerId: a.id,
+              text: a.text,
+              isCorrect: a.isCorrect,
+              sortOrder: idx,
+            })),
+          });
+          continue;
+        }
+
+        const task = item.contentTask;
+        if (!task) {
+          throw new ConflictException(`Pool item missing content task for part ${part.id}`);
+        }
+        const nested = [...(task.questions ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
+        for (const link of nested) {
+          const q = link.question;
+          if (!q) continue;
+          const answers = [...(q.answers ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
+          if (randomizeAnswers) this.shuffleInPlace(answers);
+          const passagePrefix =
+            task.taskType === 'reading' && task.textContent
+              ? `${task.textContent}\n\n`
+              : '';
+          prepared.push({
+            attemptId: attempt.id,
+            sourceQuestionId: q.id,
+            sectionKey,
+            type: q.type,
+            stem: `${passagePrefix}${q.stem}`,
+            points: String(q.points),
+            difficulty: q.difficulty,
+            explanation: q.explanation,
+            sortOrder: sortOrder++,
+            answers: answers.map((a, idx) => ({
+              sourceAnswerId: a.id,
+              text: a.text,
+              isCorrect: a.isCorrect,
+              sortOrder: idx,
+            })),
+          });
+        }
+      }
+    }
+
+    if (prepared.length === 0) {
+      throw new ConflictException('Generated exam attempt has no questions');
+    }
+
+    await this.persistPreparedSnapshots(prepared);
+  }
+
+  private async createSnapshotsFromExamQuestions(
     attempt: AssessmentAttemptEntity,
     exam: AssessmentExamEntity,
     randomizeQuestions: boolean,
@@ -655,6 +796,28 @@ export class AttemptService {
       });
     }
 
+    await this.persistPreparedSnapshots(prepared);
+  }
+
+  private async persistPreparedSnapshots(
+    prepared: Array<{
+      attemptId: string;
+      sourceQuestionId: string;
+      sectionKey: string;
+      type: QuestionType;
+      stem: string;
+      points: string;
+      difficulty: number;
+      explanation: string | null;
+      sortOrder: number;
+      answers: Array<{
+        text: string;
+        isCorrect: boolean;
+        sortOrder: number;
+        sourceAnswerId: string;
+      }>;
+    }>,
+  ): Promise<void> {
     const questionSnapshots = prepared.map((p) => ({
       attemptId: p.attemptId,
       sourceQuestionId: p.sourceQuestionId,

@@ -10,7 +10,6 @@ const root = join(__dirname, '../..');
 /** Main sidebar entry pages must not show breadcrumb “← …” back links. */
 const MAIN_MODULE_PAGES = [
   'src/pages/AssessmentQuestions.jsx',
-  'src/pages/AssessmentExamBlocks.jsx',
   'src/pages/AssessmentExams.jsx',
   'src/pages/HomeworkList.jsx',
   'src/pages/MaterialsHub.jsx',
@@ -44,16 +43,11 @@ describe('Main module navigation (no orphan back links)', () => {
       join(root, 'src/pages/AssessmentExamDetail.jsx'),
       'utf8',
     );
-    const blockEdit = readFileSync(
-      join(root, 'src/pages/AssessmentExamBlockEdit.jsx'),
-      'utf8',
-    );
     const assignments = readFileSync(
       join(root, 'src/pages/AssessmentAssignments.jsx'),
       'utf8',
     );
     assert.match(examDetail, /← Экзамены/);
-    assert.match(blockEdit, /← К блокам/);
     assert.match(assignments, /← Экзамены/);
   });
 });

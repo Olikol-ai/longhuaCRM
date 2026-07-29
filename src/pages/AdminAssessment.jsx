@@ -3,7 +3,6 @@ import {
   BookOpen,
   ClipboardList,
   FileQuestion,
-  Layers,
   Loader2,
   RefreshCw,
   Target,
@@ -23,19 +22,13 @@ import {
 const SECTIONS = [
   {
     title: 'Вопросы',
-    description: 'Авторство вопросов всех типов и медиа',
+    description: 'Тест-вопросы и задачи Listening/Reading',
     icon: FileQuestion,
     page: 'AssessmentQuestions',
   },
   {
-    title: 'Блоки экзаменов',
-    description: 'Сборка вопросов в блоки для экзамена',
-    icon: Layers,
-    page: 'AssessmentExamBlocks',
-  },
-  {
     title: 'Экзамены',
-    description: 'Создание из блоков, публикация и предпросмотр',
+    description: 'Правила генерации из пулов, публикация и предпросмотр',
     icon: BookOpen,
     page: 'AssessmentExams',
   },
@@ -68,7 +61,7 @@ export default function AdminAssessment() {
             Панель экзаменов
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Вопросы, блоки, экзамены и результаты Longhua Academy
+            Вопросы, экзамены и результаты Longhua Academy
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => reload()} disabled={loading}>

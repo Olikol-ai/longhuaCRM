@@ -89,15 +89,60 @@ export class ExamRuleDto {
   allow_navigation?: boolean;
 }
 
-export class CreateExamDto {
-  @ApiProperty({
-    type: [String],
-    description: 'Ordered published ExamBlock IDs',
-  })
+export class ExamPartPoolItemDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  question_id?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  content_task_id?: string;
+}
+
+export class ExamPartDto {
+  @ApiProperty({ enum: ['test', 'listening', 'reading'] })
+  @IsEnum(['test', 'listening', 'reading'])
+  part_kind!: 'test' | 'listening' | 'reading';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @ApiProperty()
+  @IsInt()
+  @Min(1)
+  select_count!: number;
+
+  @ApiProperty({ type: [ExamPartPoolItemDto] })
   @IsArray()
   @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => ExamPartPoolItemDto)
+  pool!: ExamPartPoolItemDto[];
+}
+
+export class CreateExamDto {
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Legacy: ordered published ExamBlock IDs',
+  })
+  @IsOptional()
+  @IsArray()
   @IsUUID('4', { each: true })
-  block_ids!: string[];
+  block_ids?: string[];
+
+  @ApiPropertyOptional({
+    type: [ExamPartDto],
+    description: 'Preferred: generation parts with pools',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ExamPartDto)
+  parts?: ExamPartDto[];
 
   @ApiProperty()
   @IsString()

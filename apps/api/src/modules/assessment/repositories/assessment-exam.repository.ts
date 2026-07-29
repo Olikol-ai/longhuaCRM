@@ -46,7 +46,19 @@ export class AssessmentExamRepository {
   findWithStructure(examId: string): Promise<AssessmentExamEntity | null> {
     return this.examRepo.findOne({
       where: { id: examId },
-      relations: ['rule', 'sections', 'examQuestions'],
+      relations: [
+        'rule',
+        'sections',
+        'examQuestions',
+        'parts',
+        'parts.poolItems',
+        'parts.poolItems.question',
+        'parts.poolItems.question.answers',
+        'parts.poolItems.contentTask',
+        'parts.poolItems.contentTask.questions',
+        'parts.poolItems.contentTask.questions.question',
+        'parts.poolItems.contentTask.questions.question.answers',
+      ],
     });
   }
 

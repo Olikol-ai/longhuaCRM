@@ -20,6 +20,7 @@ import {
   CreateHomeworkDto,
   HomeworkAnswerDto,
   HomeworkItemDto,
+  HomeworkTaskDto,
   UpdateHomeworkDto,
   UpdateLocalHomeworkStatusDto,
 } from '../dto/homework.dto';
@@ -39,7 +40,10 @@ import {
   HomeworkItemEntity,
   HomeworkQuestionSnapshotEntity,
   HomeworkResultEntity,
+  HomeworkTaskEntity,
 } from '../entities';
+import { AssessmentContentTaskEntity } from '../../assessment/entities/assessment-content-task.entity';
+import { AssessmentQuestionEntity } from '../../assessment/entities/assessment-question.entity';
 import { HomeworkNotifierService } from './homework-notifier.service';
 
 type HomeworkOwnerType = 'teacher' | 'tutor';
@@ -93,6 +97,12 @@ export class HomeworkService {
     private readonly results: Repository<HomeworkResultEntity>,
     @InjectRepository(HomeworkItemAnswerEntity)
     private readonly itemAnswers: Repository<HomeworkItemAnswerEntity>,
+    @InjectRepository(HomeworkTaskEntity)
+    private readonly homeworkTasks: Repository<HomeworkTaskEntity>,
+    @InjectRepository(AssessmentQuestionEntity)
+    private readonly assessmentQuestions: Repository<AssessmentQuestionEntity>,
+    @InjectRepository(AssessmentContentTaskEntity)
+    private readonly contentTasks: Repository<AssessmentContentTaskEntity>,
     @InjectRepository(TeacherEntity)
     private readonly teachers: Repository<TeacherEntity>,
     @InjectRepository(StudentEntity)
@@ -119,7 +129,13 @@ export class HomeworkService {
   async getHomework(user: JwtPayload, id: string) {
     const hw = await this.homeworks.findOne({
       where: { id },
-      relations: ['items', 'items.answers'],
+      relations: [
+        'items',
+        'items.answers',
+        'tasks',
+        'tasks.question',
+        'tasks.contentTask',
+      ],
     });
     if (!hw) throw new NotFoundException('Homework not found');
     await this.assertCanViewHomework(user, hw);
@@ -130,6 +146,28 @@ export class HomeworkService {
         .slice()
         .sort((left, right) => left.sortOrder - right.sortOrder)
         .map((item) => this.mapHomeworkItem(item)),
+      tasks: (hw.tasks ?? [])
+        .slice()
+        .sort((left, right) => left.sortOrder - right.sortOrder)
+        .map((task) => ({
+          id: task.id,
+          task_kind: task.taskKind,
+          sort_order: task.sortOrder,
+          question_id: task.questionId,
+          content_task_id: task.contentTaskId,
+          points: task.points != null ? Number(task.points) : null,
+          question: task.question
+            ? { id: task.question.id, type: task.question.type, stem: task.question.stem }
+            : null,
+          content_task: task.contentTask
+            ? {
+                id: task.contentTask.id,
+                task_type: task.contentTask.taskType,
+                title: task.contentTask.title,
+                status: task.contentTask.status,
+              }
+            : null,
+        })),
     };
   }
 
@@ -152,6 +190,10 @@ export class HomeworkService {
     if (dto.items?.length) {
       await this.replaceItems(hw.id, dto.items);
     }
+    if (dto.tasks?.length) {
+      await this.replaceTasks(user, hw.id, dto.tasks);
+      await this.materializeItemsFromTasks(hw.id);
+    }
     return this.getHomework(user, hw.id);
   }
 
@@ -168,17 +210,41 @@ export class HomeworkService {
     if (dto.items) {
       await this.replaceItems(hw.id, dto.items);
     }
+    if (dto.tasks) {
+      await this.replaceTasks(user, hw.id, dto.tasks);
+      await this.materializeItemsFromTasks(hw.id);
+    }
     return this.getHomework(user, hw.id);
   }
 
   async delete(user: JwtPayload, id: string) {
     const hw = await this.requireOwnedHomework(user, id);
+    const assignmentCount = await this.assignments.count({
+      where: { homeworkId: hw.id },
+    });
+    if (assignmentCount > 0) {
+      throw new ConflictException(
+        'Нельзя удалить домашнее задание: есть назначения ученикам. Сначала снимите назначения или оставьте историю.',
+      );
+    }
+    const attemptCount = await this.attempts.count({
+      where: { homeworkId: hw.id },
+    });
+    if (attemptCount > 0) {
+      throw new ConflictException(
+        'Нельзя удалить домашнее задание: есть попытки выполнения. История должна сохраняться.',
+      );
+    }
     await this.homeworks.delete({ id: hw.id });
     return { ok: true };
   }
 
   async publish(user: JwtPayload, id: string) {
     const hw = await this.requireOwnedHomework(user, id);
+    const taskCount = await this.homeworkTasks.count({ where: { homeworkId: id } });
+    if (taskCount > 0) {
+      await this.materializeItemsFromTasks(id);
+    }
     const count = await this.items.count({ where: { homeworkId: id } });
     if (count < 1) {
       throw new BadRequestException('Add at least one question before publishing');
@@ -609,6 +675,29 @@ export class HomeworkService {
 
     const hideCorrect = attempt.status !== HomeworkAttemptStatus.Submitted;
 
+    const attachmentsBySource = new Map<string, Array<{ id: string; kind: string; url: string | null }>>();
+    const sourceIds = [
+      ...new Set(
+        qSnaps.map((q) => q.sourceQuestionId).filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    if (sourceIds.length > 0) {
+      const sources = await this.assessmentQuestions.find({
+        where: { id: In(sourceIds) },
+        relations: ['attachments'],
+      });
+      for (const source of sources) {
+        attachmentsBySource.set(
+          source.id,
+          (source.attachments ?? []).map((att) => ({
+            id: att.id,
+            kind: att.kind,
+            url: null,
+          })),
+        );
+      }
+    }
+
     return {
       id: attempt.id,
       assignment_id: attempt.assignmentId,
@@ -631,7 +720,9 @@ export class HomeworkService {
         points: Number(question.points),
         passage_text: question.passageText,
         sort_order: question.sortOrder,
-        attachments: [],
+        attachments: question.sourceQuestionId
+          ? attachmentsBySource.get(question.sourceQuestionId) ?? []
+          : [],
         answers: (question.answerSnapshots ?? [])
           .slice()
           .sort((left, right) => left.sortOrder - right.sortOrder)
@@ -837,6 +928,159 @@ export class HomeworkService {
         this.items.create({
           homeworkId,
           questionId: null,
+          type: item.type,
+          stem: item.stem.trim(),
+          difficulty: item.difficulty ?? 1,
+          explanation: item.explanation?.trim() || null,
+          sectionKey: item.section_key || this.sectionKeyForType(item.type),
+          sortOrder: item.sort_order ?? idx,
+          points: item.points != null ? String(item.points) : '1',
+          passageText: item.passage_text?.trim() || null,
+        }),
+      );
+      const answers = item.answers ?? [];
+      if (answers.length > 0) {
+        await this.itemAnswers.save(
+          answers.map((answer, answerIdx) =>
+            this.itemAnswers.create({
+              homeworkItemId: saved.id,
+              body: answer.text.trim(),
+              isCorrect: Boolean(answer.is_correct),
+              sortOrder: answer.sort_order ?? answerIdx,
+            }),
+          ),
+        );
+      }
+    }
+  }
+
+  private async replaceTasks(
+    user: JwtPayload,
+    homeworkId: string,
+    tasks: HomeworkTaskDto[],
+  ) {
+    await this.homeworkTasks.delete({ homeworkId });
+    for (const [idx, task] of tasks.entries()) {
+      if (task.task_kind === 'question') {
+        if (!task.question_id) {
+          throw new BadRequestException('question task requires question_id');
+        }
+        const q = await this.assessmentQuestions.findOne({
+          where: { id: task.question_id },
+        });
+        if (!q) throw new BadRequestException(`Question ${task.question_id} not found`);
+        if (q.createdByUserId && q.createdByUserId !== user.sub && user.role !== 'admin') {
+          throw new ForbiddenException('Cannot use another author question');
+        }
+      } else {
+        if (!task.content_task_id) {
+          throw new BadRequestException(`${task.task_kind} task requires content_task_id`);
+        }
+        const ct = await this.contentTasks.findOne({
+          where: { id: task.content_task_id },
+        });
+        if (!ct) {
+          throw new BadRequestException(`Content task ${task.content_task_id} not found`);
+        }
+        if (ct.createdByUserId && ct.createdByUserId !== user.sub && user.role !== 'admin') {
+          throw new ForbiddenException('Cannot use another author content task');
+        }
+        if (ct.taskType !== task.task_kind) {
+          throw new BadRequestException('content_task type mismatch');
+        }
+      }
+      await this.homeworkTasks.save(
+        this.homeworkTasks.create({
+          homeworkId,
+          taskKind: task.task_kind,
+          sortOrder: task.sort_order ?? idx,
+          questionId: task.question_id ?? null,
+          contentTaskId: task.content_task_id ?? null,
+          points: task.points != null ? String(task.points) : null,
+        }),
+      );
+    }
+  }
+
+  /** Expand homework_tasks into homework_items for the existing attempt snapshot pipeline. */
+  private async materializeItemsFromTasks(homeworkId: string) {
+    const tasks = await this.homeworkTasks.find({
+      where: { homeworkId },
+      order: { sortOrder: 'ASC' },
+      relations: [
+        'question',
+        'question.answers',
+        'contentTask',
+        'contentTask.questions',
+        'contentTask.questions.question',
+        'contentTask.questions.question.answers',
+      ],
+    });
+    if (!tasks.length) return;
+
+    const items: Array<HomeworkItemDto & { source_question_id?: string }> = [];
+    for (const task of tasks) {
+      if (task.taskKind === 'question' && task.question) {
+        const q = task.question;
+        items.push({
+          type: q.type as QuestionType,
+          stem: q.stem,
+          points: task.points != null ? Number(task.points) : Number(q.points),
+          difficulty: q.difficulty,
+          explanation: q.explanation ?? undefined,
+          section_key: 'test',
+          source_question_id: q.id,
+          answers: (q.answers ?? []).map((a) => ({
+            text: a.text,
+            is_correct: a.isCorrect,
+            sort_order: a.sortOrder,
+          })),
+        });
+        continue;
+      }
+      const ct = task.contentTask;
+      if (!ct) continue;
+      const nested = [...(ct.questions ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
+      for (const link of nested) {
+        const q = link.question;
+        if (!q) continue;
+        items.push({
+          type: q.type as QuestionType,
+          stem: q.stem,
+          points: Number(q.points),
+          difficulty: q.difficulty,
+          explanation: q.explanation ?? undefined,
+          section_key: ct.taskType,
+          passage_text: ct.taskType === 'reading' ? ct.textContent ?? undefined : undefined,
+          source_question_id: q.id,
+          answers: (q.answers ?? []).map((a) => ({
+            text: a.text,
+            is_correct: a.isCorrect,
+            sort_order: a.sortOrder,
+          })),
+        });
+      }
+    }
+    if (items.length) {
+      await this.replaceItemsFromLibrary(homeworkId, items);
+    }
+  }
+
+  private async replaceItemsFromLibrary(
+    homeworkId: string,
+    items: Array<
+      HomeworkItemDto & { source_question_id?: string }
+    >,
+  ) {
+    for (const [index, item] of items.entries()) {
+      this.assertInlineItemValid(item, index);
+    }
+    await this.items.delete({ homeworkId });
+    for (const [idx, item] of items.entries()) {
+      const saved = await this.items.save(
+        this.items.create({
+          homeworkId,
+          questionId: item.source_question_id ?? null,
           type: item.type,
           stem: item.stem.trim(),
           difficulty: item.difficulty ?? 1,

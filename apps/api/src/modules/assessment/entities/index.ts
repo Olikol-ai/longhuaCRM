@@ -18,6 +18,10 @@ import { AssessmentResultBreakdownEntity } from './assessment-result-breakdown.e
 import { AssessmentExamBlockEntity } from './assessment-exam-block.entity';
 import { AssessmentExamBlockItemEntity } from './assessment-exam-block-item.entity';
 import { AssessmentChangeJournalEntity } from './assessment-change-journal.entity';
+import { AssessmentContentTaskEntity } from './assessment-content-task.entity';
+import { AssessmentContentTaskQuestionEntity } from './assessment-content-task-question.entity';
+import { AssessmentExamPartEntity } from './assessment-exam-part.entity';
+import { AssessmentExamPartPoolItemEntity } from './assessment-exam-part-pool-item.entity';
 
 /** All Assessment TypeORM entities for module / registry registration. */
 export const ASSESSMENT_ENTITIES = [
@@ -26,9 +30,13 @@ export const ASSESSMENT_ENTITIES = [
   AssessmentQuestionTopicEntity,
   AssessmentAnswerEntity,
   AssessmentQuestionAttachmentEntity,
+  AssessmentContentTaskEntity,
+  AssessmentContentTaskQuestionEntity,
   AssessmentExamBlockEntity,
   AssessmentExamBlockItemEntity,
   AssessmentExamEntity,
+  AssessmentExamPartEntity,
+  AssessmentExamPartPoolItemEntity,
   AssessmentRuleEntity,
   AssessmentSectionEntity,
   AssessmentExamQuestionEntity,
@@ -49,9 +57,13 @@ export {
   AssessmentQuestionTopicEntity,
   AssessmentAnswerEntity,
   AssessmentQuestionAttachmentEntity,
+  AssessmentContentTaskEntity,
+  AssessmentContentTaskQuestionEntity,
   AssessmentExamBlockEntity,
   AssessmentExamBlockItemEntity,
   AssessmentExamEntity,
+  AssessmentExamPartEntity,
+  AssessmentExamPartPoolItemEntity,
   AssessmentRuleEntity,
   AssessmentSectionEntity,
   AssessmentExamQuestionEntity,

@@ -40,7 +40,7 @@ export class AssessmentAssignmentsController {
   ) {}
 
   @Post()
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Assign exam to audience' })
   @ApiResponse({ status: 201, description: 'Assignment created' })
@@ -62,7 +62,7 @@ export class AssessmentAssignmentsController {
   }
 
   @Get()
-  @Roles('admin', 'teacher', 'student')
+  @Roles('admin', 'teacher', 'tutor', 'student')
   @ApiOperation({ summary: 'List assignments' })
   @ApiResponse({ status: 200, description: 'Paginated assignment list' })
   async list(@CurrentUser() user: JwtPayload, @Query() query: ListAssignmentsQueryDto) {
@@ -79,7 +79,7 @@ export class AssessmentAssignmentsController {
   }
 
   @Get(':assignmentId')
-  @Roles('admin', 'teacher', 'student')
+  @Roles('admin', 'teacher', 'tutor', 'student')
   @ApiOperation({ summary: 'Get assignment detail' })
   @ApiResponse({ status: 200, description: 'Assignment detail' })
   findOne(
@@ -90,7 +90,7 @@ export class AssessmentAssignmentsController {
   }
 
   @Post(':assignmentId/cancel')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Cancel assignment' })
   @ApiResponse({ status: 200, description: 'Assignment cancelled' })
   cancel(

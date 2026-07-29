@@ -10,20 +10,23 @@ import { TutorStudentEntity } from '../tutors/entities/tutor-student.entity';
 import { UserEntity } from '../users/entities/user.entity';
 import { HomeworkController } from './controllers/homework.controller';
 import { HOMEWORK_ENTITIES } from './entities';
+import { AssessmentContentTaskEntity } from '../assessment/entities/assessment-content-task.entity';
+import { AssessmentQuestionEntity } from '../assessment/entities/assessment-question.entity';
 import { HomeworkNotifierService } from './services/homework-notifier.service';
 import { HomeworkService } from './services/homework.service';
 import { DomainAccessModule } from '../../common/access/domain-access.module';
 
 /**
  * Homework bounded context.
- * Owns homework_* tables with inline questions on homework_items.
+ * Owns homework_* tables; supports homework_tasks (shared library) and inline homework_items.
  * Reuses AssessmentScoringService for attempt scoring.
- * Not linked to AssessmentExamEntity / ExamBlock.
  */
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       ...HOMEWORK_ENTITIES,
+      AssessmentQuestionEntity,
+      AssessmentContentTaskEntity,
       StudentEntity,
       TeacherEntity,
       TutorEntity,

@@ -44,7 +44,7 @@ export class AssessmentAttemptsController {
   ) {}
 
   @Post()
-  @Roles('student', 'teacher')
+  @Roles('student', 'teacher', 'tutor')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Start exam attempt' })
   @ApiResponse({ status: 201, description: 'Attempt started' })
@@ -57,7 +57,7 @@ export class AssessmentAttemptsController {
   }
 
   @Get()
-  @Roles('admin', 'teacher', 'student')
+  @Roles('admin', 'teacher', 'tutor', 'student')
   @ApiOperation({ summary: 'List attempts' })
   @ApiResponse({ status: 200, description: 'Paginated attempt list' })
   async list(@CurrentUser() user: JwtPayload, @Query() query: ListAttemptsQueryDto) {
@@ -73,7 +73,7 @@ export class AssessmentAttemptsController {
   }
 
   @Get(':attemptId/result')
-  @Roles('admin', 'teacher', 'student')
+  @Roles('admin', 'teacher', 'tutor', 'student')
   @ApiOperation({ summary: 'Get result by attempt id' })
   @ApiResponse({ status: 200, description: 'Result for attempt' })
   resultByAttempt(
@@ -84,7 +84,7 @@ export class AssessmentAttemptsController {
   }
 
   @Get(':attemptId/snapshots')
-  @Roles('admin', 'teacher', 'student')
+  @Roles('admin', 'teacher', 'tutor', 'student')
   @ApiOperation({ summary: 'Get immutable Attempt Snapshot set' })
   @ApiResponse({ status: 200, description: 'Question and answer snapshots' })
   getSnapshots(
@@ -95,7 +95,7 @@ export class AssessmentAttemptsController {
   }
 
   @Patch(':attemptId/answers')
-  @Roles('student', 'teacher')
+  @Roles('student', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Autosave attempt answers' })
   @ApiResponse({ status: 200, description: 'Answers saved' })
   autosave(
@@ -124,7 +124,7 @@ export class AssessmentAttemptsController {
   }
 
   @Get(':attemptId')
-  @Roles('admin', 'teacher', 'student')
+  @Roles('admin', 'teacher', 'tutor', 'student')
   @ApiOperation({ summary: 'Get attempt state' })
   @ApiResponse({ status: 200, description: 'Attempt state' })
   getState(
@@ -135,7 +135,7 @@ export class AssessmentAttemptsController {
   }
 
   @Post(':attemptId/submit')
-  @Roles('student', 'teacher')
+  @Roles('student', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Submit attempt' })
   @ApiResponse({ status: 200, description: 'Attempt submitted with result' })
   submit(

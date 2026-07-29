@@ -67,6 +67,15 @@ export class AssessmentExamsController {
     return this.exams.create(
       {
         blockIds: dto.block_ids,
+        parts: dto.parts?.map((part) => ({
+          partKind: part.part_kind,
+          title: part.title ?? null,
+          selectCount: part.select_count,
+          pool: part.pool.map((item) => ({
+            questionId: item.question_id,
+            contentTaskId: item.content_task_id,
+          })),
+        })),
         name: dto.name,
         availableFrom: dto.available_from ? new Date(dto.available_from) : null,
         availableTo: dto.available_to ? new Date(dto.available_to) : null,

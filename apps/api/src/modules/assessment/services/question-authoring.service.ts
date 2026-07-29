@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, BadRequestException, Injectable } from '@nestjs/common';
 import { AssessmentAccessService } from '../../../common/access/assessment-access.service';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
 import { JwtPayload } from '../../auth/auth.service';
@@ -7,7 +7,12 @@ import {
   AssessmentQuestionAttachmentEntity,
   AssessmentQuestionEntity,
 } from '../entities';
-import { AttachmentKind, ContentLifecycleStatus, QuestionType } from '../enums';
+import {
+  AUTHORING_ATOMIC_QUESTION_TYPES,
+  AttachmentKind,
+  ContentLifecycleStatus,
+  QuestionType,
+} from '../enums';
 import {
   AssessmentExamBlockRepository,
   AssessmentExamRepository,
@@ -131,6 +136,11 @@ export class QuestionAuthoringService {
     input: CreateQuestionInput,
   ): Promise<AssessmentQuestionEntity> {
     this.access.assertCanManageContent(actor);
+    if (!AUTHORING_ATOMIC_QUESTION_TYPES.has(input.type)) {
+      throw new BadRequestException(
+        'Listening/Reading создаются как задачи (content tasks), не как атомарные вопросы',
+      );
+    }
 
     const question = await this.questions.save({
       type: input.type,

@@ -37,7 +37,6 @@ describe('SPA route ACL (menu is not security)', () => {
 
   it('allowlists protected pages from the audit list', () => {
     assert.match(routing, /'\/AssessmentQuestions': \['admin', 'teacher', 'tutor'\]/);
-    assert.match(routing, /'\/AssessmentExamBlocks': \['admin', 'teacher', 'tutor'\]/);
     assert.match(routing, /'\/AssessmentExams': \['admin', 'teacher', 'tutor'\]/);
     assert.match(routing, /'\/MaterialsHub': \['admin', 'teacher', 'tutor'\]/);
     assert.match(routing, /'\/HomeworkList': \['admin', 'teacher', 'tutor'\]/);
@@ -45,13 +44,13 @@ describe('SPA route ACL (menu is not security)', () => {
     assert.match(routing, /'\/AdminPanel': \['admin'\]/);
     assert.match(routing, /'\/TutorStats': \['admin', 'tutor'\]/);
     assert.match(routing, /'\/TeacherAssessment': \['admin', 'teacher'\]/);
+    assert.doesNotMatch(routing, /AssessmentExamBlocks/);
     assert.doesNotMatch(routing, /AssessmentBanks/);
   });
 
   it('denies students and tutor_students on authoring / admin / salary surfaces', () => {
     for (const path of [
       'AssessmentQuestions',
-      'AssessmentExamBlocks',
       'AssessmentExams',
       'MaterialsHub',
       'HomeworkList',

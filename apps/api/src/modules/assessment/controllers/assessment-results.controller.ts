@@ -31,7 +31,7 @@ export class AssessmentResultsController {
   constructor(private readonly results: ResultService) {}
 
   @Get()
-  @Roles('admin', 'teacher', 'student')
+  @Roles('admin', 'teacher', 'tutor', 'student')
   @ApiOperation({ summary: 'List results' })
   @ApiResponse({ status: 200, description: 'Paginated result list' })
   async list(@CurrentUser() user: JwtPayload, @Query() query: ListResultsQueryDto) {
@@ -50,7 +50,7 @@ export class AssessmentResultsController {
   }
 
   @Get(':resultId/review')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Get teacher review workspace for a result' })
   @ApiResponse({ status: 200, description: 'Review bundle' })
   getReview(
@@ -61,7 +61,7 @@ export class AssessmentResultsController {
   }
 
   @Patch(':resultId/review')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Save manual scores and comments' })
   @ApiResponse({ status: 200, description: 'Review scores saved' })
   saveReview(
@@ -81,7 +81,7 @@ export class AssessmentResultsController {
   }
 
   @Post(':resultId/review/finalize')
-  @Roles('admin', 'teacher')
+  @Roles('admin', 'teacher', 'tutor')
   @ApiOperation({ summary: 'Finalize manual review → passed/failed' })
   @ApiResponse({ status: 200, description: 'Result finalized' })
   finalizeReview(
@@ -92,7 +92,7 @@ export class AssessmentResultsController {
   }
 
   @Get(':resultId')
-  @Roles('admin', 'teacher', 'student')
+  @Roles('admin', 'teacher', 'tutor', 'student')
   @ApiOperation({ summary: 'Get result by id' })
   @ApiResponse({ status: 200, description: 'Result detail' })
   findOne(

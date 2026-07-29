@@ -10,16 +10,24 @@ export const LIFECYCLE_STATUS_LABEL = {
 export const QUESTION_TYPE_LABEL = {
   single_choice: 'Один ответ',
   multiple_choice: 'Несколько ответов',
-  listening: 'Аудирование',
   short_text: 'Короткий ответ',
+  translation: 'Перевод',
+  listening: 'Аудирование (legacy)',
+  reading: 'Чтение (legacy)',
 };
 
+/** Atomic types for new authoring; Listening/Reading are content_tasks. */
 export const QUESTION_TYPES = [
   'single_choice',
   'multiple_choice',
-  'listening',
   'short_text',
+  'translation',
 ];
+
+export const CONTENT_TASK_TYPE_LABEL = {
+  listening: 'Аудирование',
+  reading: 'Чтение',
+};
 
 export const ATTACHMENT_KIND_LABEL = {
   image: 'Изображение',

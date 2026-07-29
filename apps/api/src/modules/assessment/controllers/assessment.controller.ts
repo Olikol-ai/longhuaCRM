@@ -19,7 +19,7 @@ export class AssessmentController {
   constructor(private readonly assessmentService: AssessmentService) {}
 
   @Get('health')
-  @Roles('admin', 'teacher', 'student')
+  @Roles('admin', 'teacher', 'tutor', 'student')
   @ApiOperation({ summary: 'Assessment module health check' })
   @ApiResponse({ status: 200, description: 'Module is registered' })
   health() {

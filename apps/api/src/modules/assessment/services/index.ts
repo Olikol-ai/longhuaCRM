@@ -13,6 +13,7 @@ import { ResultService } from './result.service';
 import { AssessmentAssignmentNotifier } from './assessment-assignment-notifier.service';
 import { AssessmentReviewNotifier } from './assessment-review-notifier.service';
 import { AssessmentChangeJournalService } from './assessment-change-journal.service';
+import { ContentTaskService } from './content-task.service';
 
 export const ASSESSMENT_SERVICES = [
   AssessmentContentGuard,
@@ -23,6 +24,7 @@ export const ASSESSMENT_SERVICES = [
   AssessmentChangeJournalService,
   AssessmentService,
   QuestionAuthoringService,
+  ContentTaskService,
   ExamBlockService,
   ExamService,
   AssignmentService,
@@ -41,6 +43,7 @@ export {
   AssessmentTimeoutJobService,
   AssessmentChangeJournalService,
   QuestionAuthoringService,
+  ContentTaskService,
   ExamBlockService,
   ExamService,
   AssignmentService,

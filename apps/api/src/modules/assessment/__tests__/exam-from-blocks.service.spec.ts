@@ -23,11 +23,18 @@ describe('ExamService create from blocks', () => {
   };
   const journal = { record: jest.fn().mockResolvedValue(undefined) };
 
+  const parts = { save: jest.fn(), delete: jest.fn(), create: jest.fn() };
+  const poolItems = { save: jest.fn(), delete: jest.fn(), create: jest.fn() };
+  const contentTasks = {};
+
   const service = new ExamService(
     exams as never,
     blocks as never,
     questions as never,
     assignments as never,
+    parts as never,
+    poolItems as never,
+    contentTasks as never,
     new AssessmentContentGuard(),
     access as never,
     journal as never,

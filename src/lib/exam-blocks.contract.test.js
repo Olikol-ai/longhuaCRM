@@ -7,12 +7,11 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '../..');
 
-describe('ExamBlocks migration contract', () => {
-  it('exposes block API client methods and create-from-blocks only', () => {
+describe('Exam generation and legacy ExamBlocks contract', () => {
+  it('creates exams from generation parts in UI', () => {
     const api = readFileSync(join(root, 'src/api/assessment.api.js'), 'utf8');
-    assert.match(api, /listExamBlocks/);
-    assert.match(api, /createExamBlock/);
-    assert.match(api, /\/assessment\/blocks/);
+    assert.match(api, /listContentTasks/);
+    assert.match(api, /createExam/);
     assert.doesNotMatch(api, /exam-templates/);
     assert.doesNotMatch(api, /\/assessment\/blueprints/);
 
@@ -20,12 +19,14 @@ describe('ExamBlocks migration contract', () => {
       join(root, 'src/components/assessment/ExamCreateDialog.jsx'),
       'utf8',
     );
-    assert.match(dialog, /block_ids/);
-    assert.match(dialog, /listExamBlocks/);
+    assert.match(dialog, /parts/);
+    assert.match(dialog, /select_count/);
+    assert.match(dialog, /listContentTasks/);
+    assert.doesNotMatch(dialog, /block_ids/);
     assert.doesNotMatch(dialog, /blueprint/);
   });
 
-  it('registers ExamBlocks and drop-blueprint migrations', () => {
+  it('registers ExamBlocks and drop-blueprint migrations (legacy schema kept)', () => {
     const migration = readFileSync(
       join(
         root,
@@ -62,16 +63,18 @@ describe('ExamBlocks migration contract', () => {
       'utf8',
     );
     assert.match(moduleSrc, /AssessmentExamBlocksController/);
+    assert.match(moduleSrc, /AssessmentContentTasksController/);
     assert.doesNotMatch(moduleSrc, /AssessmentBanksController/);
     assert.doesNotMatch(moduleSrc, /BlueprintsController/);
     assert.doesNotMatch(moduleSrc, /ExamTemplatesController/);
   });
 
-  it('creates exams from blocks only in ExamService', () => {
+  it('supports parts generation and legacy blocks in ExamService', () => {
     const examService = readFileSync(
       join(root, 'apps/api/src/modules/assessment/services/exam.service.ts'),
       'utf8',
     );
+    assert.match(examService, /createFromParts/);
     assert.match(examService, /materializeFromBlocks/);
     assert.doesNotMatch(examService, /blueprint/);
     assert.doesNotMatch(examService, /createFromBlueprint/);

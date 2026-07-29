@@ -74,6 +74,24 @@ export default function AssessmentExamDetail() {
   }, [exam]);
 
   const sections = useMemo(() => {
+    const parts = exam?.parts || [];
+    if (parts.length > 0) {
+      return [...parts]
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        .map((part) => ({
+          section_key: part.part_kind,
+          title: part.title || part.part_kind,
+          weight: null,
+          select_count: part.select_count,
+          pool_size: (part.pool_items || []).length,
+          questions: (part.pool_items || []).map((item) => ({
+            id: item.question_id || item.content_task_id || item.id,
+            stem: item.question?.stem || item.content_task?.title || 'Элемент пула',
+            type: item.question?.type || part.part_kind,
+          })),
+        }));
+    }
+
     const titleByKey = new Map(
       (exam?.sections || []).map((s) => [s.section_key, s.title || s.section_key]),
     );
@@ -85,6 +103,8 @@ export default function AssessmentExamDetail() {
           section_key: key,
           title: titleByKey.get(key) || key,
           weight: s.weight,
+          select_count: s.select_count ?? s.selectCount,
+          pool_size: s.pool_size ?? s.poolSize,
           questions: (s.questions || []).map((q) => ({
             id: q.id,
             stem: q.stem,

@@ -90,7 +90,7 @@ export default function AssessmentExams() {
             Экзамены
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Создание экзамена из опубликованной структуры
+            Правила генерации из пулов: при старте попытки набор выбирается случайно
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

@@ -10,10 +10,11 @@ import {
 import { HomeworkLifecycleStatus } from '../enums';
 import { HomeworkItemEntity } from './homework-item.entity';
 import { HomeworkAssignmentEntity } from './homework-assignment.entity';
+import { HomeworkTaskEntity } from './homework-task.entity';
 
 /**
  * Homework definition (template). Not linked to AssessmentExam.
- * Questions come from shared assessment_questions via homework_items.
+ * Composition: homework_tasks (shared library) and/or legacy homework_items.
  */
 @Entity('homeworks')
 export class HomeworkEntity {
@@ -55,6 +56,9 @@ export class HomeworkEntity {
 
   @OneToMany(() => HomeworkItemEntity, (item) => item.homework)
   items?: HomeworkItemEntity[];
+
+  @OneToMany(() => HomeworkTaskEntity, (task) => task.homework)
+  tasks?: HomeworkTaskEntity[];
 
   @OneToMany(() => HomeworkAssignmentEntity, (a) => a.homework)
   assignments?: HomeworkAssignmentEntity[];

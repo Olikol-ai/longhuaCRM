@@ -55,6 +55,7 @@ import { HomeworkInlineQuestions1743100000000 } from './migrations/1743100000000
 import { LessonStudentChangeHistory1743200000000 } from './migrations/1743200000000-LessonStudentChangeHistory';
 import { CleanupInactiveStaffAsStudents1743300000000 } from './migrations/1743300000000-CleanupInactiveStaffAsStudents';
 import { UserAvatarFields1743400000000 } from './migrations/1743400000000-UserAvatarFields';
+import { ContentTasksExamPartsHomeworkTasks1743500000000 } from './migrations/1743500000000-ContentTasksExamPartsHomeworkTasks';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -113,6 +114,7 @@ export default new DataSource({
     LessonStudentChangeHistory1743200000000,
     CleanupInactiveStaffAsStudents1743300000000,
     UserAvatarFields1743400000000,
+    ContentTasksExamPartsHomeworkTasks1743500000000,
   ],
   synchronize: false,
 });

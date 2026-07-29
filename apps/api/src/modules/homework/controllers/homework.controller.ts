@@ -105,7 +105,7 @@ export class HomeworkController {
   }
 
   @Get(':id')
-  @Roles('admin', 'teacher', 'student')
+  @Roles('admin', 'teacher', 'tutor', 'student')
   get(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     return this.homework.getHomework(user, id);
   }

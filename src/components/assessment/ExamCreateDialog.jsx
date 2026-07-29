@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { api } from '@/api';
 import { Button } from '@/components/ui/button';
@@ -11,18 +11,42 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { DEFAULT_EXAM_RULE } from '@/lib/assessment-admin';
-import { unwrapItems } from '@/lib/assessment-ui';
+import {
+  CONTENT_TASK_TYPE_LABEL,
+  DEFAULT_EXAM_RULE,
+  QUESTION_TYPE_LABEL,
+  unwrapItems,
+} from '@/lib/assessment-admin';
 
+const PART_KINDS = [
+  { value: 'test', label: 'Тест' },
+  { value: 'listening', label: 'Аудирование' },
+  { value: 'reading', label: 'Чтение' },
+];
+
+function emptyPart(kind = 'test') {
+  return {
+    localKey: `part-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    part_kind: kind,
+    title: PART_KINDS.find((p) => p.value === kind)?.label || kind,
+    select_count: 1,
+    pool_ids: [],
+  };
+}
+
+/**
+ * Create exam from generation rules (pools + select_count).
+ */
 export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
-  const [blocks, setBlocks] = useState([]);
-  const [selectedIds, setSelectedIds] = useState([]);
   const [name, setName] = useState('');
   const [duration, setDuration] = useState(String(DEFAULT_EXAM_RULE.duration_minutes));
   const [passPercent, setPassPercent] = useState(
     String(DEFAULT_EXAM_RULE.pass_score_percent),
   );
   const [maxAttempts, setMaxAttempts] = useState(String(DEFAULT_EXAM_RULE.max_attempts));
+  const [parts, setParts] = useState([emptyPart('test')]);
+  const [questions, setQuestions] = useState([]);
+  const [contentTasks, setContentTasks] = useState([]);
   const [loadingMeta, setLoadingMeta] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -31,58 +55,97 @@ export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
     if (!open) return;
     setName('');
     setError(null);
-    setSelectedIds([]);
+    setParts([emptyPart('test')]);
     setDuration(String(DEFAULT_EXAM_RULE.duration_minutes));
     setPassPercent(String(DEFAULT_EXAM_RULE.pass_score_percent));
     setMaxAttempts(String(DEFAULT_EXAM_RULE.max_attempts));
     setLoadingMeta(true);
-    api.assessment
-      .listExamBlocks({ status: 'published', limit: 200 })
-      .then((payload) => {
-        setBlocks(unwrapItems(payload));
+    Promise.all([
+      api.assessment.listQuestions({ status: 'published', limit: 500 }),
+      api.assessment.listContentTasks(),
+    ])
+      .then(([qs, tasks]) => {
+        setQuestions(unwrapItems(qs));
+        const list = Array.isArray(tasks) ? tasks : unwrapItems(tasks);
+        setContentTasks(list.filter((t) => t.status === 'published'));
       })
-      .catch((err) => setError(err?.message || 'Не удалось загрузить блоки'))
+      .catch((err) => setError(err?.message || 'Не удалось загрузить пулы'))
       .finally(() => setLoadingMeta(false));
   }, [open]);
 
-  const toggleBlock = (id) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+  const poolOptions = useMemo(() => {
+    return {
+      test: questions.map((q) => ({
+        id: q.id,
+        label: `${QUESTION_TYPE_LABEL[q.type] || q.type}: ${q.stem}`,
+      })),
+      listening: contentTasks
+        .filter((t) => t.task_type === 'listening')
+        .map((t) => ({ id: t.id, label: t.title })),
+      reading: contentTasks
+        .filter((t) => t.task_type === 'reading')
+        .map((t) => ({ id: t.id, label: t.title })),
+    };
+  }, [questions, contentTasks]);
+
+  const updatePart = (localKey, patch) => {
+    setParts((prev) =>
+      prev.map((p) => (p.localKey === localKey ? { ...p, ...patch } : p)),
     );
   };
 
-  const moveSelected = (id, dir) => {
-    setSelectedIds((prev) => {
-      const index = prev.indexOf(id);
-      if (index < 0) return prev;
-      const target = index + dir;
-      if (target < 0 || target >= prev.length) return prev;
-      const next = [...prev];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
+  const togglePool = (localKey, id) => {
+    setParts((prev) =>
+      prev.map((p) => {
+        if (p.localKey !== localKey) return p;
+        const pool_ids = p.pool_ids.includes(id)
+          ? p.pool_ids.filter((x) => x !== id)
+          : [...p.pool_ids, id];
+        return { ...p, pool_ids };
+      }),
+    );
   };
 
   const handleCreate = async () => {
-    if (selectedIds.length === 0) {
-      setError('Выберите хотя бы один активный блок');
-      return;
-    }
     if (!name.trim()) {
       setError('Укажите название экзамена');
       return;
+    }
+    if (parts.length === 0) {
+      setError('Добавьте хотя бы одну часть');
+      return;
+    }
+    for (const part of parts) {
+      if (part.pool_ids.length < 1) {
+        setError(`Часть «${part.title}»: выберите элементы пула`);
+        return;
+      }
+      if (part.pool_ids.length < Number(part.select_count || 1)) {
+        setError(`Часть «${part.title}»: пул меньше числа выбираемых`);
+        return;
+      }
     }
     setSaving(true);
     setError(null);
     try {
       const created = await api.assessment.createExam({
-        block_ids: selectedIds,
         name: name.trim(),
+        parts: parts.map((part) => ({
+          part_kind: part.part_kind,
+          title: part.title,
+          select_count: Math.max(1, Number(part.select_count) || 1),
+          pool: part.pool_ids.map((id) =>
+            part.part_kind === 'test'
+              ? { question_id: id }
+              : { content_task_id: id },
+          ),
+        })),
         rule: {
           ...DEFAULT_EXAM_RULE,
           duration_minutes: Math.max(1, Number(duration) || 60),
           max_attempts: Math.max(1, Number(maxAttempts) || 1),
           pass_score_percent: Math.min(100, Math.max(0, Number(passPercent) || 60)),
+          randomize_questions: true,
         },
       });
       onCreated?.(created);
@@ -94,15 +157,11 @@ export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
     }
   };
 
-  const selectedBlocks = selectedIds
-    .map((id) => blocks.find((b) => b.id === id))
-    .filter(Boolean);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Создать экзамен из блоков</DialogTitle>
+          <DialogTitle>Создать экзамен из пулов</DialogTitle>
         </DialogHeader>
 
         {loadingMeta ? (
@@ -112,75 +171,8 @@ export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
         ) : (
           <div className="space-y-4 py-1">
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Вопрос → Блок → Экзамен. Порядок выбранных блоков сохранится в экзамене.
+              При старте попытки из каждого пула случайно выбирается указанное число элементов.
             </p>
-
-            <div className="space-y-1.5">
-              <Label>Активные блоки</Label>
-              {blocks.length === 0 ? (
-                <p className="text-xs text-amber-700 dark:text-amber-300">
-                  Нет активных блоков. Сначала создайте и активируйте блок.
-                </p>
-              ) : (
-                <ul className="max-h-40 overflow-y-auto space-y-1 rounded-md border border-input p-2">
-                  {blocks.map((b) => (
-                    <li key={b.id}>
-                      <label className="flex items-start gap-2 text-sm cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="mt-1"
-                          checked={selectedIds.includes(b.id)}
-                          onChange={() => toggleBlock(b.id)}
-                        />
-                        <span>
-                          <span className="font-medium">{b.name}</span>
-                          {b.level_label ? (
-                            <span className="text-slate-500"> · {b.level_label}</span>
-                          ) : null}
-                        </span>
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {selectedBlocks.length > 0 && (
-              <div className="space-y-1.5">
-                <Label>Порядок блоков в экзамене</Label>
-                <ol className="space-y-1">
-                  {selectedBlocks.map((b, index) => (
-                    <li
-                      key={b.id}
-                      className="flex items-center gap-2 text-sm rounded border border-slate-200 dark:border-slate-800 px-2 py-1.5"
-                    >
-                      <span className="text-slate-400 w-5">{index + 1}.</span>
-                      <span className="flex-1 truncate">{b.name}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2"
-                        disabled={index === 0}
-                        onClick={() => moveSelected(b.id, -1)}
-                      >
-                        ↑
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2"
-                        disabled={index === selectedBlocks.length - 1}
-                        onClick={() => moveSelected(b.id, 1)}
-                      >
-                        ↓
-                      </Button>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            )}
 
             <div className="space-y-1.5">
               <Label>Название экзамена</Label>
@@ -190,6 +182,7 @@ export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
                 placeholder="HSK 1 — март"
               />
             </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label>Время (мин)</Label>
@@ -220,6 +213,99 @@ export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
                 />
               </div>
             </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <Label>Части экзамена</Label>
+                <div className="flex flex-wrap gap-1">
+                  {PART_KINDS.map((kind) => (
+                    <Button
+                      key={kind.value}
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setParts((prev) => [...prev, emptyPart(kind.value)])}
+                    >
+                      + {kind.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {parts.map((part, index) => {
+                const options = poolOptions[part.part_kind] || [];
+                return (
+                  <div
+                    key={part.localKey}
+                    className="rounded-lg border border-slate-200 dark:border-slate-800 p-3 space-y-2"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium">
+                        Часть {index + 1}:{' '}
+                        {CONTENT_TASK_TYPE_LABEL[part.part_kind] ||
+                          PART_KINDS.find((k) => k.value === part.part_kind)?.label}
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={parts.length <= 1}
+                        onClick={() =>
+                          setParts((prev) => prev.filter((p) => p.localKey !== part.localKey))
+                        }
+                      >
+                        Удалить
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Заголовок</Label>
+                        <Input
+                          value={part.title}
+                          onChange={(e) => updatePart(part.localKey, { title: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Сколько выбрать</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={part.select_count}
+                          onChange={(e) =>
+                            updatePart(part.localKey, { select_count: e.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Пул ({part.pool_ids.length})</Label>
+                      {options.length === 0 ? (
+                        <p className="text-xs text-amber-700 dark:text-amber-300">
+                          Нет опубликованных элементов этого типа
+                        </p>
+                      ) : (
+                        <ul className="max-h-32 overflow-y-auto space-y-1 rounded-md border p-2">
+                          {options.map((opt) => (
+                            <li key={opt.id}>
+                              <label className="flex items-start gap-2 text-sm cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  className="mt-1"
+                                  checked={part.pool_ids.includes(opt.id)}
+                                  onChange={() => togglePool(part.localKey, opt.id)}
+                                />
+                                <span className="line-clamp-2">{opt.label}</span>
+                              </label>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
             {error && (
               <p className="text-sm text-rose-600 dark:text-rose-400" role="alert">
                 {error}
@@ -232,11 +318,7 @@ export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Отмена
           </Button>
-          <Button
-            className="bg-primary hover:bg-primary/90"
-            onClick={handleCreate}
-            disabled={saving || loadingMeta || blocks.length === 0}
-          >
+          <Button onClick={handleCreate} disabled={saving || loadingMeta}>
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />

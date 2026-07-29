@@ -13,6 +13,7 @@ import { UserEntity } from '../users/entities/user.entity';
 import { AssessmentAssignmentsController } from './controllers/assessment-assignments.controller';
 import { AssessmentAttemptsController } from './controllers/assessment-attempts.controller';
 import { AssessmentAttachmentsController } from './controllers/assessment-attachments.controller';
+import { AssessmentContentTasksController } from './controllers/assessment-content-tasks.controller';
 import { AssessmentExamBlocksController } from './controllers/assessment-exam-blocks.controller';
 import { AssessmentExamsController } from './controllers/assessment-exams.controller';
 import { AssessmentQuestionsController } from './controllers/assessment-questions.controller';
@@ -26,7 +27,8 @@ import { ASSESSMENT_SERVICES } from './services';
  * LongHua Assessment bounded context.
  *
  * Owns exam/attempt/result domain tables (`assessment_*`).
- * Hierarchy: Question → ExamBlock → Exam.
+ * Hierarchy: Question / ContentTask → Exam (generation parts) → Attempt.
+ * ExamBlock kept for legacy materialization only.
  * Access rules live in AssessmentAccessService (DomainAccessModule).
  */
 @Module({
@@ -48,6 +50,7 @@ import { ASSESSMENT_SERVICES } from './services';
   controllers: [
     AssessmentController,
     AssessmentQuestionsController,
+    AssessmentContentTasksController,
     AssessmentExamBlocksController,
     AssessmentExamsController,
     AssessmentAssignmentsController,

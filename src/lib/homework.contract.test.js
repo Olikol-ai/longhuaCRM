@@ -20,7 +20,7 @@ describe('Homework module architecture', () => {
     assert.doesNotMatch(service, /from '\.\.\/assessment\/entities\/assessment-exam/);
   });
 
-  it('stores questions inline on homework_items without picking from assessment bank', () => {
+  it('supports mixed homework_tasks from library plus materialize into homework_items', () => {
     const service = readFileSync(
       join(root, 'apps/api/src/modules/homework/services/homework.service.ts'),
       'utf8',
@@ -30,14 +30,14 @@ describe('Homework module architecture', () => {
       'utf8',
     );
     const editor = readFileSync(join(root, 'src/pages/HomeworkEditor.jsx'), 'utf8');
-    assert.match(service, /HomeworkItemAnswerEntity/);
-    assert.match(service, /replaceItems/);
-    assert.match(dto, /class HomeworkItemDto/);
-    assert.match(dto, /type!: QuestionType/);
-    assert.match(dto, /stem!: string/);
-    assert.doesNotMatch(dto, /question_id/);
-    assert.match(editor, /Добавить вопрос/);
-    assert.doesNotMatch(editor, /listQuestions/);
+    assert.match(service, /HomeworkTaskEntity|homeworkTasks/);
+    assert.match(service, /replaceTasks/);
+    assert.match(service, /materializeItemsFromTasks/);
+    assert.match(dto, /class HomeworkTaskDto/);
+    assert.match(dto, /task_kind/);
+    assert.match(editor, /Добавить тест/);
+    assert.match(editor, /listQuestions/);
+    assert.match(editor, /listContentTasks/);
     assert.doesNotMatch(editor, /ExamBlock/);
   });
 

@@ -254,4 +254,41 @@ export const assessment = {
   downloadAttachmentUrl(attachmentId, disposition = 'inline') {
     return `/api/assessment/attachments/${attachmentId}/download${toQuery({ disposition })}`;
   },
+
+  // ── Content tasks (Listening / Reading containers) ─────────────────────
+  listContentTasks(params) {
+    return apiFetch(`/assessment/content-tasks${toQuery(params)}`);
+  },
+
+  getContentTask(id) {
+    return apiFetch(`/assessment/content-tasks/${id}`);
+  },
+
+  createContentTask(body) {
+    return apiFetch('/assessment/content-tasks', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  updateContentTask(id, body) {
+    return apiFetch(`/assessment/content-tasks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  },
+
+  uploadContentTaskAudio(id, file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiFormFetch(`/assessment/content-tasks/${id}/audio`, formData);
+  },
+
+  publishContentTask(id) {
+    return apiFetch(`/assessment/content-tasks/${id}/publish`, { method: 'POST' });
+  },
+
+  deleteContentTask(id) {
+    return apiFetch(`/assessment/content-tasks/${id}`, { method: 'DELETE' });
+  },
 };

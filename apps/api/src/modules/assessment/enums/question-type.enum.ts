@@ -12,3 +12,11 @@ export enum QuestionType {
   Cloze = 'cloze',
   Matching = 'matching',
 }
+
+/** Types allowed in new authoring UI (Listening/Reading live as content_tasks). */
+export const AUTHORING_ATOMIC_QUESTION_TYPES: ReadonlySet<QuestionType> = new Set([
+  QuestionType.SingleChoice,
+  QuestionType.MultipleChoice,
+  QuestionType.ShortText,
+  QuestionType.Translation,
+]);

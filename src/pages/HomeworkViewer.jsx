@@ -237,7 +237,9 @@ export default function HomeworkViewer() {
     <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-6" data-testid="homework-viewer">
       <div>
         <h1 className="text-2xl font-bold">Домашние задания</h1>
-        <p className="text-sm text-slate-500 mt-1">Читайте инструкцию, выполняйте и отправляйте</p>
+        <p className="text-sm text-slate-500 mt-1">
+          Новые задания и история: когда назначено, кто выдал, статус выполнения
+        </p>
       </div>
 
       {sections.map(([key, label]) => (
@@ -262,9 +264,15 @@ export default function HomeworkViewer() {
                     <div className="font-medium">{card.title}</div>
                     <div className="text-xs text-slate-500 mt-1">
                       {STATUS_LABEL[card.status] || card.status}
+                      {card.assigned_at
+                        ? ` · назначено ${new Date(card.assigned_at).toLocaleString('ru-RU')}`
+                        : ''}
                       {card.due_at ? ` · до ${new Date(card.due_at).toLocaleString('ru-RU')}` : ''}
                       {card.result?.percent != null ? ` · ${card.result.percent}%` : ''}
                     </div>
+                    {card.activity_kind ? (
+                      <div className="text-xs text-slate-400 mt-1">Тип: {card.activity_kind}</div>
+                    ) : null}
                   </button>
                 ))}
               </div>

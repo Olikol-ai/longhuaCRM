@@ -28,7 +28,7 @@ export class AssessmentAttachmentsController {
   constructor(private readonly attachments: AssessmentAttachmentService) {}
 
   @Get(':attachmentId/download')
-  @Roles('admin', 'teacher', 'student')
+  @Roles('admin', 'teacher', 'tutor', 'student')
   @ApiOperation({ summary: 'Download question attachment' })
   @ApiResponse({ status: 200, description: 'Attachment file stream' })
   download(

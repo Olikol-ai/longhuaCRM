@@ -211,7 +211,7 @@ export class AssessmentAccessService {
     if (this.isAdmin(actor)) {
       return assignment;
     }
-    if (this.isTeacher(actor)) {
+    if (this.isTeacher(actor) || this.isTutor(actor)) {
       if (await this.teacherCanAccessAssignment(actor, assignment)) {
         return assignment;
       }
@@ -234,7 +234,7 @@ export class AssessmentAccessService {
     if (this.isAdmin(actor)) {
       return assignment;
     }
-    if (this.isTeacher(actor)) {
+    if (this.isTeacher(actor) || this.isTutor(actor)) {
       const exam = await this.requireExam(assignment.examId);
       if (
         exam.createdByUserId === actor.sub ||
@@ -329,7 +329,7 @@ export class AssessmentAccessService {
     if (attempt.userId === actor.sub) {
       return attempt;
     }
-    if (this.isTeacher(actor)) {
+    if (this.isTeacher(actor) || this.isTutor(actor)) {
       if (await this.teacherCanAccessAttempt(actor, attempt)) {
         return attempt;
       }
@@ -362,7 +362,7 @@ export class AssessmentAccessService {
     if (this.isStudent(actor)) {
       return rows.filter((row) => row.userId === actor.sub);
     }
-    if (this.isTeacher(actor)) {
+    if (this.isTeacher(actor) || this.isTutor(actor)) {
       const out: AssessmentAttemptEntity[] = [];
       for (const row of rows) {
         if (row.userId === actor.sub || (await this.teacherCanAccessAttempt(actor, row))) {
@@ -388,7 +388,7 @@ export class AssessmentAccessService {
     if (attempt.userId === actor.sub) {
       return result;
     }
-    if (this.isTeacher(actor)) {
+    if (this.isTeacher(actor) || this.isTutor(actor)) {
       if (await this.teacherCanAccessAttempt(actor, attempt)) {
         return result;
       }

@@ -82,8 +82,6 @@ const EXACT_ROUTE_ACCESS = {
   '/HomeworkAssignment': ['admin', 'teacher', 'tutor'],
   '/HomeworkResults': ['admin', 'teacher', 'tutor'],
   '/AssessmentQuestions': ['admin', 'teacher', 'tutor'],
-  '/AssessmentExamBlocks': ['admin', 'teacher', 'tutor'],
-  '/AssessmentExamBlockEdit': ['admin', 'teacher', 'tutor'],
   '/AssessmentExams': ['admin', 'teacher', 'tutor'],
   '/AssessmentExamDetail': ['admin', 'teacher', 'tutor'],
 
