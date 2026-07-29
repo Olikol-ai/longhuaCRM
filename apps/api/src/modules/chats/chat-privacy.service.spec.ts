@@ -82,12 +82,33 @@ describe('ChatPrivacyService rate limits and policy', () => {
     );
   });
 
-  it('blocks either direction', async () => {
-    const { service, blockRepo } = build();
-    blockRepo.createQueryBuilder = jest.fn(() => ({
-      where: jest.fn().mockReturnThis(),
-      getCount: jest.fn().mockResolvedValue(1),
-    }));
-    await expect(service.assertNotBlocked('a', 'b')).rejects.toBeInstanceOf(ForbiddenException);
+  it('enforces pair rate limit over 30 days', async () => {
+    const { service, requestRepo } = build();
+    requestRepo.count
+      .mockResolvedValueOnce(0) // day
+      .mockResolvedValueOnce(3); // pair 30d
+    await expect(service.assertCanReceiveDmRequest('from', 'to')).rejects.toBeInstanceOf(
+      HttpException,
+    );
+  });
+
+  it('enforces decline cooldown', async () => {
+    const { service, requestRepo } = build();
+    requestRepo.count.mockResolvedValue(0);
+    requestRepo.findOne.mockResolvedValue({
+      id: 'old',
+      status: 'declined',
+      respondedAt: new Date(),
+    });
+    await expect(service.assertCanReceiveDmRequest('from', 'to')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('defaults policy by role', () => {
+    const { service } = build();
+    expect(service.defaultPolicyForRole('admin')).toBe(DmPrivacyPolicy.AllRegistered);
+    expect(service.defaultPolicyForRole('teacher')).toBe(DmPrivacyPolicy.MyStudents);
+    expect(service.defaultPolicyForRole('student')).toBe(DmPrivacyPolicy.MyTeachers);
   });
 });

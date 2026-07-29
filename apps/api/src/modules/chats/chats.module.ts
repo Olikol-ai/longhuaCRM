@@ -21,6 +21,7 @@ import { ChatMessagesService } from './services/chat-messages.service';
 import { ChatPresenceService } from './services/chat-presence.service';
 import { ChatsService } from './services/chats.service';
 import { DirectChatRequestService } from './services/direct-chat-request.service';
+import { ChatDmRequestJobsService } from './services/chat-dm-request-jobs.service';
 
 @Module({
   imports: [
@@ -43,12 +44,13 @@ import { DirectChatRequestService } from './services/direct-chat-request.service
     ChatAttachmentsService,
     ChatDirectoryService,
     DirectChatRequestService,
+    ChatDmRequestJobsService,
     ChatGateway,
     ChatAiService,
     MockAiProvider,
     OpenAiProvider,
     { provide: AI_PROVIDER, useExisting: MockAiProvider },
   ],
-  exports: [ChatMembershipSyncService, ChatsService, ChatPresenceService],
+  exports: [ChatMembershipSyncService, ChatsService, ChatPresenceService, DirectChatRequestService],
 })
 export class ChatsModule {}

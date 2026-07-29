@@ -90,7 +90,11 @@ export default function FindInterlocutorDialog({ open, onOpenChange, onRequestSe
           />
         </div>
         <div className="max-h-80 space-y-1 overflow-y-auto">
-          {users.map((user) => (
+          {users.map((user) => {
+            const canRequest =
+              user.canRequest !== false && user.can_request !== false;
+            const reason = user.canRequestReason || user.can_request_reason;
+            return (
             <div
               key={user.id}
               className="flex items-center justify-between gap-3 rounded-md p-2 hover:bg-muted"
@@ -99,14 +103,12 @@ export default function FindInterlocutorDialog({ open, onOpenChange, onRequestSe
                 <p className="truncate text-sm font-medium">{displayUserName(user)}</p>
                 <p className="truncate text-xs text-muted-foreground">
                   {user.email} · {user.role}
-                  {!user.canRequest && user.canRequestReason
-                    ? ` · ${user.canRequestReason}`
-                    : ''}
+                  {!canRequest && reason ? ` · ${reason}` : ''}
                 </p>
               </div>
               <Button
                 size="sm"
-                disabled={!user.canRequest || sending}
+                disabled={!canRequest || sending}
                 onClick={() => {
                   setSelectedId(user.id);
                   void sendRequest(user.id);
@@ -115,7 +117,8 @@ export default function FindInterlocutorDialog({ open, onOpenChange, onRequestSe
                 {sending && selectedId === user.id ? '…' : 'Отправить запрос'}
               </Button>
             </div>
-          ))}
+            );
+          })}
           {!loading && !users.length ? (
             <p className="p-3 text-center text-sm text-muted-foreground">
               Пользователи не найдены
