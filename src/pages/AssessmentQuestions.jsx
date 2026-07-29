@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import {
   Archive,
   Download,
@@ -30,7 +29,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/components/ui/use-toast';
-import { createPageUrl } from '@/utils';
 import { useAssessmentQuestions } from '@/hooks/useAssessmentQuestions';
 import { useAuth } from '@/lib/AuthContext';
 import {
@@ -41,7 +39,6 @@ import {
 
 export default function AssessmentQuestions() {
   const { user } = useAuth();
-  const assessmentHomePage = user?.role === 'admin' ? 'AdminAssessment' : 'AssessmentExams';
   const [type, setType] = useState('');
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
@@ -208,13 +205,7 @@ export default function AssessmentQuestions() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <Link
-            to={createPageUrl(assessmentHomePage)}
-            className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
-          >
-            ← Экзамены
-          </Link>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
             Мои вопросы
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Archive,
   Layers,
@@ -11,7 +11,6 @@ import {
   Trash2,
 } from 'lucide-react';
 import { api } from '@/api';
-import { useAuth } from '@/lib/AuthContext';
 import LifecycleBadge from '@/components/assessment/LifecycleBadge';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,9 +29,7 @@ import { useAssessmentExamBlocks } from '@/hooks/useAssessmentExamBlocks';
 import { formatDateTime } from '@/lib/assessment-admin';
 
 export default function AssessmentExamBlocks() {
-  const { user } = useAuth();
   const navigate = useNavigate();
-  const assessmentHomePage = user?.role === 'admin' ? 'AdminAssessment' : 'AssessmentQuestions';
   const [statusFilter, setStatusFilter] = useState('');
   const { blocks, loading, error, reload } = useAssessmentExamBlocks({
     status: statusFilter,
@@ -140,13 +137,7 @@ export default function AssessmentExamBlocks() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <Link
-            to={createPageUrl(assessmentHomePage)}
-            className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
-          >
-            ← Назад
-          </Link>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
             Блоки экзаменов
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">

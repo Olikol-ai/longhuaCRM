@@ -17,15 +17,12 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
 import { createPageUrl } from '@/utils';
 import { useAssessmentExamBlock } from '@/hooks/useAssessmentExamBlocks';
-import { useAuth } from '@/lib/AuthContext';
 import { QUESTION_TYPE_LABEL, unwrapItems } from '@/lib/assessment-admin';
 
 export default function AssessmentExamBlockEdit() {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const blockId = params.get('id') || '';
-  const assessmentHomePage = user?.role === 'admin' ? 'AdminAssessment' : 'AssessmentExamBlocks';
   const { block, loading, error, reload } = useAssessmentExamBlock(blockId);
 
   const [name, setName] = useState('');
@@ -185,7 +182,7 @@ export default function AssessmentExamBlockEdit() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <Link
-            to={createPageUrl(assessmentHomePage)}
+            to={createPageUrl('AssessmentExamBlocks')}
             className="text-xs text-slate-500 hover:text-brand"
           >
             ← К блокам
