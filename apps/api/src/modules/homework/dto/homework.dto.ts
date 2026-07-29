@@ -1,20 +1,59 @@
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsDateString,
+  IsEnum,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
+  Min,
   MinLength,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { QuestionType } from '../../assessment/enums';
+
+export class HomeworkItemAnswerDto {
+  @IsString()
+  @MinLength(1)
+  text!: string;
+
+  @IsBoolean()
+  is_correct!: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sort_order?: number;
+}
 
 export class HomeworkItemDto {
-  @IsUUID()
-  question_id!: string;
+  @IsEnum(QuestionType)
+  type!: QuestionType;
+
+  @IsString()
+  @MinLength(1)
+  stem!: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  points?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  difficulty?: number;
+
+  @IsOptional()
+  @IsString()
+  explanation?: string;
 
   @IsOptional()
   @IsString()
@@ -25,12 +64,14 @@ export class HomeworkItemDto {
   sort_order?: number;
 
   @IsOptional()
-  @IsNumber()
-  points?: number;
-
-  @IsOptional()
   @IsString()
   passage_text?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => HomeworkItemAnswerDto)
+  answers?: HomeworkItemAnswerDto[];
 }
 
 export class CreateHomeworkDto {

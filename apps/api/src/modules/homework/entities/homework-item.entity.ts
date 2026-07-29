@@ -5,10 +5,13 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { AssessmentQuestionEntity } from '../../assessment/entities/assessment-question.entity';
+import { QuestionType } from '../../assessment/enums';
 import { HomeworkEntity } from './homework.entity';
+import { HomeworkItemAnswerEntity } from './homework-item-answer.entity';
 
 @Entity('homework_items')
 export class HomeworkItemEntity {
@@ -26,13 +29,26 @@ export class HomeworkItemEntity {
   @JoinColumn({ name: 'homework_id' })
   homework?: HomeworkEntity;
 
+  /** Legacy provenance to assessment_questions; nullable for inline homework questions. */
   @Index('IDX_HOMEWORK_ITEMS_QUESTION')
-  @Column({ name: 'question_id', type: 'uuid' })
-  questionId: string;
+  @Column({ name: 'question_id', type: 'uuid', nullable: true })
+  questionId: string | null;
 
-  @ManyToOne(() => AssessmentQuestionEntity, { nullable: false, onDelete: 'RESTRICT' })
+  @ManyToOne(() => AssessmentQuestionEntity, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'question_id' })
-  question?: AssessmentQuestionEntity;
+  question?: AssessmentQuestionEntity | null;
+
+  @Column({ type: 'varchar', length: 32 })
+  type: QuestionType | string;
+
+  @Column({ type: 'text' })
+  stem: string;
+
+  @Column({ type: 'int', default: 1 })
+  difficulty: number;
+
+  @Column({ type: 'text', nullable: true })
+  explanation: string | null;
 
   /** Section / activity: test | reading | listening | speaking | writing */
   @Column({ name: 'section_key', type: 'varchar', length: 64, default: 'test' })
@@ -44,9 +60,12 @@ export class HomeworkItemEntity {
   @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true })
   points: string | null;
 
-  /** Optional reading passage shown above this item's questions. */
+  /** Optional reading passage shown above this item. */
   @Column({ name: 'passage_text', type: 'text', nullable: true })
   passageText: string | null;
+
+  @OneToMany(() => HomeworkItemAnswerEntity, (answer) => answer.item)
+  answers?: HomeworkItemAnswerEntity[];
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

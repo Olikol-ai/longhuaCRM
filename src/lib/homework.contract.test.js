@@ -16,7 +16,29 @@ describe('Homework module architecture', () => {
     assert.match(service, /AssessmentScoringService/);
     assert.match(service, /scoreFromData/);
     assert.doesNotMatch(service, /AssessmentExamEntity/);
+    assert.doesNotMatch(service, /ExamBlock/);
     assert.doesNotMatch(service, /from '\.\.\/assessment\/entities\/assessment-exam/);
+  });
+
+  it('stores questions inline on homework_items without picking from assessment bank', () => {
+    const service = readFileSync(
+      join(root, 'apps/api/src/modules/homework/services/homework.service.ts'),
+      'utf8',
+    );
+    const dto = readFileSync(
+      join(root, 'apps/api/src/modules/homework/dto/homework.dto.ts'),
+      'utf8',
+    );
+    const editor = readFileSync(join(root, 'src/pages/HomeworkEditor.jsx'), 'utf8');
+    assert.match(service, /HomeworkItemAnswerEntity/);
+    assert.match(service, /replaceItems/);
+    assert.match(dto, /class HomeworkItemDto/);
+    assert.match(dto, /type!: QuestionType/);
+    assert.match(dto, /stem!: string/);
+    assert.doesNotMatch(dto, /question_id/);
+    assert.match(editor, /Добавить вопрос/);
+    assert.doesNotMatch(editor, /listQuestions/);
+    assert.doesNotMatch(editor, /ExamBlock/);
   });
 
   it('exposes teacher and student homework UI without exam terminology', () => {

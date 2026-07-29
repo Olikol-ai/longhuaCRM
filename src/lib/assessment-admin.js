@@ -82,7 +82,12 @@ export function guessAttachmentKind(file) {
 }
 
 export function needsAnswerOptions(type) {
-  return type === 'single_choice' || type === 'multiple_choice' || type === 'listening';
+  return (
+    type === 'single_choice' ||
+    type === 'multiple_choice' ||
+    type === 'listening' ||
+    type === 'reading'
+  );
 }
 
 export function validateQuestionForm({ type, stem, answers }) {
@@ -91,7 +96,7 @@ export function validateQuestionForm({ type, stem, answers }) {
   const rows = (answers || []).filter((a) => a.text?.trim());
   if (rows.length < 2) return 'Добавьте минимум два варианта ответа';
   if (!rows.some((a) => a.is_correct)) return 'Отметьте хотя бы один правильный ответ';
-  if (type === 'single_choice' || type === 'listening') {
+  if (type === 'single_choice' || type === 'listening' || type === 'reading') {
     const correct = rows.filter((a) => a.is_correct);
     if (correct.length !== 1) return 'Для этого типа нужен ровно один правильный ответ';
   }

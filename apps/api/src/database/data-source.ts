@@ -51,6 +51,7 @@ import { HomeworkLocalResultAsAssignmentResult1742700000000 } from './migrations
 import { ExamBlocksAndChangeJournal1742800000000 } from './migrations/1742800000000-ExamBlocksAndChangeJournal';
 import { DropAssessmentBlueprintTemplate1742900000000 } from './migrations/1742900000000-DropAssessmentBlueprintTemplate';
 import { DropAssessmentBanks1743000000000 } from './migrations/1743000000000-DropAssessmentBanks';
+import { HomeworkInlineQuestions1743100000000 } from './migrations/1743100000000-HomeworkInlineQuestions';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -105,6 +106,7 @@ export default new DataSource({
     ExamBlocksAndChangeJournal1742800000000,
     DropAssessmentBlueprintTemplate1742900000000,
     DropAssessmentBanks1743000000000,
+    HomeworkInlineQuestions1743100000000,
   ],
   synchronize: false,
 });

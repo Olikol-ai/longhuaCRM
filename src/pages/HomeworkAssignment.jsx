@@ -39,16 +39,20 @@ export default function HomeworkAssignment() {
         setStudents(
           stRows
             .filter((row) => row.status !== 'inactive')
-            .map((row) => ({
-              id: row.id,
-              name:
-                row.name ||
-                row.full_name ||
-                [row.last_name, row.first_name].filter(Boolean).join(' ') ||
-                row.email,
-              learnerType: isTutor ? 'tutor_student' : 'student',
-              hasAccount: Boolean(isTutor ? row.user_id || row.userId : true),
-            })),
+            .map((row) => {
+              const hasAccount = Boolean(row.user_id || row.userId);
+              return {
+                id: row.id,
+                name:
+                  row.name ||
+                  row.full_name ||
+                  [row.last_name, row.first_name].filter(Boolean).join(' ') ||
+                  row.email,
+                learnerType: isTutor ? 'tutor_student' : 'student',
+                hasAccount,
+                kindLabel: hasAccount ? 'Зарегистрированный' : 'Добавлен вручную',
+              };
+            }),
         );
       } catch (err) {
         toast({
@@ -167,11 +171,7 @@ export default function HomeworkAssignment() {
                 />
                 <span>
                   {s.name}
-                  {isTutor && (
-                    <span className="text-xs text-slate-500 ml-2">
-                      {s.hasAccount ? 'Личный кабинет' : 'Локальный ученик'}
-                    </span>
-                  )}
+                  <span className="text-xs text-slate-500 ml-2">{s.kindLabel}</span>
                 </span>
               </label>
             ))}

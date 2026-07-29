@@ -8,8 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
 import { JwtPayload } from '../../auth/auth.service';
-import { AssessmentQuestionEntity } from '../../assessment/entities/assessment-question.entity';
-import { ContentLifecycleStatus, EvaluationType, QuestionType } from '../../assessment/enums';
+import { EvaluationType, QuestionType } from '../../assessment/enums';
 import { AssessmentScoringService } from '../../assessment/services/assessment-scoring.service';
 import { TutorStudentAccessService } from '../../../common/access/tutor-student-access.service';
 import { StudentEntity } from '../../students/entities/student.entity';
@@ -20,6 +19,7 @@ import {
   AssignHomeworkDto,
   CreateHomeworkDto,
   HomeworkAnswerDto,
+  HomeworkItemDto,
   UpdateHomeworkDto,
   UpdateLocalHomeworkStatusDto,
 } from '../dto/homework.dto';
@@ -35,6 +35,7 @@ import {
   HomeworkAttemptAnswerSelectionEntity,
   HomeworkAttemptEntity,
   HomeworkEntity,
+  HomeworkItemAnswerEntity,
   HomeworkItemEntity,
   HomeworkQuestionSnapshotEntity,
   HomeworkResultEntity,
@@ -90,8 +91,8 @@ export class HomeworkService {
     private readonly selections: Repository<HomeworkAttemptAnswerSelectionEntity>,
     @InjectRepository(HomeworkResultEntity)
     private readonly results: Repository<HomeworkResultEntity>,
-    @InjectRepository(AssessmentQuestionEntity)
-    private readonly questions: Repository<AssessmentQuestionEntity>,
+    @InjectRepository(HomeworkItemAnswerEntity)
+    private readonly itemAnswers: Repository<HomeworkItemAnswerEntity>,
     @InjectRepository(TeacherEntity)
     private readonly teachers: Repository<TeacherEntity>,
     @InjectRepository(StudentEntity)
@@ -118,34 +119,17 @@ export class HomeworkService {
   async getHomework(user: JwtPayload, id: string) {
     const hw = await this.homeworks.findOne({
       where: { id },
-      relations: ['items'],
+      relations: ['items', 'items.answers'],
     });
     if (!hw) throw new NotFoundException('Homework not found');
     await this.assertCanViewHomework(user, hw);
     const owners = await this.buildHomeworkOwnerInfoMap([hw]);
-    const questionIds = (hw.items ?? []).map((item) => item.questionId);
-    const questions =
-      questionIds.length > 0
-        ? await this.questions.find({
-            where: { id: In(questionIds) },
-            relations: ['answers', 'attachments'],
-          })
-        : [];
-    const byId = new Map(questions.map((question) => [question.id, question]));
     return {
       ...this.toHomeworkDto(hw, owners.get(hw.id) ?? null),
       items: (hw.items ?? [])
         .slice()
         .sort((left, right) => left.sortOrder - right.sortOrder)
-        .map((item) => ({
-          id: item.id,
-          question_id: item.questionId,
-          section_key: item.sectionKey,
-          sort_order: item.sortOrder,
-          points: item.points != null ? Number(item.points) : null,
-          passage_text: item.passageText,
-          question: this.mapQuestion(byId.get(item.questionId)),
-        })),
+        .map((item) => this.mapHomeworkItem(item)),
     };
   }
 
@@ -843,75 +827,122 @@ export class HomeworkService {
     return enriched[0];
   }
 
-  private async replaceItems(
-    homeworkId: string,
-    items: Array<{
-      question_id: string;
-      section_key?: string;
-      sort_order?: number;
-      points?: number;
-      passage_text?: string;
-    }>,
-  ) {
-    const questionIds = items.map((item) => item.question_id);
-    const found = await this.questions.find({ where: { id: In(questionIds) } });
-    if (found.length !== questionIds.length) {
-      throw new BadRequestException('One or more questions not found');
-    }
-    for (const question of found) {
-      if (question.status === ContentLifecycleStatus.Archived) {
-        throw new BadRequestException(`Question ${question.id} is archived`);
-      }
+  private async replaceItems(homeworkId: string, items: HomeworkItemDto[]) {
+    for (const [index, item] of items.entries()) {
+      this.assertInlineItemValid(item, index);
     }
     await this.items.delete({ homeworkId });
-    await this.items.save(
-      items.map((item, idx) =>
+    for (const [idx, item] of items.entries()) {
+      const saved = await this.items.save(
         this.items.create({
           homeworkId,
-          questionId: item.question_id,
-          sectionKey: item.section_key || 'test',
+          questionId: null,
+          type: item.type,
+          stem: item.stem.trim(),
+          difficulty: item.difficulty ?? 1,
+          explanation: item.explanation?.trim() || null,
+          sectionKey: item.section_key || this.sectionKeyForType(item.type),
           sortOrder: item.sort_order ?? idx,
-          points: item.points != null ? String(item.points) : null,
+          points: item.points != null ? String(item.points) : '1',
           passageText: item.passage_text?.trim() || null,
         }),
-      ),
-    );
+      );
+      const answers = item.answers ?? [];
+      if (answers.length > 0) {
+        await this.itemAnswers.save(
+          answers.map((answer, answerIdx) =>
+            this.itemAnswers.create({
+              homeworkItemId: saved.id,
+              body: answer.text.trim(),
+              isCorrect: Boolean(answer.is_correct),
+              sortOrder: answer.sort_order ?? answerIdx,
+            }),
+          ),
+        );
+      }
+    }
+  }
+
+  private assertInlineItemValid(item: HomeworkItemDto, index: number): void {
+    if (!item.stem?.trim()) {
+      throw new BadRequestException(`Question #${index + 1}: enter the question text`);
+    }
+    const needsOptions =
+      item.type === QuestionType.SingleChoice ||
+      item.type === QuestionType.MultipleChoice ||
+      item.type === QuestionType.Listening ||
+      item.type === QuestionType.Reading;
+    if (!needsOptions) {
+      return;
+    }
+    const rows = (item.answers ?? []).filter((answer) => answer.text?.trim());
+    if (rows.length < 2) {
+      throw new BadRequestException(
+        `Question #${index + 1}: add at least two answer options`,
+      );
+    }
+    if (!rows.some((answer) => answer.is_correct)) {
+      throw new BadRequestException(
+        `Question #${index + 1}: mark at least one correct answer`,
+      );
+    }
+    if (
+      item.type === QuestionType.SingleChoice ||
+      item.type === QuestionType.Listening ||
+      item.type === QuestionType.Reading
+    ) {
+      const correct = rows.filter((answer) => answer.is_correct);
+      if (correct.length !== 1) {
+        throw new BadRequestException(
+          `Question #${index + 1}: this type requires exactly one correct answer`,
+        );
+      }
+    }
+  }
+
+  private sectionKeyForType(type: QuestionType | string): string {
+    if (type === QuestionType.Listening) return 'listening';
+    if (type === QuestionType.Reading) return 'reading';
+    if (type === QuestionType.Translation) return 'writing';
+    return 'test';
   }
 
   private async createSnapshots(attempt: HomeworkAttemptEntity, items: HomeworkItemEntity[]) {
-    const questionIds = items.map((item) => item.questionId);
-    const questions = await this.questions.find({
-      where: { id: In(questionIds) },
-      relations: ['answers'],
-    });
-    const byId = new Map(questions.map((question) => [question.id, question]));
+    const withAnswers =
+      items.length === 0
+        ? []
+        : await this.items.find({
+            where: { id: In(items.map((item) => item.id)) },
+            relations: ['answers'],
+            order: { sortOrder: 'ASC' },
+          });
+    const byId = new Map(withAnswers.map((item) => [item.id, item]));
 
     for (const item of items) {
-      const question = byId.get(item.questionId);
-      if (!question) continue;
+      const full = byId.get(item.id) ?? item;
       const questionSnapshot = await this.questionSnapshots.save(
         this.questionSnapshots.create({
           attemptId: attempt.id,
-          sourceQuestionId: question.id,
-          sectionKey: item.sectionKey,
-          type: question.type,
-          stem: question.stem,
-          points: item.points ?? question.points,
-          difficulty: question.difficulty,
-          explanation: question.explanation,
-          passageText: item.passageText,
-          sortOrder: item.sortOrder,
+          sourceQuestionId: full.questionId,
+          sectionKey: full.sectionKey,
+          type: full.type as QuestionType,
+          stem: full.stem,
+          points: full.points ?? '1',
+          difficulty: full.difficulty ?? 1,
+          explanation: full.explanation,
+          passageText: full.passageText,
+          sortOrder: full.sortOrder,
         }),
       );
-      const answers = (question.answers ?? [])
+      const answers = (full.answers ?? [])
         .slice()
         .sort((left, right) => left.sortOrder - right.sortOrder);
       for (const answer of answers) {
         await this.answerSnapshots.save(
           this.answerSnapshots.create({
             questionSnapshotId: questionSnapshot.id,
-            sourceAnswerId: answer.id,
-            body: answer.text,
+            sourceAnswerId: null,
+            body: answer.body,
             isCorrect: answer.isCorrect,
             sortOrder: answer.sortOrder,
           }),
@@ -1393,20 +1424,27 @@ export class HomeworkService {
     };
   }
 
-  private mapQuestion(question?: AssessmentQuestionEntity) {
-    if (!question) return null;
+  private mapHomeworkItem(item: HomeworkItemEntity) {
     return {
-      id: question.id,
-      type: question.type,
-      stem: question.stem,
-      points: Number(question.points),
-      status: question.status,
-      answers: (question.answers ?? []).map((answer) => ({
-        id: answer.id,
-        body: answer.text,
-        is_correct: answer.isCorrect,
-        sort_order: answer.sortOrder,
-      })),
+      id: item.id,
+      type: item.type,
+      stem: item.stem,
+      points: item.points != null ? Number(item.points) : 1,
+      difficulty: item.difficulty ?? 1,
+      explanation: item.explanation,
+      section_key: item.sectionKey,
+      sort_order: item.sortOrder,
+      passage_text: item.passageText,
+      answers: (item.answers ?? [])
+        .slice()
+        .sort((left, right) => left.sortOrder - right.sortOrder)
+        .map((answer) => ({
+          id: answer.id,
+          text: answer.body,
+          body: answer.body,
+          is_correct: answer.isCorrect,
+          sort_order: answer.sortOrder,
+        })),
     };
   }
 }

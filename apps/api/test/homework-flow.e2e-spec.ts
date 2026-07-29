@@ -9,9 +9,6 @@ import {
   ensureDatabaseReady,
   login,
 } from './e2e-helpers';
-import { ContentLifecycleStatus, QuestionType } from '../src/modules/assessment/enums';
-import { AssessmentQuestionEntity } from '../src/modules/assessment/entities/assessment-question.entity';
-import { AssessmentAnswerEntity } from '../src/modules/assessment/entities/assessment-answer.entity';
 import { TeacherEntity } from '../src/modules/teachers/entities/teacher.entity';
 import { StudentEntity } from '../src/modules/students/entities/student.entity';
 import { TutorEntity } from '../src/modules/tutors/entities/tutor.entity';
@@ -155,32 +152,6 @@ describeE2E('Homework module (e2e)', () => {
       assignedTeacherId: teacher.id,
     } as StudentEntity);
 
-    const question = await ds.getRepository(AssessmentQuestionEntity).save({
-      id: randomUUID(),
-      type: QuestionType.SingleChoice,
-      stem: 'Что означает 你好?',
-      points: '1',
-      difficulty: 1,
-      explanation: null,
-      status: ContentLifecycleStatus.Published,
-      createdByUserId: teacherUserId,
-    } as AssessmentQuestionEntity);
-
-    const correct = await ds.getRepository(AssessmentAnswerEntity).save({
-      id: randomUUID(),
-      questionId: question.id,
-      text: 'Привет',
-      isCorrect: true,
-      sortOrder: 0,
-    } as AssessmentAnswerEntity);
-    await ds.getRepository(AssessmentAnswerEntity).save({
-      id: randomUUID(),
-      questionId: question.id,
-      text: 'Пока',
-      isCorrect: false,
-      sortOrder: 1,
-    } as AssessmentAnswerEntity);
-
     const teacherLogin = await login(app, `hw-teacher-${suffix}@test.local`, PASSWORD);
     const studentLogin = await login(app, `hw-student-${suffix}@test.local`, PASSWORD);
 
@@ -191,7 +162,19 @@ describeE2E('Homework module (e2e)', () => {
         title: 'Урок 8. Лексика HSK2',
         instructions: 'Ответьте на вопросы.',
         activity_kind: 'test',
-        items: [{ question_id: question.id, section_key: 'test', sort_order: 0 }],
+        items: [
+          {
+            type: 'single_choice',
+            stem: 'Что означает 你好?',
+            points: 1,
+            section_key: 'test',
+            sort_order: 0,
+            answers: [
+              { text: 'Привет', is_correct: true, sort_order: 0 },
+              { text: 'Пока', is_correct: false, sort_order: 1 },
+            ],
+          },
+        ],
       })
       .expect(201);
 
@@ -366,33 +349,6 @@ describeE2E('Homework module (e2e)', () => {
       inviteLinkId: null,
     } as TutorStudentEntity);
 
-    const question = await ds.getRepository(AssessmentQuestionEntity).save({
-      id: randomUUID(),
-      type: QuestionType.SingleChoice,
-      stem: 'Выберите перевод 你好',
-      points: '1',
-      difficulty: 1,
-      explanation: null,
-      status: ContentLifecycleStatus.Published,
-      createdByUserId: tutorUserId,
-    } as AssessmentQuestionEntity);
-    await ds.getRepository(AssessmentAnswerEntity).save([
-      {
-        id: randomUUID(),
-        questionId: question.id,
-        text: 'Привет',
-        isCorrect: true,
-        sortOrder: 0,
-      } as AssessmentAnswerEntity,
-      {
-        id: randomUUID(),
-        questionId: question.id,
-        text: 'Пока',
-        isCorrect: false,
-        sortOrder: 1,
-      } as AssessmentAnswerEntity,
-    ]);
-
     const tutorLogin = await login(app, `hw-tutor-${suffix}@test.local`, PASSWORD);
     const otherTutorLogin = await login(app, `hw-other-tutor-${suffix}@test.local`, PASSWORD);
     const tutorStudentLogin = await login(app, `hw-tutor-student-${suffix}@test.local`, PASSWORD);
@@ -406,7 +362,19 @@ describeE2E('Homework module (e2e)', () => {
         title: 'Китайский язык. Домашняя работа',
         instructions: 'Выберите правильный ответ.',
         activity_kind: 'test',
-        items: [{ question_id: question.id, section_key: 'test', sort_order: 0 }],
+        items: [
+          {
+            type: 'single_choice',
+            stem: 'Выберите перевод 你好',
+            points: 1,
+            section_key: 'test',
+            sort_order: 0,
+            answers: [
+              { text: 'Привет', is_correct: true, sort_order: 0 },
+              { text: 'Пока', is_correct: false, sort_order: 1 },
+            ],
+          },
+        ],
       })
       .expect(201);
 

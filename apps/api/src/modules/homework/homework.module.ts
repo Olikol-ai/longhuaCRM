@@ -1,9 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AssessmentModule } from '../assessment/assessment.module';
-import { AssessmentQuestionEntity } from '../assessment/entities/assessment-question.entity';
-import { AssessmentAnswerEntity } from '../assessment/entities/assessment-answer.entity';
-import { AssessmentQuestionAttachmentEntity } from '../assessment/entities/assessment-question-attachment.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
@@ -19,16 +16,14 @@ import { DomainAccessModule } from '../../common/access/domain-access.module';
 
 /**
  * Homework bounded context.
- * Reuses AssessmentScoringService and assessment_questions; owns homework_* tables.
- * Not linked to AssessmentExamEntity.
+ * Owns homework_* tables with inline questions on homework_items.
+ * Reuses AssessmentScoringService for attempt scoring.
+ * Not linked to AssessmentExamEntity / ExamBlock.
  */
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       ...HOMEWORK_ENTITIES,
-      AssessmentQuestionEntity,
-      AssessmentAnswerEntity,
-      AssessmentQuestionAttachmentEntity,
       StudentEntity,
       TeacherEntity,
       TutorEntity,

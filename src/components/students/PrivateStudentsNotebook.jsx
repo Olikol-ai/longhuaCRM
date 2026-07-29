@@ -8,17 +8,18 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
-  Loader2, Phone, Plus, Pencil, Trash2, Search, BookUser, X, Wallet,
+  Loader2, Phone, Plus, Pencil, Trash2, Search, BookUser, X, Wallet, Mail,
 } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { userFacingError } from '@/lib/userFacingError';
-
-function normalizeSearch(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ');
-}
+import {
+  STUDENT_KIND_LABEL,
+  STUDENT_STATUS_LABEL,
+  buildOwnerStudentRows,
+  filterOwnerStudentRows,
+  normalizePersonName,
+  displayName,
+} from '@/lib/ownerStudents';
 
 function formatLessonDate(date, time) {
   if (!date) return '—';
@@ -26,7 +27,15 @@ function formatLessonDate(date, time) {
   return t ? `${date} ${t}` : date;
 }
 
-const STATUS_RU = {
+const TABS = [
+  { id: 'all', label: 'Все' },
+  { id: 'registered', label: 'Зарегистрированные' },
+  { id: 'manual', label: 'Добавленные вручную' },
+];
+
+const emptyForm = { name: '', phone: '', comment: '' };
+
+const LESSON_STATUS_RU = {
   planned: 'Запланирован',
   completed: 'Проведён',
   cancelled: 'Отменён',
@@ -35,48 +44,81 @@ const STATUS_RU = {
   missed_no_notice: 'Пропущен без уведомления',
 };
 
-const emptyForm = { name: '', phone: '', comment: '' };
-
 /**
- * Shared private students notebook for teacher or tutor.
+ * Unified "Ученики" section for teacher or tutor.
  * @param {'teacher'|'tutor'} ownerType
  */
 export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
   const { user } = useAuth();
-  const [students, setStudents] = useState([]);
+  const [rows, setRows] = useState([]);
+  const [tutorStudentsRaw, setTutorStudentsRaw] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
+  const [tab, setTab] = useState('all');
   const [query, setQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
-  const [selectedId, setSelectedId] = useState(null);
+  const [deletingKey, setDeletingKey] = useState(null);
+  const [selectedKey, setSelectedKey] = useState(null);
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [balanceForm, setBalanceForm] = useState({ newBalance: '', reason: '' });
   const [balanceSaving, setBalanceSaving] = useState(false);
 
+  const selectedRow = useMemo(
+    () => rows.find((row) => row.key === selectedKey) || null,
+    [rows, selectedKey],
+  );
+
   const loadData = async () => {
     setLoadError(null);
     setLoading(true);
     try {
-      const rows = await api.teacherStudentContacts.listMine({ ownerType });
-      setStudents(Array.isArray(rows) ? rows : []);
+      if (ownerType === 'teacher') {
+        const [contacts, schoolStudents] = await Promise.all([
+          api.teacherStudentContacts.listMine({ ownerType: 'teacher' }),
+          api.students.list?.() ?? api.students.filter({}),
+        ]);
+        const schoolRows = Array.isArray(schoolStudents)
+          ? schoolStudents
+          : schoolStudents?.items || [];
+        setTutorStudentsRaw([]);
+        setRows(
+          buildOwnerStudentRows('teacher', {
+            contacts: Array.isArray(contacts) ? contacts : [],
+            schoolStudents: schoolRows,
+          }),
+        );
+      } else {
+        const [contacts, tutorStudents] = await Promise.all([
+          api.teacherStudentContacts.listMine({ ownerType: 'tutor' }),
+          api.tutors.myStudents(),
+        ]);
+        const tutorRows = Array.isArray(tutorStudents) ? tutorStudents : [];
+        setTutorStudentsRaw(tutorRows);
+        setRows(
+          buildOwnerStudentRows('tutor', {
+            contacts: Array.isArray(contacts) ? contacts : [],
+            tutorStudents: tutorRows,
+          }),
+        );
+      }
     } catch (err) {
-      setLoadError(err?.message || 'Не удалось загрузить записи');
-      setStudents([]);
+      setLoadError(err?.message || 'Не удалось загрузить учеников');
+      setRows([]);
+      setTutorStudentsRaw([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadDetail = async (id) => {
+  const loadContactDetail = async (id) => {
     setDetailLoading(true);
     try {
       const row = await api.teacherStudentContacts.detail(id);
-      setDetail(row);
+      setDetail({ type: 'contact', data: row });
       setBalanceForm({
         newBalance: String(row.lesson_balance ?? row.lessonBalance ?? 0),
         reason: '',
@@ -87,7 +129,7 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
         description: userFacingError(err),
         variant: 'destructive',
       });
-      setSelectedId(null);
+      setSelectedKey(null);
       setDetail(null);
     } finally {
       setDetailLoading(false);
@@ -99,26 +141,31 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
   }, [ownerType]);
 
   useEffect(() => {
-    if (selectedId) loadDetail(selectedId);
-  }, [selectedId]);
+    if (!selectedRow) {
+      setDetail(null);
+      return;
+    }
+    if (selectedRow.usesContactDetail) {
+      loadContactDetail(selectedRow.id);
+      return;
+    }
+    setDetail({ type: selectedRow.source, data: selectedRow });
+    setDetailLoading(false);
+  }, [selectedRow?.key]);
 
-  const filtered = useMemo(() => {
-    const q = normalizeSearch(query);
-    return [...students]
-      .filter((s) => {
-        if (!q) return true;
-        const hay = [s.name, s.phone, s.comment]
-          .filter(Boolean)
-          .map((v) => normalizeSearch(v))
-          .join(' ');
-        return hay.includes(q);
-      })
-      .sort((a, b) =>
-        String(a.name || '').localeCompare(String(b.name || ''), 'ru', {
-          sensitivity: 'base',
-        }),
-      );
-  }, [students, query]);
+  const filtered = useMemo(
+    () => filterOwnerStudentRows(rows, { tab, query }),
+    [rows, tab, query],
+  );
+
+  const counts = useMemo(
+    () => ({
+      all: rows.length,
+      registered: rows.filter((row) => row.kind === 'registered').length,
+      manual: rows.filter((row) => row.kind === 'manual').length,
+    }),
+    [rows],
+  );
 
   const openCreate = () => {
     setEditing(null);
@@ -127,11 +174,15 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
   };
 
   const openEdit = (row) => {
+    if (!row?.canEdit) return;
     setEditing(row);
     setForm({
       name: row.name || '',
       phone: row.phone || '',
-      comment: row.comment || '',
+      comment:
+        row.source === 'contact'
+          ? row.raw?.comment || ''
+          : row.raw?.notes || row.raw?.comment || '',
     });
     setFormOpen(true);
   };
@@ -140,6 +191,17 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
     setFormOpen(false);
     setEditing(null);
     setForm(emptyForm);
+  };
+
+  const findMatchingTutorStudent = (name, phone) => {
+    const wantName = normalizePersonName(name);
+    const wantPhone = String(phone || '').trim();
+    return tutorStudentsRaw.find((row) => {
+      if (row.user_id || row.userId) return false;
+      if (normalizePersonName(displayName(row)) !== wantName) return false;
+      if (!wantPhone) return true;
+      return String(row.phone || '').trim() === wantPhone;
+    });
   };
 
   const handleSave = async (e) => {
@@ -156,16 +218,44 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
         phone: form.phone.trim() || null,
         comment: form.comment.trim() || null,
       };
-      if (editing?.id) {
-        await api.teacherStudentContacts.update(editing.id, payload);
+
+      if (editing) {
+        if (editing.source === 'contact') {
+          await api.teacherStudentContacts.update(editing.id, payload);
+          if (ownerType === 'tutor') {
+            const twin = findMatchingTutorStudent(editing.name, editing.phone);
+            if (twin?.id) {
+              await api.tutors.updateMyStudent(twin.id, {
+                name,
+                phone: payload.phone,
+                notes: payload.comment,
+              });
+            }
+          }
+        } else if (editing.source === 'tutor_student') {
+          await api.tutors.updateMyStudent(editing.id, {
+            name,
+            phone: payload.phone,
+            notes: payload.comment,
+          });
+        } else {
+          throw new Error('Эту запись нельзя изменить здесь');
+        }
         toast({ title: 'Запись обновлена' });
       } else {
         await api.teacherStudentContacts.createMine(payload, { ownerType });
+        if (ownerType === 'tutor') {
+          await api.tutors.createMyStudent({
+            name,
+            phone: payload.phone,
+            notes: payload.comment,
+          });
+        }
         toast({ title: 'Ученик добавлен' });
+        setTab('manual');
       }
       closeForm();
       await loadData();
-      if (selectedId) await loadDetail(selectedId);
     } catch (err) {
       toast({
         title: 'Не удалось сохранить',
@@ -178,13 +268,24 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
   };
 
   const handleDelete = async (row) => {
+    if (!row?.canDelete) return;
     if (!window.confirm(`Удалить «${row.name}» из списка?`)) return;
-    setDeletingId(row.id);
+    setDeletingKey(row.key);
     try {
-      await api.teacherStudentContacts.remove(row.id);
+      if (row.source === 'contact') {
+        if (ownerType === 'tutor') {
+          const twin = findMatchingTutorStudent(row.name, row.phone);
+          if (twin?.id) {
+            await api.tutors.deleteMyStudent(twin.id);
+          }
+        }
+        await api.teacherStudentContacts.remove(row.id);
+      } else if (row.source === 'tutor_student') {
+        await api.tutors.deleteMyStudent(row.id);
+      }
       toast({ title: 'Запись удалена' });
-      if (selectedId === row.id) {
-        setSelectedId(null);
+      if (selectedKey === row.key) {
+        setSelectedKey(null);
         setDetail(null);
       }
       await loadData();
@@ -195,13 +296,13 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
         variant: 'destructive',
       });
     } finally {
-      setDeletingId(null);
+      setDeletingKey(null);
     }
   };
 
   const handleBalanceSave = async (e) => {
     e.preventDefault();
-    if (!selectedId) return;
+    if (!selectedRow?.usesContactDetail) return;
     const newBalance = Number(balanceForm.newBalance);
     if (!Number.isInteger(newBalance) || newBalance < 0) {
       toast({ title: 'Укажите целое число ≥ 0', variant: 'destructive' });
@@ -209,13 +310,13 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
     }
     setBalanceSaving(true);
     try {
-      await api.teacherStudentContacts.updateBalance(selectedId, {
+      await api.teacherStudentContacts.updateBalance(selectedRow.id, {
         newBalance,
         reason: balanceForm.reason.trim() || null,
       });
       toast({ title: 'Баланс обновлён' });
       await loadData();
-      await loadDetail(selectedId);
+      await loadContactDetail(selectedRow.id);
     } catch (err) {
       toast({
         title: 'Не удалось изменить баланс',
@@ -235,7 +336,7 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
     );
   }
 
-  const testId = ownerType === 'tutor' ? 'tutor-contacts-page' : 'teacher-contacts-page';
+  const testId = ownerType === 'tutor' ? 'tutor-students-page' : 'teacher-students-page';
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-5" data-testid={testId}>
@@ -246,13 +347,13 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
             Ученики
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            {getGreetingName(user)}, личный список для расписания и баланса занятий
+            {getGreetingName(user)}, зарегистрированные и добавленные вручную в одном списке
           </p>
         </div>
         <Button
           type="button"
           onClick={openCreate}
-          data-testid={ownerType === 'tutor' ? 'tutor-contacts-add' : 'teacher-contacts-add'}
+          data-testid={ownerType === 'tutor' ? 'tutor-students-add' : 'teacher-students-add'}
         >
           <Plus className="h-4 w-4 mr-1.5" /> Добавить ученика
         </Button>
@@ -260,12 +361,38 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
 
       {loadError && <p className="text-sm text-red-600">{loadError}</p>}
 
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Тип учеников">
+        {TABS.map((item) => {
+          const active = tab === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setTab(item.id)}
+              className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                active
+                  ? 'bg-brand text-white border-brand'
+                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+              }`}
+              data-testid={`students-tab-${item.id}`}
+            >
+              {item.label}
+              <span className={`ml-1.5 text-xs ${active ? 'text-white/80' : 'text-slate-400'}`}>
+                {counts[item.id] ?? 0}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Поиск по ФИО..."
+          placeholder="Поиск по ФИО, телефону, email..."
           className="pl-9"
         />
       </div>
@@ -278,39 +405,50 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
             <Card className="p-8 text-center space-y-3">
               <p className="text-slate-400">Пока никого нет</p>
               <Button type="button" variant="outline" onClick={openCreate}>
-                Добавить первого ученика
+                Добавить ученика
               </Button>
             </Card>
           ) : (
-            filtered.map((s) => {
-              const balance = s.lesson_balance ?? s.lessonBalance ?? 0;
-              const last = formatLessonDate(
-                s.last_lesson_date ?? s.lastLessonDate,
-                s.last_lesson_start_time ?? s.lastLessonStartTime,
-              );
-              return (
-                <Card
-                  key={s.id}
-                  className={`p-4 cursor-pointer transition-colors ${
-                    selectedId === s.id
-                      ? 'border-brand ring-1 ring-brand/30'
-                      : 'hover:border-slate-300'
-                  }`}
-                  onClick={() => setSelectedId(s.id)}
-                >
+            filtered.map((s) => (
+              <Card
+                key={s.key}
+                className={`p-4 cursor-pointer transition-colors ${
+                  selectedKey === s.key
+                    ? 'border-brand ring-1 ring-brand/30'
+                    : 'hover:border-slate-300'
+                }`}
+                onClick={() => setSelectedKey(s.key)}
+                data-testid={`student-row-${s.kind}`}
+              >
+                <div className="flex items-start justify-between gap-2">
                   <p className="font-medium text-slate-900 dark:text-slate-100 truncate">{s.name}</p>
-                  <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-                    Баланс занятий: <span className="font-semibold">{balance}</span>
-                  </p>
-                  <p className="text-xs text-slate-400 mt-1">Последний урок: {last}</p>
-                </Card>
-              );
-            })
+                  <span
+                    className={`shrink-0 text-[11px] px-2 py-0.5 rounded-full ${
+                      s.kind === 'registered'
+                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                        : 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200'
+                    }`}
+                  >
+                    {STUDENT_KIND_LABEL[s.kind]}
+                  </span>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+                  Баланс:{' '}
+                  <span className="font-semibold">
+                    {s.lesson_balance == null ? '—' : s.lesson_balance}
+                  </span>
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  {STUDENT_STATUS_LABEL[s.status] || s.status || '—'}
+                  {s.phone ? ` · ${s.phone}` : ''}
+                </p>
+              </Card>
+            ))
           )}
         </div>
 
         <div className="lg:col-span-3">
-          {!selectedId ? (
+          {!selectedRow ? (
             <Card className="p-8 text-center text-slate-400">
               Выберите ученика, чтобы открыть карточку
             </Card>
@@ -318,141 +456,25 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
             <Card className="p-10 flex justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-brand" />
             </Card>
+          ) : selectedRow.usesContactDetail ? (
+            <ContactDetailCard
+              detail={detail.data}
+              selectedRow={selectedRow}
+              deletingKey={deletingKey}
+              balanceForm={balanceForm}
+              setBalanceForm={setBalanceForm}
+              balanceSaving={balanceSaving}
+              onEdit={() => openEdit(selectedRow)}
+              onDelete={() => handleDelete(selectedRow)}
+              onBalanceSave={handleBalanceSave}
+            />
           ) : (
-            <Card className="p-5 space-y-5" data-testid="private-student-card">
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{detail.name}</h2>
-                  {detail.phone && (
-                    <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-1">
-                      <Phone className="w-3.5 h-3.5" /> {detail.phone}
-                    </p>
-                  )}
-                  {detail.comment && (
-                    <p className="text-sm text-slate-500 mt-2 whitespace-pre-wrap">{detail.comment}</p>
-                  )}
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <Button type="button" variant="outline" size="sm" onClick={() => openEdit(detail)}>
-                    <Pencil className="w-3.5 h-3.5 mr-1" /> Изменить
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="text-red-600 border-red-200"
-                    disabled={deletingId === detail.id}
-                    onClick={() => handleDelete(detail)}
-                  >
-                    {deletingId === detail.id ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Trash2 className="w-3.5 h-3.5" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-4">
-                <p className="text-sm text-slate-500 flex items-center gap-1.5">
-                  <Wallet className="w-4 h-4" /> Баланс занятий
-                </p>
-                <p className="text-3xl font-bold text-slate-900 dark:text-white mt-1">
-                  {detail.lesson_balance ?? detail.lessonBalance ?? 0}
-                </p>
-              </div>
-
-              <form onSubmit={handleBalanceSave} className="space-y-3 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
-                <h3 className="text-sm font-semibold">Изменить баланс занятий</h3>
-                <p className="text-xs text-slate-500">
-                  Текущее значение: {detail.lesson_balance ?? detail.lessonBalance ?? 0}
-                </p>
-                <div className="space-y-2">
-                  <Label>Новое значение</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={balanceForm.newBalance}
-                    onChange={(e) => setBalanceForm((f) => ({ ...f, newBalance: e.target.value }))}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Причина изменения</Label>
-                  <Input
-                    value={balanceForm.reason}
-                    onChange={(e) => setBalanceForm((f) => ({ ...f, reason: e.target.value }))}
-                    placeholder="необязательно"
-                  />
-                </div>
-                <Button type="submit" disabled={balanceSaving} size="sm">
-                  {balanceSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                  Сохранить баланс
-                </Button>
-              </form>
-
-              <div>
-                <h3 className="text-sm font-semibold mb-2">История занятий</h3>
-                {(detail.lessons || []).length === 0 ? (
-                  <p className="text-xs text-slate-400">Пока нет уроков</p>
-                ) : (
-                  <ul className="space-y-2 max-h-48 overflow-y-auto">
-                    {detail.lessons.map((l) => (
-                      <li
-                        key={l.id}
-                        className="text-sm flex justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-1"
-                      >
-                        <span>
-                          {formatLessonDate(l.date, l.start_time || l.startTime)} · {l.duration} мин
-                        </span>
-                        <span className="text-slate-500 shrink-0">
-                          {STATUS_RU[l.status] || l.status}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              <div>
-                <h3 className="text-sm font-semibold mb-2">История изменений баланса</h3>
-                {(detail.balance_history || detail.balanceHistory || []).length === 0 ? (
-                  <p className="text-xs text-slate-400">Изменений пока нет</p>
-                ) : (
-                  <ul className="space-y-2 max-h-48 overflow-y-auto">
-                    {(detail.balance_history || detail.balanceHistory).map((h) => {
-                      const change = h.change_amount ?? h.changeAmount ?? 0;
-                      const sign = change > 0 ? '+' : '';
-                      return (
-                        <li
-                          key={h.id}
-                          className="text-sm border-b border-slate-100 dark:border-slate-800 pb-2"
-                        >
-                          <div className="flex justify-between gap-2">
-                            <span>
-                              Было: {h.old_balance ?? h.oldBalance} → Стало:{' '}
-                              {h.new_balance ?? h.newBalance}
-                            </span>
-                            <span className={change >= 0 ? 'text-emerald-600' : 'text-amber-700'}>
-                              {sign}{change}
-                            </span>
-                          </div>
-                          {h.reason && (
-                            <p className="text-xs text-slate-400 mt-0.5">{h.reason}</p>
-                          )}
-                          <p className="text-[11px] text-slate-400 mt-0.5">
-                            {h.created_at || h.createdAt
-                              ? new Date(h.created_at || h.createdAt).toLocaleString('ru-RU')
-                              : ''}
-                          </p>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-            </Card>
+            <AccountOrNotebookCard
+              row={selectedRow}
+              deletingKey={deletingKey}
+              onEdit={() => openEdit(selectedRow)}
+              onDelete={() => handleDelete(selectedRow)}
+            />
           )}
         </div>
       </div>
@@ -469,6 +491,10 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
               </button>
             </div>
             <form onSubmit={handleSave} className="p-5 space-y-4">
+              <p className="text-xs text-slate-500">
+                Создаётся запись без аккаунта: для расписания, баланса и ручной проверки ДЗ.
+                Уведомления и вход в кабинет не создаются.
+              </p>
               <div className="space-y-2">
                 <Label>ФИО *</Label>
                 <Input
@@ -508,5 +534,230 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
         </div>
       )}
     </div>
+  );
+}
+
+function ContactDetailCard({
+  detail,
+  selectedRow,
+  deletingKey,
+  balanceForm,
+  setBalanceForm,
+  balanceSaving,
+  onEdit,
+  onDelete,
+  onBalanceSave,
+}) {
+  return (
+    <Card className="p-5 space-y-5" data-testid="private-student-card">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{detail.name}</h2>
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-800">
+              {STUDENT_KIND_LABEL.manual}
+            </span>
+          </div>
+          {detail.phone && (
+            <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-1">
+              <Phone className="w-3.5 h-3.5" /> {detail.phone}
+            </p>
+          )}
+          {detail.comment && (
+            <p className="text-sm text-slate-500 mt-2 whitespace-pre-wrap">{detail.comment}</p>
+          )}
+          <p className="text-xs text-slate-400 mt-2">
+            Статус: {STUDENT_STATUS_LABEL[detail.status] || detail.status || '—'}
+          </p>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <Button type="button" variant="outline" size="sm" onClick={onEdit}>
+            <Pencil className="w-3.5 h-3.5 mr-1" /> Изменить
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="text-red-600 border-red-200"
+            disabled={deletingKey === selectedRow.key}
+            onClick={onDelete}
+          >
+            {deletingKey === selectedRow.key ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="w-3.5 h-3.5" />
+            )}
+          </Button>
+        </div>
+      </div>
+
+      <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-4">
+        <p className="text-sm text-slate-500 flex items-center gap-1.5">
+          <Wallet className="w-4 h-4" /> Баланс занятий
+        </p>
+        <p className="text-3xl font-bold text-slate-900 dark:text-white mt-1">
+          {detail.lesson_balance ?? detail.lessonBalance ?? 0}
+        </p>
+      </div>
+
+      <form onSubmit={onBalanceSave} className="space-y-3 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+        <h3 className="text-sm font-semibold">Изменить баланс занятий</h3>
+        <div className="space-y-2">
+          <Label>Новое значение</Label>
+          <Input
+            type="number"
+            min={0}
+            step={1}
+            value={balanceForm.newBalance}
+            onChange={(e) => setBalanceForm((f) => ({ ...f, newBalance: e.target.value }))}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Причина изменения</Label>
+          <Input
+            value={balanceForm.reason}
+            onChange={(e) => setBalanceForm((f) => ({ ...f, reason: e.target.value }))}
+            placeholder="необязательно"
+          />
+        </div>
+        <Button type="submit" disabled={balanceSaving} size="sm">
+          {balanceSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+          Сохранить баланс
+        </Button>
+      </form>
+
+      <div>
+        <h3 className="text-sm font-semibold mb-2">История занятий</h3>
+        {(detail.lessons || []).length === 0 ? (
+          <p className="text-xs text-slate-400">Пока нет уроков</p>
+        ) : (
+          <ul className="space-y-2 max-h-48 overflow-y-auto">
+            {detail.lessons.map((l) => (
+              <li
+                key={l.id}
+                className="text-sm flex justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-1"
+              >
+                <span>
+                  {formatLessonDate(l.date, l.start_time || l.startTime)} · {l.duration} мин
+                </span>
+                <span className="text-slate-500 shrink-0">
+                  {LESSON_STATUS_RU[l.status] || l.status}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div>
+        <h3 className="text-sm font-semibold mb-2">История изменений баланса</h3>
+        {(detail.balance_history || detail.balanceHistory || []).length === 0 ? (
+          <p className="text-xs text-slate-400">Изменений пока нет</p>
+        ) : (
+          <ul className="space-y-2 max-h-48 overflow-y-auto">
+            {(detail.balance_history || detail.balanceHistory).map((h) => {
+              const change = h.change_amount ?? h.changeAmount ?? 0;
+              const sign = change > 0 ? '+' : '';
+              return (
+                <li
+                  key={h.id}
+                  className="text-sm border-b border-slate-100 dark:border-slate-800 pb-2"
+                >
+                  <div className="flex justify-between gap-2">
+                    <span>
+                      Было: {h.old_balance ?? h.oldBalance} → Стало:{' '}
+                      {h.new_balance ?? h.newBalance}
+                    </span>
+                    <span className={change >= 0 ? 'text-emerald-600' : 'text-amber-700'}>
+                      {sign}{change}
+                    </span>
+                  </div>
+                  {h.reason && (
+                    <p className="text-xs text-slate-400 mt-0.5">{h.reason}</p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function AccountOrNotebookCard({ row, deletingKey, onEdit, onDelete }) {
+  return (
+    <Card className="p-5 space-y-4" data-testid="registered-student-card">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{row.name}</h2>
+            <span
+              className={`text-[11px] px-2 py-0.5 rounded-full ${
+                row.kind === 'registered'
+                  ? 'bg-emerald-50 text-emerald-700'
+                  : 'bg-amber-50 text-amber-800'
+              }`}
+            >
+              {STUDENT_KIND_LABEL[row.kind]}
+            </span>
+          </div>
+          {row.phone && (
+            <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-1">
+              <Phone className="w-3.5 h-3.5" /> {row.phone}
+            </p>
+          )}
+          {row.email && (
+            <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-1">
+              <Mail className="w-3.5 h-3.5" /> {row.email}
+            </p>
+          )}
+          <p className="text-xs text-slate-400 mt-2">
+            Статус: {STUDENT_STATUS_LABEL[row.status] || row.status || '—'}
+          </p>
+        </div>
+        {(row.canEdit || row.canDelete) && (
+          <div className="flex gap-2 shrink-0">
+            {row.canEdit && (
+              <Button type="button" variant="outline" size="sm" onClick={onEdit}>
+                <Pencil className="w-3.5 h-3.5 mr-1" /> Изменить
+              </Button>
+            )}
+            {row.canDelete && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-red-600 border-red-200"
+                disabled={deletingKey === row.key}
+                onClick={onDelete}
+              >
+                {deletingKey === row.key ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-4">
+        <p className="text-sm text-slate-500 flex items-center gap-1.5">
+          <Wallet className="w-4 h-4" /> Баланс занятий
+        </p>
+        <p className="text-3xl font-bold text-slate-900 dark:text-white mt-1">
+          {row.lesson_balance == null ? '—' : row.lesson_balance}
+        </p>
+        {row.kind === 'registered' && (
+          <p className="text-xs text-slate-400 mt-2">
+            Зарегистрированный ученик: есть кабинет и уведомления. Добавление вручную создаёт
+            только CRM-запись без аккаунта.
+          </p>
+        )}
+      </div>
+    </Card>
   );
 }

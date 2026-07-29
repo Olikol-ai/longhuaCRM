@@ -229,6 +229,7 @@ export class AssessmentScoringService {
   ): { earned: number; isCorrect: boolean } {
     if (
       qSnap.type === QuestionType.SingleChoice ||
+      qSnap.type === QuestionType.Reading ||
       (qSnap.type === QuestionType.Listening &&
         answerSnaps.filter((a) => a.isCorrect).length <= 1)
     ) {
