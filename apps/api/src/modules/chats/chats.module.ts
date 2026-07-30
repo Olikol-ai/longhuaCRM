@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
@@ -25,6 +25,8 @@ import { ChatsService } from './services/chats.service';
 import { DirectChatRequestService } from './services/direct-chat-request.service';
 import { ChatDmRequestJobsService } from './services/chat-dm-request-jobs.service';
 import { UserCryptoService } from './services/user-crypto.service';
+
+const aiModuleLogger = new Logger('ChatsAiModule');
 
 @Module({
   imports: [
@@ -60,7 +62,22 @@ import { UserCryptoService } from './services/user-crypto.service';
         config: ConfigService,
         openai: OpenAiProvider,
         unavailable: UnavailableAiProvider,
-      ) => (config.get<string>('ai.openaiApiKey')?.trim() ? openai : unavailable),
+      ) => {
+        const configured = Boolean(config.get<string>('ai.openaiApiKey')?.trim());
+        const model = config.get<string>('ai.openaiModel') || 'gpt-4o-mini';
+        const baseUrl =
+          config.get<string>('ai.openaiBaseUrl') || 'https://api.openai.com/v1';
+        if (configured) {
+          aiModuleLogger.log(
+            `AI provider=openai model=${model} baseUrl=${baseUrl.replace(/\/$/, '')}`,
+          );
+          return openai;
+        }
+        aiModuleLogger.warn(
+          'AI provider=unavailable — OPENAI_API_KEY / AI_API_KEY is not set',
+        );
+        return unavailable;
+      },
     },
   ],
   exports: [ChatMembershipSyncService, ChatsService, ChatPresenceService, DirectChatRequestService, UserCryptoService],

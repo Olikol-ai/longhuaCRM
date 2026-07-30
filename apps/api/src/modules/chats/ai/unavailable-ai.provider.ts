@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
-  AI_UNAVAILABLE_USER_MESSAGE,
+  AI_USER_MESSAGES,
   AiCompletionInput,
   AiProvider,
 } from './ai-provider.interface';
@@ -14,10 +14,18 @@ export class UnavailableAiProvider implements AiProvider {
   readonly name = 'unavailable';
   private readonly logger = new Logger(UnavailableAiProvider.name);
 
+  isConfigured(): boolean {
+    return false;
+  }
+
   complete(input: AiCompletionInput): Promise<string> {
     this.logger.warn(
-      `AI unavailable — rejected completion (userMessage length=${input.userMessage?.length ?? 0})`,
+      `AI unavailable provider=unavailable userMessageChars=${input.userMessage?.length ?? 0}`,
     );
-    return Promise.resolve(AI_UNAVAILABLE_USER_MESSAGE);
+    return Promise.reject(new Error('AI_NOT_CONFIGURED'));
+  }
+
+  static get userMessage(): string {
+    return AI_USER_MESSAGES.notConfigured;
   }
 }

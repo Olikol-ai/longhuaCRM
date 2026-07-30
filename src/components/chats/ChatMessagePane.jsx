@@ -262,12 +262,12 @@ export default function ChatMessagePane({
         null;
       toast({
         title: 'Ответ AI',
-        description: reply || 'AI временно недоступен.',
+        description: reply || 'Longhua AI временно недоступен.',
       });
     } catch (err) {
       toast({
         title: 'AI не ответил',
-        description: err?.message,
+        description: err?.message || 'Longhua AI временно недоступен.',
         variant: 'destructive',
       });
     } finally {

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
-  AI_UNAVAILABLE_USER_MESSAGE,
+  AI_USER_MESSAGES,
   AiCompletionInput,
   AiProvider,
 } from './ai-provider.interface';
@@ -12,7 +12,7 @@ const DEFAULT_SYSTEM = `Ты — Longhua AI, помощник языковой �
 
 /**
  * OpenAI-compatible Chat Completions provider.
- * Uses OPENAI_API_KEY (+ optional OPENAI_BASE_URL / OPENAI_MODEL).
+ * Env: OPENAI_API_KEY (or AI_API_KEY), OPENAI_BASE_URL (or AI_BASE_URL), OPENAI_MODEL (or MODEL_NAME).
  */
 @Injectable()
 export class OpenAiProvider implements AiProvider {
@@ -28,7 +28,7 @@ export class OpenAiProvider implements AiProvider {
   async complete(input: AiCompletionInput): Promise<string> {
     const apiKey = this.config.get<string>('ai.openaiApiKey')?.trim();
     if (!apiKey) {
-      this.logger.warn('OPENAI_API_KEY is not configured');
+      this.logger.warn('AI provider=openai reason=missing_api_key');
       throw new Error('AI_NOT_CONFIGURED');
     }
 
@@ -36,6 +36,7 @@ export class OpenAiProvider implements AiProvider {
       this.config.get<string>('ai.openaiBaseUrl') || 'https://api.openai.com/v1'
     ).replace(/\/$/, '');
     const model = this.config.get<string>('ai.openaiModel') || 'gpt-4o-mini';
+    const endpoint = `${baseUrl}/chat/completions`;
     const userMessage = input.userMessage?.trim();
     if (!userMessage) {
       throw new Error('EMPTY_USER_MESSAGE');
@@ -43,9 +44,13 @@ export class OpenAiProvider implements AiProvider {
 
     const systemPrompt = (input.systemPrompt || DEFAULT_SYSTEM).trim();
 
+    this.logger.log(
+      `AI request provider=openai model=${model} endpoint=${endpoint} userMessageChars=${userMessage.length}`,
+    );
+
     let response: Response;
     try {
-      response = await fetch(`${baseUrl}/chat/completions`, {
+      response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -61,39 +66,52 @@ export class OpenAiProvider implements AiProvider {
         }),
       });
     } catch (err) {
-      this.logger.warn(`OpenAI request failed: ${String(err)}`);
+      this.logger.warn(
+        `AI network failure provider=openai endpoint=${endpoint}: ${err instanceof Error ? err.name : 'error'}`,
+      );
       throw new Error('AI_REQUEST_FAILED');
     }
 
     const rawText = await response.text();
     let payload: {
       choices?: Array<{ message?: { content?: string | null } }>;
-      error?: { message?: string };
+      error?: { message?: string; type?: string; code?: string };
     } = {};
     try {
       payload = rawText ? (JSON.parse(rawText) as typeof payload) : {};
     } catch {
-      this.logger.warn(`OpenAI returned non-JSON (${response.status})`);
+      this.logger.warn(
+        `AI bad response provider=openai status=${response.status} non_json=1`,
+      );
       throw new Error('AI_BAD_RESPONSE');
     }
 
+    this.logger.log(`AI response provider=openai status=${response.status}`);
+
     if (!response.ok) {
+      const errHint = payload.error?.code || payload.error?.type || 'http_error';
       this.logger.warn(
-        `OpenAI HTTP ${response.status}: ${payload.error?.message || rawText.slice(0, 200)}`,
+        `AI http error provider=openai status=${response.status} code=${errHint}`,
       );
-      throw new Error('AI_HTTP_ERROR');
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('AI_NOT_CONFIGURED');
+      }
+      if (response.status >= 500) {
+        throw new Error('AI_REQUEST_FAILED');
+      }
+      throw new Error('AI_MODEL_ERROR');
     }
 
     const content = payload.choices?.[0]?.message?.content?.trim();
     if (!content) {
-      this.logger.warn('OpenAI returned empty content');
+      this.logger.warn('AI empty content provider=openai');
       throw new Error('AI_EMPTY_CONTENT');
     }
 
     // Never leak echo/debug stubs if an upstream misbehaves.
     if (/^AI assistant received:/i.test(content)) {
-      this.logger.warn('Rejected provider output that echoed the prompt');
-      return AI_UNAVAILABLE_USER_MESSAGE;
+      this.logger.warn('AI rejected prompt-echo output provider=openai');
+      return AI_USER_MESSAGES.unavailable;
     }
 
     return content;

@@ -19,8 +19,9 @@ import { ChatKind } from '../enums/chat.enums';
 import { ChatMessagesService } from '../services/chat-messages.service';
 import {
   AI_PROVIDER,
-  AI_UNAVAILABLE_USER_MESSAGE,
+  AI_USER_MESSAGES,
   AiProvider,
+  userMessageForAiError,
 } from './ai-provider.interface';
 
 const EXPLAIN_SYSTEM = `Ты — Longhua AI. Кратко объясни или перефразируй сообщение пользователю на русском.
@@ -109,14 +110,22 @@ export class ChatAiService {
   }
 
   private async safeComplete(userMessage: string, systemPrompt: string): Promise<string> {
+    if (this.provider.isConfigured && !this.provider.isConfigured()) {
+      this.logger.warn(`AI completion skipped provider=${this.provider.name} reason=not_configured`);
+      return AI_USER_MESSAGES.notConfigured;
+    }
+
     try {
       const reply = await this.provider.complete({ userMessage, systemPrompt });
       const cleaned = this.sanitizeForClient(reply, userMessage);
-      if (!cleaned) return AI_UNAVAILABLE_USER_MESSAGE;
+      if (!cleaned) return AI_USER_MESSAGES.unavailable;
       return cleaned;
     } catch (err) {
-      this.logger.warn(`AI completion failed via ${this.provider.name}: ${String(err)}`);
-      return AI_UNAVAILABLE_USER_MESSAGE;
+      const mapped = userMessageForAiError(err);
+      this.logger.warn(
+        `AI completion failed provider=${this.provider.name} clientHint=${mapped}`,
+      );
+      return mapped;
     }
   }
 
