@@ -40,6 +40,20 @@ export class ChatMessageEntity {
   @Column({ type: 'text', nullable: true })
   body: string | null;
 
+  /** E2EE ciphertext (Direct text). Never store plaintext in body for Direct. */
+  @Column({ type: 'text', nullable: true })
+  ciphertext: string | null;
+
+  /** Base64 AES-GCM nonce for ciphertext. */
+  @Column({ type: 'text', nullable: true })
+  nonce: string | null;
+
+  @Column({ name: 'encryption_algorithm', type: 'varchar', length: 64, nullable: true })
+  encryptionAlgorithm: string | null;
+
+  @Column({ name: 'key_version', type: 'int', nullable: true })
+  keyVersion: number | null;
+
   @Column({ name: 'reply_to_message_id', type: 'uuid', nullable: true })
   replyToMessageId: string | null;
 

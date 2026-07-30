@@ -90,4 +90,35 @@ describe('ChatAccessService', () => {
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
+
+  it('denies admin read of Direct chat without membership', async () => {
+    const chats = repo();
+    const members = repo();
+    const other = repo();
+    const privacy = privacyMock();
+    chats.findOne.mockResolvedValue({
+      id: 'dm',
+      kind: ChatKind.Direct,
+      status: ChatStatus.Active,
+    });
+    members.exists.mockResolvedValue(false);
+    const service = new ChatAccessService(
+      chats as never,
+      members as never,
+      other as never,
+      other as never,
+      other as never,
+      other as never,
+      other as never,
+      other as never,
+      other as never,
+      privacy as never,
+    );
+    await expect(
+      service.assertCanRead(
+        { sub: 'admin', email: 'admin@example.test', role: 'admin' },
+        'dm',
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
 });

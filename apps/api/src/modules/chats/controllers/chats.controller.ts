@@ -21,7 +21,7 @@ import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { JwtPayload } from '../../auth/auth.service';
 import { ChatAiService } from '../ai/chat-ai.service';
-import { AskAiDto, ChatDirectoryQueryDto, CreateBlockDto, CreateCrmCardDto, CreateDirectChatDto, CreateDmRequestDto, CreateGroupChatDto, CreateMessageDto, InviteMembersDto, ListDmRequestsQueryDto, ListMessagesDto, MarkReadDto, UpdateChatProfileDto, UpdateDmPrivacyDto, UpdateMessageDto, UploadAttachmentDto } from '../dto/chats.dto';
+import { AskAiDto, ChatDirectoryQueryDto, CreateBlockDto, CreateCrmCardDto, CreateDirectChatDto, CreateDmRequestDto, CreateGroupChatDto, CreateMessageDto, ExplainEphemeralDto, InviteMembersDto, ListDmRequestsQueryDto, ListMessagesDto, MarkReadDto, UpdateChatProfileDto, UpdateDmPrivacyDto, UpdateMessageDto, UploadAttachmentDto } from '../dto/chats.dto';
 import { ChatAttachmentKind, DirectChatRequestStatus, DmPrivacyPolicy } from '../enums/chat.enums';
 import { ChatAttachmentsService } from '../services/chat-attachments.service';
 import { ChatDirectoryService } from '../services/chat-directory.service';
@@ -29,6 +29,7 @@ import { ChatMessagesService } from '../services/chat-messages.service';
 import { ChatPrivacyService } from '../../../common/access/chat-privacy.service';
 import { ChatsService } from '../services/chats.service';
 import { DirectChatRequestService } from '../services/direct-chat-request.service';
+import { UserCryptoService } from '../services/user-crypto.service';
 
 @Controller('chats')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -41,6 +42,7 @@ export class ChatsController {
     private readonly ai: ChatAiService,
     private readonly dmRequests: DirectChatRequestService,
     private readonly privacy: ChatPrivacyService,
+    private readonly crypto: UserCryptoService,
   ) {}
 
   @Get()
@@ -161,7 +163,13 @@ export class ChatsController {
     @Param('messageId') messageId: string,
     @Body() dto: UpdateMessageDto,
   ) {
-    return this.messages.editOwn(actor, messageId, dto.body);
+    return this.messages.editOwn(actor, messageId, {
+      body: dto.body,
+      ciphertext: dto.ciphertext,
+      nonce: dto.nonce,
+      algorithm: dto.algorithm,
+      keyVersion: dto.keyVersion,
+    });
   }
 
   @Delete('messages/:messageId')
@@ -172,6 +180,14 @@ export class ChatsController {
   @Delete(':chatId/membership')
   hideMembership(@CurrentUser() actor: JwtPayload, @Param('chatId') chatId: string) {
     return this.chats.hideMembership(actor, chatId);
+  }
+
+  @Post('ai/explain-ephemeral')
+  explainEphemeral(
+    @CurrentUser() actor: JwtPayload,
+    @Body() dto: ExplainEphemeralDto,
+  ) {
+    return this.ai.explainEphemeral(actor, dto.text);
   }
 
   @Get(':chatId/members')
@@ -221,12 +237,34 @@ export class ChatsController {
     return this.chats.getChat(actor, chatId);
   }
 
+  @Get(':chatId/e2ee')
+  chatE2ee(@CurrentUser() actor: JwtPayload, @Param('chatId') chatId: string) {
+    return this.crypto.getChatE2ee(actor, chatId);
+  }
+
   @Post(':chatId/messages')
   message(
     @CurrentUser() actor: JwtPayload,
     @Param('chatId') chatId: string,
     @Body() dto: CreateMessageDto,
   ) {
+    if (dto.ciphertext) {
+      if (!dto.nonce || !dto.algorithm || !dto.keyVersion) {
+        throw new BadRequestException(
+          'Encrypted messages require ciphertext, nonce, algorithm, and keyVersion',
+        );
+      }
+      return this.messages.createEncryptedText(actor, chatId, {
+        ciphertext: dto.ciphertext,
+        nonce: dto.nonce,
+        algorithm: dto.algorithm,
+        keyVersion: dto.keyVersion,
+        replyToMessageId: dto.replyToMessageId ?? null,
+      });
+    }
+    if (!dto.body) {
+      throw new BadRequestException('body is required for non-encrypted messages');
+    }
     return this.messages.createText(actor, chatId, dto.body, dto.replyToMessageId ?? null);
   }
 

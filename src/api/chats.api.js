@@ -65,6 +65,11 @@ export const chatsApi = {
     method: 'POST',
     body: JSON.stringify({ prompt }),
   }),
+  explainEphemeral: (text) => apiFetch('/chats/ai/explain-ephemeral', {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  }),
+  e2ee: (chatId) => apiFetch(`/chats/${chatId}/e2ee`),
   directory: (filters) => apiFetch(`/chats/directory${queryString(filters)}`),
   updateProfile: (payload) => apiFetch('/chats/profile', {
     method: 'PATCH',

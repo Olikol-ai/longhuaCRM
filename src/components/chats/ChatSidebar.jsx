@@ -44,6 +44,8 @@ function ChatRow({ chat, active, onSelect, onlineUserIds }) {
         <span className="block truncate font-medium">{chat.title || 'Личный чат'}</span>
         {memberMeta ? (
           <span className="block truncate text-[11px] opacity-75">{memberMeta}</span>
+        ) : chat.kind === 'direct' ? (
+          <span className="block truncate text-[11px] opacity-75">Зашифрованное сообщение</span>
         ) : chat.description ? (
           <span className="block truncate text-[11px] opacity-75">{chat.description}</span>
         ) : null}

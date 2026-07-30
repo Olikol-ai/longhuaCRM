@@ -23,6 +23,7 @@ import { teacherStudentContacts } from './teacher-student-contacts.api';
 import { teacherPayments } from './teacher-payments.api';
 import { lessonSeries } from './lesson-series.api';
 import { telegram } from './telegram.api';
+import { cryptoApi } from './crypto.api';
 import { apiUpload } from './http';
 
 export { getToken, setToken, apiFetch, TOKEN_KEY, onTokenChange } from './http';
@@ -51,6 +52,7 @@ export { notifications } from './notifications.api';
 export { teacherPayments } from './teacher-payments.api';
 export { lessonSeries } from './lesson-series.api';
 export { telegram } from './telegram.api';
+export { cryptoApi } from './crypto.api';
 
 /** Unified API client — all frontend requests go through /api/* */
 export const api = {
@@ -77,6 +79,7 @@ export const api = {
   teacherPayments,
   lessonSeries,
   telegram,
+  crypto: cryptoApi,
   functions,
   schedule,
   uploads: {

@@ -50,9 +50,13 @@ export default function ChatInfoPanel({ chat, members = [], pins = [], onUnpin, 
               pins.map((pin) => {
                 const messageId = pickField(pin, 'messageId', 'message_id');
                 const body = pickField(pin.message, 'body');
+                const ciphertext = pickField(pin.message, 'ciphertext');
+                const preview = body
+                  || (ciphertext ? 'Зашифрованное сообщение' : null)
+                  || 'Вложение или CRM-карточка';
                 return (
                   <div key={pin.id || messageId} className="rounded-md border border-border p-2">
-                    <p className="line-clamp-3 text-sm">{body || 'Вложение или CRM-карточка'}</p>
+                    <p className="line-clamp-3 text-sm">{preview}</p>
                     <Button
                       variant="link"
                       size="sm"

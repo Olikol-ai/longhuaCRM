@@ -4,7 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/use-toast';
 import { chatsApi } from '@/api/chats.api';
+import { useAuth } from '@/lib/AuthContext';
 import { emitTyping } from '@/lib/chat-socket';
+import { resolveDirectPeerPublicKey } from '@/lib/e2ee/dm';
+import { useE2ee } from '@/lib/e2ee/E2eeContext';
+import { encryptDirectMessage } from '@/lib/e2ee/message';
+import { getMyKeyVersion, getMyPrivateKey } from '@/lib/e2ee/vault';
 
 function supportedAudioType() {
   if (typeof MediaRecorder === 'undefined') return '';
@@ -12,7 +17,15 @@ function supportedAudioType() {
     .find((type) => MediaRecorder.isTypeSupported(type)) || '';
 }
 
-export default function ChatComposer({ chat, disabled, onMessageCreated, onAttachmentUploaded }) {
+export default function ChatComposer({
+  chat,
+  disabled,
+  onMessageCreated,
+  onAttachmentUploaded,
+  onNeedUnlock,
+}) {
+  const { user } = useAuth();
+  const { ready: e2eeReady } = useE2ee();
   const fileInputRef = useRef(null);
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
@@ -22,6 +35,8 @@ export default function ChatComposer({ chat, disabled, onMessageCreated, onAttac
   const [sending, setSending] = useState(false);
   const [recording, setRecording] = useState(false);
 
+  const isDirect = chat?.kind === 'direct';
+
   useEffect(() => () => {
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
     recorderRef.current?.stream?.getTracks().forEach((track) => track.stop());
@@ -30,9 +45,26 @@ export default function ChatComposer({ chat, disabled, onMessageCreated, onAttac
   const send = async () => {
     const text = body.trim();
     if (!text || sending || disabled) return;
+    if (isDirect && !e2eeReady) {
+      onNeedUnlock?.();
+      return;
+    }
     setSending(true);
     try {
-      const message = await chatsApi.sendMessage(chat.id, { body: text });
+      let message;
+      if (isDirect) {
+        const peer = await resolveDirectPeerPublicKey(chat.id, user?.id);
+        const encrypted = await encryptDirectMessage({
+          plaintext: text,
+          myPrivateKey: getMyPrivateKey(),
+          peerPublicKeyB64: peer.publicKey,
+          chatId: chat.id,
+          keyVersion: getMyKeyVersion(),
+        });
+        message = await chatsApi.sendMessage(chat.id, encrypted);
+      } else {
+        message = await chatsApi.sendMessage(chat.id, { body: text });
+      }
       setBody('');
       emitTyping(chat.id, false);
       onMessageCreated(message);
@@ -111,6 +143,7 @@ export default function ChatComposer({ chat, disabled, onMessageCreated, onAttac
   };
 
   const askAi = async () => {
+    if (isDirect) return;
     const prompt = body.trim();
     if (!prompt || sending || disabled) return;
     setSending(true);
@@ -167,18 +200,20 @@ export default function ChatComposer({ chat, disabled, onMessageCreated, onAttac
               void send();
             }
           }}
-          placeholder="Написать сообщение…"
+          placeholder={isDirect ? 'Зашифрованное сообщение…' : 'Написать сообщение…'}
           disabled={sending}
         />
-        <Button
-          size="icon"
-          variant="ghost"
-          onClick={() => void askAi()}
-          disabled={!body.trim() || sending}
-          aria-label="Спросить AI"
-        >
-          <Bot />
-        </Button>
+        {!isDirect ? (
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => void askAi()}
+            disabled={!body.trim() || sending}
+            aria-label="Спросить AI"
+          >
+            <Bot />
+          </Button>
+        ) : null}
         <Button
           size="icon"
           variant={recording ? 'destructive' : 'ghost'}

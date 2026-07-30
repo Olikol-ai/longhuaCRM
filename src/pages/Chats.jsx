@@ -6,10 +6,12 @@ import ChatInfoPanel from '@/components/chats/ChatInfoPanel';
 import ChatMessagePane from '@/components/chats/ChatMessagePane';
 import ChatSidebar from '@/components/chats/ChatSidebar';
 import DmRequestsPanel from '@/components/chats/DmRequestsPanel';
+import E2eeUnlockDialog from '@/components/chats/E2eeUnlockDialog';
 import FindInterlocutorDialog from '@/components/chats/FindInterlocutorDialog';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/lib/AuthContext';
+import { useE2ee } from '@/lib/e2ee/E2eeContext';
 import { useIsLgUp } from '@/lib/responsive';
 import {
   messageCreatedAtMs,
@@ -59,6 +61,7 @@ function patchUnread(groups, chatId, unreadCount) {
 
 export default function Chats() {
   const { user } = useAuth();
+  const { ready: e2eeReady, locked: e2eeLocked, missing: e2eeMissing } = useE2ee();
   const isLgUp = useIsLgUp();
   const [searchParams, setSearchParams] = useSearchParams();
   const [groups, setGroups] = useState(emptyGroups);
@@ -83,11 +86,18 @@ export default function Chats() {
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  const [e2eeUnlockOpen, setE2eeUnlockOpen] = useState(false);
 
   const activeChatIdRef = useRef(null);
   activeChatIdRef.current = activeChat?.id || null;
   const isLgUpRef = useRef(isLgUp);
   isLgUpRef.current = isLgUp;
+
+  useEffect(() => {
+    if (activeChat?.kind === 'direct' && (e2eeLocked || e2eeMissing) && !e2eeReady) {
+      setE2eeUnlockOpen(true);
+    }
+  }, [activeChat?.id, activeChat?.kind, e2eeLocked, e2eeMissing, e2eeReady]);
 
   const activeChatId = activeChat?.id || null;
   const messages = activeChatId ? messagesByChat[activeChatId] || [] : [];
@@ -511,6 +521,7 @@ export default function Chats() {
                   onOpenInfo={() => setInfoOpen(true)}
                   onPin={(messageId) => void pin(messageId)}
                   onMarkRead={onMarkRead}
+                  onNeedUnlock={() => setE2eeUnlockOpen(true)}
                 />
               </div>
               {activeChat ? (
@@ -520,6 +531,7 @@ export default function Chats() {
                     disabled={activeChat.kind === 'school_news' && user?.role !== 'admin'}
                     onMessageCreated={addMessage}
                     onAttachmentUploaded={onAttachmentUploaded}
+                    onNeedUnlock={() => setE2eeUnlockOpen(true)}
                   />
                 </div>
               ) : null}
@@ -606,6 +618,8 @@ export default function Chats() {
           openRequests();
         }}
       />
+
+      <E2eeUnlockDialog open={e2eeUnlockOpen} onOpenChange={setE2eeUnlockOpen} />
     </div>
   );
 }

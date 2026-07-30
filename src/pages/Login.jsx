@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
+import { useE2ee } from '@/lib/e2ee/E2eeContext';
 import { resolveRedirect } from '@/lib/routing';
 import { BookOpen, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const { establishSession } = useAuth();
+  const { unlockWithPassword } = useE2ee();
 
   useEffect(() => {
     if (inviteFromQuery) {
@@ -51,6 +53,12 @@ export default function Login() {
         if (!sessionUser) {
           setError('Не удалось установить сессию. Попробуйте снова.');
           return;
+        }
+        // Unlock or create Direct-chat E2EE keys using the same password (in-memory only).
+        try {
+          await unlockWithPassword(password);
+        } catch {
+          // Non-blocking: user can unlock later from the Direct chat modal.
         }
         navigate(resolveRedirect(sessionUser), { replace: true });
       } else {

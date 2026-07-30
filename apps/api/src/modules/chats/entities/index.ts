@@ -16,6 +16,7 @@ import { AiConversationTurnEntity } from './ai-conversation-turn.entity';
 import { DirectChatRequestEntity } from './direct-chat-request.entity';
 import { UserPrivacySettingsEntity } from './user-privacy-settings.entity';
 import { UserBlockEntity } from './user-block.entity';
+import { UserCryptoEntity } from './user-crypto.entity';
 
 export const CHAT_ENTITIES = [
   SubjectEntity,
@@ -36,6 +37,7 @@ export const CHAT_ENTITIES = [
   DirectChatRequestEntity,
   UserPrivacySettingsEntity,
   UserBlockEntity,
+  UserCryptoEntity,
 ] as const;
 
 export {
@@ -57,4 +59,5 @@ export {
   DirectChatRequestEntity,
   UserPrivacySettingsEntity,
   UserBlockEntity,
+  UserCryptoEntity,
 };

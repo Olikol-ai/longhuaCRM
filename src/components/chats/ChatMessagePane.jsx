@@ -1,9 +1,15 @@
-import { ArrowLeft, Info, Pin, Users } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { ArrowLeft, Bot, Info, Lock, Pin, Users } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { toast } from '@/components/ui/use-toast';
+import { chatsApi } from '@/api/chats.api';
 import { chatAttachmentSrc } from '@/lib/chat-attachment-url';
 import { displayUserName } from '@/lib/chat-normalize';
+import { resolveDirectPeerPublicKey } from '@/lib/e2ee/dm';
+import { useE2ee } from '@/lib/e2ee/E2eeContext';
+import { decryptDirectMessage } from '@/lib/e2ee/message';
+import { getMyPrivateKey } from '@/lib/e2ee/vault';
 import CrmMessageCard from './CrmMessageCard';
 import VoicePlayer from './VoicePlayer';
 
@@ -43,6 +49,47 @@ function Attachment({ attachment }) {
   );
 }
 
+function MessageBody({
+  message,
+  isDirect,
+  decryptedBody,
+  decryptError,
+  onExplain,
+  explaining,
+}) {
+  if (CRM_TYPES.has(message.type)) {
+    return <CrmMessageCard message={message} />;
+  }
+  if (isDirect && message.ciphertext) {
+    if (decryptError) {
+      return <p className="text-sm text-destructive">{decryptError}</p>;
+    }
+    if (decryptedBody == null) {
+      return <p className="text-sm text-muted-foreground">Расшифровка…</p>;
+    }
+    return (
+      <div className="space-y-1">
+        <p className="whitespace-pre-wrap break-words text-sm leading-5">{decryptedBody}</p>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs text-muted-foreground"
+          disabled={explaining}
+          onClick={() => onExplain?.(decryptedBody)}
+        >
+          <Bot className="mr-1 h-3.5 w-3.5" />
+          Объяснить через AI
+        </Button>
+      </div>
+    );
+  }
+  if (message.body) {
+    return <p className="whitespace-pre-wrap break-words text-sm leading-5">{message.body}</p>;
+  }
+  return null;
+}
+
 export default function ChatMessagePane({
   chat,
   messages,
@@ -57,11 +104,17 @@ export default function ChatMessagePane({
   onOpenInfo,
   onPin,
   onMarkRead,
+  onNeedUnlock,
 }) {
+  const { ready: e2eeReady } = useE2ee();
   const bottomRef = useRef(null);
   const topSentinelRef = useRef(null);
   const stickToBottomRef = useRef(true);
   const markedForChatRef = useRef(null);
+  const [plaintextById, setPlaintextById] = useState({});
+  const [errorsById, setErrorsById] = useState({});
+  const [explainingId, setExplainingId] = useState(null);
+  const isDirect = chat?.kind === 'direct';
 
   useEffect(() => {
     markedForChatRef.current = null;
@@ -80,7 +133,7 @@ export default function ChatMessagePane({
     if (historyStatus !== 'ready') return;
     if (!stickToBottomRef.current) return;
     bottomRef.current?.scrollIntoView({ block: 'end' });
-  }, [messages.length, historyStatus, chat?.id]);
+  }, [messages.length, historyStatus, chat?.id, plaintextById]);
 
   useEffect(() => {
     const node = topSentinelRef.current;
@@ -98,6 +151,95 @@ export default function ChatMessagePane({
     observer.observe(node);
     return () => observer.disconnect();
   }, [onLoadOlder, hasMoreOlder, historyStatus, chat?.id]);
+
+  useEffect(() => {
+    setPlaintextById({});
+    setErrorsById({});
+  }, [chat?.id]);
+
+  useEffect(() => {
+    if (!isDirect || !chat?.id || !e2eeReady) return undefined;
+    const pending = messages.filter(
+      (message) =>
+        message.ciphertext &&
+        message.nonce &&
+        plaintextById[message.id] == null &&
+        errorsById[message.id] == null,
+    );
+    if (!pending.length) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const peer = await resolveDirectPeerPublicKey(chat.id, currentUserId);
+        const privateKey = getMyPrivateKey();
+        const nextPlain = {};
+        const nextErr = {};
+        for (const message of pending) {
+          try {
+            nextPlain[message.id] = await decryptDirectMessage({
+              ciphertextB64: message.ciphertext,
+              nonceB64: message.nonce,
+              myPrivateKey: privateKey,
+              peerPublicKeyB64: peer.publicKey,
+              chatId: chat.id,
+            });
+          } catch {
+            nextErr[message.id] = 'Не удалось расшифровать сообщение';
+          }
+        }
+        if (cancelled) return;
+        if (Object.keys(nextPlain).length) {
+          setPlaintextById((prev) => ({ ...prev, ...nextPlain }));
+        }
+        if (Object.keys(nextErr).length) {
+          setErrorsById((prev) => ({ ...prev, ...nextErr }));
+        }
+      } catch (err) {
+        if (!cancelled) {
+          toast({
+            title: 'E2EE',
+            description: err?.message || 'Нет ключей собеседника',
+            variant: 'destructive',
+          });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isDirect,
+    chat?.id,
+    currentUserId,
+    e2eeReady,
+    messages,
+    plaintextById,
+    errorsById,
+  ]);
+
+  const encryptedCount = useMemo(
+    () => messages.filter((m) => m.ciphertext).length,
+    [messages],
+  );
+
+  const explain = async (messageId, text) => {
+    setExplainingId(messageId);
+    try {
+      const result = await chatsApi.explainEphemeral(text);
+      toast({
+        title: 'Ответ AI',
+        description: result?.reply || result?.answer || result?.text || 'Готово',
+      });
+    } catch (err) {
+      toast({
+        title: 'AI не ответил',
+        description: err?.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setExplainingId(null);
+    }
+  };
 
   if (!chat) {
     return (
@@ -139,6 +281,27 @@ export default function ChatMessagePane({
           </Button>
         ) : null}
       </header>
+      {isDirect ? (
+        <div className="flex items-start gap-2 border-b border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
+          <p>
+            Личные сообщения защищены сквозным шифрованием. Сервер хранит только шифротекст —
+            администраторы не могут прочитать переписку.
+            {!e2eeReady ? (
+              <>
+                {' '}
+                <button
+                  type="button"
+                  className="font-medium text-brand underline-offset-2 hover:underline"
+                  onClick={() => onNeedUnlock?.()}
+                >
+                  Разблокировать ключ
+                </button>
+              </>
+            ) : null}
+          </p>
+        </div>
+      ) : null}
       <ScrollArea className="min-h-0 flex-1">
         <div
           className="space-y-3 px-3 py-4 sm:px-4"
@@ -162,6 +325,11 @@ export default function ChatMessagePane({
           ) : null}
           {historyStatus === 'ready' && messages.length === 0 ? (
             <p className="text-center text-sm text-muted-foreground">Пока нет сообщений</p>
+          ) : null}
+          {isDirect && !e2eeReady && encryptedCount > 0 ? (
+            <p className="text-center text-sm text-muted-foreground">
+              Введите пароль, чтобы прочитать {encryptedCount} зашифрованных сообщений.
+            </p>
           ) : null}
           {loadingOlder ? (
             <p className="text-center text-xs text-muted-foreground">Загрузка истории…</p>
@@ -203,11 +371,18 @@ export default function ChatMessagePane({
                       <Pin className="h-3 w-3" />
                     </Button>
                   </div>
-                  {CRM_TYPES.has(message.type) ? (
-                    <CrmMessageCard message={message} />
-                  ) : message.body ? (
-                    <p className="whitespace-pre-wrap break-words text-sm leading-5">{message.body}</p>
-                  ) : null}
+                  <MessageBody
+                    message={message}
+                    isDirect={isDirect}
+                    decryptedBody={plaintextById[message.id]}
+                    decryptError={
+                      isDirect && message.ciphertext && !e2eeReady
+                        ? 'Зашифрованное сообщение'
+                        : errorsById[message.id]
+                    }
+                    onExplain={(text) => void explain(message.id, text)}
+                    explaining={explainingId === message.id}
+                  />
                   {message.attachments?.map((attachment) => (
                     <Attachment key={attachment.id} attachment={attachment} />
                   ))}

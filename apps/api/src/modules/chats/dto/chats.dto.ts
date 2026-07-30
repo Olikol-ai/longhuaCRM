@@ -78,9 +78,56 @@ export class InviteMembersDto {
 }
 
 export class CreateMessageDto {
+  /** Plaintext for non-Direct chats. Forbidden for Direct text. */
+  @IsOptional()
   @IsString()
   @Length(1, 10000)
-  body!: string;
+  body?: string;
+
+  /** E2EE Direct text payload (base64). */
+  @IsOptional()
+  @IsString()
+  @Length(1, 100000)
+  ciphertext?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 256)
+  nonce?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  algorithm?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  keyVersion?: number;
+
+  @IsOptional()
+  @IsUUID('4')
+  replyToMessageId?: string;
+}
+
+export class CreateEncryptedMessageDto {
+  @IsString()
+  @Length(1, 100000)
+  ciphertext!: string;
+
+  @IsString()
+  @Length(1, 256)
+  nonce!: string;
+
+  @IsString()
+  @Length(1, 64)
+  algorithm!: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  keyVersion!: number;
 
   @IsOptional()
   @IsUUID('4')
@@ -105,10 +152,78 @@ export class AskAiDto {
   prompt!: string;
 }
 
+export class ExplainEphemeralDto {
+  @IsString()
+  @Length(1, 8000)
+  text!: string;
+}
+
 export class UpdateMessageDto {
+  @IsOptional()
   @IsString()
   @Length(1, 10000)
-  body!: string;
+  body?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 100000)
+  ciphertext?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 256)
+  nonce?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  algorithm?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  keyVersion?: number;
+}
+
+export class UpsertUserCryptoDto {
+  @IsString()
+  @Length(1, 8192)
+  publicKey!: string;
+
+  @IsString()
+  @Length(1, 8192)
+  wrappedPrivateKey!: string;
+
+  @IsString()
+  @Length(1, 512)
+  wrapSalt!: string;
+
+  @IsString()
+  @Length(1, 512)
+  wrapIv!: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  algorithm?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 32)
+  kdf?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(100000)
+  kdfIterations?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  keyVersion?: number;
 }
 
 export class MarkReadDto {

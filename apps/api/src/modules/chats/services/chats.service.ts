@@ -51,17 +51,32 @@ export class ChatsService {
       where: { userId: actor.sub, hiddenAt: IsNull() },
       relations: { chat: true, lastReadMessage: true },
     });
-    const chats = this.access.isAdmin(actor)
-      ? await this.chatRepo.find({ order: { updatedAt: 'DESC' } })
-      : memberships
-          .map((row) => row.chat)
-          .filter((chat): chat is ChatEntity => Boolean(chat));
+    const membershipChats = memberships
+      .map((row) => row.chat)
+      .filter((chat): chat is ChatEntity => Boolean(chat));
+    // Admins see all non-Direct chats; Direct stays membership-only (E2EE privacy).
+    let chats: ChatEntity[];
+    if (this.access.isAdmin(actor)) {
+      const nonDirect = await this.chatRepo
+        .createQueryBuilder('chat')
+        .where('chat.kind <> :direct', { direct: ChatKind.Direct })
+        .orderBy('chat.updated_at', 'DESC')
+        .getMany();
+      const myDirect = membershipChats.filter((chat) => chat.kind === ChatKind.Direct);
+      chats = [...nonDirect, ...myDirect];
+    } else {
+      chats = membershipChats;
+    }
 
     const membershipByChat = new Map(memberships.map((row) => [row.chatId, row]));
+    const seen = new Set<string>();
     const items: ChatListItem[] = [];
     for (const chat of chats) {
+      if (seen.has(chat.id)) continue;
+      seen.add(chat.id);
       const membership = membershipByChat.get(chat.id);
       if (!this.access.isAdmin(actor) && membership?.hiddenAt) continue;
+      if (chat.kind === ChatKind.Direct && !membership) continue;
       const unreadCount = await this.countUnread(chat.id, membership, actor.sub);
       const counts = await this.memberOnlineCounts(chat.id);
       items.push(Object.assign(chat, { unreadCount, ...counts }));

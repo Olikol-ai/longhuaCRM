@@ -52,6 +52,11 @@ export function normalizeMessage(raw) {
     senderUser: normalizeUser(pickField(raw, 'senderUser', 'sender_user')),
     type: raw.type,
     body: raw.body ?? null,
+    ciphertext: pickField(raw, 'ciphertext') ?? null,
+    nonce: pickField(raw, 'nonce') ?? null,
+    encryptionAlgorithm:
+      pickField(raw, 'encryptionAlgorithm', 'encryption_algorithm') ?? null,
+    keyVersion: pickField(raw, 'keyVersion', 'key_version') ?? null,
     replyToMessageId: pickField(raw, 'replyToMessageId', 'reply_to_message_id') ?? null,
     refEntityType: pickField(raw, 'refEntityType', 'ref_entity_type') ?? null,
     refEntityId: pickField(raw, 'refEntityId', 'ref_entity_id') ?? null,

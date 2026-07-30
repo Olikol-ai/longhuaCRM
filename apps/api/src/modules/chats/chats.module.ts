@@ -12,6 +12,7 @@ import { ChatAiService } from './ai/chat-ai.service';
 import { MockAiProvider } from './ai/mock-ai.provider';
 import { OpenAiProvider } from './ai/openai-ai.provider';
 import { ChatsController } from './controllers/chats.controller';
+import { CryptoController } from './controllers/crypto.controller';
 import { SubjectsController } from './controllers/subjects.controller';
 import { ChatGateway } from './gateway/chat.gateway';
 import { ChatAttachmentsService } from './services/chat-attachments.service';
@@ -22,6 +23,7 @@ import { ChatPresenceService } from './services/chat-presence.service';
 import { ChatsService } from './services/chats.service';
 import { DirectChatRequestService } from './services/direct-chat-request.service';
 import { ChatDmRequestJobsService } from './services/chat-dm-request-jobs.service';
+import { UserCryptoService } from './services/user-crypto.service';
 
 @Module({
   imports: [
@@ -35,7 +37,7 @@ import { ChatDmRequestJobsService } from './services/chat-dm-request-jobs.servic
     NotificationsModule,
     TelegramModule,
   ],
-  controllers: [ChatsController, SubjectsController],
+  controllers: [ChatsController, CryptoController, SubjectsController],
   providers: [
     ChatPresenceService,
     ChatMembershipSyncService,
@@ -45,12 +47,13 @@ import { ChatDmRequestJobsService } from './services/chat-dm-request-jobs.servic
     ChatDirectoryService,
     DirectChatRequestService,
     ChatDmRequestJobsService,
+    UserCryptoService,
     ChatGateway,
     ChatAiService,
     MockAiProvider,
     OpenAiProvider,
     { provide: AI_PROVIDER, useExisting: MockAiProvider },
   ],
-  exports: [ChatMembershipSyncService, ChatsService, ChatPresenceService, DirectChatRequestService],
+  exports: [ChatMembershipSyncService, ChatsService, ChatPresenceService, DirectChatRequestService, UserCryptoService],
 })
 export class ChatsModule {}

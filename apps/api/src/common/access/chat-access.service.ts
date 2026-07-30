@@ -37,6 +37,12 @@ export class ChatAccessService {
   async assertCanRead(actor: DomainAccessActor, chatId: string): Promise<ChatEntity> {
     const chat = await this.chatRepo.findOne({ where: { id: chatId } });
     if (!chat) throw new NotFoundException('Chat not found');
+    // Direct chats: membership only — admin cannot read ciphertext/history of others.
+    if (chat.kind === ChatKind.Direct) {
+      const membership = await this.memberRepo.exists({ where: { chatId, userId: actor.sub } });
+      if (!membership) throw new ForbiddenException('Chat membership is required');
+      return chat;
+    }
     if (this.isAdmin(actor)) return chat;
     const membership = await this.memberRepo.exists({ where: { chatId, userId: actor.sub } });
     if (!membership) throw new ForbiddenException('Chat membership is required');
@@ -45,12 +51,16 @@ export class ChatAccessService {
 
   async assertCanWrite(actor: DomainAccessActor, chatId: string): Promise<ChatEntity> {
     const chat = await this.assertCanRead(actor, chatId);
+    if (chat.kind === ChatKind.Direct) {
+      await this.assertDirectPeersNotBlocked(actor.sub, chatId);
+      if (chat.status === ChatStatus.Archived) {
+        throw new ForbiddenException('Archived chats are read-only');
+      }
+      return chat;
+    }
     if (this.isAdmin(actor)) return chat;
     if (chat.kind === ChatKind.SchoolNews) throw new ForbiddenException('Only administrators can post news');
     if (chat.status === ChatStatus.Archived) throw new ForbiddenException('Archived chats are read-only');
-    if (chat.kind === ChatKind.Direct) {
-      await this.assertDirectPeersNotBlocked(actor.sub, chatId);
-    }
     return chat;
   }
 

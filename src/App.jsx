@@ -5,6 +5,7 @@ import { queryClientInstance } from '@/lib/query-client'
 import { pagesConfig } from './pages.config'
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import { E2eeProvider } from '@/lib/e2ee/E2eeContext';
 import { AuthLoadingScreen, shouldBlockProtectedUI } from '@/lib/auth-gate';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import Login from './pages/Login';
@@ -224,6 +225,7 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
+        <E2eeProvider>
         <QueryClientProvider client={queryClientInstance}>
           <Router>
             <Routes>
@@ -245,6 +247,7 @@ function App() {
           </Router>
           <Toaster />
         </QueryClientProvider>
+        </E2eeProvider>
       </AuthProvider>
     </ThemeProvider>
   );
