@@ -1,4 +1,3 @@
-import { Menu, PanelRight } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { chatsApi } from '@/api/chats.api';
@@ -8,10 +7,10 @@ import ChatMessagePane from '@/components/chats/ChatMessagePane';
 import ChatSidebar from '@/components/chats/ChatSidebar';
 import DmRequestsPanel from '@/components/chats/DmRequestsPanel';
 import FindInterlocutorDialog from '@/components/chats/FindInterlocutorDialog';
-import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/lib/AuthContext';
+import { useIsLgUp } from '@/lib/responsive';
 import {
   messageCreatedAtMs,
   normalizeChat,
@@ -60,9 +59,12 @@ function patchUnread(groups, chatId, unreadCount) {
 
 export default function Chats() {
   const { user } = useAuth();
+  const isLgUp = useIsLgUp();
   const [searchParams, setSearchParams] = useSearchParams();
   const [groups, setGroups] = useState(emptyGroups);
   const [activeChat, setActiveChat] = useState(null);
+  /** Mobile single-pane: list | chat (info is a sheet). */
+  const [mobilePane, setMobilePane] = useState('list');
   /** @type {[Record<string, Array>, Function]} */
   const [messagesByChat, setMessagesByChat] = useState({});
   /** @type {[Record<string, 'idle'|'loading'|'ready'|'error'>, Function]} */
@@ -75,7 +77,6 @@ export default function Chats() {
   const [pins, setPins] = useState([]);
   const [typingUserIds, setTypingUserIds] = useState([]);
   const [onlineUserIds, setOnlineUserIds] = useState([]);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [finderOpen, setFinderOpen] = useState(false);
   const [requestsOpen, setRequestsOpen] = useState(searchParams.get('tab') === 'requests');
@@ -85,6 +86,8 @@ export default function Chats() {
 
   const activeChatIdRef = useRef(null);
   activeChatIdRef.current = activeChat?.id || null;
+  const isLgUpRef = useRef(isLgUp);
+  isLgUpRef.current = isLgUp;
 
   const activeChatId = activeChat?.id || null;
   const messages = activeChatId ? messagesByChat[activeChatId] || [] : [];
@@ -99,12 +102,16 @@ export default function Chats() {
     setActiveChat((current) => {
       const allChats = Object.values(nextGroups).flat();
       if (preferredChatId) {
-        return allChats.find((chat) => chat.id === preferredChatId) || current;
+        const found = allChats.find((chat) => chat.id === preferredChatId);
+        if (found && !isLgUpRef.current) setMobilePane('chat');
+        return found || current;
       }
       if (current?.id) {
         return allChats.find((chat) => chat.id === current.id) || current;
       }
-      return allChats[0] || null;
+      // Desktop auto-selects first chat; mobile stays on the list.
+      if (isLgUpRef.current) return allChats[0] || null;
+      return null;
     });
   }, []);
 
@@ -312,9 +319,16 @@ export default function Chats() {
 
   const selectChat = (chat) => {
     setActiveChat(normalizeChat(chat));
-    setSidebarOpen(false);
+    setMobilePane('chat');
     setRequestsOpen(false);
+    setInfoOpen(false);
     setTypingUserIds([]);
+  };
+
+  const backToChatList = () => {
+    setMobilePane('list');
+    setInfoOpen(false);
+    if (!isLgUp) setActiveChat(null);
   };
 
   const onMarkRead = useCallback(
@@ -417,6 +431,7 @@ export default function Chats() {
       await chatsApi.hideMembership(activeChatId);
       toast({ title: 'Чат скрыт у вас' });
       setActiveChat(null);
+      setMobilePane('list');
       void loadChats();
     } catch (err) {
       toast({ title: 'Не удалось скрыть', description: err?.message, variant: 'destructive' });
@@ -449,31 +464,33 @@ export default function Chats() {
   );
 
   return (
-    <div className="h-[calc(100dvh-3.5rem)] min-h-[32rem] overflow-hidden bg-background lg:h-app">
+    <div className="h-[calc(100dvh-3.5rem)] min-h-[28rem] overflow-hidden bg-background lg:h-app">
       <div className="grid h-full grid-cols-1 lg:grid-cols-[17rem_minmax(0,1fr)_18rem]">
+        {/* Desktop list */}
         <aside className="hidden min-h-0 border-r border-border lg:block">{content}</aside>
-        <section className="flex min-h-0 flex-col">
-          <div className="flex h-0 justify-between px-2 pt-2 lg:hidden">
-            <Button
-              size="icon"
-              variant="ghost"
-              className="z-10"
-              onClick={() => setSidebarOpen(true)}
-              aria-label="Открыть список чатов"
-            >
-              <Menu />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="z-10"
-              onClick={() => setInfoOpen(true)}
-              aria-label="Открыть информацию"
-            >
-              <PanelRight />
-            </Button>
-          </div>
+
+        {/* Mobile list pane */}
+        <section
+          className={`min-h-0 flex-col ${
+            isLgUp || mobilePane === 'list' ? 'flex' : 'hidden'
+          } lg:hidden`}
+        >
           {loading ? (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              Загрузка чатов…
+            </div>
+          ) : (
+            content
+          )}
+        </section>
+
+        {/* Conversation pane (desktop always; mobile when chat selected) */}
+        <section
+          className={`min-h-0 flex-col ${
+            isLgUp || mobilePane === 'chat' ? 'flex' : 'hidden'
+          }`}
+        >
+          {loading && isLgUp ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               Загрузка чатов…
             </div>
@@ -490,23 +507,26 @@ export default function Chats() {
                   loadingOlder={loadingOlder}
                   hasMoreOlder={hasMoreOlder}
                   onLoadOlder={() => void loadOlderMessages()}
-                  onOpenSidebar={() => setSidebarOpen(true)}
+                  onBack={backToChatList}
                   onOpenInfo={() => setInfoOpen(true)}
                   onPin={(messageId) => void pin(messageId)}
                   onMarkRead={onMarkRead}
                 />
               </div>
               {activeChat ? (
-                <ChatComposer
-                  chat={activeChat}
-                  disabled={activeChat.kind === 'school_news' && user?.role !== 'admin'}
-                  onMessageCreated={addMessage}
-                  onAttachmentUploaded={onAttachmentUploaded}
-                />
+                <div className="shrink-0 safe-pb border-t border-border">
+                  <ChatComposer
+                    chat={activeChat}
+                    disabled={activeChat.kind === 'school_news' && user?.role !== 'admin'}
+                    onMessageCreated={addMessage}
+                    onAttachmentUploaded={onAttachmentUploaded}
+                  />
+                </div>
               ) : null}
             </>
           )}
         </section>
+
         <aside className="hidden min-h-0 border-l border-border lg:block">
           {requestsOpen ? (
             <DmRequestsPanel
@@ -529,13 +549,10 @@ export default function Chats() {
           )}
         </aside>
       </div>
-      <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="left" className="w-[85vw] max-w-sm p-0">
-          {content}
-        </SheetContent>
-      </Sheet>
-      <Sheet open={infoOpen} onOpenChange={setInfoOpen}>
-        <SheetContent side="right" className="w-[85vw] max-w-sm p-0">
+
+      <Sheet open={infoOpen && !isLgUp} onOpenChange={setInfoOpen}>
+        <SheetContent side="bottom" className="h-[min(88dvh,100%)] max-h-[88dvh] rounded-t-2xl p-0 safe-pb">
+          <div className="mx-auto mt-2 mb-1 h-1 w-10 rounded-full bg-muted" aria-hidden />
           {requestsOpen ? (
             <DmRequestsPanel
               open
@@ -558,6 +575,29 @@ export default function Chats() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Mobile requests from sidebar CTA */}
+      <Sheet
+        open={requestsOpen && !isLgUp && mobilePane === 'list'}
+        onOpenChange={(open) => {
+          if (!open) closeRequests();
+          else setRequestsOpen(true);
+        }}
+      >
+        <SheetContent side="bottom" className="h-[min(88dvh,100%)] rounded-t-2xl p-0 safe-pb">
+          <div className="mx-auto mt-2 mb-1 h-1 w-10 rounded-full bg-muted" aria-hidden />
+          <DmRequestsPanel
+            open
+            onClose={closeRequests}
+            onAccepted={(accepted) => {
+              const chatId = pickField(accepted, 'createdChatId', 'created_chat_id');
+              void loadChats(chatId);
+              closeRequests();
+            }}
+          />
+        </SheetContent>
+      </Sheet>
+
       <FindInterlocutorDialog
         open={finderOpen}
         onOpenChange={setFinderOpen}

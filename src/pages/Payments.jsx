@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { resolvePaymentStudentLabel } from "@/lib/studentLabels";
 import { sumPaymentAmounts } from "@/lib/money";
 import { formatCurrency } from "@/lib/formatters";
+import ResponsiveTable from "@/components/responsive/ResponsiveTable";
 
 const inputCls = "w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40";
 
@@ -207,95 +208,86 @@ export default function Payments() {
         </div>
       </div>
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden border-0 shadow-none bg-transparent">
         {loading ? (
-          <div className="space-y-px">
+          <div className="space-y-px rounded-2xl border border-border overflow-hidden">
             {[...Array(5)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse" />)}
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-12">
-            <CreditCard className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">Платежи не найдены</p>
-          </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px]">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Ученик</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Курс / услуга</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Сумма</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Статус</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3 hidden sm:table-cell">Дата</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3 hidden md:table-cell">№ заказа</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3 hidden lg:table-cell">Провайдер</th>
-                  <th className="px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filtered.map(payment => {
-                  const label = studentLabel(payment);
-                  const status = payment.status || "paid";
+          <ResponsiveTable
+            rows={filtered}
+            empty={
+              <div className="text-center py-8">
+                <CreditCard className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">Платежи не найдены</p>
+              </div>
+            }
+            cardTitle={(payment) => studentLabel(payment)}
+            columns={[
+              {
+                id: 'service',
+                header: 'Курс / услуга',
+                cell: (payment) => serviceLabel(payment),
+              },
+              {
+                id: 'amount',
+                header: 'Сумма',
+                cell: (payment) => (
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    {formatCurrency(payment.amount)} {payment.currency || 'BYN'}
+                  </span>
+                ),
+              },
+              {
+                id: 'status',
+                header: 'Статус',
+                cell: (payment) => {
+                  const status = payment.status || 'paid';
                   return (
-                  <tr key={payment.id} className="hover:bg-muted/50">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-brand-muted dark:bg-brand-soft/50 flex items-center justify-center">
-                          <span className="text-xs font-semibold text-brand dark:text-brand">
-                            {(label || "?")[0]}
-                          </span>
-                        </div>
-                        <span className="text-sm font-medium text-foreground">{label}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-sm text-foreground">{serviceLabel(payment)}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                        {formatCurrency(payment.amount)} {payment.currency || "BYN"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${statusBadgeClass(status)}`}>
-                        {STATUS_LABEL[status] || status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 hidden sm:table-cell">
-                      <span className="text-sm text-muted-foreground">{paymentDateLabel(payment)}</span>
-                    </td>
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      <span className="text-xs font-mono text-muted-foreground">{payment.order_number || "—"}</span>
-                    </td>
-                    <td className="px-4 py-3 hidden lg:table-cell">
-                      <span className="text-xs text-muted-foreground">
-                        {PROVIDER_LABEL[payment.provider] || payment.provider || "—"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => { setEditingPayment(payment); setShowModal(true); }}
-                          className="p-1.5 text-muted-foreground hover:text-brand hover:bg-brand-soft dark:hover:bg-brand-soft/50 rounded-lg transition-colors"
-                          title="Редактировать"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(payment)}
-                          className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition-colors"
-                          title="Удалить"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${statusBadgeClass(status)}`}>
+                      {STATUS_LABEL[status] || status}
+                    </span>
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
+                },
+              },
+              {
+                id: 'date',
+                header: 'Дата',
+                cell: (payment) => paymentDateLabel(payment),
+              },
+              {
+                id: 'order',
+                header: '№ заказа',
+                hideOnCard: false,
+                cell: (payment) => (
+                  <span className="font-mono text-xs text-muted-foreground">{payment.order_number || '—'}</span>
+                ),
+              },
+              {
+                id: 'provider',
+                header: 'Провайдер',
+                cell: (payment) => PROVIDER_LABEL[payment.provider] || payment.provider || '—',
+              },
+            ]}
+            cardActions={(payment) => (
+              <>
+                <button
+                  type="button"
+                  onClick={() => { setEditingPayment(payment); setShowModal(true); }}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 min-h-touch text-sm rounded-lg border border-border hover:bg-brand-soft hover:text-brand"
+                >
+                  <Pencil className="w-3.5 h-3.5" /> Изменить
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(payment)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 min-h-touch text-sm rounded-lg border border-border hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Удалить
+                </button>
+              </>
+            )}
+          />
         )}
       </Card>
 

@@ -9,6 +9,7 @@ import { userFacingError } from '@/lib/userFacingError';
 import { createPageUrl } from '@/utils';
 import { useAuth } from '@/lib/AuthContext';
 import { checkMediaDevices, parseJitsiDomain } from '@/lib/lesson-video';
+import { useIsMdUp } from '@/lib/responsive';
 import JitsiLessonEmbed from '@/components/video/JitsiLessonEmbed';
 import VideoPrejoin from '@/components/video/VideoPrejoin';
 import LessonVideoControls from '@/components/video/LessonVideoControls';
@@ -23,6 +24,7 @@ export default function LessonVideo() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isMdUp = useIsMdUp();
   const jitsiRef = useRef(null);
   const stageRef = useRef(null);
   const conferenceJoinedRef = useRef(false);
@@ -244,11 +246,11 @@ export default function LessonVideo() {
             >
               <ArrowLeft className="h-4 w-4" /> Назад
             </button>
-            <p className="text-2xl sm:text-3xl font-bold tracking-tight text-brand">Longhua</p>
+            <p className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-brand">Longhua</p>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
               {data.subject || 'Китайский язык'}
             </p>
-            <div className="mt-2 grid gap-0.5 text-sm sm:grid-cols-2">
+            <div className="mt-2 hidden sm:grid gap-0.5 text-sm sm:grid-cols-2">
               <p>
                 <span className="text-slate-400">Урок:</span>{' '}
                 <span className="font-medium">{lesson.title || 'Онлайн-урок'}</span>
@@ -304,7 +306,7 @@ export default function LessonVideo() {
                 <div
                   ref={stageRef}
                   className="relative w-full overflow-hidden rounded-2xl border border-slate-800 bg-black shadow-lg
-                    h-[min(68dvh,calc(100dvh-14rem))] min-h-[280px] sm:min-h-[420px]"
+                    h-[min(72dvh,calc(100dvh-11rem))] min-h-[240px] sm:min-h-[420px] sm:h-[min(68dvh,calc(100dvh-14rem))]"
                 >
                   <JitsiLessonEmbed
                     key={embedKey}
@@ -402,11 +404,21 @@ export default function LessonVideo() {
       </div>
 
       <Sheet open={mobileRailOpen} onOpenChange={setMobileRailOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-md p-0">
+        <SheetContent
+          side={isMdUp ? 'right' : 'bottom'}
+          className={
+            isMdUp
+              ? 'w-full sm:max-w-md p-0'
+              : 'h-[min(85dvh,100%)] max-h-[85dvh] w-full rounded-t-2xl p-0 safe-pb'
+          }
+        >
+          {!isMdUp ? (
+            <div className="mx-auto mt-2 mb-1 h-1 w-10 rounded-full bg-muted" aria-hidden />
+          ) : null}
           <SheetHeader className="p-4 pb-0">
             <SheetTitle>Панель урока</SheetTitle>
           </SheetHeader>
-          <div className="p-3 h-[calc(100%-3rem)]">
+          <div className="p-3 h-[calc(100%-3.5rem)] overflow-y-auto">
             <LessonVideoSideRail
               lessonId={id}
               lesson={lesson}

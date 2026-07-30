@@ -25,7 +25,7 @@ function AudioAttachment({ attachment }) {
   // Browser <audio> cannot set Authorization; prefer signed url from API when present.
   if (attachment?.url) {
     return (
-      <audio controls className="w-full mt-3" preload="metadata" src={attachment.url}>
+      <audio controls className="w-full max-w-full mt-3" preload="metadata" src={attachment.url}>
         Ваш браузер не поддерживает аудио.
       </audio>
     );
@@ -126,7 +126,7 @@ export default function QuestionCard({
             return (
               <label
                 key={opt.snapshot_id}
-                className={`flex items-start gap-3 rounded-xl border p-3 sm:p-3.5 cursor-pointer transition-colors ${
+                className={`flex items-start gap-3 rounded-xl border p-3.5 min-h-touch cursor-pointer transition-colors ${
                   checked
                     ? 'border-brand bg-brand-soft dark:bg-brand-soft/40 dark:border-brand/40'
                     : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60'
@@ -134,12 +134,12 @@ export default function QuestionCard({
               >
                 <input
                   type="radio"
-                  className="mt-1 h-4 w-4 accent-brand"
+                  className="mt-1 h-5 w-5 shrink-0 accent-brand"
                   name={`q-${question.snapshot_id}`}
                   checked={checked}
                   onChange={() => onSingleChoice(question.snapshot_id, opt.snapshot_id)}
                 />
-                <span className="text-sm sm:text-base text-slate-800 dark:text-slate-100">
+                <span className="text-sm sm:text-base text-slate-800 dark:text-slate-100 break-words min-w-0">
                   {opt.text}
                 </span>
               </label>
@@ -158,7 +158,7 @@ export default function QuestionCard({
             return (
               <label
                 key={opt.snapshot_id}
-                className={`flex items-start gap-3 rounded-xl border p-3 sm:p-3.5 cursor-pointer transition-colors ${
+                className={`flex items-start gap-3 rounded-xl border p-3.5 min-h-touch cursor-pointer transition-colors ${
                   checked
                     ? 'border-brand bg-brand-soft dark:bg-brand-soft/40 dark:border-brand/40'
                     : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60'
@@ -166,11 +166,11 @@ export default function QuestionCard({
               >
                 <input
                   type="checkbox"
-                  className="mt-1 h-4 w-4 accent-brand"
+                  className="mt-1 h-5 w-5 shrink-0 accent-brand"
                   checked={checked}
                   onChange={() => onToggleMultiple(question.snapshot_id, opt.snapshot_id)}
                 />
-                <span className="text-sm sm:text-base text-slate-800 dark:text-slate-100">
+                <span className="text-sm sm:text-base text-slate-800 dark:text-slate-100 break-words min-w-0">
                   {opt.text}
                 </span>
               </label>

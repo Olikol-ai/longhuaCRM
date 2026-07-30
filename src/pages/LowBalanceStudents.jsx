@@ -87,7 +87,34 @@ export default function LowBalanceStudents() {
           </p>
         </Card>
       ) : (
-        <div className="overflow-x-auto border border-border rounded-xl bg-card">
+        <>
+        <div className="lg:hidden space-y-3">
+          {rows.map((student) => {
+            const balance = balanceValue(student);
+            return (
+              <article
+                key={student.id}
+                className="rounded-2xl border border-border bg-card p-4 space-y-2"
+              >
+                <p className="font-semibold text-foreground break-words">{student.name}</p>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">Осталось:</span>
+                  <span
+                    className={`inline-flex text-xs font-bold px-2 py-1 rounded-full ${
+                      balance === 0
+                        ? "bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-400"
+                        : "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400"
+                    }`}
+                  >
+                    {balance}
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground break-words">{contactLabel(student)}</p>
+              </article>
+            );
+          })}
+        </div>
+        <div className="overflow-x-auto border border-border rounded-xl bg-card hidden lg:block">
           <table className="w-full text-sm min-w-[32rem]">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -127,6 +154,7 @@ export default function LowBalanceStudents() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );

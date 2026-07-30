@@ -4,6 +4,7 @@ import StatCard from '@/components/dashboard/StatCard';
 import { BookOpen, Calendar, Clock, Loader2, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import ResponsiveTable from '@/components/responsive/ResponsiveTable';
 
 export default function TutorStats() {
   const [stats, setStats] = useState(null);
@@ -66,36 +67,42 @@ export default function TutorStats() {
         {history.length === 0 ? (
           <p className="p-6 text-sm text-slate-400">Пока нет проведённых занятий</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-800 text-left text-xs text-slate-400 uppercase">
-                  <th className="px-5 py-3">Дата</th>
-                  <th className="px-5 py-3">Время</th>
-                  <th className="px-5 py-3">Ученик</th>
-                  <th className="px-5 py-3">Длительность</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((row) => {
-                  const date = row.date;
-                  let dateLabel = date;
-                  try {
-                    dateLabel = format(new Date(`${date}T12:00:00`), 'd MMM yyyy', { locale: ru });
-                  } catch {
-                    // keep raw
-                  }
-                  return (
-                    <tr key={row.lesson_id || row.lessonId} className="border-b border-slate-50 dark:border-slate-800 last:border-0">
-                      <td className="px-5 py-3">{dateLabel}</td>
-                      <td className="px-5 py-3">{(row.start_time || row.startTime || '').toString().slice(0, 5)}</td>
-                      <td className="px-5 py-3">{row.student_name || row.studentName || '—'}</td>
-                      <td className="px-5 py-3">{row.duration || 60} мин</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="p-3 sm:p-4">
+            <ResponsiveTable
+              rows={history}
+              getRowKey={(row) => row.lesson_id || row.lessonId}
+              cardTitle={(row) => row.student_name || row.studentName || '—'}
+              columns={[
+                {
+                  id: 'date',
+                  header: 'Дата',
+                  cell: (row) => {
+                    const date = row.date;
+                    try {
+                      return format(new Date(`${date}T12:00:00`), 'd MMM yyyy', { locale: ru });
+                    } catch {
+                      return date;
+                    }
+                  },
+                },
+                {
+                  id: 'time',
+                  header: 'Время',
+                  cell: (row) => (row.start_time || row.startTime || '').toString().slice(0, 5),
+                },
+                {
+                  id: 'student',
+                  header: 'Ученик',
+                  hideOnCard: true,
+                  cell: (row) => row.student_name || row.studentName || '—',
+                },
+                {
+                  id: 'duration',
+                  header: 'Длительность',
+                  cell: (row) => `${row.duration || 60} мин`,
+                },
+              ]}
+            />
           </div>
         )}
       </div>

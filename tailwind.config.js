@@ -3,7 +3,24 @@ module.exports = {
   darkMode: 'class',
   content: ['./index.html', './src/**/*.{ts,tsx,js,jsx}'],
   theme: {
+    // Explicit Longhua CRM breakpoints (do not invent ad-hoc media queries).
+    screens: {
+      sm: '640px',
+      md: '768px',
+      lg: '1024px',
+      xl: '1280px',
+      '2xl': '1536px',
+    },
     extend: {
+      spacing: {
+        touch: 'var(--touch-min)',
+      },
+      minHeight: {
+        touch: 'var(--touch-min)',
+      },
+      minWidth: {
+        touch: 'var(--touch-min)',
+      },
       borderRadius: {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',

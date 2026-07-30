@@ -243,7 +243,7 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
       ) : (
         <>
           {/* Mobile cards */}
-          <div className="md:hidden space-y-3">
+          <div className="lg:hidden space-y-3">
             {filtered.map((u) => {
               const role = displayRole(u.role);
               const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.user;
@@ -298,7 +298,7 @@ function AccountsTab({ entries, loading, onReload, onRoleChange }) {
           </div>
 
           {/* Desktop table */}
-          <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-x-auto">
+          <div className="hidden lg:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-x-auto">
             <table className="w-full text-sm min-w-[640px]">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-800">
@@ -473,7 +473,7 @@ function StudentsTab({ students, teachers, loading, onReload }) {
         </div>
       ) : (
         <>
-          <div className="md:hidden space-y-3">
+          <div className="lg:hidden space-y-3">
             {filtered.length === 0 ? (
               <div className="text-center py-12 text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">Ученики не найдены</div>
             ) : filtered.map(s => (
@@ -515,7 +515,7 @@ function StudentsTab({ students, teachers, loading, onReload }) {
             ))}
           </div>
 
-          <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-x-auto">
+          <div className="hidden lg:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-x-auto">
             <table className="w-full text-sm min-w-[720px]">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-800">
@@ -650,7 +650,7 @@ function TeachersTab({ teachers, students, loading, onReload }) {
         </div>
       ) : (
         <>
-          <div className="md:hidden space-y-3">
+          <div className="lg:hidden space-y-3">
             {filtered.length === 0 ? (
               <div className="text-center py-12 text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">Преподаватели не найдены</div>
             ) : filtered.map(t => (
@@ -692,7 +692,7 @@ function TeachersTab({ teachers, students, loading, onReload }) {
             ))}
           </div>
 
-          <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-x-auto">
+          <div className="hidden lg:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-x-auto">
             <table className="w-full text-sm min-w-[720px]">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-800">
@@ -839,7 +839,7 @@ function TutorsTab({ tutors, students, loading, onReload }) {
         </div>
       ) : (
         <>
-          <div className="md:hidden space-y-3">
+          <div className="lg:hidden space-y-3">
             {filtered.length === 0 ? (
               <div className="text-center py-12 text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
                 Репетиторы не найдены
@@ -876,7 +876,7 @@ function TutorsTab({ tutors, students, loading, onReload }) {
             ))}
           </div>
 
-          <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-x-auto">
+          <div className="hidden lg:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-x-auto">
             <table className="w-full text-sm min-w-[640px]">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-800">

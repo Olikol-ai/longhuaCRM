@@ -1,4 +1,4 @@
-import { Info, Menu, Pin, Users } from 'lucide-react';
+import { ArrowLeft, Info, Pin, Users } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -23,9 +23,9 @@ function Attachment({ attachment }) {
   }
   if (attachment.kind === 'image') {
     return (
-      <a href={src} target="_blank" rel="noreferrer">
+      <a href={src} target="_blank" rel="noreferrer" className="block max-w-full">
         <img
-          className="mt-1 max-h-64 rounded-md border border-border"
+          className="mt-1 max-h-64 max-w-full rounded-md border border-border object-contain"
           src={src}
           alt={attachment.originalFilename || 'Изображение'}
         />
@@ -34,7 +34,7 @@ function Attachment({ attachment }) {
   }
   return (
     <a
-      className="mt-1 inline-flex text-sm text-brand hover:underline"
+      className="mt-1 inline-flex break-all text-sm text-brand hover:underline"
       href={src}
       download={attachment.originalFilename || true}
     >
@@ -53,7 +53,7 @@ export default function ChatMessagePane({
   loadingOlder = false,
   hasMoreOlder = false,
   onLoadOlder,
-  onOpenSidebar,
+  onBack,
   onOpenInfo,
   onPin,
   onMarkRead,
@@ -101,31 +101,47 @@ export default function ChatMessagePane({
 
   if (!chat) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Выберите чат слева или найдите собеседника.
+      <div className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-foreground">
+        Выберите чат из списка или найдите собеседника.
       </div>
     );
   }
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3">
-        <Button size="icon" variant="ghost" className="lg:hidden" onClick={onOpenSidebar} aria-label="Открыть чаты">
-          <Menu />
-        </Button>
+      <header className="flex h-14 shrink-0 items-center gap-1 border-b border-border px-2 sm:px-3">
+        {onBack ? (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="lg:hidden shrink-0"
+            onClick={onBack}
+            aria-label="К списку чатов"
+          >
+            <ArrowLeft />
+          </Button>
+        ) : null}
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-sm font-semibold">{chat.title}</h2>
           <p className="truncate text-xs text-muted-foreground">
             {chat.description || String(chat.kind || '').replace('_', ' ')}
           </p>
         </div>
-        <Button size="icon" variant="ghost" className="lg:hidden" onClick={onOpenInfo} aria-label="Открыть информацию">
-          <Info />
-        </Button>
+        {onOpenInfo ? (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="lg:hidden shrink-0"
+            onClick={onOpenInfo}
+            aria-label="Информация о чате"
+          >
+            <Info />
+          </Button>
+        ) : null}
       </header>
       <ScrollArea className="min-h-0 flex-1">
         <div
-          className="space-y-3 px-4 py-4"
+          className="space-y-3 px-3 py-4 sm:px-4"
           onScrollCapture={(event) => {
             const el =
               event.target?.closest?.('[data-radix-scroll-area-viewport]') ||
@@ -165,7 +181,7 @@ export default function ChatMessagePane({
             return (
               <article key={message.id} className="group flex gap-2">
                 <div className="min-w-0 max-w-[min(100%,46rem)]">
-                  <div className="flex items-baseline gap-2">
+                  <div className="flex flex-wrap items-baseline gap-2">
                     <span className={own ? 'text-sm font-semibold text-brand' : 'text-sm font-semibold'}>
                       {own ? 'Вы' : senderName(message)}
                     </span>
@@ -180,7 +196,7 @@ export default function ChatMessagePane({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-5 w-5 opacity-0 group-hover:opacity-100"
+                      className="h-8 w-8 opacity-100 md:h-5 md:w-5 md:opacity-0 md:group-hover:opacity-100"
                       onClick={() => onPin(message.id)}
                       aria-label="Закрепить сообщение"
                     >

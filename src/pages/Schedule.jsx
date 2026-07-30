@@ -172,10 +172,10 @@ export default function Schedule() {
           Сегодня
         </button>
         <div className="flex items-center gap-1">
-          <button type="button" onClick={() => navigate("prev")} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg min-h-[40px] min-w-[40px]">
+          <button type="button" onClick={() => navigate("prev")} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg min-h-touch min-w-touch inline-flex items-center justify-center">
             <ChevronLeft className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           </button>
-          <button type="button" onClick={() => navigate("next")} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg min-h-[40px] min-w-[40px]">
+          <button type="button" onClick={() => navigate("next")} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg min-h-touch min-w-touch inline-flex items-center justify-center">
             <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           </button>
         </div>
@@ -396,8 +396,48 @@ function WeekView({ current, teachers, students, hours, getLessonsForDay, onSlot
 
   const showAvailability = Boolean(selectedTeacherId);
 
+  const agenda = days.flatMap((day) => {
+    const dayLessons = getLessonsForDay(day);
+    if (!dayLessons.length) return [];
+    return [{ day, lessons: dayLessons }];
+  });
+
   return (
-    <div className="overflow-x-auto">
+    <>
+      {/* Mobile / tablet: agenda cards — no horizontal scroll */}
+      <div className="md:hidden p-3 sm:p-4 space-y-4">
+        {agenda.length === 0 ? (
+          <p className="text-sm text-center text-muted-foreground py-12">Нет уроков на этой неделе</p>
+        ) : (
+          agenda.map(({ day, lessons: dayLessons }) => (
+            <section key={day.toISOString()} className="space-y-2">
+              <h3 className={`text-sm font-semibold ${isToday(day) ? 'text-brand' : 'text-foreground'}`}>
+                {format(day, 'EEEE, d MMMM', { locale: ru })}
+              </h3>
+              <div className="space-y-2">
+                {dayLessons.map((l) => (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => onLessonClick(l)}
+                    className={`w-full text-left px-3 py-3 min-h-touch rounded-xl border transition-opacity active:opacity-80 ${statusColors[l.status] || statusColors.planned}`}
+                  >
+                    <p className="text-sm font-semibold">
+                      {l.start_time} · {l.duration || 60} мин · {l.lesson_format === 'offline' ? 'Очное' : 'Онлайн'}
+                    </p>
+                    <p className="text-xs mt-1 break-words">
+                      {resolveLessonStudentLabel(l, students)} → {resolveLessonTeacherLabel(l, teachers)}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))
+        )}
+      </div>
+
+      {/* Desktop week grid */}
+      <div className="hidden md:block overflow-x-auto">
     <div className="flex flex-col min-w-[640px]">
       {showAvailability && (
         <div className="flex items-center gap-4 px-4 py-2 border-b border-slate-100 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400">
@@ -467,29 +507,33 @@ function WeekView({ current, teachers, students, hours, getLessonsForDay, onSlot
       </div>
     </div>
     </div>
+    </>
   );
 }
 
 function DayView({ current, teachers, students, hours, getLessonsForDay, onLessonClick }) {
   const dayLessons = getLessonsForDay(current);
   return (
-    <div className="max-w-2xl mx-auto p-6 dark:bg-slate-950">
+    <div className="max-w-2xl mx-auto p-3 sm:p-6 dark:bg-slate-950">
       <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-xl overflow-hidden">
         {hours.map(h => {
           const slotLessons = dayLessons.filter(l => parseInt(l.start_time?.split(":")[0] || 0) === h);
           return (
-            <div key={h} className="flex gap-4 border-b border-slate-50 dark:border-slate-700 min-h-[56px]">
-              <div className="w-16 flex-shrink-0 flex items-start justify-end pr-4 pt-3">
+            <div key={h} className="flex gap-3 sm:gap-4 border-b border-slate-50 dark:border-slate-700 min-h-[56px]">
+              <div className="w-12 sm:w-16 flex-shrink-0 flex items-start justify-end pr-2 sm:pr-4 pt-3">
                 <span className="text-xs text-slate-300 dark:text-slate-600 font-medium">{String(h).padStart(2, "0")}:00</span>
               </div>
-              <div className="flex-1 py-1.5 space-y-1">
+              <div className="flex-1 py-1.5 space-y-1 min-w-0 pr-2">
                 {slotLessons.map(l => (
-                  <div key={l.id} onClick={() => onLessonClick(l)}
-                    className={`px-3 py-2 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity ${statusColors[l.status] || statusColors.planned}`}
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => onLessonClick(l)}
+                    className={`w-full text-left px-3 py-2.5 min-h-touch rounded-lg border cursor-pointer hover:opacity-80 transition-opacity ${statusColors[l.status] || statusColors.planned}`}
                   >
                     <p className="text-xs font-semibold">{l.start_time} · {l.duration || 60}мин · {l.lesson_format === "offline" ? "Очное" : "Дистанц."}</p>
-                    <p className="text-xs">{resolveLessonStudentLabel(l, students)} → {resolveLessonTeacherLabel(l, teachers)}</p>
-                  </div>
+                    <p className="text-xs break-words">{resolveLessonStudentLabel(l, students)} → {resolveLessonTeacherLabel(l, teachers)}</p>
+                  </button>
                 ))}
               </div>
             </div>

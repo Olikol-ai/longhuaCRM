@@ -50,6 +50,11 @@
     --sidebar-accent-foreground: 0 12% 20%;
     --sidebar-border: 30 15% 90%;
     --sidebar-ring: 0 68% 32%;
+
+    /* Touch / responsive shell */
+    --touch-min: 44px;
+    --page-pad-x: 0.75rem;
+    --page-pad-y: 1rem;
   }
 
   .dark {
@@ -147,6 +152,33 @@
 @layer components {
   .brand-focus {
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+  }
+
+  /* Unified page padding: mobile → tablet → desktop */
+  .page-pad {
+    padding-left: max(var(--page-pad-x), env(safe-area-inset-left, 0px));
+    padding-right: max(var(--page-pad-x), env(safe-area-inset-right, 0px));
+    padding-top: var(--page-pad-y);
+    padding-bottom: max(var(--page-pad-y), env(safe-area-inset-bottom, 0px));
+  }
+
+  @media (min-width: 768px) {
+    :root {
+      --page-pad-x: 1rem;
+      --page-pad-y: 1.25rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    :root {
+      --page-pad-x: 1.5rem;
+      --page-pad-y: 1.5rem;
+    }
+  }
+
+  .touch-target {
+    min-height: var(--touch-min);
+    min-width: var(--touch-min);
   }
 }
 

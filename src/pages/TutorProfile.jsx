@@ -247,7 +247,7 @@ export default function TutorProfile() {
         </p>
       </div>
 
-      <div className="flex gap-1 overflow-x-auto border-b border-slate-100 dark:border-slate-800 pb-px">
+      <div className="flex flex-wrap gap-1 border-b border-slate-100 dark:border-slate-800 pb-px">
         {TABS.map((item) => {
           const Icon = item.icon;
           const active = tab === item.id;

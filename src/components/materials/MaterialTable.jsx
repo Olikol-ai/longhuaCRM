@@ -114,7 +114,62 @@ export default function MaterialTable({
 
   return (
     <div className="border border-border rounded-xl bg-card overflow-hidden">
-      <div className="overflow-x-auto">
+      {/* Mobile cards */}
+      <div className="lg:hidden divide-y divide-border">
+        {materials.map((mat) => {
+          const typeInfo = getMaterialTypeInfo(mat.file_type);
+          const Icon = typeInfo.icon;
+          const selected = selectedIds.has(mat.id);
+          return (
+            <div key={mat.id} className="p-4 space-y-3">
+              <div className="flex items-start gap-3 min-w-0">
+                {canManage ? (
+                  <input
+                    type="checkbox"
+                    checked={selected}
+                    onChange={() => onToggleSelect(mat.id)}
+                    className="mt-1 h-5 w-5 rounded border-border accent-brand shrink-0"
+                  />
+                ) : null}
+                <div className="h-10 w-10 rounded-lg flex items-center justify-center shrink-0 bg-muted text-muted-foreground">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-foreground break-words">{mat.title || mat.name || 'Без названия'}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{typeInfo.label}</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="inline-flex items-center px-3 py-2 min-h-touch text-sm rounded-lg border border-border hover:bg-brand-soft hover:text-brand"
+                  onClick={() => handleOpen(mat)}
+                >
+                  Открыть
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center px-3 py-2 min-h-touch text-sm rounded-lg border border-border"
+                  onClick={() => handleDownload(mat)}
+                >
+                  Скачать
+                </button>
+                {mayEdit(mat) ? (
+                  <button
+                    type="button"
+                    className="inline-flex items-center px-3 py-2 min-h-touch text-sm rounded-lg border border-border"
+                    onClick={() => onEdit(mat)}
+                  >
+                    Изменить
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="hidden lg:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-muted-foreground">
             <tr className="border-b border-border">

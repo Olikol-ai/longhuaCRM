@@ -221,14 +221,14 @@ export default function Layout({ children, currentPageName }) {
             <button
               type="button"
               onClick={toggleTheme}
-              className="hidden lg:flex p-2 text-muted-foreground hover:text-foreground rounded-lg hover:bg-brand-soft hover:text-brand transition-colors"
+              className="hidden lg:flex p-2 min-h-touch min-w-touch items-center justify-center text-muted-foreground hover:text-foreground rounded-lg hover:bg-brand-soft hover:text-brand transition-colors"
               title="Переключить тему"
             >
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
             <button
               type="button"
-              className="lg:hidden p-2 text-muted-foreground hover:text-foreground rounded-lg"
+              className="lg:hidden p-2 min-h-touch min-w-touch inline-flex items-center justify-center text-muted-foreground hover:text-foreground rounded-lg"
               onClick={() => setSidebarOpen(false)}
               aria-label="Закрыть меню"
             >
@@ -302,7 +302,7 @@ export default function Layout({ children, currentPageName }) {
             <button
               type="button"
               onClick={logout}
-              className="p-2 text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              className="p-2 min-h-touch min-w-touch inline-flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors shrink-0 rounded-lg"
               aria-label="Выйти"
             >
               <LogOut className="h-4 w-4" />
@@ -313,12 +313,12 @@ export default function Layout({ children, currentPageName }) {
 
       <div className="flex flex-col min-h-app min-w-0 w-full max-w-full lg:pl-64">
         <header className="lg:hidden sticky top-0 z-30 shrink-0 bg-card border-b border-border safe-pt">
-          <div className="h-14 flex items-center justify-between px-3 sm:px-4">
+          <div className="h-14 flex items-center justify-between px-3 sm:px-4 safe-px">
             <div className="flex items-center gap-2 min-w-0">
               <button
                 type="button"
                 onClick={() => setSidebarOpen(true)}
-                className="p-2 -ml-1 text-muted-foreground rounded-lg hover:bg-brand-soft hover:text-brand"
+                className="p-2 -ml-1 min-h-touch min-w-touch inline-flex items-center justify-center text-muted-foreground rounded-lg hover:bg-brand-soft hover:text-brand"
                 aria-label="Открыть меню"
               >
                 <Menu className="h-5 w-5" />
@@ -328,7 +328,7 @@ export default function Layout({ children, currentPageName }) {
             <button
               type="button"
               onClick={toggleTheme}
-              className="p-2 text-muted-foreground hover:text-brand transition-colors rounded-lg"
+              className="p-2 min-h-touch min-w-touch inline-flex items-center justify-center text-muted-foreground hover:text-brand transition-colors rounded-lg"
               aria-label="Переключить тему"
             >
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -336,7 +336,7 @@ export default function Layout({ children, currentPageName }) {
           </div>
         </header>
 
-        <main className="flex-1 min-w-0 w-full overflow-x-hidden safe-pb">
+        <main className="flex-1 min-w-0 w-full max-w-full overflow-x-hidden safe-pb">
           {children}
         </main>
       </div>

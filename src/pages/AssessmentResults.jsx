@@ -14,6 +14,7 @@ import {
   fromDatetimeLocalValue,
 } from '@/lib/assessment-admin';
 import { unwrapItems } from '@/lib/assessment-ui';
+import ResponsiveTable from '@/components/responsive/ResponsiveTable';
 
 export default function AssessmentResults() {
   const navigate = useNavigate();
@@ -157,62 +158,45 @@ export default function AssessmentResults() {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/80">
-          <table className="w-full text-sm min-w-[720px]">
-            <thead>
-              <tr className="text-left text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
-                <th className="p-3 font-medium">Студент</th>
-                <th className="p-3 font-medium">Экзамен</th>
-                <th className="p-3 font-medium">Балл</th>
-                <th className="p-3 font-medium">Макс.</th>
-                <th className="p-3 font-medium">%</th>
-                <th className="p-3 font-medium">Статус</th>
-                <th className="p-3 font-medium">Дата</th>
-                <th className="p-3 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {results.map((row) => (
-                <tr
-                  key={row.id}
-                  className="border-b border-slate-100 dark:border-slate-800 last:border-0 hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
-                >
-                  <td className="p-3 text-slate-800 dark:text-slate-100">
-                    {row.student_name}
-                  </td>
-                  <td className="p-3 text-slate-700 dark:text-slate-200">
-                    {row.exam_name}
-                  </td>
-                  <td className="p-3">{row.score ?? '—'}</td>
-                  <td className="p-3">{row.max_score ?? '—'}</td>
-                  <td className="p-3">
-                    {row.percent != null ? `${Number(row.percent).toFixed(0)}%` : '—'}
-                  </td>
-                  <td className="p-3">
-                    <ResultStatusBadge status={row.status} />
-                  </td>
-                  <td className="p-3 text-slate-500">
-                    {formatDateTime(row.finished_at || row.created_at)}
-                  </td>
-                  <td className="p-3 text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        navigate(
-                          `${createPageUrl('AssessmentResultDetail')}?id=${encodeURIComponent(row.id)}`,
-                        )
-                      }
-                    >
-                      <Eye className="h-3.5 w-3.5 mr-1" />
-                      Открыть
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ResponsiveTable
+          rows={results}
+          cardTitle={(row) => row.student_name}
+          columns={[
+            { id: 'exam', header: 'Экзамен', cell: (row) => row.exam_name },
+            { id: 'score', header: 'Балл', cell: (row) => row.score ?? '—' },
+            { id: 'max', header: 'Макс.', cell: (row) => row.max_score ?? '—' },
+            {
+              id: 'percent',
+              header: '%',
+              cell: (row) => (row.percent != null ? `${Number(row.percent).toFixed(0)}%` : '—'),
+            },
+            {
+              id: 'status',
+              header: 'Статус',
+              cell: (row) => <ResultStatusBadge status={row.status} />,
+            },
+            {
+              id: 'date',
+              header: 'Дата',
+              cell: (row) => formatDateTime(row.finished_at || row.created_at),
+            },
+          ]}
+          cardActions={(row) => (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto"
+              onClick={() =>
+                navigate(
+                  `${createPageUrl('AssessmentResultDetail')}?id=${encodeURIComponent(row.id)}`,
+                )
+              }
+            >
+              <Eye className="h-3.5 w-3.5 mr-1" />
+              Открыть
+            </Button>
+          )}
+        />
       )}
     </div>
   );

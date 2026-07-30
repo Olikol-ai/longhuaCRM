@@ -357,7 +357,35 @@ export default function GroupDetail() {
               В группе пока нет учеников. Добавьте первого выше.
             </p>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-slate-100 dark:border-slate-800">
+            <>
+            <div className="lg:hidden space-y-3">
+              {members.map((member) => {
+                const student = students.find(
+                  (s) => s.id === (member.student_id ?? member.studentId),
+                );
+                return (
+                  <article
+                    key={member.id}
+                    className="rounded-xl border border-slate-100 dark:border-slate-800 p-4 space-y-2"
+                  >
+                    <p className="font-medium break-words">
+                      {student?.name
+                        || resolveStudentLabel(member.student_id ?? member.studentId, students)}
+                    </p>
+                    <p className="text-sm text-muted-foreground break-all">{student?.email || '—'}</p>
+                    <p className="text-xs text-muted-foreground">{student?.status || '—'}</p>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveMember(member.id)}
+                      className="inline-flex items-center gap-1 px-3 py-2 min-h-touch text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-md"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Удалить
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+            <div className="hidden lg:block overflow-x-auto rounded-lg border border-slate-100 dark:border-slate-800">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 dark:bg-slate-800/60 text-left text-xs text-muted-foreground">
                   <tr>
@@ -399,6 +427,7 @@ export default function GroupDetail() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
       )}

@@ -334,7 +334,36 @@ export default function TeacherSchedule() {
             </Button>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-x-auto shadow-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+            {/* Mobile month: vertical day list */}
+            <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+              {monthDays.filter((day) => isSameMonth(day, currentDate)).map((day) => {
+                const dayStr = format(day, "yyyy-MM-dd");
+                const dayLessons = getLessonsForDay(dayStr);
+                return (
+                  <button
+                    key={dayStr}
+                    type="button"
+                    onClick={() => setSelectedDay(day)}
+                    className="w-full text-left px-4 py-3 min-h-touch hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`text-sm font-semibold ${isToday(day) ? 'text-brand' : ''}`}>
+                        {format(day, 'EEEEEE d', { locale: ru })}
+                      </span>
+                      <span className="text-xs text-muted-foreground">{dayLessons.length} ур.</span>
+                    </div>
+                    {dayLessons.slice(0, 3).map((lesson) => (
+                      <p key={lesson.id} className="text-xs text-muted-foreground mt-1 truncate">
+                        {lesson.start_time} {(resolveLessonStudentLabel(lesson, students).split(' ')[0] || '')}
+                      </p>
+                    ))}
+                  </button>
+                );
+              })}
+            </div>
+            {/* Desktop month grid */}
+            <div className="hidden md:block overflow-x-auto">
             <div className="grid grid-cols-7 border-b border-slate-100 dark:border-slate-700 min-w-[520px]">
               {WEEK_DAYS_RU.map((d) => (
                 <div key={d} className="py-3 text-center text-xs font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wide">{d}</div>
@@ -371,6 +400,7 @@ export default function TeacherSchedule() {
                   </div>
                 );
               })}
+            </div>
             </div>
           </div>
 

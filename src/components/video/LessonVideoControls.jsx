@@ -25,29 +25,29 @@ export default function LessonVideoControls({
     >
       <Button
         type="button"
-        size="sm"
+        size="icon"
         variant={audioMuted ? 'destructive' : 'secondary'}
         onClick={onToggleAudio}
         aria-label={audioMuted ? 'Включить микрофон' : 'Выключить микрофон'}
       >
-        {audioMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+        {audioMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
       </Button>
       <Button
         type="button"
-        size="sm"
+        size="icon"
         variant={videoMuted ? 'destructive' : 'secondary'}
         onClick={onToggleVideo}
         aria-label={videoMuted ? 'Включить камеру' : 'Выключить камеру'}
       >
-        {videoMuted ? <VideoOff className="h-4 w-4" /> : <Video className="h-4 w-4" />}
+        {videoMuted ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}
       </Button>
-      <Button type="button" size="sm" variant="secondary" onClick={onShareScreen}>
-        <MonitorUp className="h-4 w-4 mr-1" /> Экран
+      <Button type="button" size="sm" variant="secondary" className="min-h-touch" onClick={onShareScreen}>
+        <MonitorUp className="h-4 w-4 mr-1" /> <span className="hidden xs:inline sm:inline">Экран</span>
       </Button>
-      <Button type="button" size="sm" variant="secondary" onClick={onFullscreen}>
-        <Maximize className="h-4 w-4 mr-1" /> Полный экран
+      <Button type="button" size="sm" variant="secondary" className="min-h-touch" onClick={onFullscreen}>
+        <Maximize className="h-4 w-4 mr-1" /> <span className="hidden sm:inline">Полный экран</span>
       </Button>
-      <Button type="button" size="sm" variant="destructive" onClick={onHangup}>
+      <Button type="button" size="sm" variant="destructive" className="min-h-touch" onClick={onHangup}>
         <PhoneOff className="h-4 w-4 mr-1" /> Завершить
       </Button>
     </div>

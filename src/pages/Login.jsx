@@ -88,12 +88,12 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <BookOpen className="h-10 w-10 text-brand" />
-            <h1 className="text-3xl font-bold text-foreground tracking-tight">Longhua Academy</h1>
+    <div className="min-h-screen flex items-center justify-center bg-background page-pad safe-pb">
+      <div className="w-full max-w-md min-w-0">
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="flex items-center justify-center gap-2 mb-3 min-w-0">
+            <BookOpen className="h-9 w-9 sm:h-10 sm:w-10 text-brand shrink-0" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight truncate">Longhua Academy</h1>
           </div>
           <p className="text-muted-foreground">Платформа управления языковой школой</p>
         </div>
@@ -103,7 +103,7 @@ export default function Login() {
             <button
               type="button"
               onClick={() => setMode('login')}
-              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${
+              className={`flex-1 min-h-touch py-2.5 text-sm font-semibold rounded-lg transition-colors ${
                 mode === 'login' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'
               }`}
             >
@@ -112,7 +112,7 @@ export default function Login() {
             <button
               type="button"
               onClick={() => setMode('register')}
-              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${
+              className={`flex-1 min-h-touch py-2.5 text-sm font-semibold rounded-lg transition-colors ${
                 mode === 'register' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'
               }`}
             >
