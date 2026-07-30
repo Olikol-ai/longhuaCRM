@@ -49,8 +49,7 @@ describe('lesson-video helpers', () => {
     assert.equal(config.defaultLanguage, 'ru');
     assert.equal(config.enableLobby, false);
     assert.equal(config.subject, 'HSK 2');
-    assert.ok(config.toolbarButtons.includes('microphone'));
-    assert.ok(config.toolbarButtons.includes('chat'));
+    assert.equal(config.toolbarButtons.length, 0);
     assert.ok(!config.toolbarButtons.includes('invite'));
 
     const ui = buildJitsiInterfaceConfigOverwrite();
@@ -74,6 +73,8 @@ describe('Video lesson UI contract', () => {
     const page = readFileSync(join(root, 'pages/LessonVideo.jsx'), 'utf8');
     const embed = readFileSync(join(root, 'components/video/JitsiLessonEmbed.jsx'), 'utf8');
     const prejoin = readFileSync(join(root, 'components/video/VideoPrejoin.jsx'), 'utf8');
+    const controls = readFileSync(join(root, 'components/video/LessonVideoControls.jsx'), 'utf8');
+    const rail = readFileSync(join(root, 'components/video/LessonVideoSideRail.jsx'), 'utf8');
     const teacher = readFileSync(join(root, 'pages/TeacherSchedule.jsx'), 'utf8');
     const student = readFileSync(join(root, 'pages/StudentLessons.jsx'), 'utf8');
     const layout = readFileSync(join(root, 'Layout.jsx'), 'utf8');
@@ -81,17 +82,19 @@ describe('Video lesson UI contract', () => {
     assert.match(page, /Longhua/);
     assert.match(page, /Китайский язык/);
     assert.match(page, /Войти в урок|Начать урок/);
-    assert.match(page, /Завершить урок/);
-    assert.match(page, /Материалы/);
-    assert.match(page, /Домашнее задание/);
-    assert.match(page, /Чат/);
+    assert.match(page, /LessonVideoSideRail/);
+    assert.match(page, /LessonVideoControls/);
+    assert.match(controls, /Завершить/);
+    assert.match(rail, /Материалы/);
+    assert.match(rail, /Домашнее задание|ДЗ/);
+    assert.match(rail, /Чат/);
     assert.match(prejoin, /Проверка оборудования/);
     assert.match(prejoin, /Камера/);
     assert.match(prejoin, /Микрофон/);
     assert.match(embed, /JitsiMeetExternalAPI/);
     assert.match(embed, /loadJitsiExternalApi/);
     assert.match(embed, /executeCommand\('displayName'/);
-    assert.match(embed, /CRM guest|guest|displayName/);
+    assert.match(embed, /displayName/);
     assert.match(layout, /LessonVideo/);
     assert.match(teacher, /Начать видеоурок/);
     assert.match(student, /Войти в видеоурок/);

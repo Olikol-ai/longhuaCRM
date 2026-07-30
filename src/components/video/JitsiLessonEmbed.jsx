@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import {
   buildJitsiConfigOverwrite,
   buildJitsiInterfaceConfigOverwrite,
@@ -8,32 +8,59 @@ import {
 } from '@/lib/lesson-video';
 
 /**
- * Embeds a lesson via JitsiMeetExternalAPI as a CRM guest.
- * Identity (name / role / subject) is supplied by LonghuaCRM — no Jitsi account.
+ * Embeds a lesson via JitsiMeetExternalAPI.
+ * Native toolbar is hidden — control via ref.executeCommand from CRM shell.
  */
-export default function JitsiLessonEmbed({
-  domain,
-  roomName,
-  roomUrl,
-  displayName,
-  subject = null,
-  externalApiUrl,
-  jwt = null,
-  onLeft,
-  onJoined,
-  onError,
-}) {
+const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
+  {
+    domain,
+    roomName,
+    roomUrl,
+    displayName,
+    subject = null,
+    externalApiUrl,
+    jwt = null,
+    onLeft,
+    onJoined,
+    onError,
+    onAudioMuteChanged,
+    onVideoMuteChanged,
+  },
+  ref,
+) {
   const containerRef = useRef(null);
   const apiRef = useRef(null);
   const onLeftRef = useRef(onLeft);
   const onJoinedRef = useRef(onJoined);
   const onErrorRef = useRef(onError);
+  const onAudioMuteChangedRef = useRef(onAudioMuteChanged);
+  const onVideoMuteChangedRef = useRef(onVideoMuteChanged);
 
   useEffect(() => {
     onLeftRef.current = onLeft;
     onJoinedRef.current = onJoined;
     onErrorRef.current = onError;
-  }, [onLeft, onJoined, onError]);
+    onAudioMuteChangedRef.current = onAudioMuteChanged;
+    onVideoMuteChangedRef.current = onVideoMuteChanged;
+  }, [onLeft, onJoined, onError, onAudioMuteChanged, onVideoMuteChanged]);
+
+  useImperativeHandle(ref, () => ({
+    executeCommand: (command, ...args) => {
+      try {
+        apiRef.current?.executeCommand?.(command, ...args);
+      } catch {
+        // ignore
+      }
+    },
+    dispose: () => {
+      try {
+        apiRef.current?.dispose?.();
+      } catch {
+        // ignore
+      }
+      apiRef.current = null;
+    },
+  }));
 
   useEffect(() => {
     let cancelled = false;
@@ -64,7 +91,6 @@ export default function JitsiLessonEmbed({
             hardenJitsiIframe(apiRef.current);
           },
         };
-        // CRM-issued guest JWT (self-hosted token auth) — never a personal Jitsi login.
         if (jwt) options.jwt = jwt;
 
         const api = new JitsiMeetExternalAPI(host, options);
@@ -81,7 +107,7 @@ export default function JitsiLessonEmbed({
             if (displayName) api.executeCommand('displayName', displayName);
             if (subject) api.executeCommand('subject', subject);
           } catch {
-            // ignore — older hosts may lack commands
+            // ignore
           }
         };
 
@@ -96,8 +122,13 @@ export default function JitsiLessonEmbed({
         api.addListener('videoConferenceLeft', () => {
           onLeftRef.current?.();
         });
+        api.addListener('audioMuteStatusChanged', (e) => {
+          onAudioMuteChangedRef.current?.(Boolean(e?.muted));
+        });
+        api.addListener('videoMuteStatusChanged', (e) => {
+          onVideoMuteChangedRef.current?.(Boolean(e?.muted));
+        });
 
-        // Apply as early as the API allows (guest path, no login popup).
         applyIdentity();
       } catch (err) {
         if (!cancelled) onErrorRef.current?.(err);
@@ -123,4 +154,6 @@ export default function JitsiLessonEmbed({
       data-testid="lesson-video-jitsi"
     />
   );
-}
+});
+
+export default JitsiLessonEmbed;

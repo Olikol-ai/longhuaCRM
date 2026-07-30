@@ -42,6 +42,11 @@ export class ChatEntity {
   @JoinColumn({ name: 'course_template_id' })
   courseTemplate?: CourseTemplateEntity | null;
 
+  /** Optional 1:1 lesson group chat (video lesson side panel). */
+  @Index('IDX_CHATS_LESSON_ID')
+  @Column({ name: 'lesson_id', type: 'uuid', nullable: true })
+  lessonId: string | null;
+
   @Column({ type: 'text' })
   title: string;
 

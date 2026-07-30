@@ -45,6 +45,7 @@ export type VideoAccessInput = {
   displayName: string;
   userId: string;
   email?: string | null;
+  avatarUrl?: string | null;
   roleLabel: string;
   isModerator: boolean;
   subject?: string | null;

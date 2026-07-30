@@ -5,10 +5,24 @@ import { toLessonWritePayload } from '../lib/lessonPayload';
 export { toLessonWritePayload } from '../lib/lessonPayload';
 
 const lessonsClient = createDomainClient('/lessons');
-const attendance = createDomainClient('/lessons/attendance', {
-  listPath: '/lessons/attendance',
-  filterPath: '/lessons/attendance/filter',
-});
+const attendance = {
+  ...createDomainClient('/lessons/attendance', {
+    listPath: '/lessons/attendance',
+    filterPath: '/lessons/attendance/filter',
+  }),
+  present(id) {
+    return apiFetch(`/lessons/attendance/${encodeURIComponent(id)}/present`, {
+      method: 'PATCH',
+      body: '{}',
+    });
+  },
+  absent(id) {
+    return apiFetch(`/lessons/attendance/${encodeURIComponent(id)}/absent`, {
+      method: 'PATCH',
+      body: '{}',
+    });
+  },
+};
 
 export const lessons = {
   ...lessonsClient,

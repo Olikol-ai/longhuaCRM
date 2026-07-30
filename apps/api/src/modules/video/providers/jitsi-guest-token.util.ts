@@ -10,17 +10,17 @@ export type JitsiGuestTokenInput = {
   isModerator: boolean;
   /** Lesson subject shown in the conference. */
   subject?: string | null;
-  /** Token lifetime in seconds (default 6 hours). */
+  /** Token lifetime in seconds (default 15 minutes). */
   expiresInSec?: number;
 };
 
 /**
  * HS256 JWT for self-hosted Jitsi (Prosody token auth).
- * CRM users never create a Jitsi account — the CRM signs short-lived guest tokens.
+ * Prefer JitsiJwtService in production paths — this util remains for unit tests.
  */
 export function createJitsiGuestToken(input: JitsiGuestTokenInput): string {
   const now = Math.floor(Date.now() / 1000);
-  const exp = now + (input.expiresInSec ?? 6 * 60 * 60);
+  const exp = now + (input.expiresInSec ?? 15 * 60);
   const payload = {
     aud: 'jitsi',
     iss: input.appId,

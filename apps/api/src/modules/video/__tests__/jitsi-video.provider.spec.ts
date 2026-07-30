@@ -1,98 +1,82 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { verify } from 'jsonwebtoken';
+import { JitsiJwtService } from '../providers/jitsi-jwt.service';
 import { JitsiVideoProvider } from '../providers/jitsi-video.provider';
 import {
   createJitsiGuestToken,
   isAccountRequiredJitsiHost,
 } from '../providers/jitsi-guest-token.util';
-import { verify } from 'jsonwebtoken';
 
-describe('JitsiVideoProvider guest access', () => {
-  const config = {
-    get: jest.fn((key: string) => {
-      if (key === 'video.jitsiBaseUrl') return 'https://meet.example.test';
-      if (key === 'video.jitsiJwtAppId') return '';
-      if (key === 'video.jitsiJwtAppSecret') return '';
-      return undefined;
-    }),
+function jwtConfig(overrides: Record<string, string> = {}): ConfigService {
+  const map: Record<string, string> = {
+    'video.jitsiBaseUrl': 'https://lk.example.test/meet',
+    'video.jitsiJwtAppId': 'longhua_crm',
+    'video.jitsiJwtAppSecret': 'secret-test-key',
+    'video.jitsiJwtTtlSeconds': '900',
+    ...overrides,
+  };
+  return {
+    get: (key: string) => map[key],
   } as unknown as ConfigService;
+}
 
-  const provider = new JitsiVideoProvider(config);
+describe('JitsiVideoProvider corporate JWT', () => {
+  const config = jwtConfig();
+  const jitsiJwt = new JitsiJwtService(config);
+  const provider = new JitsiVideoProvider(config, jitsiJwt);
 
-  it('creates a room named longhua-{lesson_id} on guest host', () => {
+  it('creates a UUID room (not longhua-{lesson_id})', () => {
     const room = provider.createRoom({ id: '12345' });
     expect(room.provider).toBe('jitsi');
-    expect(room.roomId).toBe('longhua-12345');
-    expect(room.roomUrl).toBe('https://meet.example.test/longhua-12345');
+    expect(room.roomId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(room.roomId).not.toContain('longhua');
+    expect(room.roomUrl).toBe(`https://lk.example.test/meet/${room.roomId}`);
   });
 
   it('builds getRoomUrl from current base URL', () => {
-    expect(provider.getRoomUrl('longhua-abc')).toBe(
-      'https://meet.example.test/longhua-abc',
+    expect(provider.getRoomUrl('abc-room')).toBe(
+      'https://lk.example.test/meet/abc-room',
     );
   });
 
-  it('generates guest access with displayName, role and subject (no account)', () => {
+  it('always issues CRM JWT with displayName and moderator flag', () => {
     const access = provider.generateAccessData({
-      roomId: 'longhua-1',
-      roomUrl: 'https://meet.jit.si/longhua-1',
+      roomId: 'room-1',
       displayName: 'Иван (преподаватель)',
       userId: 'user-1',
       roleLabel: 'преподаватель',
       isModerator: true,
       subject: 'HSK 2. Урок 5',
     });
-    expect(access.provider).toBe('jitsi');
-    expect(access.domain).toBe('meet.example.test');
-    expect(access.roomUrl).toBe('https://meet.example.test/longhua-1');
-    expect(access.hostRequiresAccount).toBe(false);
-    expect(access.token).toBeNull();
-    expect(access.subject).toBe('HSK 2. Урок 5');
-    expect(access.roleLabel).toBe('преподаватель');
-    expect(access.displayName).toBe('Иван (преподаватель)');
-  });
-
-  it('issues CRM guest JWT when JWT secrets are configured', () => {
-    const withJwt = new JitsiVideoProvider({
-      get: (key: string) => {
-        if (key === 'video.jitsiBaseUrl') return 'https://meet.example.test';
-        if (key === 'video.jitsiJwtAppId') return 'longhua_crm';
-        if (key === 'video.jitsiJwtAppSecret') return 'secret-test-key';
-        return undefined;
-      },
-    } as unknown as ConfigService);
-
-    const access = withJwt.generateAccessData({
-      roomId: 'longhua-9',
-      displayName: 'Анна (ученик)',
-      userId: 'stu-1',
-      roleLabel: 'ученик',
-      isModerator: false,
-      subject: 'Онлайн-урок',
-    });
-
     expect(access.token).toBeTruthy();
+    expect(access.hostRequiresAccount).toBe(false);
+    expect(access.domain).toBe('lk.example.test');
     const payload = verify(access.token as string, 'secret-test-key') as {
       context: { user: { name: string; moderator: boolean } };
       room: string;
+      jti: string;
     };
-    expect(payload.room).toBe('longhua-9');
-    expect(payload.context.user.name).toBe('Анна (ученик)');
-    expect(payload.context.user.moderator).toBe(false);
-    expect(access.hostRequiresAccount).toBe(false);
+    expect(payload.room).toBe('room-1');
+    expect(payload.context.user.name).toBe('Иван (преподаватель)');
+    expect(payload.context.user.moderator).toBe(true);
+    expect(payload.jti).toBeTruthy();
   });
 
-  it('rejects public meet.jit.si without CRM guest JWT', () => {
-    const publicProvider = new JitsiVideoProvider({
-      get: (key: string) => {
-        if (key === 'video.jitsiBaseUrl') return 'https://meet.jit.si';
-        return '';
-      },
-    } as unknown as ConfigService);
+  it('rejects public meet.jit.si even when JWT secrets exist', () => {
+    const publicConfig = jwtConfig({
+      'video.jitsiBaseUrl': 'https://meet.jit.si',
+    });
+    const publicProvider = new JitsiVideoProvider(
+      publicConfig,
+      new JitsiJwtService(publicConfig),
+    );
 
     expect(() =>
       publicProvider.generateAccessData({
-        roomId: 'longhua-9',
+        roomId: 'room-9',
         displayName: 'Учитель',
         userId: 't1',
         roleLabel: 'преподаватель',
@@ -101,8 +85,19 @@ describe('JitsiVideoProvider guest access', () => {
     ).toThrow(ServiceUnavailableException);
   });
 
+  it('requires JWT secrets', () => {
+    const bare = jwtConfig({
+      'video.jitsiJwtAppId': '',
+      'video.jitsiJwtAppSecret': '',
+    });
+    const bareProvider = new JitsiVideoProvider(bare, new JitsiJwtService(bare));
+    expect(() => bareProvider.createRoom({ id: 'x' })).toThrow(
+      ServiceUnavailableException,
+    );
+  });
+
   it('deleteRoom is a no-op', () => {
-    expect(() => provider.deleteRoom('longhua-1')).not.toThrow();
+    expect(() => provider.deleteRoom('room-1')).not.toThrow();
   });
 });
 
@@ -116,7 +111,7 @@ describe('jitsi guest token util', () => {
     const token = createJitsiGuestToken({
       appId: 'longhua_crm',
       appSecret: 'secret',
-      roomName: 'longhua-1',
+      roomName: 'room-1',
       userId: 'u1',
       displayName: 'Пётр',
       isModerator: true,

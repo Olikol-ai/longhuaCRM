@@ -5,10 +5,14 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { LessonAccessService } from '../../common/access/lesson-access.service';
 import { JwtPayload } from '../auth/auth.service';
+import { ChatEntity } from '../chats/entities/chat.entity';
+import { ChatMemberEntity } from '../chats/entities/chat-member.entity';
+import { ChatKind, ChatMemberRole, ChatStatus } from '../chats/enums/chat.enums';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
+import { AttendanceEntity } from '../lessons/entities/attendance.entity';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { UserEntity } from '../users/entities/user.entity';
@@ -18,6 +22,11 @@ import {
   VideoProvider,
 } from './providers/video-provider.interface';
 import { Inject } from '@nestjs/common';
+
+function isLegacyJitsiRoomId(roomId: string | null | undefined): boolean {
+  const id = String(roomId || '');
+  return /^longhua-/i.test(id) || !id;
+}
 
 @Injectable()
 export class VideoService {
@@ -31,6 +40,12 @@ export class VideoService {
     private readonly students: Repository<StudentEntity>,
     @InjectRepository(UserEntity)
     private readonly users: Repository<UserEntity>,
+    @InjectRepository(AttendanceEntity)
+    private readonly attendance: Repository<AttendanceEntity>,
+    @InjectRepository(ChatEntity)
+    private readonly chats: Repository<ChatEntity>,
+    @InjectRepository(ChatMemberEntity)
+    private readonly chatMembers: Repository<ChatMemberEntity>,
     private readonly lessonAccess: LessonAccessService,
     private readonly config: ConfigService,
   ) {}
@@ -47,14 +62,34 @@ export class VideoService {
     return `${base}/lesson/${lessonId}/video`;
   }
 
+  private appPublicBase(): string {
+    return (
+      this.config.get<string>('appPublicUrl') ||
+      process.env.APP_PUBLIC_URL ||
+      ''
+    ).replace(/\/$/, '');
+  }
+
+  buildAvatarUrl(userId: string, hasAvatar: boolean): string | null {
+    if (!hasAvatar || !userId) return null;
+    const base = this.appPublicBase();
+    if (!base) return null;
+    return `${base}/api/users/${userId}/avatar?thumb=1`;
+  }
+
   /**
    * Allocate provider room fields on an online lesson (idempotent).
+   * Legacy `longhua-{lessonId}` rooms are rotated to random UUIDs on next ensure.
    */
   async ensureLessonVideo(lesson: LessonEntity): Promise<LessonEntity> {
     if (lesson.lessonFormat !== 'online') {
       return lesson;
     }
-    if (lesson.videoRoomId && lesson.videoRoomUrl) {
+    if (
+      lesson.videoRoomId &&
+      lesson.videoRoomUrl &&
+      !isLegacyJitsiRoomId(lesson.videoRoomId)
+    ) {
       return lesson;
     }
 
@@ -62,7 +97,7 @@ export class VideoService {
     lesson.videoProvider = room.provider;
     lesson.videoRoomId = room.roomId;
     lesson.videoRoomUrl = room.roomUrl;
-    if (!lesson.meetingLink) {
+    if (!lesson.meetingLink || /jit\.si|8x8\.vc/i.test(lesson.meetingLink)) {
       lesson.meetingLink = this.buildCrmJoinUrl(lesson.id);
     }
     return this.lessons.save(lesson);
@@ -85,13 +120,28 @@ export class VideoService {
     lesson = await this.syncLessonVideoUrl(lesson);
 
     const viewerRole = this.resolveViewerRole(actor.role);
-    const isHost = viewerRole === 'teacher' || viewerRole === 'admin';
+    const isHost =
+      viewerRole === 'teacher' ||
+      viewerRole === 'admin' ||
+      viewerRole === 'tutor';
+    const window = this.resolveLessonWindow(lesson);
+    if (!window.can_join && !isHost) {
+      throw new ForbiddenException(
+        'Вход в видеоурок доступен за 10 минут до начала и до 30 минут после окончания',
+      );
+    }
+
     const roleLabel = this.roleLabelRu(viewerRole);
     const title = this.resolveLessonTitle(lesson);
-    const baseDisplayName = await this.resolveDisplayName(actor);
+    const user = await this.users.findOne({ where: { id: actor.sub } });
+    const baseDisplayName = await this.resolveDisplayName(actor, user);
     const displayName = roleLabel
       ? `${baseDisplayName} (${roleLabel})`
       : baseDisplayName;
+    const avatarUrl = this.buildAvatarUrl(
+      actor.sub,
+      Boolean(user?.avatarFilePath || user?.avatarThumbPath),
+    );
 
     const access = await this.provider.generateAccessData({
       roomId: lesson.videoRoomId as string,
@@ -99,6 +149,7 @@ export class VideoService {
       displayName,
       userId: actor.sub,
       email: actor.email,
+      avatarUrl,
       roleLabel,
       isModerator: isHost,
       subject: title,
@@ -106,11 +157,17 @@ export class VideoService {
 
     const teacherName =
       lesson.teacher?.name?.trim() ||
-      composeDisplayName(lesson.teacher?.firstName, lesson.teacher?.lastName, 'Преподаватель');
+      composeDisplayName(
+        lesson.teacher?.firstName,
+        lesson.teacher?.lastName,
+        'Преподаватель',
+      );
 
-    const window = this.resolveLessonWindow(lesson);
     const startLabel = this.formatClock(lesson.startTime);
-    const endLabel = this.formatEndClock(lesson.startTime, lesson.duration || 60);
+    const endLabel = this.formatEndClock(
+      lesson.startTime,
+      lesson.duration || 60,
+    );
 
     return {
       lesson_id: lesson.id,
@@ -131,6 +188,7 @@ export class VideoService {
       conference_subject: access.subject || title,
       role_label: access.roleLabel,
       guest_access: true,
+      jwt_required: true,
       lesson: {
         id: lesson.id,
         title,
@@ -144,6 +202,7 @@ export class VideoService {
         lesson_format: lesson.lessonFormat,
         notes: lesson.notes,
         teacher_name: teacherName,
+        course_name: null as string | null,
         student_name:
           lesson.primaryStudent?.name?.trim() ||
           composeDisplayName(
@@ -159,7 +218,168 @@ export class VideoService {
   }
 
   /**
-   * Keep video_room_url aligned with current JITSI_BASE_URL (guest host).
+   * Participants for the lesson side panel (teacher + attendance students).
+   */
+  async getLessonParticipants(actor: JwtPayload, lessonId: string) {
+    await this.lessonAccess.assertCanReadLesson(actor, lessonId);
+    const lesson = await this.lessons.findOne({
+      where: { id: lessonId },
+      relations: ['teacher', 'primaryStudent'],
+    });
+    if (!lesson) throw new NotFoundException('Урок не найден');
+
+    const rows = await this.attendance.find({ where: { lessonId } });
+    const studentIds = [
+      ...new Set(
+        [
+          ...rows.map((r) => r.studentId),
+          lesson.primaryStudentId,
+        ].filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const students =
+      studentIds.length > 0
+        ? await this.students.find({ where: { id: In(studentIds) } })
+        : [];
+    const byId = new Map(students.map((s) => [s.id, s]));
+
+    const participants: Array<{
+      role: string;
+      name: string;
+      student_id?: string;
+      attendance_id?: string;
+      attendance_status?: string;
+    }> = [];
+
+    if (lesson.teacher) {
+      participants.push({
+        role: 'teacher',
+        name:
+          lesson.teacher.name?.trim() ||
+          composeDisplayName(
+            lesson.teacher.firstName,
+            lesson.teacher.lastName,
+            'Преподаватель',
+          ),
+      });
+    }
+
+    for (const row of rows) {
+      if (!row.studentId) continue;
+      const student = byId.get(row.studentId);
+      participants.push({
+        role: 'student',
+        student_id: row.studentId,
+        attendance_id: row.id,
+        attendance_status: row.attendanceStatus,
+        name:
+          student?.name?.trim() ||
+          composeDisplayName(student?.firstName, student?.lastName, 'Ученик'),
+      });
+    }
+
+    if (rows.length === 0 && lesson.primaryStudent) {
+      participants.push({
+        role: 'student',
+        student_id: lesson.primaryStudent.id,
+        name:
+          lesson.primaryStudent.name?.trim() ||
+          composeDisplayName(
+            lesson.primaryStudent.firstName,
+            lesson.primaryStudent.lastName,
+            'Ученик',
+          ),
+      });
+    }
+
+    return { lesson_id: lessonId, participants };
+  }
+
+  /**
+   * Find-or-create a group chat bound to the lesson (relational lesson_id).
+   */
+  async ensureLessonChat(actor: JwtPayload, lessonId: string): Promise<ChatEntity> {
+    await this.lessonAccess.assertCanReadLesson(actor, lessonId);
+    const lesson = await this.lessons.findOne({
+      where: { id: lessonId },
+      relations: ['teacher', 'primaryStudent'],
+    });
+    if (!lesson) throw new NotFoundException('Урок не найден');
+
+    let chat = await this.chats.findOne({ where: { lessonId } });
+    if (chat) {
+      await this.ensureChatMember(chat.id, actor.sub, ChatMemberRole.Member);
+      return chat;
+    }
+
+    const title = `Урок: ${this.resolveLessonTitle(lesson)}`;
+    chat = await this.chats.save(
+      this.chats.create({
+        kind: ChatKind.Group,
+        title,
+        description: `Чат урока ${lessonId}`,
+        status: ChatStatus.Active,
+        createdByUserId: actor.sub,
+        subjectId: null,
+        courseTemplateId: null,
+        lessonId,
+      }),
+    );
+
+    const memberUserIds = new Set<string>([actor.sub]);
+    if (lesson.teacher?.userId) memberUserIds.add(lesson.teacher.userId);
+    if (lesson.primaryStudent?.userId) {
+      memberUserIds.add(lesson.primaryStudent.userId);
+    }
+    const attendanceRows = await this.attendance.find({ where: { lessonId } });
+    const studentIds = attendanceRows
+      .map((r) => r.studentId)
+      .filter((id): id is string => Boolean(id));
+    if (studentIds.length) {
+      const students = await this.students.find({ where: { id: In(studentIds) } });
+      for (const s of students) {
+        if (s.userId) memberUserIds.add(s.userId);
+      }
+    }
+
+    for (const userId of memberUserIds) {
+      const role =
+        userId === actor.sub || userId === lesson.teacher?.userId
+          ? ChatMemberRole.Owner
+          : ChatMemberRole.Member;
+      await this.ensureChatMember(chat.id, userId, role);
+    }
+
+    return chat;
+  }
+
+  private async ensureChatMember(
+    chatId: string,
+    userId: string,
+    role: ChatMemberRole,
+  ): Promise<void> {
+    const existing = await this.chatMembers.findOne({
+      where: { chatId, userId },
+    });
+    if (existing) {
+      if (existing.hiddenAt) {
+        existing.hiddenAt = null;
+        await this.chatMembers.save(existing);
+      }
+      return;
+    }
+    await this.chatMembers.save(
+      this.chatMembers.create({
+        chatId,
+        userId,
+        role,
+        hiddenAt: null,
+      }),
+    );
+  }
+
+  /**
+   * Keep video_room_url aligned with current JITSI_BASE_URL.
    * Old rows pointing at meet.jit.si are rewritten on access.
    */
   private async syncLessonVideoUrl(lesson: LessonEntity): Promise<LessonEntity> {
@@ -170,27 +390,29 @@ export class VideoService {
     }
     lesson.videoProvider = 'jitsi';
     lesson.videoRoomUrl = freshUrl;
-    if (!lesson.meetingLink) {
+    if (!lesson.meetingLink || /jit\.si|8x8\.vc/i.test(lesson.meetingLink)) {
       lesson.meetingLink = this.buildCrmJoinUrl(lesson.id);
     }
     return this.lessons.save(lesson);
   }
 
   private roleLabelRu(
-    role: 'admin' | 'teacher' | 'student' | 'guest',
+    role: 'admin' | 'teacher' | 'tutor' | 'student' | 'guest',
   ): string {
     if (role === 'admin') return 'администратор';
     if (role === 'teacher') return 'преподаватель';
+    if (role === 'tutor') return 'тьютор';
     if (role === 'student') return 'ученик';
     return 'участник';
   }
 
   private resolveViewerRole(
     role: string | undefined,
-  ): 'admin' | 'teacher' | 'student' | 'guest' {
+  ): 'admin' | 'teacher' | 'tutor' | 'student' | 'guest' {
     const r = String(role || '').toLowerCase();
     if (r === 'admin') return 'admin';
-    if (r === 'teacher' || r === 'tutor') return 'teacher';
+    if (r === 'teacher') return 'teacher';
+    if (r === 'tutor') return 'tutor';
     if (r === 'student' || r === 'tutor_student') return 'student';
     return 'guest';
   }
@@ -218,7 +440,6 @@ export class VideoService {
     return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
   }
 
-
   resolveLessonWindow(lesson: LessonEntity): {
     starts_at: string;
     ends_at: string;
@@ -229,7 +450,6 @@ export class VideoService {
     const start = this.getLessonStart(lesson);
     const end = new Date(start.getTime() + (lesson.duration || 60) * 60_000);
     const now = Date.now();
-    // Allow join 10 minutes before start through end + 30 minutes grace.
     const joinFrom = start.getTime() - 10 * 60_000;
     const joinUntil = end.getTime() + 30 * 60_000;
     const minutesUntilStart = Math.round((start.getTime() - now) / 60_000);
@@ -255,17 +475,20 @@ export class VideoService {
     return new Date(year, month - 1, day, hours, minutes || 0);
   }
 
-  private async resolveDisplayName(actor: JwtPayload): Promise<string> {
-    const user = await this.users.findOne({ where: { id: actor.sub } });
-    if (user) {
-      const composed = composeDisplayName(user.firstName, user.lastName, user.email);
+  private async resolveDisplayName(
+    actor: JwtPayload,
+    user?: UserEntity | null,
+  ): Promise<string> {
+    const row = user ?? (await this.users.findOne({ where: { id: actor.sub } }));
+    if (row) {
+      const composed = composeDisplayName(row.firstName, row.lastName, row.email);
       if (composed) return composed;
     }
-    if (actor.role === 'teacher') {
+    if (actor.role === 'teacher' || actor.role === 'tutor') {
       const teacher = await this.teachers.findOne({ where: { userId: actor.sub } });
       if (teacher?.name?.trim()) return teacher.name.trim();
     }
-    if (actor.role === 'student') {
+    if (actor.role === 'student' || actor.role === 'tutor_student') {
       const student = await this.students.findOne({ where: { userId: actor.sub } });
       if (student?.name?.trim()) return student.name.trim();
     }

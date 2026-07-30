@@ -47,19 +47,8 @@ export function parseJitsiDomain(roomUrl, fallback = 'meet.example.local') {
   }
 }
 
-/** Toolbar buttons kept for Longhua lessons (Russian UX — no invite/recording chrome). */
-export const JITSI_TOOLBAR_BUTTONS = [
-  'microphone',
-  'camera',
-  'desktop',
-  'chat',
-  'fullscreen',
-  'hangup',
-  'settings',
-  'tileview',
-  'select-background',
-  'videoquality',
-];
+/** Native Jitsi toolbar hidden — CRM shell owns mic/cam/screen/hangup. */
+export const JITSI_TOOLBAR_BUTTONS = [];
 
 export function buildJitsiConfigOverwrite(options = {}) {
   const subject = options.subject || null;
@@ -74,16 +63,24 @@ export function buildJitsiConfigOverwrite(options = {}) {
     requireDisplayName: false,
     disableInviteFunctions: true,
     enableInsecureRoomNameWarning: false,
-    hideConferenceSubject: false,
+    hideConferenceSubject: true,
     enableLobby: false,
     lobby: { autoKnock: false },
     notifications: [],
-    toolbarButtons: JITSI_TOOLBAR_BUTTONS,
+    toolbarButtons: [],
     buttonsWithNotifyClick: [],
-    // Guest join: no auth UI — identity comes from CRM via userInfo / JWT.
     disableProfile: true,
     startWithAudioMuted: false,
     startWithVideoMuted: false,
+    hideConferenceTimer: false,
+    disableModeratorIndicator: false,
+    remoteVideoMenu: {
+      disableKick: true,
+      disableGrantModerator: true,
+    },
+    filmstrip: {
+      disableResizable: true,
+    },
   };
   if (subject) {
     config.subject = subject;
@@ -108,9 +105,11 @@ export function buildJitsiInterfaceConfigOverwrite() {
     DISABLE_PRESENCE_STATUS: true,
     DEFAULT_REMOTE_DISPLAY_NAME: 'Участник',
     DEFAULT_LOCAL_DISPLAY_NAME: 'Я',
-    TOOLBAR_BUTTONS: JITSI_TOOLBAR_BUTTONS,
+    TOOLBAR_BUTTONS: [],
     SETTINGS_SECTIONS: ['devices', 'language'],
     HIDE_INVITE_MORE_HEADER: true,
+    DISABLE_FOCUS_INDICATOR: true,
+    FILM_STRIP_MAX_HEIGHT: 90,
   };
 }
 

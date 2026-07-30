@@ -2,7 +2,9 @@
 .env
 .env.local
 .env.*.local
+.env.jitsi
 !.env.example
+!.env.jitsi.example
 
 # Local MCP config (may contain DATABASE_URL credentials)
 .cursor/mcp.json
