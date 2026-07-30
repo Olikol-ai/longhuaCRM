@@ -69,7 +69,23 @@ export const chatsApi = {
     method: 'POST',
     body: JSON.stringify({ text }),
   }),
-  e2ee: (chatId) => apiFetch(`/chats/${chatId}/e2ee`),
+  e2ee: async (chatId) => {
+    const raw = await apiFetch(`/chats/${chatId}/e2ee`);
+    const peersRaw = raw?.peers;
+    return {
+      chatId: raw?.chatId ?? raw?.chat_id ?? chatId,
+      kind: raw?.kind,
+      e2ee: raw?.e2ee !== false,
+      peers: Array.isArray(peersRaw)
+        ? peersRaw.map((peer) => ({
+            userId: peer?.userId ?? peer?.user_id,
+            publicKey: peer?.publicKey ?? peer?.public_key,
+            algorithm: peer?.algorithm,
+            keyVersion: peer?.keyVersion ?? peer?.key_version ?? 1,
+          }))
+        : [],
+    };
+  },
   directory: (filters) => apiFetch(`/chats/directory${queryString(filters)}`),
   updateProfile: (payload) => apiFetch('/chats/profile', {
     method: 'PATCH',

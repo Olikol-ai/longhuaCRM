@@ -104,9 +104,13 @@ export function E2eeProvider({ children }) {
       setBusy(true);
       setError(null);
       try {
-        const me = await api.crypto.me();
+        let me = await api.crypto.me();
         if (!me?.configured) {
+          setBusy(false);
           return setupWithPassword(password);
+        }
+        if (me.needsActivation || me.kdf === 'server-hold-v1') {
+          me = await api.crypto.activateMe(password);
         }
         const privateKey = await unwrapPrivateKey(
           me.wrappedPrivateKey,

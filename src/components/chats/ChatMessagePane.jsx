@@ -195,7 +195,10 @@ export default function ChatMessagePane({
     let cancelled = false;
     (async () => {
       try {
-        const peer = await resolveDirectPeerPublicKey(chat.id, currentUserId);
+        const peerHint = (chat.memberUserIds || []).find(
+          (id) => id && id !== currentUserId,
+        );
+        const peer = await resolveDirectPeerPublicKey(chat.id, currentUserId, peerHint);
         const privateKey = getMyPrivateKey();
         const nextPlain = {};
         const nextErr = {};

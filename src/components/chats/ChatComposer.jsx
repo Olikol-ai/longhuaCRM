@@ -53,7 +53,10 @@ export default function ChatComposer({
     try {
       let message;
       if (isDirect) {
-        const peer = await resolveDirectPeerPublicKey(chat.id, user?.id);
+        const peerHint = (chat.memberUserIds || chat.member_user_ids || []).find(
+          (id) => id && id !== user?.id,
+        );
+        const peer = await resolveDirectPeerPublicKey(chat.id, user?.id, peerHint);
         const encrypted = await encryptDirectMessage({
           plaintext: text,
           myPrivateKey: getMyPrivateKey(),

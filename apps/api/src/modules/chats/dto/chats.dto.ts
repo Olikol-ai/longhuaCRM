@@ -226,6 +226,12 @@ export class UpsertUserCryptoDto {
   keyVersion?: number;
 }
 
+export class ActivateUserCryptoDto {
+  @IsString()
+  @Length(6, 200)
+  password!: string;
+}
+
 export class MarkReadDto {
   @IsUUID('4')
   messageId!: string;
