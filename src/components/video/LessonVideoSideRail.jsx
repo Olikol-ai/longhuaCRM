@@ -5,7 +5,7 @@ import {
   NotebookPen,
   Users,
   MessageCircle,
-  ClipboardCheck,
+  Info,
   Loader2,
   Send,
 } from 'lucide-react';
@@ -15,17 +15,25 @@ import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { userFacingError } from '@/lib/userFacingError';
 import { createPageUrl } from '@/utils';
+import { cn } from '@/lib/utils';
 
 const TABS = [
-  { id: 'materials', label: 'Материалы', icon: BookOpen },
-  { id: 'homework', label: 'ДЗ', icon: NotebookPen },
   { id: 'participants', label: 'Участники', icon: Users },
   { id: 'chat', label: 'Чат', icon: MessageCircle },
-  { id: 'actions', label: 'После урока', icon: ClipboardCheck },
+  { id: 'materials', label: 'Материалы', icon: BookOpen },
+  { id: 'homework', label: 'ДЗ', icon: NotebookPen },
+  { id: 'info', label: 'Инфо', icon: Info },
 ];
 
 function messageBody(row) {
   return row?.body || row?.text || row?.content || '';
+}
+
+function roleLabel(role) {
+  if (role === 'teacher') return 'преподаватель';
+  if (role === 'tutor') return 'репетитор';
+  if (role === 'student') return 'ученик';
+  return role || 'участник';
 }
 
 export default function LessonVideoSideRail({
@@ -36,8 +44,12 @@ export default function LessonVideoSideRail({
   materialsPath,
   homeworkPath,
   compact = false,
+  jitsiParticipantCount = null,
+  timeRange = '',
+  subject = '',
+  connectionLabel = '',
 }) {
-  const [tab, setTab] = useState(isHost ? 'participants' : 'materials');
+  const [tab, setTab] = useState('participants');
   const [participants, setParticipants] = useState([]);
   const [loadingPeople, setLoadingPeople] = useState(false);
   const [chatId, setChatId] = useState(null);
@@ -95,7 +107,7 @@ export default function LessonVideoSideRail({
       setChatId(id);
       const msgs = await chatsApi.messages(id, { limit: 50 });
       const rows = Array.isArray(msgs) ? msgs : msgs?.items || msgs?.messages || [];
-      setMessages(rows);
+      setMessages([...rows].reverse());
       return id;
     } catch (err) {
       toast({
@@ -112,8 +124,8 @@ export default function LessonVideoSideRail({
   useEffect(() => {
     if (tab === 'participants') void loadParticipants();
     if (tab === 'homework') void loadHomework();
-    if (tab === 'chat') void ensureChat();
-  }, [tab, loadParticipants, loadHomework, ensureChat]);
+    if (tab === 'chat' && !chatId) void ensureChat();
+  }, [tab, loadParticipants, loadHomework, ensureChat, chatId]);
 
   const sendChat = async () => {
     const text = draft.trim();
@@ -123,11 +135,11 @@ export default function LessonVideoSideRail({
       let id = chatId;
       if (!id) id = await ensureChat();
       if (!id) return;
-              await chatsApi.sendMessage(id, { body: text });
+      await chatsApi.sendMessage(id, { body: text });
       setDraft('');
       const msgs = await chatsApi.messages(id, { limit: 50 });
       const rows = Array.isArray(msgs) ? msgs : msgs?.items || msgs?.messages || [];
-      setMessages(rows);
+      setMessages([...rows].reverse());
     } catch (err) {
       toast({
         title: 'Не удалось отправить',
@@ -178,44 +190,44 @@ export default function LessonVideoSideRail({
     }
   };
 
-  const visibleTabs = TABS.filter((t) => (t.id === 'actions' ? isHost : true));
-
   return (
     <aside
-      className={`flex flex-col border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl overflow-hidden ${
-        compact ? 'h-[min(70dvh,520px)]' : 'h-full min-h-[320px]'
-      }`}
+      className={cn(
+        'flex flex-col border border-slate-800 bg-slate-950 text-slate-100 overflow-hidden',
+        compact ? 'h-full min-h-0 rounded-t-2xl border-0' : 'h-full min-h-0 rounded-2xl',
+      )}
       data-testid="lesson-video-side-rail"
     >
-      <div className="flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-800 p-2">
-        {visibleTabs.map(({ id, label, icon: Icon }) => (
+      <div className="flex gap-1 overflow-x-auto border-b border-slate-800 p-2 shrink-0 scrollbar-none">
+        {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             type="button"
             onClick={() => setTab(id)}
-            className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+            className={cn(
+              'inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-medium transition-colors',
               tab === id
-                ? 'bg-brand/15 text-brand'
-                : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
+                ? 'bg-brand/20 text-brand'
+                : 'text-slate-400 hover:bg-slate-900 hover:text-slate-100',
+            )}
           >
-            <Icon className="h-3.5 w-3.5" />
+            <Icon className="h-4 w-4" />
             {label}
           </button>
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3 text-sm space-y-3">
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 text-sm space-y-3">
         {tab === 'materials' && (
-          <div className="space-y-2">
-            <p className="text-slate-500 text-xs">
-              Учебные материалы урока открываются в разделе материалов CRM.
+          <div className="space-y-3">
+            <p className="text-slate-400 text-xs leading-relaxed">
+              Материалы урока открываются в CRM без выхода из видеозвонка — вернитесь сюда через «Назад» в браузере или вкладку урока.
             </p>
-            <Button asChild size="sm" className="w-full">
+            <Button asChild className="w-full min-h-11">
               <Link to={materialsPath}>Открыть материалы</Link>
             </Button>
             {lesson?.notes ? (
-              <div className="rounded-md bg-slate-50 dark:bg-slate-950 p-2 text-xs whitespace-pre-wrap">
+              <div className="rounded-lg bg-slate-900 p-3 text-xs whitespace-pre-wrap text-slate-300">
                 {lesson.notes}
               </div>
             ) : null}
@@ -223,15 +235,15 @@ export default function LessonVideoSideRail({
         )}
 
         {tab === 'homework' && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {loadingHw ? (
-              <Loader2 className="h-4 w-4 animate-spin text-brand" />
+              <Loader2 className="h-5 w-5 animate-spin text-brand" />
             ) : homework.length ? (
               <ul className="space-y-2">
                 {homework.map((row) => (
                   <li
                     key={row.id || row.assignment_id}
-                    className="rounded-md border border-slate-200 dark:border-slate-800 p-2"
+                    className="rounded-lg border border-slate-800 bg-slate-900/60 p-3"
                   >
                     <p className="font-medium text-xs">
                       {row.title || row.homework?.title || 'Домашнее задание'}
@@ -242,7 +254,7 @@ export default function LessonVideoSideRail({
             ) : (
               <p className="text-xs text-slate-500">Нет ДЗ, привязанных к этому уроку.</p>
             )}
-            <Button asChild size="sm" variant="outline" className="w-full">
+            <Button asChild variant="outline" className="w-full min-h-11 border-slate-700">
               <Link to={homeworkPath}>
                 {isHost ? 'Назначить / список ДЗ' : 'Мои задания'}
               </Link>
@@ -251,78 +263,100 @@ export default function LessonVideoSideRail({
         )}
 
         {tab === 'participants' && (
-          <div className="space-y-2">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span>В уроке (CRM): {participants.length}</span>
+              {typeof jitsiParticipantCount === 'number' ? (
+                <span>В видео: {jitsiParticipantCount}</span>
+              ) : null}
+            </div>
             {loadingPeople ? (
-              <Loader2 className="h-4 w-4 animate-spin text-brand" />
+              <Loader2 className="h-5 w-5 animate-spin text-brand" />
             ) : (
               <ul className="space-y-2">
-                {participants.map((p, idx) => (
-                  <li
-                    key={`${p.role}-${p.student_id || p.name}-${idx}`}
-                    className="flex items-center justify-between gap-2 rounded-md border border-slate-200 dark:border-slate-800 p-2"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate font-medium text-xs">{p.name}</p>
-                      <p className="text-[11px] text-slate-400">
-                        {p.role === 'teacher' ? 'преподаватель' : 'ученик'}
-                        {p.attendance_status ? ` · ${p.attendance_status}` : ''}
-                      </p>
-                    </div>
-                    {isHost && p.attendance_id ? (
-                      <div className="flex gap-1 shrink-0">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={statusBusy}
-                          className="h-7 px-2 text-[11px]"
-                          onClick={() => markAttendance(p.attendance_id, true)}
-                        >
-                          Был
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          disabled={statusBusy}
-                          className="h-7 px-2 text-[11px]"
-                          onClick={() => markAttendance(p.attendance_id, false)}
-                        >
-                          Нет
-                        </Button>
+                {participants.map((p, idx) => {
+                  const online =
+                    p.online === true ||
+                    p.is_online === true ||
+                    p.attendance_status === 'present';
+                  return (
+                    <li
+                      key={`${p.role}-${p.student_id || p.name}-${idx}`}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900/60 p-3"
+                    >
+                      <div className="min-w-0 flex items-start gap-2">
+                        <span
+                          className={cn(
+                            'mt-1 h-2.5 w-2.5 shrink-0 rounded-full',
+                            online ? 'bg-emerald-500' : 'bg-slate-600',
+                          )}
+                          aria-hidden
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-xs">{p.name}</p>
+                          <p className="text-[11px] text-slate-500">
+                            {roleLabel(p.role)}
+                            {online ? ' · онлайн' : ' · отключён'}
+                            {p.attendance_status ? ` · ${p.attendance_status}` : ''}
+                          </p>
+                        </div>
                       </div>
-                    ) : null}
-                  </li>
-                ))}
+                      {isHost && p.attendance_id ? (
+                        <div className="flex gap-1 shrink-0">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={statusBusy}
+                            className="min-h-11 px-3 text-[11px] border-slate-700"
+                            onClick={() => markAttendance(p.attendance_id, true)}
+                          >
+                            Был
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            disabled={statusBusy}
+                            className="min-h-11 px-3 text-[11px]"
+                            onClick={() => markAttendance(p.attendance_id, false)}
+                          >
+                            Нет
+                          </Button>
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
         )}
 
         {tab === 'chat' && (
-          <div className="flex h-full min-h-[220px] flex-col gap-2">
-            {loadingChat ? (
-              <Loader2 className="h-4 w-4 animate-spin text-brand" />
+          <div className="flex h-full min-h-[240px] flex-col gap-2">
+            {loadingChat && !messages.length ? (
+              <Loader2 className="h-5 w-5 animate-spin text-brand" />
             ) : (
-              <div className="flex-1 space-y-2 overflow-y-auto rounded-md bg-slate-50 dark:bg-slate-950 p-2">
+              <div className="flex-1 space-y-2 overflow-y-auto rounded-lg bg-slate-900/80 p-2">
                 {messages.length ? (
                   messages.map((m) => (
-                    <div key={m.id} className="text-xs">
-                      <span className="font-medium text-slate-600 dark:text-slate-300">
+                    <div key={m.id} className="text-xs leading-relaxed">
+                      <span className="font-medium text-brand">
                         {m.sender_name || m.senderName || m.user?.firstName || 'Участник'}
                         :{' '}
                       </span>
-                      <span>{messageBody(m)}</span>
+                      <span className="text-slate-200">{messageBody(m)}</span>
                     </div>
                   ))
                 ) : (
-                  <p className="text-xs text-slate-400">Сообщений пока нет</p>
+                  <p className="text-xs text-slate-500">Сообщений пока нет</p>
                 )}
               </div>
             )}
-            <div className="flex gap-1">
+            <div className="flex gap-2">
               <input
-                className="flex-1 rounded-md border border-slate-200 dark:border-slate-700 bg-transparent px-2 py-1.5 text-xs"
+                className="min-h-11 flex-1 rounded-xl border border-slate-700 bg-slate-900 px-3 text-sm text-slate-100 placeholder:text-slate-500"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder="Сообщение урока…"
@@ -335,36 +369,64 @@ export default function LessonVideoSideRail({
               />
               <Button
                 type="button"
-                size="sm"
+                className="min-h-11 min-w-11"
                 disabled={sending || !draft.trim()}
                 onClick={() => void sendChat()}
+                aria-label="Отправить"
               >
-                <Send className="h-3.5 w-3.5" />
+                <Send className="h-4 w-4" />
               </Button>
             </div>
           </div>
         )}
 
-        {tab === 'actions' && isHost && (
-          <div className="space-y-2">
-            <p className="text-xs text-slate-500">
-              Действия после урока: посещаемость, ДЗ и статус урока.
-            </p>
-            <Button
-              type="button"
-              size="sm"
-              className="w-full"
-              disabled={statusBusy}
-              onClick={() => void completeLesson()}
-            >
-              Отметить урок завершённым
-            </Button>
-            <Button asChild size="sm" variant="outline" className="w-full">
-              <Link to={homeworkPath}>Назначить домашнее задание</Link>
-            </Button>
-            <Button asChild size="sm" variant="ghost" className="w-full">
-              <Link to={createPageUrl('TeacherSchedule')}>К расписанию</Link>
-            </Button>
+        {tab === 'info' && (
+          <div className="space-y-3 text-xs text-slate-300">
+            <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3 space-y-1.5">
+              <p>
+                <span className="text-slate-500">Урок:</span>{' '}
+                <span className="font-medium text-slate-100">{lesson?.title || 'Онлайн-урок'}</span>
+              </p>
+              <p>
+                <span className="text-slate-500">Предмет:</span> {subject || '—'}
+              </p>
+              <p>
+                <span className="text-slate-500">Преподаватель:</span>{' '}
+                {lesson?.teacher_name || '—'}
+              </p>
+              <p>
+                <span className="text-slate-500">Время:</span> {timeRange || '—'}
+              </p>
+              {connectionLabel ? (
+                <p>
+                  <span className="text-slate-500">Статус:</span> {connectionLabel}
+                </p>
+              ) : null}
+              {lesson?.group_name ? (
+                <p>
+                  <span className="text-slate-500">Группа:</span> {lesson.group_name}
+                </p>
+              ) : null}
+            </div>
+            {isHost ? (
+              <div className="space-y-2">
+                <p className="text-slate-500">Действия преподавателя</p>
+                <Button
+                  type="button"
+                  className="w-full min-h-11"
+                  disabled={statusBusy}
+                  onClick={() => void completeLesson()}
+                >
+                  Отметить урок завершённым
+                </Button>
+                <Button asChild variant="outline" className="w-full min-h-11 border-slate-700">
+                  <Link to={homeworkPath}>Назначить домашнее задание</Link>
+                </Button>
+                <Button asChild variant="ghost" className="w-full min-h-11">
+                  <Link to={createPageUrl('TeacherSchedule')}>К расписанию</Link>
+                </Button>
+              </div>
+            ) : null}
           </div>
         )}
       </div>

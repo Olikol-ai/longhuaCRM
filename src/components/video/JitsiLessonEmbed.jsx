@@ -1,10 +1,12 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import {
   buildJitsiConfigOverwrite,
   buildJitsiInterfaceConfigOverwrite,
   hardenJitsiIframe,
   loadJitsiExternalApi,
   parseJitsiDomain,
+  resizeJitsiEmbed,
 } from '@/lib/lesson-video';
 
 /**
@@ -28,6 +30,8 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     onError,
     onAudioMuteChanged,
     onVideoMuteChanged,
+    onConnectionStatus,
+    onParticipantCount,
   },
   ref,
 ) {
@@ -39,6 +43,9 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
   const onErrorRef = useRef(onError);
   const onAudioMuteChangedRef = useRef(onAudioMuteChanged);
   const onVideoMuteChangedRef = useRef(onVideoMuteChanged);
+  const onConnectionStatusRef = useRef(onConnectionStatus);
+  const onParticipantCountRef = useRef(onParticipantCount);
+  const [booting, setBooting] = useState(true);
 
   useEffect(() => {
     onLeftRef.current = onLeft;
@@ -46,7 +53,17 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     onErrorRef.current = onError;
     onAudioMuteChangedRef.current = onAudioMuteChanged;
     onVideoMuteChangedRef.current = onVideoMuteChanged;
-  }, [onLeft, onJoined, onError, onAudioMuteChanged, onVideoMuteChanged]);
+    onConnectionStatusRef.current = onConnectionStatus;
+    onParticipantCountRef.current = onParticipantCount;
+  }, [
+    onLeft,
+    onJoined,
+    onError,
+    onAudioMuteChanged,
+    onVideoMuteChanged,
+    onConnectionStatus,
+    onParticipantCount,
+  ]);
 
   useImperativeHandle(ref, () => ({
     executeCommand: (command, ...args) => {
@@ -64,11 +81,16 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
       }
       apiRef.current = null;
     },
+    resize: () => {
+      resizeJitsiEmbed(apiRef.current, containerRef.current);
+    },
   }));
 
   useEffect(() => {
     let cancelled = false;
     joinedOnceRef.current = false;
+    setBooting(true);
+    onConnectionStatusRef.current?.('connecting');
     const host = domain || parseJitsiDomain(roomUrl);
     const name = roomName || '';
 
@@ -76,6 +98,8 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
 
     if (!jwt) {
       onErrorRef.current?.(new Error('Нет токена доступа к видеоконференции'));
+      onConnectionStatusRef.current?.('failed');
+      setBooting(false);
       return undefined;
     }
 
@@ -99,17 +123,21 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           configOverwrite: buildJitsiConfigOverwrite({ subject }),
           interfaceConfigOverwrite: buildJitsiInterfaceConfigOverwrite(),
           onload: () => {
-            hardenJitsiIframe(apiRef.current);
+            resizeJitsiEmbed(apiRef.current, containerRef.current);
           },
         };
 
         const api = new JitsiMeetExternalAPI(host, options);
         apiRef.current = api;
-        hardenJitsiIframe(api);
+        resizeJitsiEmbed(api, containerRef.current);
 
         const iframe = api.getIFrame?.();
         if (iframe) {
-          iframe.addEventListener('load', () => hardenJitsiIframe(api));
+          iframe.addEventListener('load', () => {
+            resizeJitsiEmbed(api, containerRef.current);
+            // Keep black behind iframe until conference paints — avoids white flash.
+            iframe.style.background = '#000';
+          });
         }
 
         const applyIdentity = () => {
@@ -122,13 +150,15 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
         };
 
         const reportLeave = () => {
-          // Ignore premature leave/close before a successful join (avoids bounce to prejoin).
           if (!joinedOnceRef.current) return;
+          onConnectionStatusRef.current?.('idle');
           onLeftRef.current?.();
         };
 
         const reportError = (err) => {
           if (cancelled) return;
+          setBooting(false);
+          onConnectionStatusRef.current?.('failed');
           const message =
             typeof err === 'string'
               ? err
@@ -136,10 +166,22 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           onErrorRef.current?.(new Error(String(message)));
         };
 
+        const syncParticipants = () => {
+          try {
+            const count = api.getNumberOfParticipants?.();
+            if (typeof count === 'number') onParticipantCountRef.current?.(count);
+          } catch {
+            // ignore
+          }
+        };
+
         api.addListener('videoConferenceJoined', () => {
           joinedOnceRef.current = true;
-          hardenJitsiIframe(api);
+          setBooting(false);
+          onConnectionStatusRef.current?.('connected');
+          resizeJitsiEmbed(api, containerRef.current);
           applyIdentity();
+          syncParticipants();
           onJoinedRef.current?.();
         });
         api.addListener('readyToClose', reportLeave);
@@ -159,10 +201,26 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
         api.addListener('videoMuteStatusChanged', (e) => {
           onVideoMuteChangedRef.current?.(Boolean(e?.muted));
         });
+        api.addListener('participantJoined', syncParticipants);
+        api.addListener('participantLeft', syncParticipants);
+        api.addListener('connectionInterrupted', () => {
+          onConnectionStatusRef.current?.('reconnecting');
+        });
+        api.addListener('connectionRestored', () => {
+          onConnectionStatusRef.current?.(joinedOnceRef.current ? 'connected' : 'connecting');
+        });
 
         applyIdentity();
+        // Safety: if join never fires, drop the spinner after a while (iframe may still work).
+        window.setTimeout(() => {
+          if (!cancelled) setBooting(false);
+        }, 12_000);
       } catch (err) {
-        if (!cancelled) onErrorRef.current?.(err);
+        if (!cancelled) {
+          setBooting(false);
+          onConnectionStatusRef.current?.('failed');
+          onErrorRef.current?.(err);
+        }
       }
     })();
 
@@ -178,12 +236,53 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     };
   }, [domain, roomName, roomUrl, displayName, subject, externalApiUrl, jwt]);
 
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) return undefined;
+
+    const reflow = () => resizeJitsiEmbed(apiRef.current, containerRef.current);
+    const onResize = () => reflow();
+    const onOrientation = () => {
+      window.setTimeout(reflow, 250);
+    };
+
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onOrientation);
+    const vv = window.visualViewport;
+    vv?.addEventListener?.('resize', onResize);
+
+    let observer;
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(() => reflow());
+      observer.observe(node);
+    }
+
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onOrientation);
+      vv?.removeEventListener?.('resize', onResize);
+      observer?.disconnect?.();
+    };
+  }, [domain, roomName, jwt]);
+
   return (
-    <div
-      ref={containerRef}
-      className="absolute inset-0 w-full h-full bg-black [&_iframe]:w-full [&_iframe]:h-full"
-      data-testid="lesson-video-jitsi"
-    />
+    <div className="absolute inset-0 w-full h-full bg-black" data-testid="lesson-video-jitsi-wrap">
+      <div
+        ref={containerRef}
+        className="absolute inset-0 w-full h-full bg-black [&_iframe]:w-full [&_iframe]:h-full [&_iframe]:border-0 [&_iframe]:bg-black"
+        data-testid="lesson-video-jitsi"
+      />
+      {booting ? (
+        <div
+          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-slate-950 text-slate-100"
+          data-testid="lesson-video-connecting"
+        >
+          <Loader2 className="h-8 w-8 animate-spin text-brand" />
+          <p className="text-sm font-medium">Подключение к видеоконференции…</p>
+          <p className="text-xs text-slate-400">Подождите, идёт установка защищённого канала</p>
+        </div>
+      ) : null}
+    </div>
   );
 });
 

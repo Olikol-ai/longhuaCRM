@@ -148,10 +148,10 @@ export default function Layout({ children, currentPageName }) {
     return <>{children}</>;
   }
 
-  // Full-bleed lesson video shell — no sidebar so mobile video can use the whole screen.
+  // Full-bleed lesson video shell — no CRM sidebar; video owns the viewport.
   if (currentPageName === 'LessonVideo') {
     return (
-      <div className="min-h-dvh bg-slate-50 dark:bg-slate-950 overflow-x-hidden">
+      <div className="h-dvh max-h-dvh overflow-hidden bg-slate-950">
         {children}
       </div>
     );

@@ -165,9 +165,42 @@ export function hardenJitsiIframe(api) {
     iframe.style.border = '0';
     iframe.style.width = '100%';
     iframe.style.height = '100%';
+    iframe.style.display = 'block';
+    iframe.style.background = '#000';
   } catch {
     // ignore — provider may not expose getIFrame yet
   }
+}
+
+/** Ask External API / iframe to reflow after viewport or orientation changes. */
+export function resizeJitsiEmbed(api, container) {
+  hardenJitsiIframe(api);
+  try {
+    const iframe = api?.getIFrame?.();
+    if (iframe && container) {
+      const rect = container.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        iframe.style.width = `${Math.floor(rect.width)}px`;
+        iframe.style.height = `${Math.floor(rect.height)}px`;
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/** Connection status labels for the lesson video shell. */
+export const VIDEO_CONNECTION_STATUS = {
+  idle: { id: 'idle', label: 'Ожидание', tone: 'muted' },
+  connecting: { id: 'connecting', label: 'Подключение…', tone: 'warn' },
+  connected: { id: 'connected', label: 'Подключено', tone: 'ok' },
+  reconnecting: { id: 'reconnecting', label: 'Переподключение…', tone: 'warn' },
+  degraded: { id: 'degraded', label: 'Проблемы соединения', tone: 'warn' },
+  failed: { id: 'failed', label: 'Нет соединения', tone: 'bad' },
+};
+
+export function videoConnectionMeta(status) {
+  return VIDEO_CONNECTION_STATUS[status] || VIDEO_CONNECTION_STATUS.idle;
 }
 
 /**

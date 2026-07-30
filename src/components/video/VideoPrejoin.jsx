@@ -31,23 +31,23 @@ export default function VideoPrejoin({
 
   return (
     <div
-      className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 sm:p-8 space-y-6"
+      className="space-y-6 rounded-2xl border border-slate-800 bg-slate-900 p-5 text-slate-100 sm:p-8"
       data-testid="lesson-video-prejoin"
     >
-      <div className="text-center space-y-2">
-        <div className="mx-auto h-12 w-12 rounded-2xl bg-brand-soft text-brand flex items-center justify-center">
+      <div className="space-y-2 text-center">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand/15 text-brand">
           <Video className="h-6 w-6" />
         </div>
-        <h2 className="text-lg sm:text-xl font-semibold text-slate-900 dark:text-white">
+        <h2 className="text-lg font-semibold sm:text-xl">
           {isHost ? 'Вы проводите урок' : 'Ваш урок начинается'}
         </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-slate-400">
           Проверьте оборудование, затем войдите в видеоурок
         </p>
       </div>
 
       <div className="space-y-2">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
           Проверка оборудования
         </p>
         <ul className="space-y-2">
@@ -69,83 +69,76 @@ export default function VideoPrejoin({
             return (
               <li
                 key={item.label}
-                className="flex items-center gap-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 px-3 py-2.5"
+                className="flex min-h-11 items-center gap-3 rounded-xl bg-slate-800/70 px-3 py-2.5"
               >
-                <Icon className="h-4 w-4 text-slate-400 shrink-0" />
-                <span className="flex-1 text-sm text-slate-700 dark:text-slate-200">
-                  {item.label}
-                </span>
+                <Icon className="h-4 w-4 shrink-0 text-slate-400" />
+                <span className="flex-1 text-sm text-slate-200">{item.label}</span>
                 {checking ? (
                   <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
                 ) : item.ok ? (
-                  <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
-                    <CheckCircle2 className="h-4 w-4" /> Готово
-                  </span>
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
                 ) : (
-                  <span className="text-xs text-amber-600">Нужно разрешение</span>
+                  <Circle className="h-4 w-4 text-slate-600" />
                 )}
               </li>
             );
           })}
         </ul>
+      </div>
+
+      {tooEarly ? (
+        <p className="rounded-xl bg-amber-500/10 px-3 py-2.5 text-center text-sm text-amber-200">
+          Урок ещё не начался
+          {typeof minutesUntilStart === 'number'
+            ? ` · осталось около ${Math.max(0, minutesUntilStart)} мин`
+            : ''}
+          . Войти можно за 10 минут до старта.
+        </p>
+      ) : null}
+
+      {hostRequiresAccount ? (
+        <p className="text-center text-xs text-slate-500">
+          Для начала урока нужен аккаунт преподавателя на видеосервере.
+        </p>
+      ) : null}
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
         <Button
           type="button"
           variant="outline"
-          size="sm"
-          className="w-full sm:w-auto"
+          className="min-h-11 border-slate-700"
           onClick={onCheck}
           disabled={checking}
         >
           {checking ? (
             <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Проверяем…
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Проверка…
             </>
           ) : (
             'Проверить снова'
           )}
         </Button>
-      </div>
-
-      {tooEarly && (
-        <p className="text-sm text-center text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 rounded-xl px-3 py-2">
-          Войти можно за 10 минут до начала
-          {typeof minutesUntilStart === 'number'
-            ? ` (через ${Math.max(0, minutesUntilStart)} мин)`
-            : ''}
-          .
-        </p>
-      )}
-
-      {hostRequiresAccount && (
-        <p className="text-xs text-center text-red-600 dark:text-red-400 leading-relaxed bg-red-50 dark:bg-red-950/30 rounded-xl px-3 py-2">
-          Этот видеосервер требует личный аккаунт и не подходит для уроков.
-          Администратору нужно настроить Jitsi с гостевым доступом (JITSI_BASE_URL).
-        </p>
-      )}
-
-      <div className="flex flex-col gap-2">
         <Button
           type="button"
-          size="lg"
-          className="w-full h-12 text-base"
+          className="min-h-11"
           onClick={onJoin}
-          disabled={tooEarly && !isHost}
+          disabled={!canJoin || checking}
           data-testid="lesson-video-join"
         >
-          <Video className="h-5 w-5 mr-2" />
           {joinLabel}
         </Button>
-        {tooEarly && isHost && (
-          <Button type="button" variant="outline" className="w-full" onClick={onForceJoin}>
-            Начать урок досрочно
-          </Button>
-        )}
-        {!canJoin && !tooEarly && (
-          <p className="text-xs text-center text-slate-400">
-            Окно входа в урок сейчас закрыто
-          </p>
-        )}
       </div>
+
+      {isHost && !canJoin ? (
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-full min-h-11 text-slate-400"
+          onClick={onForceJoin}
+        >
+          Начать раньше (преподаватель)
+        </Button>
+      ) : null}
     </div>
   );
 }

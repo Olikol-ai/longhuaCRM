@@ -11,6 +11,7 @@ import {
   JITSI_IFRAME_ALLOW,
   lessonVideoPath,
   parseJitsiDomain,
+  videoConnectionMeta,
 } from './lesson-video.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -60,6 +61,13 @@ describe('lesson-video helpers', () => {
     assert.match(JITSI_IFRAME_ALLOW, /display-capture/);
     assert.match(JITSI_IFRAME_ALLOW, /fullscreen/);
   });
+
+  it('maps connection status labels in Russian', () => {
+    assert.equal(videoConnectionMeta('connecting').label, 'Подключение…');
+    assert.equal(videoConnectionMeta('connected').label, 'Подключено');
+    assert.equal(videoConnectionMeta('degraded').label, 'Проблемы соединения');
+    assert.equal(videoConnectionMeta('reconnecting').label, 'Переподключение…');
+  });
 });
 
 describe('Video lesson UI contract', () => {
@@ -98,9 +106,16 @@ describe('Video lesson UI contract', () => {
     assert.match(embed, /loadJitsiExternalApi/);
     assert.match(embed, /executeCommand\('displayName'/);
     assert.match(embed, /displayName/);
+    assert.match(embed, /Подключение к видеоконференции/);
+    assert.match(embed, /onConnectionStatus|connectionInterrupted/);
     assert.match(layout, /LessonVideo/);
     assert.match(teacher, /Начать видеоурок/);
     assert.match(student, /Войти в видеоурок/);
+
+    assert.match(page, /videoConnectionMeta|lesson-video-connection/);
+    assert.match(page, /useIsLgUp/);
+    assert.match(controls, /min-h-11/);
+    assert.match(rail, /участник|преподаватель|репетитор|ученик/i);
 
     assert.doesNotMatch(page, /\bMeeting\b|\bRoom\b|\bLogin\b|\bJoin\b|\bLeave\b|Video conference/);
     assert.doesNotMatch(prejoin, /\bMeeting\b|\bRoom\b|\bLogin\b|\bJoin\b/);

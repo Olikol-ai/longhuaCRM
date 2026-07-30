@@ -39,7 +39,9 @@ describe('responsive foundation', () => {
     assert.match(read('components/chats/ChatMessagePane.jsx'), /ArrowLeft/);
     assert.match(read('pages/Schedule.jsx'), /md:hidden/);
     assert.match(read('pages/LessonVideo.jsx'), /useIsMdUp/);
+    assert.match(read('pages/LessonVideo.jsx'), /useIsLgUp/);
     assert.match(read('pages/LessonVideo.jsx'), /side=\{isMdUp \? 'right' : 'bottom'\}/);
+    assert.match(read('pages/LessonVideo.jsx'), /h-dvh|min-h-dvh/);
   });
 
   it('uses card layouts for key tables on small screens', () => {
