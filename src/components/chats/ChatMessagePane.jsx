@@ -254,9 +254,15 @@ export default function ChatMessagePane({
     setExplainingId(messageId);
     try {
       const result = await chatsApi.explainEphemeral(text);
+      const reply =
+        result?.reply ||
+        result?.answer ||
+        result?.text ||
+        result?.message ||
+        null;
       toast({
         title: 'Ответ AI',
-        description: result?.reply || result?.answer || result?.text || 'Готово',
+        description: reply || 'AI временно недоступен.',
       });
     } catch (err) {
       toast({

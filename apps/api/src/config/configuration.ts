@@ -65,4 +65,9 @@ export default () => ({
     ttl: parseInt(process.env.RATE_LIMIT_TTL ?? '60', 10),
     limit: parseInt(process.env.RATE_LIMIT_MAX ?? '120', 10),
   },
+  ai: {
+    openaiApiKey: (process.env.OPENAI_API_KEY ?? '').trim(),
+    openaiBaseUrl: (process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1').trim(),
+    openaiModel: (process.env.OPENAI_MODEL ?? 'gpt-4o-mini').trim(),
+  },
 });

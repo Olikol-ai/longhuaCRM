@@ -151,9 +151,13 @@ export default function ChatComposer({
     if (!prompt || sending || disabled) return;
     setSending(true);
     try {
-      const message = await chatsApi.askAi(chat.id, prompt);
+      const result = await chatsApi.askAi(chat.id, prompt);
       setBody('');
-      onMessageCreated(message);
+      const userMessage = result?.userMessage || result?.user_message;
+      const aiMessage = result?.aiMessage || result?.ai_message;
+      if (userMessage) onMessageCreated(userMessage);
+      if (aiMessage) onMessageCreated(aiMessage);
+      else if (!userMessage) onMessageCreated(result);
     } catch (err) {
       toast({
         title: 'AI не ответил',

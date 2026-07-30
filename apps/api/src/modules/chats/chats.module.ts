@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { CourseTemplateEntity } from '../courses/entities/course-template.entity';
@@ -9,8 +10,8 @@ import { UserEntity } from '../users/entities/user.entity';
 import { CHAT_ENTITIES } from './entities';
 import { AI_PROVIDER } from './ai/ai-provider.interface';
 import { ChatAiService } from './ai/chat-ai.service';
-import { MockAiProvider } from './ai/mock-ai.provider';
 import { OpenAiProvider } from './ai/openai-ai.provider';
+import { UnavailableAiProvider } from './ai/unavailable-ai.provider';
 import { ChatsController } from './controllers/chats.controller';
 import { CryptoController } from './controllers/crypto.controller';
 import { SubjectsController } from './controllers/subjects.controller';
@@ -50,9 +51,17 @@ import { UserCryptoService } from './services/user-crypto.service';
     UserCryptoService,
     ChatGateway,
     ChatAiService,
-    MockAiProvider,
     OpenAiProvider,
-    { provide: AI_PROVIDER, useExisting: MockAiProvider },
+    UnavailableAiProvider,
+    {
+      provide: AI_PROVIDER,
+      inject: [ConfigService, OpenAiProvider, UnavailableAiProvider],
+      useFactory: (
+        config: ConfigService,
+        openai: OpenAiProvider,
+        unavailable: UnavailableAiProvider,
+      ) => (config.get<string>('ai.openaiApiKey')?.trim() ? openai : unavailable),
+    },
   ],
   exports: [ChatMembershipSyncService, ChatsService, ChatPresenceService, DirectChatRequestService, UserCryptoService],
 })
