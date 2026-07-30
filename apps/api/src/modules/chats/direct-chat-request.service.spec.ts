@@ -64,6 +64,7 @@ describe('DirectChatRequestService', () => {
       members as never,
       users as never,
       privacy as never,
+      { assertCanCreateDmRequest: privacy.assertCanReceiveDmRequest } as never,
       membershipSync as never,
       notifications as never,
       telegram as never,

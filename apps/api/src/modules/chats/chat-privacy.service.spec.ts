@@ -59,6 +59,8 @@ describe('ChatPrivacyService rate limits and policy', () => {
       empty as never,
       empty as never,
       empty as never,
+      empty as never,
+      empty as never,
     );
     return { service, privacyRepo, blockRepo, requestRepo, userRepo };
   }
@@ -95,10 +97,16 @@ describe('ChatPrivacyService rate limits and policy', () => {
   it('enforces decline cooldown', async () => {
     const { service, requestRepo } = build();
     requestRepo.count.mockResolvedValue(0);
-    requestRepo.findOne.mockResolvedValue({
-      id: 'old',
-      status: 'declined',
-      respondedAt: new Date(),
+    requestRepo.findOne.mockImplementation(async ({ where }: { where: { status?: string } }) => {
+      if (where?.status === 'pending') return null;
+      if (where?.status === 'declined') {
+        return {
+          id: 'old',
+          status: 'declined',
+          respondedAt: new Date(),
+        };
+      }
+      return null;
     });
     await expect(service.assertCanReceiveDmRequest('from', 'to')).rejects.toBeInstanceOf(
       ForbiddenException,
@@ -110,5 +118,21 @@ describe('ChatPrivacyService rate limits and policy', () => {
     expect(service.defaultPolicyForRole('admin')).toBe(DmPrivacyPolicy.AllRegistered);
     expect(service.defaultPolicyForRole('teacher')).toBe(DmPrivacyPolicy.MyStudents);
     expect(service.defaultPolicyForRole('student')).toBe(DmPrivacyPolicy.MyTeachers);
+  });
+
+  it('directory canRequest ignores daily rate limit', async () => {
+    const { service, requestRepo } = build();
+    requestRepo.count.mockResolvedValue(10);
+    const result = await service.canRequest('from', 'to');
+    expect(result.canRequest).toBe(true);
+    expect(result.code).toBe('ok');
+  });
+
+  it('create path still enforces daily rate limit', async () => {
+    const { service, requestRepo } = build();
+    requestRepo.count.mockResolvedValueOnce(10);
+    await expect(service.assertCanReceiveDmRequest('from', 'to')).rejects.toBeInstanceOf(
+      HttpException,
+    );
   });
 });

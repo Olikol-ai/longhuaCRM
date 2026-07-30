@@ -13,8 +13,11 @@ import { normalizeRole } from '../constants/roles';
 import { DomainAccessActor } from './domain-access.types';
 import { EnrollmentEntity } from '../../modules/courses/entities/enrollment.entity';
 import { GroupMemberEntity } from '../../modules/groups/entities/group-member.entity';
+import { AttendanceEntity } from '../../modules/lessons/entities/attendance.entity';
+import { LessonEntity } from '../../modules/lessons/entities/lesson.entity';
 import { StudentEntity } from '../../modules/students/entities/student.entity';
 import { TeacherEntity } from '../../modules/teachers/entities/teacher.entity';
+import { TeacherStudentContactEntity } from '../../modules/teacher-student-contacts/entities/teacher-student-contact.entity';
 import { TutorEntity } from '../../modules/tutors/entities/tutor.entity';
 import { TutorStudentEntity } from '../../modules/tutors/entities/tutor-student.entity';
 import { UserEntity } from '../../modules/users/entities/user.entity';
@@ -54,6 +57,10 @@ export class ChatPrivacyService {
     private readonly enrollmentRepo: Repository<EnrollmentEntity>,
     @InjectRepository(ChatDirectPairEntity)
     private readonly directPairRepo: Repository<ChatDirectPairEntity>,
+    @InjectRepository(TeacherStudentContactEntity)
+    private readonly contactRepo: Repository<TeacherStudentContactEntity>,
+    @InjectRepository(AttendanceEntity)
+    private readonly attendanceRepo: Repository<AttendanceEntity>,
   ) {}
 
   private requestsPerDay(): number {
@@ -149,36 +156,128 @@ export class ChatPrivacyService {
   }
 
   async assertCanReceiveDmRequest(fromUserId: string, toUserId: string): Promise<void> {
+    const result = await this.evaluateDmEligibility(fromUserId, toUserId, {
+      includeRateLimits: true,
+      includePending: true,
+    });
+    if (result.canRequest) return;
+    this.throwEligibility(result);
+  }
+
+  /**
+   * Directory / soft UI check — privacy + block + pending, without rate limits.
+   * Rate limits are enforced only on POST create so one exhausted quota does not
+   * disable every "Отправить запрос" button in search results.
+   */
+  async canRequest(
+    fromUserId: string,
+    toUserId: string,
+  ): Promise<{ canRequest: boolean; reason: string | null; code: string }> {
+    return this.evaluateDmEligibility(fromUserId, toUserId, {
+      includeRateLimits: false,
+      includePending: true,
+    });
+  }
+
+  async evaluateDmEligibility(
+    fromUserId: string,
+    toUserId: string,
+    options: { includeRateLimits: boolean; includePending: boolean },
+  ): Promise<{ canRequest: boolean; reason: string | null; code: string }> {
     if (fromUserId === toUserId) {
-      throw new BadRequestException('Нельзя отправить запрос себе');
+      return { canRequest: false, reason: 'Нельзя отправить запрос себе', code: 'self' };
     }
-    await this.assertNotBlocked(fromUserId, toUserId);
+
+    if (await this.isBlockedEitherWay(fromUserId, toUserId)) {
+      return {
+        canRequest: false,
+        reason: 'Переписка заблокирована (чёрный список)',
+        code: 'blocked',
+      };
+    }
 
     const toUser = await this.userRepo.findOne({ where: { id: toUserId } });
     if (!toUser || toUser.status !== 'active') {
-      throw new NotFoundException('Пользователь не найден');
+      return { canRequest: false, reason: 'Пользователь не найден', code: 'not_found' };
+    }
+
+    if (options.includePending) {
+      const pending = await this.requestRepo.findOne({
+        where: {
+          fromUserId,
+          toUserId,
+          status: DirectChatRequestStatus.Pending,
+        },
+      });
+      if (pending) {
+        return {
+          canRequest: false,
+          reason: 'Запрос уже ожидает ответа',
+          code: 'pending',
+        };
+      }
     }
 
     const settings = await this.getOrCreateSettings(toUserId);
-    const allowed = await this.policyAllows(settings.dmPolicy, fromUserId, toUserId, toUser.role);
+    const allowed = await this.policyAllows(
+      settings.dmPolicy,
+      fromUserId,
+      toUserId,
+      toUser.role,
+    );
     if (!allowed) {
-      throw new ForbiddenException('Пользователь не принимает запросы на переписку');
+      return {
+        canRequest: false,
+        reason: 'Пользователь не принимает запросы на переписку (настройки приватности)',
+        code: 'privacy',
+      };
     }
 
-    await this.assertRateLimits(fromUserId, toUserId);
+    if (options.includeRateLimits) {
+      try {
+        await this.assertRateLimits(fromUserId, toUserId);
+      } catch (err) {
+        return {
+          canRequest: false,
+          reason: this.httpExceptionMessage(err),
+          code: err instanceof HttpException && err.getStatus() === 429 ? 'rate_limit' : 'cooldown',
+        };
+      }
+    }
+
+    return { canRequest: true, reason: null, code: 'ok' };
   }
 
-  async canRequest(fromUserId: string, toUserId: string): Promise<{ canRequest: boolean; reason: string | null }> {
-    try {
-      await this.assertCanReceiveDmRequest(fromUserId, toUserId);
-      return { canRequest: true, reason: null };
-    } catch (err) {
-      const reason =
-        err instanceof ForbiddenException || err instanceof BadRequestException || err instanceof HttpException
-          ? (err.message || 'Запрещено')
-          : 'Запрещено';
-      return { canRequest: false, reason };
+  private throwEligibility(result: {
+    canRequest: boolean;
+    reason: string | null;
+    code: string;
+  }): never {
+    const message = result.reason || 'Запрещено';
+    if (result.code === 'not_found') {
+      throw new NotFoundException(message);
     }
+    if (result.code === 'self' || result.code === 'pending') {
+      throw new BadRequestException(message);
+    }
+    if (result.code === 'rate_limit') {
+      throw new HttpException(message, HttpStatus.TOO_MANY_REQUESTS);
+    }
+    throw new ForbiddenException(message);
+  }
+
+  private httpExceptionMessage(err: unknown): string {
+    if (!(err instanceof HttpException)) {
+      return 'Запрещено';
+    }
+    const body = err.getResponse();
+    if (typeof body === 'string' && body.trim()) return body;
+    if (body && typeof body === 'object') {
+      const msg = (body as { message?: string | string[] }).message;
+      if (Array.isArray(msg)) return msg.filter(Boolean).join(', ') || err.message;
+      if (typeof msg === 'string' && msg.trim()) return msg;
+    }
+    return err.message || 'Запрещено';
   }
 
   private async assertRateLimits(fromUserId: string, toUserId: string): Promise<void> {
@@ -271,6 +370,30 @@ export class ChatPrivacyService {
     const student = await this.studentRepo.findOne({ where: { userId: studentUserId } });
     const teacher = await this.teacherRepo.findOne({ where: { userId: teacherUserId } });
     if (student && teacher && student.assignedTeacherId === teacher.id) return true;
+    if (student && teacher) {
+      if (
+        await this.contactRepo.exists({
+          where: {
+            ownerType: 'teacher',
+            ownerId: teacher.id,
+            linkedStudentId: student.id,
+            status: 'active',
+          },
+        })
+      ) {
+        return true;
+      }
+      if (
+        await this.attendanceRepo
+          .createQueryBuilder('a')
+          .innerJoin(LessonEntity, 'l', 'l.id = a.lesson_id')
+          .where('a.student_id = :studentId', { studentId: student.id })
+          .andWhere('l.teacher_id = :teacherId', { teacherId: teacher.id })
+          .getExists()
+      ) {
+        return true;
+      }
+    }
     return false;
   }
 
@@ -283,6 +406,20 @@ export class ChatPrivacyService {
         where: { tutorId: tutor.id, userId: studentUserId },
       });
       if (link) return true;
+    }
+    if (student && tutor) {
+      if (
+        await this.contactRepo.exists({
+          where: {
+            ownerType: 'tutor',
+            ownerId: tutor.id,
+            linkedStudentId: student.id,
+            status: 'active',
+          },
+        })
+      ) {
+        return true;
+      }
     }
     return false;
   }

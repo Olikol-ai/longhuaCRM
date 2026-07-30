@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -10,6 +10,7 @@ import {
   Length,
   Max,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { ChatAttachmentKind, ChatMessageType } from '../enums/chat.enums';
 
@@ -35,10 +36,19 @@ export class CreateDirectChatDto {
 }
 
 export class CreateDmRequestDto {
+  @Transform(({ obj }) => obj.toUserId ?? obj.to_user_id)
   @IsUUID('4')
   toUserId!: string;
 
+  @Transform(({ obj }) => {
+    const raw = obj.message;
+    if (raw === undefined || raw === null) return undefined;
+    if (typeof raw !== 'string') return raw;
+    const trimmed = raw.trim();
+    return trimmed.length ? trimmed : undefined;
+  })
   @IsOptional()
+  @ValidateIf((_, value) => value !== undefined && value !== null && value !== '')
   @IsString()
   @Length(1, 500)
   message?: string;

@@ -16,6 +16,7 @@ import { DirectChatRequestEntity, ChatMemberEntity } from '../entities';
 import { DirectChatRequestStatus } from '../enums/chat.enums';
 import { ChatGateway } from '../gateway/chat.gateway';
 import { ChatPrivacyService } from '../../../common/access/chat-privacy.service';
+import { ChatAccessService } from '../../../common/access/chat-access.service';
 import { ChatMembershipSyncService } from './chat-membership-sync.service';
 
 @Injectable()
@@ -30,6 +31,7 @@ export class DirectChatRequestService {
     @InjectRepository(UserEntity)
     private readonly users: Repository<UserEntity>,
     private readonly privacy: ChatPrivacyService,
+    private readonly chatAccess: ChatAccessService,
     private readonly membershipSync: ChatMembershipSyncService,
     private readonly notifications: NotificationsService,
     private readonly telegram: TelegramService,
@@ -41,7 +43,7 @@ export class DirectChatRequestService {
     toUserId: string,
     message?: string | null,
   ): Promise<DirectChatRequestEntity> {
-    await this.privacy.assertCanReceiveDmRequest(actor.sub, toUserId);
+    await this.chatAccess.assertCanCreateDmRequest(actor, toUserId);
 
     const pending = await this.requests.findOne({
       where: {

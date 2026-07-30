@@ -25,7 +25,11 @@ describe('Chats privacy and DM requests', () => {
     );
     assert.match(dialog, /Отправить запрос/);
     assert.match(dialog, /createDmRequest/);
+    assert.match(dialog, /selectedId/);
+    assert.match(dialog, /Запрос на переписку отправлен/);
+    assert.match(dialog, /userFacingError/);
     assert.doesNotMatch(dialog, /createDirect/);
+    assert.doesNotMatch(dialog, /disabled=\{!canRequest/);
   });
 
   it('Settings exposes privacy policy and block list', () => {

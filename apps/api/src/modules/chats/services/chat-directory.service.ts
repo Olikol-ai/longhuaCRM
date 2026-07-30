@@ -23,6 +23,7 @@ export type ChatDirectoryUser = {
   lastSeenAt: Date | null;
   canRequest: boolean;
   canRequestReason: string | null;
+  canRequestCode: string;
   profile: {
     nativeLanguage: string | null;
     spokenLanguage: string | null;
@@ -104,6 +105,7 @@ export class ChatDirectoryService {
         lastSeenAt: user.lastSeenAt ?? null,
         canRequest: eligibility.canRequest,
         canRequestReason: eligibility.reason,
+        canRequestCode: eligibility.code,
         profile: profile
           ? {
               nativeLanguage: profile.nativeLanguage,
