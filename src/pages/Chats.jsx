@@ -23,7 +23,6 @@ import {
 } from '@/lib/chat-normalize';
 import {
   connectChatSocket,
-  disconnectChatSocket,
   emitMessageRead,
   joinChat,
   leaveChat,
@@ -79,7 +78,6 @@ export default function Chats() {
   const [members, setMembers] = useState([]);
   const [pins, setPins] = useState([]);
   const [typingUserIds, setTypingUserIds] = useState([]);
-  const [onlineUserIds, setOnlineUserIds] = useState([]);
   const [infoOpen, setInfoOpen] = useState(false);
   const [finderOpen, setFinderOpen] = useState(false);
   const [requestsOpen, setRequestsOpen] = useState(searchParams.get('tab') === 'requests');
@@ -162,8 +160,9 @@ export default function Chats() {
   }, [loadChats, loadPendingCount]);
 
   useEffect(() => {
+    // Presence socket is owned by PresenceProvider for the whole CRM session.
+    // Keep a reference here so chat events (join/typing) share the same socket.
     connectChatSocket();
-    return () => disconnectChatSocket();
   }, []);
 
   useEffect(() => {
@@ -296,14 +295,6 @@ export default function Chats() {
           if (chatId === activeChatIdRef.current && userId) {
             setTypingUserIds((previous) => previous.filter((id) => id !== userId));
           }
-        },
-        'user.online': (payload) => {
-          const userId = pickField(payload, 'userId', 'user_id');
-          if (userId) setOnlineUserIds((previous) => [...new Set([...previous, userId])]);
-        },
-        'user.offline': (payload) => {
-          const userId = pickField(payload, 'userId', 'user_id');
-          if (userId) setOnlineUserIds((previous) => previous.filter((id) => id !== userId));
         },
         'chat.request.created': () => {
           void loadPendingCount();
@@ -466,11 +457,11 @@ export default function Chats() {
         onSelect={selectChat}
         onFindInterlocutor={() => setFinderOpen(true)}
         onOpenRequests={openRequests}
-        onlineUserIds={onlineUserIds}
+        currentUserId={user?.id}
         pendingRequestsCount={pendingRequestsCount}
       />
     ),
-    [groups, activeChatId, onlineUserIds, pendingRequestsCount],
+    [groups, activeChatId, pendingRequestsCount, user?.id],
   );
 
   return (
@@ -512,6 +503,7 @@ export default function Chats() {
                   messages={messages}
                   typingUserIds={typingUserIds}
                   currentUserId={user?.id}
+                  members={members}
                   historyStatus={historyStatus}
                   historyError={historyError}
                   loadingOlder={loadingOlder}
@@ -555,6 +547,7 @@ export default function Chats() {
               chat={activeChat}
               members={members}
               pins={pins}
+              currentUserId={user?.id}
               onUnpin={(messageId) => void unpin(messageId)}
               onHide={() => void hideChat()}
             />
@@ -581,6 +574,7 @@ export default function Chats() {
               chat={activeChat}
               members={members}
               pins={pins}
+              currentUserId={user?.id}
               onUnpin={(messageId) => void unpin(messageId)}
               onHide={() => void hideChat()}
             />

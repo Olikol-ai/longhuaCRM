@@ -6,6 +6,7 @@ import { pagesConfig } from './pages.config'
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { E2eeProvider } from '@/lib/e2ee/E2eeContext';
+import { PresenceProvider } from '@/lib/PresenceContext';
 import { AuthLoadingScreen, shouldBlockProtectedUI } from '@/lib/auth-gate';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import Login from './pages/Login';
@@ -226,6 +227,7 @@ function App() {
     <ThemeProvider>
       <AuthProvider>
         <E2eeProvider>
+        <PresenceProvider>
         <QueryClientProvider client={queryClientInstance}>
           <Router>
             <Routes>
@@ -247,6 +249,7 @@ function App() {
           </Router>
           <Toaster />
         </QueryClientProvider>
+        </PresenceProvider>
         </E2eeProvider>
       </AuthProvider>
     </ThemeProvider>

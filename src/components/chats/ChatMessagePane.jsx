@@ -5,11 +5,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/components/ui/use-toast';
 import { chatsApi } from '@/api/chats.api';
 import { chatAttachmentSrc } from '@/lib/chat-attachment-url';
-import { displayUserName } from '@/lib/chat-normalize';
+import { displayUserName, pickField } from '@/lib/chat-normalize';
 import { resolveDirectPeerPublicKey } from '@/lib/e2ee/dm';
 import { useE2ee } from '@/lib/e2ee/E2eeContext';
 import { decryptDirectMessage } from '@/lib/e2ee/message';
 import { getMyPrivateKey } from '@/lib/e2ee/vault';
+import { usePresence } from '@/lib/PresenceContext';
+import { formatDirectPresence } from '@/lib/presence-format';
 import CrmMessageCard from './CrmMessageCard';
 import VoicePlayer from './VoicePlayer';
 
@@ -105,8 +107,10 @@ export default function ChatMessagePane({
   onPin,
   onMarkRead,
   onNeedUnlock,
+  members = [],
 }) {
   const { ready: e2eeReady } = useE2ee();
+  const { isUserOnline, countOnlineAmong } = usePresence();
   const bottomRef = useRef(null);
   const topSentinelRef = useRef(null);
   const stickToBottomRef = useRef(true);
@@ -115,6 +119,27 @@ export default function ChatMessagePane({
   const [errorsById, setErrorsById] = useState({});
   const [explainingId, setExplainingId] = useState(null);
   const isDirect = chat?.kind === 'direct';
+
+  const subtitle = useMemo(() => {
+    if (!chat) return '';
+    if (chat.kind === 'direct') {
+      const peer = members
+        .map((m) => pickField(m, 'user') || {})
+        .find((u) => u?.id && u.id !== currentUserId);
+      const peerOnline = peer?.id ? isUserOnline(peer.id) : false;
+      const lastSeen = pickField(peer, 'lastSeenAt', 'last_seen_at');
+      return formatDirectPresence(lastSeen, peerOnline);
+    }
+    const memberUserIds =
+      (chat.memberUserIds || []).length
+        ? chat.memberUserIds
+        : members
+            .map((m) => pickField(m, 'userId', 'user_id') || pickField(m, 'user')?.id)
+            .filter(Boolean);
+    const memberCount = chat.memberCount ?? members.length;
+    const onlineCount = countOnlineAmong(memberUserIds);
+    return `Участников: ${memberCount} · Онлайн: ${onlineCount}`;
+  }, [chat, members, currentUserId, isUserOnline, countOnlineAmong]);
 
   useEffect(() => {
     markedForChatRef.current = null;
@@ -265,9 +290,7 @@ export default function ChatMessagePane({
         ) : null}
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-sm font-semibold">{chat.title}</h2>
-          <p className="truncate text-xs text-muted-foreground">
-            {chat.description || String(chat.kind || '').replace('_', ' ')}
-          </p>
+          <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
         </div>
         {onOpenInfo ? (
           <Button

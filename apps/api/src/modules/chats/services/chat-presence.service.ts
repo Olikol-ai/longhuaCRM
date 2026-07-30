@@ -1,39 +1,81 @@
 import { Injectable } from '@nestjs/common';
 
+export type StaleSocket = { userId: string; socketId: string };
+
+const DEFAULT_STALE_MS = 60_000;
+
 /**
- * In-memory online presence shared by ChatGateway and REST list/detail.
+ * In-memory CRM presence: one logical online user per userId,
+ * backed by one or more active socket connections (tabs/devices).
+ * Heartbeat keeps sockets fresh; stale sockets are swept offline.
  */
 @Injectable()
 export class ChatPresenceService {
-  private readonly onlineUsers = new Map<string, Set<string>>();
+  /** userId → socketId → lastHeartbeatMs */
+  private readonly connections = new Map<string, Map<string, number>>();
 
-  markOnline(userId: string, socketId: string): void {
-    const set = this.onlineUsers.get(userId) ?? new Set<string>();
-    set.add(socketId);
-    this.onlineUsers.set(userId, set);
+  /** @returns true if this was the first socket (user just became online). */
+  markOnline(userId: string, socketId: string): boolean {
+    const wasOnline = this.isOnline(userId);
+    let sockets = this.connections.get(userId);
+    if (!sockets) {
+      sockets = new Map();
+      this.connections.set(userId, sockets);
+    }
+    sockets.set(socketId, Date.now());
+    return !wasOnline;
   }
 
-  /** Returns true if user still has other sockets online. */
+  touch(userId: string, socketId: string): boolean {
+    const sockets = this.connections.get(userId);
+    if (!sockets?.has(socketId)) return false;
+    sockets.set(socketId, Date.now());
+    return true;
+  }
+
+  /**
+   * Remove a socket. Returns true if the user remains online via other sockets.
+   */
   markOffline(userId: string, socketId: string): boolean {
-    const set = this.onlineUsers.get(userId);
-    if (!set) return false;
-    set.delete(socketId);
-    if (set.size === 0) {
-      this.onlineUsers.delete(userId);
+    const sockets = this.connections.get(userId);
+    if (!sockets) return false;
+    sockets.delete(socketId);
+    if (sockets.size === 0) {
+      this.connections.delete(userId);
       return false;
     }
     return true;
   }
 
   isOnline(userId: string): boolean {
-    return (this.onlineUsers.get(userId)?.size ?? 0) > 0;
+    return (this.connections.get(userId)?.size ?? 0) > 0;
   }
 
-  onlineUserIds(userIds: string[]): string[] {
-    return userIds.filter((id) => this.isOnline(id));
+  onlineUserIds(userIds?: string[]): string[] {
+    if (userIds) {
+      return userIds.filter((id) => this.isOnline(id));
+    }
+    return [...this.connections.keys()];
   }
 
   countOnline(userIds: string[]): number {
     return this.onlineUserIds(userIds).length;
+  }
+
+  /**
+   * List sockets that missed heartbeat longer than staleMs.
+   * Does not mutate state — gateway disconnects / markOffline.
+   */
+  collectStaleSockets(staleMs = DEFAULT_STALE_MS): StaleSocket[] {
+    const now = Date.now();
+    const stale: StaleSocket[] = [];
+    for (const [userId, sockets] of this.connections) {
+      for (const [socketId, lastBeat] of sockets) {
+        if (now - lastBeat > staleMs) {
+          stale.push({ userId, socketId });
+        }
+      }
+    }
+    return stale;
   }
 }

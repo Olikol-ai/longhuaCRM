@@ -39,6 +39,7 @@ export function normalizeUser(raw) {
     firstName: pickField(raw, 'firstName', 'first_name'),
     lastName: pickField(raw, 'lastName', 'last_name'),
     role: raw.role,
+    lastSeenAt: pickField(raw, 'lastSeenAt', 'last_seen_at') ?? null,
   };
 }
 
@@ -82,6 +83,10 @@ export function normalizeChat(raw) {
     unreadCount: pickField(raw, 'unreadCount', 'unread_count') ?? 0,
     memberCount: pickField(raw, 'memberCount', 'member_count'),
     onlineCount: pickField(raw, 'onlineCount', 'online_count'),
+    memberUserIds: (() => {
+      const ids = pickField(raw, 'memberUserIds', 'member_user_ids');
+      return Array.isArray(ids) ? ids.filter(Boolean) : [];
+    })(),
   };
 }
 

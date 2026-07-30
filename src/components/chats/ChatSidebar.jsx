@@ -1,6 +1,7 @@
 import { Hash, Inbox, MessageCircle, Search, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { usePresence } from '@/lib/PresenceContext';
 import { cn } from '@/lib/utils';
 
 const sections = [
@@ -10,14 +11,22 @@ const sections = [
   { title: 'Личные', kinds: ['direct'], icon: MessageCircle },
 ];
 
-function ChatRow({ chat, active, onSelect, onlineUserIds }) {
-  const showOnline =
-    chat.kind === 'direct' &&
-    Array.isArray(onlineUserIds) &&
-    onlineUserIds.some(Boolean);
+function ChatRow({ chat, active, onSelect, currentUserId }) {
+  const { isUserOnline, countOnlineAmong } = usePresence();
   const memberCount = chat.memberCount ?? chat.member_count;
-  const onlineCount = chat.onlineCount ?? chat.online_count;
+  const memberUserIds = chat.memberUserIds || chat.member_user_ids || [];
+  const onlineCount =
+    memberUserIds.length > 0
+      ? countOnlineAmong(memberUserIds)
+      : (chat.onlineCount ?? chat.online_count ?? 0);
   const unreadCount = chat.unreadCount ?? chat.unread_count ?? 0;
+
+  const peerId =
+    chat.kind === 'direct'
+      ? memberUserIds.find((id) => id && id !== currentUserId) || null
+      : null;
+  const peerOnline = peerId ? isUserOnline(peerId) : false;
+
   const memberMeta =
     chat.kind !== 'direct' && (memberCount != null || onlineCount != null)
       ? `👥 ${memberCount ?? '—'} · Онлайн: ${onlineCount ?? 0}`
@@ -36,7 +45,7 @@ function ChatRow({ chat, active, onSelect, onlineUserIds }) {
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-semibold">
           {(chat.title || '?').slice(0, 1).toUpperCase()}
         </span>
-        {showOnline ? (
+        {chat.kind === 'direct' && peerOnline ? (
           <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-card bg-emerald-500" />
         ) : null}
       </span>
@@ -65,7 +74,7 @@ export default function ChatSidebar({
   onSelect,
   onFindInterlocutor,
   onOpenRequests,
-  onlineUserIds = [],
+  currentUserId,
   pendingRequestsCount = 0,
 }) {
   return (
@@ -109,7 +118,7 @@ export default function ChatSidebar({
                         chat={chat}
                         active={chat.id === activeChatId}
                         onSelect={onSelect}
-                        onlineUserIds={onlineUserIds}
+                        currentUserId={currentUserId}
                       />
                     ))
                   ) : (

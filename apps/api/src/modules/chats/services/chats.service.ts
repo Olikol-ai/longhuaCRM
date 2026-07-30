@@ -20,6 +20,8 @@ export type ChatListItem = ChatEntity & {
   unreadCount: number;
   memberCount: number;
   onlineCount: number;
+  /** Member user ids — used by FE to recompute onlineCount on presence events. */
+  memberUserIds: string[];
 };
 
 export type ChatListResponse = {
@@ -102,7 +104,9 @@ export class ChatsService {
     return { total: listed.totalUnread, byChat };
   }
 
-  async getChat(actor: DomainAccessActor, chatId: string): Promise<ChatEntity & { memberCount: number; onlineCount: number }> {
+  async getChat(actor: DomainAccessActor, chatId: string): Promise<
+    ChatEntity & { memberCount: number; onlineCount: number; memberUserIds: string[] }
+  > {
     const chat = await this.access.assertCanRead(actor, chatId);
     const counts = await this.memberOnlineCounts(chatId);
     return Object.assign(chat, counts);
@@ -239,12 +243,13 @@ export class ChatsService {
 
   private async memberOnlineCounts(
     chatId: string,
-  ): Promise<{ memberCount: number; onlineCount: number }> {
+  ): Promise<{ memberCount: number; onlineCount: number; memberUserIds: string[] }> {
     const members = await this.memberRepo.find({ where: { chatId } });
-    const userIds = members.map((m) => m.userId);
+    const memberUserIds = members.map((m) => m.userId);
     return {
-      memberCount: userIds.length,
-      onlineCount: this.presence.countOnline(userIds),
+      memberCount: memberUserIds.length,
+      onlineCount: this.presence.countOnline(memberUserIds),
+      memberUserIds,
     };
   }
 

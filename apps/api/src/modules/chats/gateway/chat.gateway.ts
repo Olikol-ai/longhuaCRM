@@ -7,6 +7,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
+import { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Server, Socket } from 'socket.io';
@@ -20,15 +21,23 @@ import { ChatPresenceService } from '../services/chat-presence.service';
 
 type TypingKey = string;
 
+const HEARTBEAT_STALE_MS = 60_000;
+const SWEEP_INTERVAL_MS = 15_000;
+
 @WebSocketGateway({
   namespace: '/chat',
   cors: { origin: true, credentials: true },
+  pingInterval: 25_000,
+  pingTimeout: 60_000,
 })
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class ChatGateway
+  implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit, OnModuleDestroy
+{
   @WebSocketServer()
   server!: Server;
 
   private readonly typing = new Map<TypingKey, NodeJS.Timeout>();
+  private sweepTimer: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly jwt: JwtService,
@@ -37,6 +46,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @InjectRepository(UserEntity) private readonly userRepo: Repository<UserEntity>,
   ) {}
 
+  onModuleInit(): void {
+    this.sweepTimer = setInterval(() => {
+      void this.sweepStalePresence();
+    }, SWEEP_INTERVAL_MS);
+    this.sweepTimer.unref?.();
+  }
+
+  onModuleDestroy(): void {
+    if (this.sweepTimer) clearInterval(this.sweepTimer);
+  }
+
   async handleConnection(client: Socket): Promise<void> {
     try {
       const token = this.extractToken(client);
@@ -44,8 +64,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const actor = await this.jwt.verifyAsync<JwtPayload>(token);
       client.data.actor = actor;
       await client.join(`user:${actor.sub}`);
-      this.presence.markOnline(actor.sub, client.id);
-      this.server.emit('user.online', { userId: actor.sub });
+      const becameOnline = this.presence.markOnline(actor.sub, client.id);
+      // Snapshot for this client so UI can hydrate before events arrive.
+      client.emit('presence.sync', {
+        onlineUserIds: this.presence.onlineUserIds(),
+      });
+      if (becameOnline) {
+        this.server.emit('user.online', { userId: actor.sub });
+      }
       await this.userRepo.update(actor.sub, { lastSeenAt: new Date() });
     } catch {
       client.disconnect(true);
@@ -60,6 +86,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.server.emit('user.offline', { userId: actor.sub });
       await this.userRepo.update(actor.sub, { lastSeenAt: new Date() });
     }
+  }
+
+  /** Application-level heartbeat (client every ~30s). */
+  @SubscribeMessage('presence:ping')
+  async presencePing(@ConnectedSocket() client: Socket): Promise<{ ok: true }> {
+    const actor = this.actor(client);
+    const touched = this.presence.touch(actor.sub, client.id);
+    if (!touched) {
+      this.presence.markOnline(actor.sub, client.id);
+    }
+    // Keep last_seen fresh while the tab is alive (helps brief reconnect UX).
+    await this.userRepo.update(actor.sub, { lastSeenAt: new Date() });
+    return { ok: true };
   }
 
   @SubscribeMessage('chat:join')
@@ -157,6 +196,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   emitToUser(userId: string, event: string, payload: unknown): void {
     this.server?.to(`user:${userId}`).emit(event, payload);
+  }
+
+  private async sweepStalePresence(): Promise<void> {
+    const stale = this.presence.collectStaleSockets(HEARTBEAT_STALE_MS);
+    for (const { userId, socketId } of stale) {
+      const sock = this.server?.sockets?.sockets?.get(socketId);
+      if (sock) {
+        sock.disconnect(true);
+        continue;
+      }
+      // Socket already gone — drop from presence map.
+      const stillOnline = this.presence.markOffline(userId, socketId);
+      if (!stillOnline) {
+        this.server?.emit('user.offline', { userId });
+        await this.userRepo.update(userId, { lastSeenAt: new Date() });
+      }
+    }
   }
 
   private extractToken(client: Socket): string | null {
