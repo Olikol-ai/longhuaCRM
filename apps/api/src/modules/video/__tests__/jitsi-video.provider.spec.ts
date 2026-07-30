@@ -10,7 +10,7 @@ import {
 
 function jwtConfig(overrides: Record<string, string> = {}): ConfigService {
   const map: Record<string, string> = {
-    'video.jitsiBaseUrl': 'https://lk.example.test/meet',
+    'video.jitsiBaseUrl': 'https://meet.example.test',
     'video.jitsiJwtAppId': 'longhua_crm',
     'video.jitsiJwtAppSecret': 'secret-test-key',
     'video.jitsiJwtTtlSeconds': '900',
@@ -33,13 +33,32 @@ describe('JitsiVideoProvider corporate JWT', () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
     expect(room.roomId).not.toContain('longhua');
-    expect(room.roomUrl).toBe(`https://lk.example.test/meet/${room.roomId}`);
+    expect(room.roomUrl).toBe(`https://meet.example.test/${room.roomId}`);
   });
 
   it('builds getRoomUrl from current base URL', () => {
     expect(provider.getRoomUrl('abc-room')).toBe(
-      'https://lk.example.test/meet/abc-room',
+      'https://meet.example.test/abc-room',
     );
+  });
+
+  it('rejects path-prefix JITSI_BASE_URL (breaks External API iframe)', () => {
+    const pathConfig = jwtConfig({
+      'video.jitsiBaseUrl': 'https://lk.example.test/meet',
+    });
+    const pathProvider = new JitsiVideoProvider(
+      pathConfig,
+      new JitsiJwtService(pathConfig),
+    );
+    expect(() =>
+      pathProvider.generateAccessData({
+        roomId: 'room-1',
+        displayName: 'Учитель',
+        userId: 'u1',
+        roleLabel: 'преподаватель',
+        isModerator: true,
+      }),
+    ).toThrow(ServiceUnavailableException);
   });
 
   it('always issues CRM JWT with displayName and moderator flag', () => {
@@ -53,7 +72,7 @@ describe('JitsiVideoProvider corporate JWT', () => {
     });
     expect(access.token).toBeTruthy();
     expect(access.hostRequiresAccount).toBe(false);
-    expect(access.domain).toBe('lk.example.test');
+    expect(access.domain).toBe('meet.example.test');
     const payload = verify(access.token as string, 'secret-test-key') as {
       context: { user: { name: string; moderator: boolean } };
       room: string;

@@ -25,6 +25,7 @@ export default function LessonVideo() {
   const { user } = useAuth();
   const jitsiRef = useRef(null);
   const stageRef = useRef(null);
+  const conferenceJoinedRef = useRef(false);
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -33,9 +34,12 @@ export default function LessonVideo() {
   const [checking, setChecking] = useState(false);
   const [checks, setChecks] = useState(null);
   const [sessionEnded, setSessionEnded] = useState(false);
+  const [joinError, setJoinError] = useState(null);
+  const [joining, setJoining] = useState(false);
   const [audioMuted, setAudioMuted] = useState(false);
   const [videoMuted, setVideoMuted] = useState(false);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
+  const [embedKey, setEmbedKey] = useState(0);
 
   useEffect(() => {
     if (!id) return;
@@ -50,6 +54,7 @@ export default function LessonVideo() {
           description: userFacingError(err),
           variant: 'destructive',
         });
+        setData(null);
       } finally {
         setLoading(false);
       }
@@ -57,14 +62,18 @@ export default function LessonVideo() {
   }, [id]);
 
   const prepareJoin = useCallback(async () => {
-    if (!id) return;
+    if (!id) return null;
     try {
       const res = await api.video.refreshToken(id);
-      if (res) setData(res);
-    } catch {
-      // fall back to existing access payload
+      if (res) {
+        setData(res);
+        return res;
+      }
+    } catch (err) {
+      throw err;
     }
-  }, [id]);
+    return data;
+  }, [id, data]);
 
   const runDeviceCheck = useCallback(async () => {
     setChecking(true);
@@ -98,7 +107,9 @@ export default function LessonVideo() {
   const isStudent = data?.viewer_role === 'student';
 
   const backPath = useMemo(() => {
-    if (user?.role === 'student') return createPageUrl('StudentLessons');
+    if (user?.role === 'student' || user?.role === 'tutor_student') {
+      return createPageUrl('StudentLessons');
+    }
     if (user?.role === 'teacher') return createPageUrl('TeacherSchedule');
     if (user?.role === 'tutor') return createPageUrl('TutorSchedule');
     return createPageUrl('Dashboard');
@@ -116,43 +127,70 @@ export default function LessonVideo() {
 
   const joinLabel = isHost ? 'Начать урок' : 'Войти в урок';
 
+  const enterConference = useCallback(async () => {
+    setJoining(true);
+    setJoinError(null);
+    setSessionEnded(false);
+    conferenceJoinedRef.current = false;
+    try {
+      const access = await prepareJoin();
+      const token = access?.token || data?.token;
+      const room = access?.room_name || access?.room_id || data?.room_name || data?.room_id;
+      const host = access?.domain || data?.domain || parseJitsiDomain(access?.room_url || data?.room_url);
+      if (!token || !room || !host) {
+        setJoinError('Не удалось получить доступ к видеоконференции. Обновите страницу и попробуйте снова.');
+        setJoined(false);
+        return;
+      }
+      setForceJoin(true);
+      setEmbedKey((k) => k + 1);
+      setJoined(true);
+    } catch (err) {
+      setJoinError(userFacingError(err) || 'Не удалось подключиться к видеоконференции.');
+      setJoined(false);
+    } finally {
+      setJoining(false);
+    }
+  }, [prepareJoin, data]);
+
   const handleJoin = useCallback(async () => {
     if (tooEarly && !isHost) return;
-    await prepareJoin();
-    setForceJoin(true);
-    setSessionEnded(false);
-    setJoined(true);
-  }, [tooEarly, isHost, prepareJoin]);
+    await enterConference();
+  }, [tooEarly, isHost, enterConference]);
 
   const handleForceJoin = useCallback(async () => {
-    await prepareJoin();
-    setForceJoin(true);
-    setSessionEnded(false);
-    setJoined(true);
-  }, [prepareJoin]);
+    await enterConference();
+  }, [enterConference]);
 
   const handleLeft = useCallback(() => {
+    if (!conferenceJoinedRef.current) return;
     setJoined(false);
     setSessionEnded(true);
+    setJoinError(null);
   }, []);
 
   const handleJoined = useCallback(() => {
+    conferenceJoinedRef.current = true;
     setSessionEnded(false);
+    setJoinError(null);
   }, []);
 
   const handleEmbedError = useCallback((err) => {
-    toast({
-      title: 'Не удалось запустить видео',
-      description: userFacingError(err) || 'Попробуйте ещё раз',
-      variant: 'destructive',
-    });
+    const message =
+      userFacingError(err) || 'Не удалось подключиться к видеоконференции.';
+    setJoinError(message);
+    // Stay on the video stage with an error panel — never silent bounce to prejoin.
     setJoined(false);
+    setSessionEnded(false);
   }, []);
 
   const hangup = useCallback(() => {
+    conferenceJoinedRef.current = true;
     jitsiRef.current?.executeCommand?.('hangup');
-    handleLeft();
-  }, [handleLeft]);
+    setJoined(false);
+    setSessionEnded(true);
+    setJoinError(null);
+  }, []);
 
   if (loading) {
     return (
@@ -178,7 +216,7 @@ export default function LessonVideo() {
     lesson.time_range_label ||
     `${formatClock(lesson.start_time)}${lesson.end_time ? ` – ${formatClock(lesson.end_time)}` : ''}`;
   const domain = data.domain || parseJitsiDomain(data.room_url);
-  const showVideo = joined && canJoinWindow;
+  const showVideo = joined && canJoinWindow && Boolean(data.token);
 
   const sideRail = (
     <LessonVideoSideRail
@@ -269,6 +307,7 @@ export default function LessonVideo() {
                     h-[min(68dvh,calc(100dvh-14rem))] min-h-[280px] sm:min-h-[420px]"
                 >
                   <JitsiLessonEmbed
+                    key={embedKey}
                     ref={jitsiRef}
                     domain={domain}
                     roomName={data.room_name || data.room_id}
@@ -302,6 +341,35 @@ export default function LessonVideo() {
                   onHangup={hangup}
                 />
               </>
+            ) : joinError ? (
+              <div
+                className="rounded-2xl border border-rose-200 bg-white dark:bg-slate-900 dark:border-rose-900 p-6 sm:p-8 text-center space-y-4"
+                data-testid="lesson-video-join-error"
+              >
+                <p className="font-medium text-rose-700 dark:text-rose-300">
+                  Не удалось подключиться к видеоконференции.
+                </p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{joinError}</p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Button
+                    type="button"
+                    onClick={enterConference}
+                    disabled={joining}
+                    data-testid="lesson-video-retry"
+                  >
+                    {joining ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Подключение…
+                      </>
+                    ) : (
+                      'Повторить'
+                    )}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => navigate(backPath)}>
+                    Назад
+                  </Button>
+                </div>
+              </div>
             ) : sessionEnded ? (
               <div className="rounded-2xl border bg-white dark:bg-slate-900 p-6 sm:p-8 text-center space-y-4">
                 <p className="font-medium">Вы вышли из урока</p>
@@ -315,7 +383,7 @@ export default function LessonVideo() {
             ) : (
               <VideoPrejoin
                 isHost={isHost}
-                checking={checking}
+                checking={checking || joining}
                 checks={checks}
                 canJoin={canJoinWindow}
                 tooEarly={tooEarly}

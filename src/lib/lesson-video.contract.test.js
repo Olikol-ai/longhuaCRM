@@ -91,6 +91,9 @@ describe('Video lesson UI contract', () => {
     assert.match(prejoin, /Проверка оборудования/);
     assert.match(prejoin, /Камера/);
     assert.match(prejoin, /Микрофон/);
+    assert.match(page, /Не удалось подключиться к видеоконференции/);
+    assert.match(page, /lesson-video-retry|Повторить/);
+    assert.match(embed, /joinedOnceRef|conferenceFailed|connectionFailed/);
     assert.match(embed, /JitsiMeetExternalAPI/);
     assert.match(embed, /loadJitsiExternalApi/);
     assert.match(embed, /executeCommand\('displayName'/);

@@ -97,7 +97,7 @@ const PREFIX_ROUTE_ACCESS = [
   { prefix: '/admin/tutors/', roles: ['admin'] },
   { prefix: '/Groups/', roles: ['admin'] },
   { prefix: '/StudentDetail', roles: ['admin'] },
-  { prefix: '/lesson/', roles: ['admin', 'teacher', 'tutor', 'student'] },
+  { prefix: '/lesson/', roles: ['admin', 'teacher', 'tutor', 'student', 'tutor_student'] },
   { prefix: '/certificate/', roles: ['admin', 'teacher', 'tutor', 'student'] },
 ];
 

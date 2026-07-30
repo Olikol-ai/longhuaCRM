@@ -42,8 +42,24 @@ export class JitsiVideoProvider implements VideoProvider {
 
   private domainFromBase(base: string): string {
     try {
-      return new URL(base).hostname;
-    } catch {
+      const parsed = new URL(base);
+      // JitsiMeetExternalAPI loads https://{domain}/{room} — a path prefix
+      // (e.g. /meet) is silently dropped and the iframe hits the CRM SPA.
+      const path = (parsed.pathname || '/').replace(/\/$/, '') || '/';
+      if (path !== '/') {
+        throw new ServiceUnavailableException(
+          'JITSI_BASE_URL должен быть корневым хостом без path-prefix ' +
+            '(например https://meet.example.com). Path вроде /meet ломает iframe External API.',
+        );
+      }
+      if (!parsed.hostname) {
+        throw new ServiceUnavailableException(
+          'Видеоурок недоступен: некорректный JITSI_BASE_URL.',
+        );
+      }
+      return parsed.hostname;
+    } catch (err) {
+      if (err instanceof ServiceUnavailableException) throw err;
       throw new ServiceUnavailableException(
         'Видеоурок недоступен: некорректный JITSI_BASE_URL.',
       );

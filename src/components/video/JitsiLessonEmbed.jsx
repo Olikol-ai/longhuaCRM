@@ -10,6 +10,9 @@ import {
 /**
  * Embeds a lesson via JitsiMeetExternalAPI.
  * Native toolbar is hidden — control via ref.executeCommand from CRM shell.
+ *
+ * Important: External API builds https://{domain}/{roomName}.
+ * JITSI_BASE_URL must be a host root (e.g. https://meet.example.com), not a path prefix.
  */
 const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
   {
@@ -30,6 +33,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
 ) {
   const containerRef = useRef(null);
   const apiRef = useRef(null);
+  const joinedOnceRef = useRef(false);
   const onLeftRef = useRef(onLeft);
   const onJoinedRef = useRef(onJoined);
   const onErrorRef = useRef(onError);
@@ -64,10 +68,16 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
 
   useEffect(() => {
     let cancelled = false;
+    joinedOnceRef.current = false;
     const host = domain || parseJitsiDomain(roomUrl);
     const name = roomName || '';
 
     if (!host || !name || !containerRef.current) return undefined;
+
+    if (!jwt) {
+      onErrorRef.current?.(new Error('Нет токена доступа к видеоконференции'));
+      return undefined;
+    }
 
     (async () => {
       try {
@@ -82,6 +92,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           width: '100%',
           height: '100%',
           lang: 'ru',
+          jwt,
           userInfo: {
             displayName: displayName || 'Участник',
           },
@@ -91,7 +102,6 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
             hardenJitsiIframe(apiRef.current);
           },
         };
-        if (jwt) options.jwt = jwt;
 
         const api = new JitsiMeetExternalAPI(host, options);
         apiRef.current = api;
@@ -111,16 +121,37 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           }
         };
 
+        const reportLeave = () => {
+          // Ignore premature leave/close before a successful join (avoids bounce to prejoin).
+          if (!joinedOnceRef.current) return;
+          onLeftRef.current?.();
+        };
+
+        const reportError = (err) => {
+          if (cancelled) return;
+          const message =
+            typeof err === 'string'
+              ? err
+              : err?.message || err?.error || 'Не удалось подключиться к видеоконференции';
+          onErrorRef.current?.(new Error(String(message)));
+        };
+
         api.addListener('videoConferenceJoined', () => {
+          joinedOnceRef.current = true;
           hardenJitsiIframe(api);
           applyIdentity();
           onJoinedRef.current?.();
         });
-        api.addListener('readyToClose', () => {
-          onLeftRef.current?.();
+        api.addListener('readyToClose', reportLeave);
+        api.addListener('videoConferenceLeft', reportLeave);
+        api.addListener('connectionFailed', (e) => {
+          reportError(e?.message || e?.error || 'Ошибка соединения с видеосервером');
         });
-        api.addListener('videoConferenceLeft', () => {
-          onLeftRef.current?.();
+        api.addListener('conferenceFailed', (e) => {
+          reportError(e?.error || e?.message || 'Не удалось войти в конференцию');
+        });
+        api.addListener('errorOccurred', (e) => {
+          reportError(e?.error?.message || e?.message || 'Ошибка видеоконференции');
         });
         api.addListener('audioMuteStatusChanged', (e) => {
           onAudioMuteChangedRef.current?.(Boolean(e?.muted));
