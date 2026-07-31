@@ -13,8 +13,14 @@ import { getMyKeyVersion, getMyPrivateKey } from '@/lib/e2ee/vault';
 
 function supportedAudioType() {
   if (typeof MediaRecorder === 'undefined') return '';
-  return ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/webm']
-    .find((type) => MediaRecorder.isTypeSupported(type)) || '';
+  // Prefer mp4/aac when available (Safari), then ogg/webm opus (Chrome/Firefox).
+  return [
+    'audio/mp4',
+    'audio/aac',
+    'audio/ogg;codecs=opus',
+    'audio/webm;codecs=opus',
+    'audio/webm',
+  ].find((type) => MediaRecorder.isTypeSupported(type)) || '';
 }
 
 export default function ChatComposer({
@@ -128,9 +134,18 @@ export default function ChatComposer({
         setRecording(false);
         stream.getTracks().forEach((track) => track.stop());
         const durationMs = Date.now() - (startedAtRef.current || Date.now());
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
-        const extension = blob.type.includes('ogg') ? 'ogg' : 'webm';
-        const file = new File([blob], `voice-${Date.now()}.${extension}`, { type: blob.type });
+        const blob = new Blob(chunksRef.current, {
+          type: recorder.mimeType || 'audio/webm',
+        });
+        const mime = String(blob.type || '').toLowerCase();
+        const extension = mime.includes('mp4') || mime.includes('aac') || mime.includes('m4a')
+          ? 'm4a'
+          : mime.includes('ogg')
+            ? 'ogg'
+            : 'webm';
+        const file = new File([blob], `voice-${Date.now()}.${extension}`, {
+          type: blob.type || 'audio/webm',
+        });
         await uploadFile(file, { kind: 'voice', durationMs });
       };
       recorderRef.current = recorder;

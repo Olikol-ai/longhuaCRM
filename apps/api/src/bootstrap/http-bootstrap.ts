@@ -19,7 +19,16 @@ export function configureHttpMiddleware(app: INestApplication, config: ConfigSer
         crossOriginEmbedderPolicy: false,
       }),
     );
-    app.use(compression());
+    app.use(
+      compression({
+        filter: (req, res) => {
+          if (req.headers['x-no-compression']) {
+            return false;
+          }
+          return compression.filter(req, res);
+        },
+      }),
+    );
   }
 }
 

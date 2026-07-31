@@ -33,6 +33,38 @@ export interface ChatAttachmentFile {
   size: number;
 }
 
+/** Normalize browser MediaRecorder mime values for HTML media elements. */
+export function normalizeChatAttachmentMime(
+  mime: string | null | undefined,
+  kind: ChatAttachmentKind | string,
+  filename?: string | null,
+): string {
+  const raw = String(mime || '').trim().toLowerCase();
+  const name = String(filename || '').toLowerCase();
+
+  if (kind === ChatAttachmentKind.Voice || kind === 'voice') {
+    if (
+      raw.startsWith('audio/ogg') ||
+      raw === 'audio/opus' ||
+      name.endsWith('.ogg') ||
+      name.endsWith('.opus')
+    ) {
+      return 'audio/ogg';
+    }
+    if (raw.startsWith('audio/mp4') || raw.includes('aac') || name.endsWith('.m4a') || name.endsWith('.mp4')) {
+      return 'audio/mp4';
+    }
+    if (raw.startsWith('audio/webm') || name.endsWith('.webm')) {
+      return 'audio/webm';
+    }
+    if (raw.startsWith('audio/')) return raw;
+    return 'audio/webm';
+  }
+
+  if (raw) return raw;
+  return 'application/octet-stream';
+}
+
 @Injectable()
 export class ChatAttachmentsService {
   constructor(
@@ -73,7 +105,7 @@ export class ChatAttachmentsService {
       messageId: message.id,
       kind,
       storageKey,
-      mime: file.mimetype || null,
+      mime: normalizeChatAttachmentMime(file.mimetype, kind, file.originalname),
       originalFilename: basename(file.originalname || safeName),
       sizeBytes: String(file.size),
       durationMs: durationMs ?? null,
@@ -98,6 +130,11 @@ export class ChatAttachmentsService {
     };
   }
 
+  /**
+   * Resolve a chat attachment for streaming/download.
+   * Access is granted to any actor who can read the chat (membership / admin),
+   * not only the uploader/owner of the file.
+   */
   async resolveFile(
     actor: DomainAccessActor,
     attachmentId: string,
@@ -106,9 +143,10 @@ export class ChatAttachmentsService {
       where: { id: attachmentId },
       relations: { message: true },
     });
-    if (!attachment?.message) {
+    if (!attachment?.message || attachment.message.deletedAt) {
       throw new NotFoundException('Вложение не найдено');
     }
+    // Membership (or admin for non-direct) — never require senderUserId === actor.sub
     await this.access.assertCanRead(actor, attachment.message.chatId);
 
     const primary = join(getUploadsRoot(), 'chat', attachment.storageKey);

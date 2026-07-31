@@ -38,9 +38,29 @@ describe('Chat message persistence', () => {
       'utf8',
     );
     const urlHelper = readFileSync(join(root, 'src/lib/chat-attachment-url.js'), 'utf8');
+    const voice = readFileSync(
+      join(root, 'src/components/chats/VoicePlayer.jsx'),
+      'utf8',
+    );
     assert.match(urlHelper, /access_token/);
+    assert.match(urlHelper, /fetchChatAttachmentBlob/);
+    assert.match(urlHelper, /Authorization/);
     assert.match(pane, /chatAttachmentSrc/);
+    assert.match(voice, /useChatAttachmentObjectUrl/);
     assert.doesNotMatch(pane, /createObjectURL/);
+  });
+
+  it('voice playback loads via Bearer blob for any chat member', () => {
+    const voice = readFileSync(
+      join(root, 'src/components/chats/VoicePlayer.jsx'),
+      'utf8',
+    );
+    const hook = readFileSync(
+      join(root, 'src/lib/use-chat-attachment-object-url.js'),
+      'utf8',
+    );
+    assert.match(hook, /fetchChatAttachmentBlob/);
+    assert.match(voice, /useChatAttachmentObjectUrl/);
   });
 
   it('composer persists via HTTP before relying on UI state', () => {

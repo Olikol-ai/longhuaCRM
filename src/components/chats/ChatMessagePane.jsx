@@ -13,6 +13,7 @@ import { decryptDirectMessage } from '@/lib/e2ee/message';
 import { getMyPrivateKey } from '@/lib/e2ee/vault';
 import { usePresence } from '@/lib/PresenceContext';
 import { formatDirectPresence } from '@/lib/presence-format';
+import { useChatAttachmentObjectUrl } from '@/lib/use-chat-attachment-object-url';
 import { cn } from '@/lib/utils';
 import ChatMediaLightbox from './ChatMediaLightbox';
 import CrmMessageCard from './CrmMessageCard';
@@ -54,16 +55,24 @@ function Attachment({
   imageIndex,
   onOpenImage,
 }) {
-  const src = chatAttachmentSrc(attachment.id);
+  const isVoice = attachment.kind === 'voice';
+  const isVideo = !isVoice && isVideoAttachment(attachment);
+  const needsObjectUrl = isVideo;
+  const {
+    src: objectSrc,
+    error: objectError,
+    loading: objectLoading,
+  } = useChatAttachmentObjectUrl(needsObjectUrl ? attachment.id : null);
+  const querySrc = chatAttachmentSrc(attachment.id);
   const downloadSrc = chatAttachmentDownloadSrc(attachment.id);
   const name = attachment.originalFilename || attachment.original_filename || 'Файл';
 
-  if (attachment.kind === 'voice') return <VoicePlayer attachment={attachment} />;
-  if (!src) {
-    return <span className="mt-1 block text-xs text-muted-foreground">Вложение недоступно</span>;
-  }
+  if (isVoice) return <VoicePlayer attachment={attachment} />;
 
   if (isImageAttachment(attachment)) {
+    if (!querySrc) {
+      return <span className="mt-1 block text-xs text-muted-foreground">Вложение недоступно</span>;
+    }
     return (
       <div className="mt-1 space-y-1">
         <button
@@ -73,7 +82,7 @@ function Attachment({
         >
           <img
             className="max-h-64 max-w-full object-contain"
-            src={src}
+            src={querySrc}
             alt={name}
           />
         </button>
@@ -88,18 +97,26 @@ function Attachment({
     );
   }
 
-  if (isVideoAttachment(attachment)) {
+  if (isVideo) {
     return (
       <div className="mt-1 max-w-full space-y-1">
-        <video
-          className="max-h-72 w-full max-w-md rounded-md border border-border bg-black"
-          src={src}
-          controls
-          playsInline
-          preload="metadata"
-        >
-          Ваш браузер не поддерживает видео.
-        </video>
+        {objectLoading ? (
+          <p className="text-xs text-muted-foreground">Загрузка видео…</p>
+        ) : null}
+        {objectError ? (
+          <p className="text-xs text-destructive">{objectError}</p>
+        ) : null}
+        {objectSrc ? (
+          <video
+            className="max-h-72 w-full max-w-md rounded-md border border-border bg-black"
+            src={objectSrc}
+            controls
+            playsInline
+            preload="metadata"
+          >
+            Ваш браузер не поддерживает видео.
+          </video>
+        ) : null}
         <a
           className="inline-flex min-h-9 items-center gap-1 text-xs text-muted-foreground hover:text-brand"
           href={downloadSrc}
@@ -110,6 +127,12 @@ function Attachment({
       </div>
     );
   }
+
+  if (!querySrc) {
+    return <span className="mt-1 block text-xs text-muted-foreground">Вложение недоступно</span>;
+  }
+
+  const src = querySrc;
 
   if (isPdfAttachment(attachment)) {
     return (

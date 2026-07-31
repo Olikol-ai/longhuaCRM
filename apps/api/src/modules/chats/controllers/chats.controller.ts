@@ -15,6 +15,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { SkipThrottle } from '@nestjs/throttler';
 import { memoryStorage } from 'multer';
 import { createReadStream } from 'fs';
 import { Request, Response } from 'express';
@@ -24,7 +25,10 @@ import { RolesGuard } from '../../../common/guards/roles.guard';
 import { JwtPayload } from '../../auth/auth.service';
 import { ChatDirectoryQueryDto, CreateBlockDto, CreateCrmCardDto, CreateDirectChatDto, CreateDmRequestDto, CreateGroupChatDto, CreateMessageDto, InviteMembersDto, ListDmRequestsQueryDto, ListMessagesDto, MarkReadDto, UpdateChatProfileDto, UpdateDmPrivacyDto, UpdateMessageDto, UploadAttachmentDto } from '../dto/chats.dto';
 import { ChatAttachmentKind, DirectChatRequestStatus, DmPrivacyPolicy } from '../enums/chat.enums';
-import { ChatAttachmentsService } from '../services/chat-attachments.service';
+import {
+  ChatAttachmentsService,
+  normalizeChatAttachmentMime,
+} from '../services/chat-attachments.service';
 import { ChatDirectoryService } from '../services/chat-directory.service';
 import { ChatMessagesService } from '../services/chat-messages.service';
 import { ChatPrivacyService } from '../../../common/access/chat-privacy.service';
@@ -142,6 +146,11 @@ export class ChatsController {
     return this.privacy.unblockUser(actor, blockedUserId);
   }
 
+  /**
+   * Stream a chat attachment for any member who can read the chat.
+   * Supports Range / 206 for HTML media elements. Not owner-only.
+   */
+  @SkipThrottle()
   @Get('attachments/:attachmentId/download')
   async download(
     @CurrentUser() actor: JwtPayload,
@@ -152,7 +161,11 @@ export class ChatsController {
   ): Promise<void> {
     const file = await this.attachments.resolveFile(actor, attachmentId);
     const { attachment, absolutePath, size } = file;
-    const mime = attachment.mime || 'application/octet-stream';
+    const mime = normalizeChatAttachmentMime(
+      attachment.mime,
+      attachment.kind,
+      attachment.originalFilename,
+    );
     const filename = (attachment.originalFilename || attachment.storageKey || 'file').replace(
       /["\r\n]/g,
       '_',
@@ -160,9 +173,14 @@ export class ChatsController {
     const forceDownload = dispositionQuery === 'attachment';
     const disposition = forceDownload ? 'attachment' : 'inline';
 
+    // Skip express compression for binary media / Range responses.
+    (request as Request & { headers: Record<string, string | undefined> }).headers[
+      'x-no-compression'
+    ] = '1';
+
     response.setHeader('Content-Type', mime);
     response.setHeader('Accept-Ranges', 'bytes');
-    response.setHeader('Cache-Control', 'private, max-age=3600');
+    response.setHeader('Cache-Control', 'private, no-store');
     response.setHeader(
       'Content-Disposition',
       `${disposition}; filename="${filename}"`,
@@ -172,9 +190,18 @@ export class ChatsController {
     if (range && /^bytes=/.test(range)) {
       const match = /^bytes=(\d*)-(\d*)$/.exec(range);
       if (match) {
-        const start = match[1] ? parseInt(match[1], 10) : 0;
-        const end = match[2] ? parseInt(match[2], 10) : size - 1;
-        if (Number.isFinite(start) && Number.isFinite(end) && start <= end && end < size) {
+        let start: number;
+        let end: number;
+        if (match[1] === '' && match[2] !== '') {
+          // suffix: bytes=-500
+          const suffix = parseInt(match[2], 10);
+          start = Math.max(0, size - suffix);
+          end = size - 1;
+        } else {
+          start = match[1] ? parseInt(match[1], 10) : 0;
+          end = match[2] ? parseInt(match[2], 10) : size - 1;
+        }
+        if (Number.isFinite(start) && Number.isFinite(end) && start >= 0 && start <= end && end < size) {
           response.status(206);
           response.setHeader('Content-Range', `bytes ${start}-${end}/${size}`);
           response.setHeader('Content-Length', String(end - start + 1));
@@ -182,6 +209,10 @@ export class ChatsController {
           return;
         }
       }
+      response.status(416);
+      response.setHeader('Content-Range', `bytes */${size}`);
+      response.end();
+      return;
     }
 
     response.setHeader('Content-Length', String(size));

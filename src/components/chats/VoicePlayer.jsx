@@ -1,7 +1,7 @@
 import { Pause, Play } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { chatAttachmentSrc } from '@/lib/chat-attachment-url';
+import { useChatAttachmentObjectUrl } from '@/lib/use-chat-attachment-object-url';
 
 function formatDuration(ms) {
   if (!ms || ms < 0) return '';
@@ -14,12 +14,13 @@ function formatDuration(ms) {
 export default function VoicePlayer({ attachment }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
-  const [error, setError] = useState(null);
-  const src = chatAttachmentSrc(attachment.id);
+  const [playError, setPlayError] = useState(null);
+  const { src, error: loadError, loading } = useChatAttachmentObjectUrl(attachment?.id);
   const label = formatDuration(attachment.durationMs ?? attachment.duration_ms);
+  const error = playError || loadError;
 
   useEffect(() => {
-    setError(null);
+    setPlayError(null);
     setPlaying(false);
   }, [attachment?.id, src]);
 
@@ -33,7 +34,7 @@ export default function VoicePlayer({ attachment }) {
         el.pause();
       }
     } catch (err) {
-      setError(err?.message || 'Не удалось воспроизвести');
+      setPlayError(err?.message || 'Не удалось воспроизвести');
     }
   };
 
@@ -45,7 +46,7 @@ export default function VoicePlayer({ attachment }) {
         variant="ghost"
         className="h-11 w-11 shrink-0"
         onClick={() => void toggle()}
-        disabled={!src}
+        disabled={!src || loading}
         aria-label={playing ? 'Пауза' : 'Воспроизвести'}
       >
         {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
@@ -53,6 +54,9 @@ export default function VoicePlayer({ attachment }) {
       <div className="min-w-0 flex-1">
         <p className="text-xs font-medium">Голосовое сообщение</p>
         {label ? <p className="text-[11px] text-muted-foreground">{label}</p> : null}
+        {loading && !error ? (
+          <p className="text-[11px] text-muted-foreground">Загрузка…</p>
+        ) : null}
         {error ? <p className="text-[11px] text-destructive">{error}</p> : null}
       </div>
       {src ? (
@@ -64,7 +68,9 @@ export default function VoicePlayer({ attachment }) {
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
           onEnded={() => setPlaying(false)}
-          onError={() => setError('Файл был удалён или недоступен.')}
+          onError={() =>
+            setPlayError('Не удалось воспроизвести аудио. Формат может не поддерживаться браузером.')
+          }
         />
       ) : null}
     </div>
