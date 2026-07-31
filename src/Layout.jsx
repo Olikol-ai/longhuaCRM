@@ -31,10 +31,13 @@ import {
 } from "@/lib/auth-gate";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { buildUserAvatarUrl } from "@/api/http";
-import { chatsApi } from "@/api/chats.api";
 import { connectChatSocket, subscribeToChatSocket } from "@/lib/chat-socket";
 import { subscribeChatUnreadTotal } from "@/lib/chat-unread-events";
-import { pickField } from "@/lib/chat-normalize";
+import {
+  applyUnreadSummaryFromSocket,
+  refreshChatUnread,
+  UNREAD_POLL_INTERVAL_MS,
+} from "@/lib/chat-unread-sync";
 
 const adminNav = [
   { name: "Главная", icon: LayoutDashboard, page: "Dashboard" },
@@ -129,30 +132,32 @@ export default function Layout({ children, currentPageName }) {
 
   React.useEffect(() => {
     if (!isAuthenticated) return undefined;
-    const refreshUnread = () => {
-      void chatsApi.unreadCount().then((summary) => {
-        setChatUnread(pickField(summary, 'total') || 0);
-      }).catch(() => {});
-    };
-    refreshUnread();
+
+    // Badge sync is background-only — never gate page/material navigation on it.
+    void refreshChatUnread({ force: true });
     connectChatSocket();
-    const interval = window.setInterval(refreshUnread, 30_000);
-    window.addEventListener('focus', refreshUnread);
+
+    const interval = window.setInterval(() => {
+      void refreshChatUnread();
+    }, UNREAD_POLL_INTERVAL_MS);
+
+    // Throttled inside refreshChatUnread — window.open (materials) must not stampede HTTP.
+    const onFocus = () => {
+      void refreshChatUnread();
+    };
+    window.addEventListener('focus', onFocus);
+
     const unsubLocal = subscribeChatUnreadTotal((total) => setChatUnread(total));
     const unsubSocket = subscribeToChatSocket({
       'chat.unread': (payload) => {
-        const total = pickField(payload, 'total') ?? payload?.Total;
-        if (typeof total === 'number') setChatUnread(total);
-        else refreshUnread();
+        applyUnreadSummaryFromSocket(payload);
       },
-      'message.created': () => {
-        // Badge may change for chats other than the open one — refresh soon.
-        window.setTimeout(refreshUnread, 250);
-      },
+      // Live unread arrives via chat.unread fan-out — do not HTTP-refresh on every message.
     });
+
     return () => {
       window.clearInterval(interval);
-      window.removeEventListener('focus', refreshUnread);
+      window.removeEventListener('focus', onFocus);
       unsubLocal();
       unsubSocket();
     };

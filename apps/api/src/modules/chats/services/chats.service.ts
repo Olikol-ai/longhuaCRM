@@ -97,14 +97,29 @@ export class ChatsService {
   }
 
   async unreadSummary(actor: DomainAccessActor): Promise<{ total: number; byChat: Record<string, number> }> {
-    const listed = await this.listChats(actor);
+    // Lean path for the nav badge + WS fan-out.
+    // Do NOT call listChats(): that runs membership sync, online counts, and
+    // sequential per-chat work — and Layout used to stampede this endpoint.
+    const memberships = await this.memberRepo.find({
+      where: { userId: actor.sub, hiddenAt: IsNull() },
+    });
+
+    const counted = await Promise.all(
+      memberships.map(async (membership) => ({
+        chatId: membership.chatId,
+        unreadCount: await this.countUnread(membership.chatId, membership, actor.sub),
+      })),
+    );
+
     const byChat: Record<string, number> = {};
-    for (const rows of Object.values(listed.groups)) {
-      for (const chat of rows) {
-        if (chat.unreadCount > 0) byChat[chat.id] = chat.unreadCount;
+    let total = 0;
+    for (const row of counted) {
+      if (row.unreadCount > 0) {
+        byChat[row.chatId] = row.unreadCount;
+        total += row.unreadCount;
       }
     }
-    return { total: listed.totalUnread, byChat };
+    return { total, byChat };
   }
 
   async getChat(actor: DomainAccessActor, chatId: string): Promise<
@@ -455,17 +470,11 @@ export class ChatsService {
     }
 
     const unread = await query.getCount();
-
-    const latest = await this.messageRepo.findOne({
-      where: { chatId, deletedAt: IsNull() },
-      order: { createdAt: 'DESC', id: 'DESC' },
-      select: ['id', 'createdAt'],
-    });
     this.logger.debug(
       `countUnread userId=${viewerUserId ?? member.userId} chatId=${chatId} ` +
         `lastReadMessageId=${member.lastReadMessageId} ` +
         `lastReadAt=${member.lastReadAt ? new Date(member.lastReadAt).toISOString() : 'null'} ` +
-        `latestMessageId=${latest?.id ?? 'null'} unread=${unread}`,
+        `unread=${unread}`,
     );
 
     return unread;

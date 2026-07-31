@@ -64,11 +64,18 @@ export async function resolveMaterialOpenUrl(material) {
  *
  * Signed URLs embed auth in the path — the browser navigates/streams immediately.
  * Do NOT fetch+blob the whole file first (that blocked UI for large PDFs for minutes).
+ * Do NOT await chat/unread/socket work — materials open independently of Layout badge sync.
  */
 export async function openMaterial(material) {
-  // Open the tab synchronously on the click stack so popup blockers allow it,
-  // then point it at the signed URL as soon as ACL returns.
-  const popup = window.open('about:blank', '_blank', 'noopener,noreferrer');
+  // Keep a handle to the blank tab. Avoid "noopener" on the initial open —
+  // modern browsers return null with noopener, which forced a second open after
+  // the signed-URL round-trip and delayed navigation.
+  const popup = window.open('about:blank', '_blank');
+  try {
+    if (popup) popup.opener = null;
+  } catch {
+    // ignore
+  }
 
   try {
     const url = await resolveMaterialOpenUrl(material);

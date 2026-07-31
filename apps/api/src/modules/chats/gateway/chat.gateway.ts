@@ -191,14 +191,7 @@ export class ChatGateway
       messageId: payload.messageId,
       readAt: new Date().toISOString(),
     });
-    if (this.chats) {
-      try {
-        const summary = await this.chats.unreadSummary(actor);
-        this.emitToUser(actor.sub, 'chat.unread', summary);
-      } catch {
-        // ignore
-      }
-    }
+    // markRead already emits chat.unread via ChatsService.emitUnreadSummary.
   }
 
   /**

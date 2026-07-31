@@ -28,7 +28,11 @@ import {
   leaveChat,
   subscribeToChatSocket,
 } from '@/lib/chat-socket';
-import { publishChatUnreadTotal } from '@/lib/chat-unread-events';
+import {
+  applyUnreadSummaryFromSocket,
+  refreshChatUnread,
+  subscribeUnreadSummary,
+} from '@/lib/chat-unread-sync';
 
 const emptyGroups = {};
 const PAGE_SIZE = 50;
@@ -134,35 +138,31 @@ export default function Chats() {
     }
   }, []);
 
-  const syncUnreadFromServer = useCallback(async () => {
-    try {
-      const summary = await chatsApi.unreadCount();
-      const byChat = pickField(summary, 'byChat', 'by_chat') || {};
-      const openChatId = activeChatIdRef.current;
-      setGroups((previous) =>
-        Object.fromEntries(
-          Object.entries(previous).map(([kind, chats]) => [
-            kind,
-            chats.map((chat) => {
-              const unreadCount =
-                chat.id === openChatId ? 0 : byChat?.[chat.id] || 0;
-              return normalizeChat({
-                ...chat,
-                unreadCount,
-              });
-            }),
-          ]),
-        ),
-      );
-      publishChatUnreadTotal(summary?.total || 0);
-    } catch {
-      // ignore
-    }
+  const applyByChatToGroups = useCallback((byChat) => {
+    const openChatId = activeChatIdRef.current;
+    const map = byChat && typeof byChat === 'object' ? byChat : {};
+    setGroups((previous) =>
+      Object.fromEntries(
+        Object.entries(previous).map(([kind, chats]) => [
+          kind,
+          chats.map((chat) => {
+            const unreadCount =
+              chat.id === openChatId ? 0 : map?.[chat.id] || 0;
+            return normalizeChat({
+              ...chat,
+              unreadCount,
+            });
+          }),
+        ]),
+      ),
+    );
   }, []);
 
-  const refreshUnreadBadges = useCallback(() => {
-    void syncUnreadFromServer();
-  }, [syncUnreadFromServer]);
+  const syncUnreadFromServer = useCallback(async (options = {}) => {
+    const summary = await refreshChatUnread(options);
+    if (!summary) return;
+    applyByChatToGroups(summary.byChat);
+  }, [applyByChatToGroups]);
 
   useEffect(() => {
     void loadChats().finally(() => setLoading(false));
@@ -175,14 +175,13 @@ export default function Chats() {
     connectChatSocket();
   }, []);
 
+  // Layout owns global poll/focus HTTP. Chats only hydrates byChat from the shared store.
   useEffect(() => {
-    const interval = window.setInterval(refreshUnreadBadges, 30_000);
-    window.addEventListener('focus', refreshUnreadBadges);
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener('focus', refreshUnreadBadges);
-    };
-  }, [refreshUnreadBadges]);
+    void syncUnreadFromServer({ force: true });
+    return subscribeUnreadSummary((summary) => {
+      applyByChatToGroups(summary.byChat);
+    });
+  }, [syncUnreadFromServer, applyByChatToGroups]);
 
   /** Load history for a chat from PostgreSQL. Never wipes other chats. */
   const loadHistory = useCallback(async (chatId) => {
@@ -271,11 +270,9 @@ export default function Chats() {
                 .markRead(next.chatId)
                 .then(() => {
                   emitMessageRead(next.chatId, next.id);
-                  void syncUnreadFromServer();
+                  // Server emits chat.unread after markRead — no extra HTTP.
                 })
                 .catch(() => {});
-            } else {
-              void syncUnreadFromServer();
             }
           } else {
             setGroups((prev) => {
@@ -285,30 +282,12 @@ export default function Chats() {
               const current = chat?.unreadCount || 0;
               return patchUnread(prev, next.chatId, current + 1);
             });
-            void syncUnreadFromServer();
+            // Authoritative byChat arrives via chat.unread fan-out.
           }
         },
         'chat.unread': (payload) => {
-          const byChat = pickField(payload, 'byChat', 'by_chat') || {};
-          const total = pickField(payload, 'total') ?? 0;
-          const openChatId = activeChatIdRef.current;
-          setGroups((previous) =>
-            Object.fromEntries(
-              Object.entries(previous).map(([kind, chats]) => [
-                kind,
-                chats.map((chat) => {
-                  // Open chat stays visually read; markRead is the source of truth.
-                  const unreadCount =
-                    chat.id === openChatId ? 0 : byChat?.[chat.id] || 0;
-                  return normalizeChat({
-                    ...chat,
-                    unreadCount,
-                  });
-                }),
-              ]),
-            ),
-          );
-          publishChatUnreadTotal(total);
+          const summary = applyUnreadSummaryFromSocket(payload);
+          applyByChatToGroups(summary.byChat);
         },
         'message.updated': (message) => {
           const next = normalizeMessage(message);
@@ -360,7 +339,7 @@ export default function Chats() {
           void loadChats();
         },
       }),
-    [loadChats, loadPendingCount, user?.id, syncUnreadFromServer],
+    [loadChats, loadPendingCount, user?.id, applyByChatToGroups],
   );
 
   const selectChat = (chat) => {
@@ -386,7 +365,7 @@ export default function Chats() {
       setGroups((prev) => patchUnread(prev, chatId, 0));
       void chatsApi
         .markRead(chatId, messageId || undefined)
-        .then(async (result) => {
+        .then((result) => {
           if (requestId !== markReadRequestRef.current) return;
           if (activeChatIdRef.current !== chatId) return;
           const lastReadId =
@@ -396,12 +375,11 @@ export default function Chats() {
           setGroups((prev) =>
             patchUnread(prev, chatId, typeof unread === 'number' ? unread : 0),
           );
-          // Refresh other chats' badges; keep this chat at server-confirmed unread.
-          await syncUnreadFromServer();
+          // markRead + gateway emit chat.unread — badge updates without HTTP stampede.
         })
         .catch(() => {
           if (requestId !== markReadRequestRef.current) return;
-          void syncUnreadFromServer();
+          void syncUnreadFromServer({ force: true });
         });
     },
     [syncUnreadFromServer],
