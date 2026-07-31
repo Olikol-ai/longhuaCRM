@@ -197,14 +197,23 @@ export default function ListeningTaskEditor({ open, onOpenChange, editing = null
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Аудиофайл</Label>
+              <Label>Аудио / медиафайл</Label>
               <Input
                 type="file"
-                accept="audio/*"
+                accept="audio/*,video/quicktime,video/mp4,.mp3,.wav,.ogg,.m4a,.aac,.mov,.mp4"
                 onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
               />
+              <p className="text-xs text-muted-foreground">
+                mp3, wav, ogg, m4a, aac. Для .mov / .mp4 будет использована аудиодорожка файла
+                (видео ученику не показывается).
+              </p>
               {hasAudio && !audioFile ? (
                 <p className="text-xs text-slate-500">Аудио уже загружено</p>
+              ) : null}
+              {audioFile && /\.(mov|mp4)$/i.test(audioFile.name) ? (
+                <p className="text-xs text-sky-700 dark:text-sky-300">
+                  Будет использована аудиодорожка файла
+                </p>
               ) : null}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

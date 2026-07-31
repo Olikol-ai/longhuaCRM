@@ -74,6 +74,8 @@ describe('Assessment authoring access', () => {
     assert.match(listening, /TaskVocabularyEditor/);
     assert.match(reading, /vocabulary/);
     assert.match(listening, /vocabulary/);
+    assert.match(listening, /\.mov/);
+    assert.match(listening, /аудиодорожк/);
     assert.doesNotMatch(reading, /api\.assessment\.listQuestions/);
     assert.doesNotMatch(listening, /api\.assessment\.listQuestions/);
   });

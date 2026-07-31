@@ -5,12 +5,16 @@ import {
   StreamableFile,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { createReadStream, existsSync, mkdirSync, writeFileSync } from 'fs';
-import { basename, extname, join } from 'path';
-import { randomUUID } from 'crypto';
+import { createReadStream } from 'fs';
 import { Repository } from 'typeorm';
 import { AssessmentAccessService } from '../../../common/access/assessment-access.service';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
+import {
+  deleteListeningAudio,
+  resolveListeningAudioPath,
+  storeListeningAudio,
+  type ListeningUploadFile,
+} from '../../../common/storage/listening-audio';
 import {
   AUTHORING_ATOMIC_QUESTION_TYPES,
   ContentLifecycleStatus,
@@ -28,18 +32,6 @@ import {
   normalizeVocabularyInput,
   VocabularyItemInput,
 } from './task-vocabulary.util';
-import { uploadsJoin } from '../../../common/storage/uploads-root';
-
-const AUDIO_DIR = uploadsJoin('assessment');
-const AUDIO_EXTENSIONS = new Set([
-  '.mp3',
-  '.ogg',
-  '.wav',
-  '.m4a',
-  '.webm',
-  '.aac',
-  '.opus',
-]);
 
 export type CreateListeningTaskInput = {
   title: string;
@@ -58,12 +50,7 @@ export type UpdateListeningTaskInput = {
   status?: ContentLifecycleStatus;
 };
 
-export type UploadedAudio = {
-  buffer: Buffer;
-  originalname: string;
-  mimetype?: string;
-  size: number;
-};
+export type UploadedAudio = ListeningUploadFile;
 
 const TASK_RELATIONS = ['questions', 'questions.answers', 'vocabulary'] as const;
 
@@ -134,26 +121,23 @@ export class ListeningTaskService {
 
   async uploadAudio(actor: DomainAccessActor, id: string, file: UploadedAudio) {
     const task = await this.requireOwned(actor, id);
-    if (!file?.buffer?.length) throw new BadRequestException('Audio file is required');
-    const extension = extname(file.originalname || '').toLowerCase();
-    if (!AUDIO_EXTENSIONS.has(extension)) {
-      throw new BadRequestException('Поддерживаются аудиофайлы: mp3, ogg, wav, m4a, webm, aac');
-    }
-    mkdirSync(AUDIO_DIR, { recursive: true });
-    const storageKey = `${randomUUID()}${extension}`;
-    writeFileSync(join(AUDIO_DIR, storageKey), file.buffer);
-    task.audioStorageKey = storageKey;
-    task.audioMime = file.mimetype || null;
-    task.audioOriginalFilename = basename(file.originalname || storageKey);
+    const previousKey = task.audioStorageKey;
+    const stored = await storeListeningAudio(file);
+    task.audioStorageKey = stored.storageKey;
+    task.audioMime = stored.mime;
+    task.audioOriginalFilename = stored.originalFilename;
     await this.tasks.save(task);
+    if (previousKey && previousKey !== stored.storageKey) {
+      deleteListeningAudio(previousKey);
+    }
     return this.get(actor, id);
   }
 
   async streamAudio(actor: DomainAccessActor, id: string): Promise<StreamableFile> {
     const task = await this.requireOwned(actor, id);
     if (!task.audioStorageKey) throw new NotFoundException('Audio not found');
-    const path = join(AUDIO_DIR, basename(task.audioStorageKey));
-    if (!existsSync(path)) throw new NotFoundException('Audio file missing on disk');
+    const path = resolveListeningAudioPath(task.audioStorageKey);
+    if (!path) throw new NotFoundException('Audio file missing on disk');
     return new StreamableFile(createReadStream(path), {
       type: task.audioMime ?? 'audio/mpeg',
       disposition: `inline; filename="${task.audioOriginalFilename ?? task.audioStorageKey}"`,
@@ -167,8 +151,8 @@ export class ListeningTaskService {
     if (task.status !== ContentLifecycleStatus.Published && !this.access.isAdmin(actor)) {
       this.access.assertCanManageCreatedContent(actor, task, 'listening task');
     }
-    const path = join(AUDIO_DIR, basename(task.audioStorageKey));
-    if (!existsSync(path)) throw new NotFoundException('Audio file missing on disk');
+    const path = resolveListeningAudioPath(task.audioStorageKey);
+    if (!path) throw new NotFoundException('Audio file missing on disk');
     return new StreamableFile(createReadStream(path), {
       type: task.audioMime ?? 'audio/mpeg',
       disposition: `inline; filename="${task.audioOriginalFilename ?? task.audioStorageKey}"`,
@@ -189,7 +173,9 @@ export class ListeningTaskService {
 
   async remove(actor: DomainAccessActor, id: string) {
     const task = await this.requireOwned(actor, id);
+    const audioKey = task.audioStorageKey;
     await this.tasks.remove(task);
+    deleteListeningAudio(audioKey);
   }
 
   async loadPublishedWithQuestions(ids: string[]): Promise<AssessmentListeningTaskEntity[]> {
