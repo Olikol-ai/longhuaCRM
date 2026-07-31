@@ -32,6 +32,12 @@ export const homework = {
     const q = homeworkId ? `?homeworkId=${encodeURIComponent(homeworkId)}` : '';
     return apiFetch(`/homework/assignments${q}`);
   },
+  cancelAssignment(assignmentId) {
+    return apiFetch(`/homework/assignments/${encodeURIComponent(assignmentId)}/cancel`, {
+      method: 'POST',
+      body: '{}',
+    });
+  },
   myAssignments() {
     return apiFetch('/homework/assignments/mine');
   },

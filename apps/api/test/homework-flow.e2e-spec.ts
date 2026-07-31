@@ -459,7 +459,8 @@ describeE2E('Homework module (e2e)', () => {
         result: 'Сделано на занятии',
       })
       .expect(200);
-    expect(localStatusRes.body.manual_status).toBe('reviewed');
+    expect(localStatusRes.body.manual_status).toBe('checked');
+    expect(localStatusRes.body.status).toBe('checked');
     expect(localStatusRes.body.review_result).toBe('Сделано на занятии');
 
     const localResultRes = await api(app)

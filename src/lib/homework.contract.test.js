@@ -48,8 +48,27 @@ describe('Homework module architecture', () => {
     const list = readFileSync(join(root, 'src/pages/HomeworkList.jsx'), 'utf8');
     assert.match(viewer, /Домашние задания/);
     assert.match(list, /Домашние задания/);
+    assert.match(list, /Созданные мной/);
+    assert.match(list, /Назначенные ученикам/);
+    assert.match(list, /Проверка/);
+    assert.match(list, /История/);
     assert.doesNotMatch(viewer, /[Ээ]кзамен/);
     assert.doesNotMatch(list, /[Ээ]кзамен/);
+  });
+
+  it('uses assignment lifecycle statuses assigned/started/submitted/checked/expired/cancelled', () => {
+    const enums = readFileSync(
+      join(root, 'apps/api/src/modules/homework/enums/homework.enums.ts'),
+      'utf8',
+    );
+    assert.match(enums, /Assigned = 'assigned'/);
+    assert.match(enums, /Started = 'started'/);
+    assert.match(enums, /Submitted = 'submitted'/);
+    assert.match(enums, /Checked = 'checked'/);
+    assert.match(enums, /Expired = 'expired'/);
+    assert.match(enums, /Cancelled = 'cancelled'/);
+    assert.doesNotMatch(enums, /InProgress = 'in_progress'/);
+    assert.doesNotMatch(enums, /Reviewed = 'reviewed'/);
   });
 
   it('registers homework routes and menu entries for teacher, tutor and tutor_student', () => {

@@ -9,11 +9,15 @@ import TaskMaterialHeader from '@/components/assessment/TaskMaterialHeader';
 import { userFacingError } from '@/lib/userFacingError';
 
 const STATUS_LABEL = {
-  assigned: 'Не начато',
-  in_progress: 'В процессе',
-  submitted: 'Ожидает проверки',
+  assigned: 'Назначено',
+  started: 'Выполняется',
+  in_progress: 'Выполняется',
+  submitted: 'На проверке',
+  checked: 'Проверено',
   reviewed: 'Проверено',
+  expired: 'Просрочено',
   overdue: 'Просрочено',
+  cancelled: 'Отменено',
   needs_revision: 'На доработке',
 };
 
@@ -49,7 +53,7 @@ export default function HomeworkViewer() {
   useEffect(() => {
     if (!focusAssignmentId || !cards.length) return;
     const card = cards.find((c) => c.id === focusAssignmentId);
-    if (card && (card.status === 'assigned' || card.status === 'in_progress')) {
+    if (card && (card.status === 'assigned' || card.status === 'started' || card.status === 'in_progress' || card.status === 'needs_revision')) {
       void handleOpen(card);
     }
   }, [focusAssignmentId, cards]);
@@ -57,14 +61,21 @@ export default function HomeworkViewer() {
   const grouped = useMemo(() => {
     const buckets = {
       assigned: [],
-      in_progress: [],
+      started: [],
       submitted: [],
-      reviewed: [],
-      overdue: [],
+      checked: [],
+      expired: [],
+      cancelled: [],
       needs_revision: [],
     };
+    const aliases = {
+      in_progress: 'started',
+      reviewed: 'checked',
+      overdue: 'expired',
+    };
     for (const c of cards) {
-      const key = buckets[c.status] ? c.status : 'assigned';
+      const mapped = aliases[c.status] || c.status;
+      const key = buckets[mapped] ? mapped : 'assigned';
       buckets[key].push(c);
     }
     return buckets;
@@ -278,11 +289,12 @@ export default function HomeworkViewer() {
 
   const sections = [
     ['assigned', 'Новые'],
-    ['in_progress', 'В работе'],
-    ['submitted', 'Выполненные'],
-    ['reviewed', 'Проверенные'],
+    ['started', 'В работе'],
+    ['submitted', 'На проверке'],
+    ['checked', 'Проверенные'],
     ['needs_revision', 'На доработке'],
-    ['overdue', 'Просроченные'],
+    ['expired', 'Просроченные'],
+    ['cancelled', 'Отменённые'],
   ];
 
   return (

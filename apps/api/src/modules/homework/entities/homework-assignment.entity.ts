@@ -69,6 +69,18 @@ export class HomeworkAssignmentEntity {
   @Column({ name: 'assigned_at', type: 'timestamptz', default: () => 'NOW()' })
   assignedAt: Date;
 
+  @Column({ name: 'started_at', type: 'timestamptz', nullable: true })
+  startedAt: Date | null;
+
+  @Column({ name: 'submitted_at', type: 'timestamptz', nullable: true })
+  submittedAt: Date | null;
+
+  @Column({ name: 'checked_at', type: 'timestamptz', nullable: true })
+  checkedAt: Date | null;
+
+  @Column({ name: 'checked_by_user_id', type: 'uuid', nullable: true })
+  checkedByUserId: string | null;
+
   @OneToMany(() => HomeworkAttemptEntity, (a) => a.assignment)
   attempts?: HomeworkAttemptEntity[];
 

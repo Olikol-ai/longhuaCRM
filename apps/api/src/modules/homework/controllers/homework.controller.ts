@@ -216,6 +216,15 @@ export class HomeworkController {
     return this.homework.updateLocalAssignmentStatus(user, id, dto);
   }
 
+  @Post('assignments/:id/cancel')
+  @Roles('admin', 'teacher', 'tutor')
+  cancelAssignment(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.homework.cancelAssignment(user, id);
+  }
+
   @Delete(':id')
   @Roles('admin', 'teacher', 'tutor')
   remove(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {

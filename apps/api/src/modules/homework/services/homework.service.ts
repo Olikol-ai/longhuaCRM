@@ -23,6 +23,7 @@ import { StudentEntity } from '../../students/entities/student.entity';
 import { TeacherEntity } from '../../teachers/entities/teacher.entity';
 import { TutorEntity } from '../../tutors/entities/tutor.entity';
 import { TutorStudentEntity } from '../../tutors/entities/tutor-student.entity';
+import { UserEntity } from '../../users/entities/user.entity';
 import {
   AssignHomeworkDto,
   CreateHomeworkDto,
@@ -133,6 +134,8 @@ export class HomeworkService {
     private readonly tutors: Repository<TutorEntity>,
     @InjectRepository(TutorStudentEntity)
     private readonly tutorStudents: Repository<TutorStudentEntity>,
+    @InjectRepository(UserEntity)
+    private readonly users: Repository<UserEntity>,
     private readonly tutorStudentAccess: TutorStudentAccessService,
     private readonly scoring: AssessmentScoringService,
     private readonly notifier: HomeworkNotifierService,
@@ -537,19 +540,25 @@ export class HomeworkService {
     }
 
     const status = this.effectiveAssignmentStatus(assignment);
-    if (status === HomeworkAssignmentStatus.Overdue) {
-      assignment.status = HomeworkAssignmentStatus.Overdue;
+    if (
+      assignment.status === HomeworkAssignmentStatus.Cancelled ||
+      status === HomeworkAssignmentStatus.Cancelled
+    ) {
+      throw new ConflictException('Assignment was cancelled');
+    }
+    if (status === HomeworkAssignmentStatus.Expired) {
+      assignment.status = HomeworkAssignmentStatus.Expired;
       await this.assignments.save(assignment);
       throw new ConflictException('Assignment is overdue');
     }
     if (
       assignment.status === HomeworkAssignmentStatus.Submitted ||
-      assignment.status === HomeworkAssignmentStatus.Reviewed
+      assignment.status === HomeworkAssignmentStatus.Checked
     ) {
       throw new ConflictException('Assignment already completed');
     }
     if (assignment.status === HomeworkAssignmentStatus.NeedsRevision) {
-      assignment.status = HomeworkAssignmentStatus.InProgress;
+      assignment.status = HomeworkAssignmentStatus.Started;
     }
 
     const live = await this.attempts.findOne({
@@ -571,6 +580,7 @@ export class HomeworkService {
       throw new BadRequestException('Homework has no questions');
     }
 
+    const startedAt = new Date();
     const attempt = await this.attempts.save(
       this.attempts.create({
         assignmentId,
@@ -579,14 +589,15 @@ export class HomeworkService {
         tutorStudentId: learner.tutorStudent?.id ?? null,
         userId: user.sub,
         status: HomeworkAttemptStatus.Started,
-        startedAt: new Date(),
+        startedAt,
         submittedAt: null,
       }),
     );
 
     await this.createSnapshots(attempt, items);
 
-    assignment.status = HomeworkAssignmentStatus.InProgress;
+    assignment.status = HomeworkAssignmentStatus.Started;
+    assignment.startedAt = assignment.startedAt ?? startedAt;
     assignment.manualStatus = null;
     await this.assignments.save(assignment);
 
@@ -615,11 +626,20 @@ export class HomeworkService {
       relations: ['homework'],
     });
     if (assignment) {
+      const now = attempt.submittedAt ?? new Date();
+      assignment.submittedAt = now;
+      if (!assignment.startedAt) {
+        assignment.startedAt = attempt.startedAt ?? now;
+      }
       assignment.status = scoring.requiresManualReview
         ? HomeworkAssignmentStatus.Submitted
-        : HomeworkAssignmentStatus.Reviewed;
+        : HomeworkAssignmentStatus.Checked;
       assignment.reviewResult = scoring.requiresManualReview ? null : 'Автоматически проверено';
-      assignment.manualCheckedAt = scoring.requiresManualReview ? null : new Date();
+      assignment.manualCheckedAt = scoring.requiresManualReview ? null : now;
+      if (!scoring.requiresManualReview) {
+        assignment.checkedAt = now;
+        assignment.checkedByUserId = null;
+      }
       await this.assignments.save(assignment);
 
       if (assignment.homework) {
@@ -835,11 +855,29 @@ export class HomeworkService {
     await this.assertCanViewHomework(user, assignment.homework);
 
     const attempt = await this.attempts.findOne({
-      where: { assignmentId, status: HomeworkAttemptStatus.Submitted },
-      order: { submittedAt: 'DESC' },
+      where: { assignmentId },
+      order: { startedAt: 'DESC' },
     });
     if (attempt) {
-      return this.getAttemptState(user, attempt.id);
+      const state = await this.getAttemptState(user, attempt.id);
+      const enriched = await this.enrichAssignmentDtos([assignment], assignment.homework);
+      const detail = enriched[0];
+      return {
+        ...state,
+        ...detail,
+        questions: state.questions,
+        answers: state.answers,
+        result: state.result,
+        progress: {
+          answered: (state.answers ?? []).filter(
+            (answer: { text?: string | null; selected_answer_snapshot_ids?: string[]; has_audio?: boolean }) =>
+              Boolean(answer.text) ||
+              Boolean(answer.has_audio) ||
+              (answer.selected_answer_snapshot_ids?.length ?? 0) > 0,
+          ).length,
+          total: (state.questions ?? []).length,
+        },
+      };
     }
 
     const enriched = await this.enrichAssignmentDtos([assignment], assignment.homework);
@@ -852,8 +890,13 @@ export class HomeworkService {
 
     return {
       ...detail,
-      submitted_at: null,
+      submitted_at: assignment.submittedAt,
       answers: [],
+      questions: [],
+      progress: {
+        answered: 0,
+        total: assignment.homework.items?.length ?? detail.item_count ?? 0,
+      },
       result: localResult
         ? {
             id: localResult.id,
@@ -911,7 +954,14 @@ export class HomeworkService {
     }
 
     const normalized = String(dto.status || '').trim().toLowerCase();
-    const allowed = new Set(['completed', 'not_completed', 'reviewed', 'needs_revision']);
+    const allowed = new Set([
+      'completed',
+      'not_completed',
+      'reviewed',
+      'checked',
+      'needs_revision',
+      'cancelled',
+    ]);
     if (!allowed.has(normalized)) {
       throw new BadRequestException('Unsupported local homework status');
     }
@@ -919,8 +969,10 @@ export class HomeworkService {
     const resultStatusByNormalized: Record<string, HomeworkAssignmentStatus> = {
       completed: HomeworkAssignmentStatus.Submitted,
       not_completed: HomeworkAssignmentStatus.Assigned,
-      reviewed: HomeworkAssignmentStatus.Reviewed,
+      reviewed: HomeworkAssignmentStatus.Checked,
+      checked: HomeworkAssignmentStatus.Checked,
       needs_revision: HomeworkAssignmentStatus.NeedsRevision,
+      cancelled: HomeworkAssignmentStatus.Cancelled,
     };
     const resultStatus = resultStatusByNormalized[normalized];
     const now = new Date();
@@ -930,17 +982,35 @@ export class HomeworkService {
     assignment.reviewResult = dto.result?.trim() || null;
 
     assignment.manualCheckedAt =
-      resultStatus === HomeworkAssignmentStatus.Reviewed || resultStatus === HomeworkAssignmentStatus.NeedsRevision
+      resultStatus === HomeworkAssignmentStatus.Checked ||
+      resultStatus === HomeworkAssignmentStatus.NeedsRevision
         ? now
+        : null;
+    assignment.checkedAt =
+      resultStatus === HomeworkAssignmentStatus.Checked ||
+      resultStatus === HomeworkAssignmentStatus.NeedsRevision
+        ? now
+        : null;
+    assignment.checkedByUserId =
+      resultStatus === HomeworkAssignmentStatus.Checked ||
+      resultStatus === HomeworkAssignmentStatus.NeedsRevision
+        ? user.sub
         : null;
     assignment.returnedForRevisionAt =
       resultStatus === HomeworkAssignmentStatus.NeedsRevision ? now : null;
     assignment.status = resultStatus;
+    if (
+      resultStatus === HomeworkAssignmentStatus.Submitted ||
+      resultStatus === HomeworkAssignmentStatus.Checked
+    ) {
+      assignment.submittedAt = assignment.submittedAt ?? now;
+      assignment.startedAt = assignment.startedAt ?? now;
+    }
 
     // Persist local execution metadata into AssignmentResult, without creating HomeworkAttempt.
     const completedAt = resultStatus !== HomeworkAssignmentStatus.Assigned ? now : null;
     const checkedAt =
-      resultStatus === HomeworkAssignmentStatus.Reviewed ||
+      resultStatus === HomeworkAssignmentStatus.Checked ||
       resultStatus === HomeworkAssignmentStatus.NeedsRevision
         ? now
         : null;
@@ -977,6 +1047,30 @@ export class HomeworkService {
 
     const enriched = await this.enrichAssignmentDtos([assignment], assignment.homework);
     return enriched[0];
+  }
+
+  async cancelAssignment(user: JwtPayload, assignmentId: string) {
+    await this.assertManagerOrAdmin(user);
+    const assignment = await this.assignments.findOne({
+      where: { id: assignmentId },
+      relations: ['homework'],
+    });
+    if (!assignment?.homework) {
+      throw new NotFoundException('Assignment not found');
+    }
+    await this.assertCanViewHomework(user, assignment.homework);
+    if (
+      assignment.status === HomeworkAssignmentStatus.Checked ||
+      assignment.status === HomeworkAssignmentStatus.Submitted
+    ) {
+      throw new ConflictException('Нельзя отменить задание после отправки или проверки');
+    }
+    if (assignment.status === HomeworkAssignmentStatus.Cancelled) {
+      return (await this.enrichAssignmentDtos([assignment], assignment.homework))[0];
+    }
+    assignment.status = HomeworkAssignmentStatus.Cancelled;
+    await this.assignments.save(assignment);
+    return (await this.enrichAssignmentDtos([assignment], assignment.homework))[0];
   }
 
   private async replaceItems(homeworkId: string, items: HomeworkItemDto[]) {
@@ -1645,6 +1739,96 @@ export class HomeworkService {
             .filter(Boolean) as HomeworkEntity[];
     const owners = await this.buildHomeworkOwnerInfoMap(homeworks);
     const learners = await this.buildLearnerInfoMap(assignments);
+
+    const assignmentIds = assignments.map((row) => row.id);
+    const checkedByIds = [
+      ...new Set(assignments.map((row) => row.checkedByUserId).filter(Boolean)),
+    ] as string[];
+
+    const [attempts, results, itemCounts, checkers] = await Promise.all([
+      assignmentIds.length
+        ? this.attempts.find({
+            where: { assignmentId: In(assignmentIds) },
+            order: { startedAt: 'DESC' },
+          })
+        : Promise.resolve([] as HomeworkAttemptEntity[]),
+      assignmentIds.length
+        ? this.results.find({ where: { assignmentId: In(assignmentIds) } })
+        : Promise.resolve([] as HomeworkResultEntity[]),
+      homeworks.length
+        ? this.items
+            .createQueryBuilder('i')
+            .select('i.homework_id', 'homework_id')
+            .addSelect('COUNT(*)', 'cnt')
+            .where('i.homework_id IN (:...ids)', { ids: homeworks.map((hw) => hw.id) })
+            .groupBy('i.homework_id')
+            .getRawMany<{ homework_id: string; cnt: string }>()
+        : Promise.resolve([] as Array<{ homework_id: string; cnt: string }>),
+      checkedByIds.length
+        ? this.users.find({ where: { id: In(checkedByIds) } })
+        : Promise.resolve([] as UserEntity[]),
+    ]);
+
+    const latestAttemptByAssignment = new Map<string, HomeworkAttemptEntity>();
+    for (const attempt of attempts) {
+      if (!latestAttemptByAssignment.has(attempt.assignmentId)) {
+        latestAttemptByAssignment.set(attempt.assignmentId, attempt);
+      }
+    }
+    const attemptIds = [...latestAttemptByAssignment.values()].map((row) => row.id);
+    const answerCounts =
+      attemptIds.length > 0
+        ? await this.attemptAnswers
+            .createQueryBuilder('a')
+            .select('a.attempt_id', 'attempt_id')
+            .addSelect('COUNT(*)', 'cnt')
+            .where('a.attempt_id IN (:...ids)', { ids: attemptIds })
+            .andWhere(
+              `(
+                (a.text_answer IS NOT NULL AND a.text_answer <> '')
+                OR a.audio_storage_key IS NOT NULL
+                OR EXISTS (
+                  SELECT 1 FROM homework_attempt_answer_selections s
+                  WHERE s.attempt_answer_id = a.id
+                )
+              )`,
+            )
+            .groupBy('a.attempt_id')
+            .getRawMany<{ attempt_id: string; cnt: string }>()
+        : [];
+    const answeredByAttempt = new Map(
+      answerCounts.map((row) => [row.attempt_id, Number(row.cnt)]),
+    );
+    const questionCountsByAttempt =
+      attemptIds.length > 0
+        ? await this.questionSnapshots
+            .createQueryBuilder('q')
+            .select('q.attempt_id', 'attempt_id')
+            .addSelect('COUNT(*)', 'cnt')
+            .where('q.attempt_id IN (:...ids)', { ids: attemptIds })
+            .groupBy('q.attempt_id')
+            .getRawMany<{ attempt_id: string; cnt: string }>()
+        : [];
+    const questionsByAttempt = new Map(
+      questionCountsByAttempt.map((row) => [row.attempt_id, Number(row.cnt)]),
+    );
+
+    const itemCountByHomework = new Map(
+      itemCounts.map((row) => [row.homework_id, Number(row.cnt)]),
+    );
+    const resultByAssignment = new Map<string, HomeworkResultEntity>();
+    for (const result of results) {
+      const prev = resultByAssignment.get(result.assignmentId);
+      if (!prev || (result.completedAt && (!prev.completedAt || result.completedAt > prev.completedAt))) {
+        resultByAssignment.set(result.assignmentId, result);
+      }
+    }
+    const checkerNameById = new Map<string, string>();
+    for (const user of checkers) {
+      const name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+      checkerNameById.set(user.id, name);
+    }
+
     return assignments.map((assignment) => {
       const hw =
         homework ??
@@ -1654,7 +1838,35 @@ export class HomeworkService {
       const ownerInfo = hw ? owners.get(hw.id) ?? null : null;
       const learnerKey = this.learnerMapKey(assignment);
       const learnerInfo = learnerKey ? learners.get(learnerKey) ?? null : null;
-      return this.toAssignmentDto(assignment, hw, ownerInfo, learnerInfo);
+      const attempt = latestAttemptByAssignment.get(assignment.id) ?? null;
+      const result = resultByAssignment.get(assignment.id) ?? null;
+      const itemCount =
+        itemCountByHomework.get(assignment.homeworkId) ??
+        hw?.items?.length ??
+        null;
+      const totalQuestions = attempt
+        ? questionsByAttempt.get(attempt.id) ?? itemCount ?? 0
+        : itemCount ?? 0;
+      const answeredQuestions = attempt ? answeredByAttempt.get(attempt.id) ?? 0 : 0;
+      const effectiveStatus = this.effectiveAssignmentStatus(assignment);
+      return {
+        ...this.toAssignmentDto(assignment, hw, ownerInfo, learnerInfo),
+        item_count: itemCount,
+        needs_manual_review: effectiveStatus === HomeworkAssignmentStatus.Submitted,
+        progress: {
+          answered: answeredQuestions,
+          total: totalQuestions,
+        },
+        result_percent: result?.percent != null ? Number(result.percent) : null,
+        result_score: result?.score != null ? Number(result.score) : null,
+        result_max_score: result?.maxScore != null ? Number(result.maxScore) : null,
+        result_passed: result?.passed ?? null,
+        checked_by_name: assignment.checkedByUserId
+          ? checkerNameById.get(assignment.checkedByUserId) ?? null
+          : null,
+        attempt_id: attempt?.id ?? null,
+        attempt_status: attempt?.status ?? null,
+      };
     });
   }
 
@@ -1773,16 +1985,22 @@ export class HomeworkService {
   }
 
   private effectiveAssignmentStatus(row: HomeworkAssignmentEntity): HomeworkAssignmentStatus {
-    if (row.status === HomeworkAssignmentStatus.NeedsRevision) {
-      return HomeworkAssignmentStatus.NeedsRevision;
+    if (
+      row.status === HomeworkAssignmentStatus.NeedsRevision ||
+      row.status === HomeworkAssignmentStatus.Cancelled ||
+      row.status === HomeworkAssignmentStatus.Checked ||
+      row.status === HomeworkAssignmentStatus.Submitted ||
+      row.status === HomeworkAssignmentStatus.Expired
+    ) {
+      return row.status;
     }
     if (
       (row.status === HomeworkAssignmentStatus.Assigned ||
-        row.status === HomeworkAssignmentStatus.InProgress) &&
+        row.status === HomeworkAssignmentStatus.Started) &&
       row.dueAt &&
       new Date(row.dueAt).getTime() < Date.now()
     ) {
-      return HomeworkAssignmentStatus.Overdue;
+      return HomeworkAssignmentStatus.Expired;
     }
     return row.status;
   }
@@ -1832,6 +2050,10 @@ export class HomeworkService {
       returned_for_revision_at: assignment.returnedForRevisionAt,
       due_at: assignment.dueAt,
       assigned_at: assignment.assignedAt,
+      started_at: assignment.startedAt,
+      submitted_at: assignment.submittedAt,
+      checked_at: assignment.checkedAt,
+      checked_by_user_id: assignment.checkedByUserId,
       title: hw?.title ?? null,
       instructions: hw?.instructions ?? null,
       activity_kind: hw?.activityKind ?? null,
@@ -2105,14 +2327,18 @@ export class HomeworkService {
     result.maxScore = String(totalMax);
     result.percent = String(percent);
     result.passed = passed;
-    result.status = 'reviewed';
+    result.status = 'checked';
     await this.results.save(result);
 
-    assignment.status = HomeworkAssignmentStatus.Reviewed;
+    const now = new Date();
+    assignment.status = HomeworkAssignmentStatus.Checked;
     assignment.reviewResult = passed
       ? `Проверено: ${percent}%`
       : `Проверено: ${percent}% (ниже порога)`;
-    assignment.manualCheckedAt = new Date();
+    assignment.manualCheckedAt = now;
+    assignment.checkedAt = now;
+    assignment.checkedByUserId = user.sub;
+    assignment.submittedAt = assignment.submittedAt ?? attempt.submittedAt ?? now;
     await this.assignments.save(assignment);
 
     if (attempt.studentId) {

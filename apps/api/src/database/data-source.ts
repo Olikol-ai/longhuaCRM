@@ -68,6 +68,7 @@ import { SubjectSystemChats1744500000000 } from './migrations/1744500000000-Subj
 import { ReadingListeningTaskVocabulary1744600000000 } from './migrations/1744600000000-ReadingListeningTaskVocabulary';
 import { ChatMemberLastReadAtAndUnreadRepair1744700000000 } from './migrations/1744700000000-ChatMemberLastReadAtAndUnreadRepair';
 import { ChatUnreadTimestampPrecisionRepair1744800000000 } from './migrations/1744800000000-ChatUnreadTimestampPrecisionRepair';
+import { HomeworkAssignmentLifecycle1744900000000 } from './migrations/1744900000000-HomeworkAssignmentLifecycle';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -139,6 +140,7 @@ export default new DataSource({
     ReadingListeningTaskVocabulary1744600000000,
     ChatMemberLastReadAtAndUnreadRepair1744700000000,
     ChatUnreadTimestampPrecisionRepair1744800000000,
+    HomeworkAssignmentLifecycle1744900000000,
   ],
   synchronize: false,
 });

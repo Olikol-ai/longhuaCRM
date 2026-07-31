@@ -12,11 +12,15 @@ import { QUESTION_TYPE_LABEL, isManualReviewQuestionType } from '@/lib/assessmen
 import { userFacingError } from '@/lib/userFacingError';
 
 const STATUS_LABEL = {
-  assigned: 'Не начато',
-  in_progress: 'В процессе',
-  submitted: 'Ожидает проверки',
+  assigned: 'Назначено',
+  started: 'Выполняется',
+  in_progress: 'Выполняется',
+  submitted: 'На проверке',
+  checked: 'Проверено',
   reviewed: 'Проверено',
+  expired: 'Просрочено',
   overdue: 'Просрочено',
+  cancelled: 'Отменено',
   needs_revision: 'На доработке',
 };
 
@@ -306,9 +310,29 @@ export default function HomeworkResults() {
                 {detail.owner_type === 'tutor' ? 'Репетитор' : 'Преподаватель'}:{' '}
                 {detail.owner_name || '—'}
               </p>
-              <p className="text-sm text-slate-500">
-                Ученик: {detail.learner_name || '—'}
+              <p className="text-sm">
+                Ученик: <strong>{detail.learner_name || '—'}</strong>
               </p>
+              <p className="text-sm">
+                Статус:{' '}
+                <strong>{STATUS_LABEL[detail.status] || detail.status || '—'}</strong>
+              </p>
+              {detail.progress?.total != null && (
+                <p className="text-sm">
+                  Прогресс:{' '}
+                  <strong>
+                    {detail.progress.answered ?? 0}/{detail.progress.total} вопросов
+                  </strong>
+                </p>
+              )}
+              {detail.checked_by_name && (
+                <p className="text-sm text-slate-500">
+                  Проверил: {detail.checked_by_name}
+                  {detail.checked_at
+                    ? ` · ${new Date(detail.checked_at).toLocaleString('ru-RU')}`
+                    : ''}
+                </p>
+              )}
 
               {detail.result?.manual ? (
                 <div className="space-y-2">
@@ -484,7 +508,7 @@ export default function HomeworkResults() {
                       size="sm"
                       variant="outline"
                       disabled={savingLocal}
-                      onClick={() => updateLocalStatus('reviewed')}
+                      onClick={() => updateLocalStatus('checked')}
                     >
                       Проверено
                     </Button>

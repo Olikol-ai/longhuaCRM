@@ -16,13 +16,15 @@ export enum HomeworkLifecycleStatus {
   Archived = 'archived',
 }
 
-/** Per-student assignment / submission lifecycle (UI statuses). */
+/** Per-student assignment / submission lifecycle. */
 export enum HomeworkAssignmentStatus {
   Assigned = 'assigned',
-  InProgress = 'in_progress',
+  Started = 'started',
   Submitted = 'submitted',
-  Reviewed = 'reviewed',
-  Overdue = 'overdue',
+  Checked = 'checked',
+  Expired = 'expired',
+  Cancelled = 'cancelled',
+  /** Returned to student for fixes (still active). */
   NeedsRevision = 'needs_revision',
 }
 
