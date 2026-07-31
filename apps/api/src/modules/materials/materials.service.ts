@@ -31,10 +31,28 @@ export class MaterialsService {
     private readonly materialAccessService: MaterialAccessService,
   ) {}
 
-  async findAllMaterials(actor: JwtPayload): Promise<MaterialEntity[]> {
+  async findAllMaterials(
+    actor: JwtPayload,
+    options: { courseId?: string; folderId?: string } = {},
+  ): Promise<MaterialEntity[]> {
     const where = await this.materialsAccess.scopeMaterialFilter(actor, {});
-    const rows = await this.repository.filterMaterials(where as FindOptionsWhere<MaterialEntity>);
+    let rows = await this.repository.filterMaterials(where as FindOptionsWhere<MaterialEntity>);
+
+    // Lazy scope: only materials in the requested course/folder (after ACL).
+    if (options.folderId) {
+      rows = rows.filter((row) => row.folderId === options.folderId);
+    }
+
     const withCourse = await this.attachCourseIds(rows);
+
+    if (options.courseId) {
+      const scoped = withCourse.filter(
+        (row) =>
+          (row as MaterialEntity & { courseId?: string | null }).courseId === options.courseId,
+      );
+      return this.attachAccessSources(actor, scoped);
+    }
+
     return this.attachAccessSources(actor, withCourse);
   }
 
@@ -67,6 +85,7 @@ export class MaterialsService {
       [created.id],
       grantedByRole,
     );
+    this.materialsAccess.invalidateAccessCache(actor.sub);
     return created;
   }
 
@@ -179,6 +198,7 @@ export class MaterialsService {
     const folders = await this.repository.findFoldersByIds(folderIds);
     const courseByFolder = new Map(folders.map((folder) => [folder.id, folder.courseTemplateId]));
 
+    // Metadata only — never load file bytes. fileUrl is a path/link for open-on-demand.
     return materials.map((material) => {
       const plain = {
         id: material.id,
@@ -224,8 +244,10 @@ export class MaterialsService {
       });
     }
 
-    const sourceMap = await this.materialsAccess.resolveAccessSources(
-      actor,
+    // Reuses the short-lived ACL bucket cache from scopeMaterialFilter (no second full ACL pass).
+    const buckets = await this.materialsAccess.resolveAccessBuckets(actor);
+    const sourceMap = this.materialsAccess.sourcesFromBuckets(
+      buckets,
       materials.map((row) => row.id),
     );
 

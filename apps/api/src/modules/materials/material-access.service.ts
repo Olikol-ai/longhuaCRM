@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { MaterialsDomainAccessService } from '../../common/access/materials-domain-access.service';
 import { normalizeRole } from '../../common/constants/roles';
 import { JwtPayload } from '../auth/auth.service';
 import { EnrollmentEntity } from '../courses/entities/enrollment.entity';
@@ -64,6 +65,7 @@ export class MaterialAccessService {
     private readonly enrollmentRepo: Repository<EnrollmentEntity>,
     @InjectRepository(CourseTemplateEntity)
     private readonly courseRepo: Repository<CourseTemplateEntity>,
+    private readonly materialsDomainAccess: MaterialsDomainAccessService,
   ) {}
 
   async grant(
@@ -81,20 +83,28 @@ export class MaterialAccessService {
           ? 'TEACHER'
           : 'ADMIN');
 
+    let result: MaterialAccessMutationResult;
     switch (dto.targetType) {
       case 'user':
-        return this.grantToUser(dto.targetId, materialIds, role);
+        result = await this.grantToUser(dto.targetId, materialIds, role);
+        break;
       case 'student':
-        return this.grantToStudent(dto.targetId, materialIds, role);
+        result = await this.grantToStudent(dto.targetId, materialIds, role);
+        break;
       case 'tutor_student':
-        return this.grantToTutorStudent(dto.targetId, materialIds, role);
+        result = await this.grantToTutorStudent(dto.targetId, materialIds, role);
+        break;
       case 'group':
-        return this.grantToGroup(dto.targetId, materialIds, role);
+        result = await this.grantToGroup(dto.targetId, materialIds, role);
+        break;
       case 'course':
-        return this.grantToCourse(dto.targetId, materialIds, role);
+        result = await this.grantToCourse(dto.targetId, materialIds, role);
+        break;
       default:
         throw new BadRequestException('Неизвестный тип получателя доступа');
     }
+    this.materialsDomainAccess.invalidateAccessCache();
+    return result;
   }
 
   /**
@@ -278,20 +288,28 @@ export class MaterialAccessService {
       throw new BadRequestException('Укажите материалы');
     }
 
+    let result: MaterialAccessMutationResult;
     switch (dto.targetType) {
       case 'user':
-        return this.revokeFromUser(dto.targetId, materialIds);
+        result = await this.revokeFromUser(dto.targetId, materialIds);
+        break;
       case 'student':
-        return this.revokeFromStudent(dto.targetId, materialIds);
+        result = await this.revokeFromStudent(dto.targetId, materialIds);
+        break;
       case 'tutor_student':
-        return this.revokeFromTutorStudent(dto.targetId, materialIds);
+        result = await this.revokeFromTutorStudent(dto.targetId, materialIds);
+        break;
       case 'group':
-        return this.revokeFromGroup(dto.targetId, materialIds);
+        result = await this.revokeFromGroup(dto.targetId, materialIds);
+        break;
       case 'course':
-        return this.revokeFromCourse(dto.targetId, materialIds);
+        result = await this.revokeFromCourse(dto.targetId, materialIds);
+        break;
       default:
         throw new BadRequestException('Неизвестный тип получателя доступа');
     }
+    this.materialsDomainAccess.invalidateAccessCache();
+    return result;
   }
 
   async syncUserAccess(
@@ -322,6 +340,7 @@ export class MaterialAccessService {
       }
     }
 
+    this.materialsDomainAccess.invalidateAccessCache(userId);
     return { grantedCount, revokedCount };
   }
 
@@ -702,7 +721,9 @@ export class MaterialAccessService {
     materialIds: string[],
     role: GrantedByRole,
   ): Promise<MaterialAccessMutationResult> {
-    return this.grantToUser(userId, materialIds, role);
+    const result = await this.grantToUser(userId, materialIds, role);
+    this.materialsDomainAccess.invalidateAccessCache(userId);
+    return result;
   }
 
   private async grantToUser(

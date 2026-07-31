@@ -27,8 +27,27 @@ export const ACCESS_SOURCE_LABELS: Record<MaterialAccessSourceType, string> = {
   group: 'Доступ через группу',
 };
 
+type AccessBuckets = {
+  personal: Set<string>;
+  course: Set<string>;
+  group: Set<string>;
+};
+
+type CacheEntry<T> = {
+  expiresAt: number;
+  value?: T;
+  inflight?: Promise<T>;
+};
+
+/** Short TTL coalesces parallel /materials + /folders on page open. */
+const ACCESS_CACHE_TTL_MS = 3_000;
+
 @Injectable()
 export class MaterialsDomainAccessService {
+  private readonly bucketsCache = new Map<string, CacheEntry<AccessBuckets>>();
+  private readonly materialIdsCache = new Map<string, CacheEntry<string[]>>();
+  private readonly courseIdsCache = new Map<string, CacheEntry<string[]>>();
+
   constructor(
     @InjectRepository(MaterialEntity)
     private readonly materialRepo: Repository<MaterialEntity>,
@@ -58,6 +77,24 @@ export class MaterialsDomainAccessService {
 
   isAdmin(actor: DomainAccessActor): boolean {
     return normalizeRole(actor.role) === 'admin';
+  }
+
+  /** Drop cached ACL for one user (or everyone) after grant/revoke/create. */
+  invalidateAccessCache(userId?: string): void {
+    if (!userId) {
+      this.bucketsCache.clear();
+      this.materialIdsCache.clear();
+      this.courseIdsCache.clear();
+      return;
+    }
+    const prefix = `${userId}:`;
+    for (const map of [this.bucketsCache, this.materialIdsCache, this.courseIdsCache]) {
+      for (const key of map.keys()) {
+        if (key.startsWith(prefix)) {
+          map.delete(key);
+        }
+      }
+    }
   }
 
   async scopeMaterialFilter(
@@ -161,22 +198,25 @@ export class MaterialsDomainAccessService {
       return rows.map((row) => row.id);
     }
 
-    const buckets = await this.resolveAccessBuckets(actor);
-    const ids = new Set<string>([
-      ...buckets.personal,
-      ...buckets.course,
-      ...buckets.group,
-    ]);
+    const cacheKey = this.cacheKey(actor);
+    return this.readThrough(this.materialIdsCache, cacheKey, async () => {
+      const buckets = await this.resolveAccessBuckets(actor);
+      const ids = new Set<string>([
+        ...buckets.personal,
+        ...buckets.course,
+        ...buckets.group,
+      ]);
 
-    if (ids.size === 0) {
-      return [];
-    }
+      if (ids.size === 0) {
+        return [];
+      }
 
-    const active = await this.materialRepo.find({
-      where: { id: In([...ids]), status: 'active' },
-      select: ['id'],
+      const active = await this.materialRepo.find({
+        where: { id: In([...ids]), status: 'active' },
+        select: ['id'],
+      });
+      return active.map((row) => row.id);
     });
-    return active.map((row) => row.id);
   }
 
   /**
@@ -197,6 +237,13 @@ export class MaterialsDomainAccessService {
     }
 
     const buckets = await this.resolveAccessBuckets(actor);
+    return this.sourcesFromBuckets(buckets, materialIds);
+  }
+
+  sourcesFromBuckets(
+    buckets: AccessBuckets,
+    materialIds: string[],
+  ): Record<string, Array<{ type: MaterialAccessSourceType; label: string }>> {
     const result: Record<
       string,
       Array<{ type: MaterialAccessSourceType; label: string }>
@@ -221,11 +268,15 @@ export class MaterialsDomainAccessService {
     return result;
   }
 
-  private async resolveAccessBuckets(actor: DomainAccessActor): Promise<{
-    personal: Set<string>;
-    course: Set<string>;
-    group: Set<string>;
-  }> {
+  /**
+   * Shared ACL buckets for list endpoints (cached briefly per user+role).
+   */
+  async resolveAccessBuckets(actor: DomainAccessActor): Promise<AccessBuckets> {
+    const cacheKey = this.cacheKey(actor);
+    return this.readThrough(this.bucketsCache, cacheKey, () => this.computeAccessBuckets(actor));
+  }
+
+  private async computeAccessBuckets(actor: DomainAccessActor): Promise<AccessBuckets> {
     const personal = new Set<string>();
     const course = new Set<string>();
     const group = new Set<string>();
@@ -388,19 +439,15 @@ export class MaterialsDomainAccessService {
       ids.add(row.materialId);
     }
 
-    const folders = await this.folderRepo.find({
-      where: { courseTemplateId: In(activeIds) },
-      select: ['id'],
-    });
-    const folderIds = folders.map((folder) => folder.id);
-    if (folderIds.length === 0) {
-      return;
-    }
+    // Single JOIN instead of folders → materials N-step load.
+    const folderMaterials: Array<{ id: string }> = await this.materialRepo
+      .createQueryBuilder('m')
+      .innerJoin(MaterialFolderEntity, 'f', 'f.id = m.folder_id')
+      .where('f.course_template_id IN (:...courseIds)', { courseIds: activeIds })
+      .andWhere('m.status = :status', { status: 'active' })
+      .select('m.id', 'id')
+      .getRawMany();
 
-    const folderMaterials = await this.materialRepo.find({
-      where: { folderId: In(folderIds), status: 'active' },
-      select: ['id'],
-    });
     for (const row of folderMaterials) {
       ids.add(row.id);
     }
@@ -420,86 +467,126 @@ export class MaterialsDomainAccessService {
 
   private async resolveAccessibleCourseTemplateIds(actor: DomainAccessActor): Promise<string[]> {
     const role = normalizeRole(actor.role);
+    const cacheKey = this.cacheKey(actor);
 
-    if (role === 'student') {
-      const student = await this.studentRepo.findOne({ where: { userId: actor.sub } });
-      if (!student) {
-        return [];
-      }
-      const enrollments = await this.enrollmentRepo.find({
-        where: { studentId: student.id },
-        select: ['courseTemplateId'],
-      });
-      return this.filterActiveCourseIds(
-        enrollments.map((row) => row.courseTemplateId).filter((id): id is string => Boolean(id)),
-      );
-    }
-
-    if (role === 'teacher') {
-      const courseIds = new Set<string>();
-
-      const teacher = await this.teacherRepo.findOne({ where: { userId: actor.sub } });
-      if (teacher) {
-        const studentIds: string[] = [];
-        const assigned = await this.studentRepo.find({
-          where: { assignedTeacherId: teacher.id },
-          select: ['id'],
-        });
-        studentIds.push(...assigned.map((row) => row.id));
-
-        const groups = await this.groupRepo.find({
-          where: { teacherId: teacher.id },
-          select: ['id'],
-        });
-        if (groups.length > 0) {
-          const members = await this.groupMemberRepo.find({
-            where: { groupId: In(groups.map((row) => row.id)) },
-            select: ['studentId'],
-          });
-          studentIds.push(...members.map((row) => row.studentId));
+    return this.readThrough(this.courseIdsCache, cacheKey, async () => {
+      if (role === 'student') {
+        const student = await this.studentRepo.findOne({ where: { userId: actor.sub } });
+        if (!student) {
+          return [];
         }
+        const enrollments = await this.enrollmentRepo.find({
+          where: { studentId: student.id },
+          select: ['courseTemplateId'],
+        });
+        return this.filterActiveCourseIds(
+          enrollments.map((row) => row.courseTemplateId).filter((id): id is string => Boolean(id)),
+        );
+      }
 
-        const uniqueStudentIds = [...new Set(studentIds)];
-        if (uniqueStudentIds.length > 0) {
-          const enrollments = await this.enrollmentRepo.find({
-            where: { studentId: In(uniqueStudentIds) },
-            select: ['courseTemplateId'],
+      if (role === 'teacher') {
+        const courseIds = new Set<string>();
+
+        const teacher = await this.teacherRepo.findOne({ where: { userId: actor.sub } });
+        if (teacher) {
+          const studentIds: string[] = [];
+          const assigned = await this.studentRepo.find({
+            where: { assignedTeacherId: teacher.id },
+            select: ['id'],
           });
-          for (const row of enrollments) {
-            if (row.courseTemplateId) {
-              courseIds.add(row.courseTemplateId);
+          studentIds.push(...assigned.map((row) => row.id));
+
+          const groups = await this.groupRepo.find({
+            where: { teacherId: teacher.id },
+            select: ['id'],
+          });
+          if (groups.length > 0) {
+            const members = await this.groupMemberRepo.find({
+              where: { groupId: In(groups.map((row) => row.id)) },
+              select: ['studentId'],
+            });
+            studentIds.push(...members.map((row) => row.studentId));
+          }
+
+          const uniqueStudentIds = [...new Set(studentIds)];
+          if (uniqueStudentIds.length > 0) {
+            const enrollments = await this.enrollmentRepo.find({
+              where: { studentId: In(uniqueStudentIds) },
+              select: ['courseTemplateId'],
+            });
+            for (const row of enrollments) {
+              if (row.courseTemplateId) {
+                courseIds.add(row.courseTemplateId);
+              }
             }
           }
         }
-      }
 
-      // Also include courses of materials the teacher can already see (own/granted).
-      // Otherwise teachers see materials but an empty folder tree (white/broken UX).
-      const accessibleMaterialIds = await this.resolveAccessibleMaterialIds(actor);
-      if (accessibleMaterialIds.length > 0) {
-        const materials = await this.materialRepo.find({
-          where: { id: In(accessibleMaterialIds), status: 'active' },
-          select: ['folderId'],
-        });
-        const folderIds = [
-          ...new Set(materials.map((row) => row.folderId).filter((id): id is string => Boolean(id))),
+        // Reuse ACL buckets (cached) instead of a full second resolveAccessibleMaterialIds.
+        // Otherwise teachers see materials but an empty folder tree (white/broken UX).
+        const buckets = await this.resolveAccessBuckets(actor);
+        const accessibleMaterialIds = [
+          ...new Set([...buckets.personal, ...buckets.course, ...buckets.group]),
         ];
-        if (folderIds.length > 0) {
-          const folders = await this.folderRepo.find({
-            where: { id: In(folderIds) },
-            select: ['courseTemplateId'],
+        if (accessibleMaterialIds.length > 0) {
+          const materials = await this.materialRepo.find({
+            where: { id: In(accessibleMaterialIds), status: 'active' },
+            select: ['folderId'],
           });
-          for (const folder of folders) {
-            if (folder.courseTemplateId) {
-              courseIds.add(folder.courseTemplateId);
+          const folderIds = [
+            ...new Set(
+              materials.map((row) => row.folderId).filter((id): id is string => Boolean(id)),
+            ),
+          ];
+          if (folderIds.length > 0) {
+            const folders = await this.folderRepo.find({
+              where: { id: In(folderIds) },
+              select: ['courseTemplateId'],
+            });
+            for (const folder of folders) {
+              if (folder.courseTemplateId) {
+                courseIds.add(folder.courseTemplateId);
+              }
             }
           }
         }
+
+        return this.filterActiveCourseIds([...courseIds]);
       }
 
-      return this.filterActiveCourseIds([...courseIds]);
+      return [];
+    });
+  }
+
+  private cacheKey(actor: DomainAccessActor): string {
+    return `${actor.sub}:${normalizeRole(actor.role)}`;
+  }
+
+  private async readThrough<T>(
+    cache: Map<string, CacheEntry<T>>,
+    key: string,
+    loader: () => Promise<T>,
+  ): Promise<T> {
+    const now = Date.now();
+    const existing = cache.get(key);
+    if (existing && existing.value !== undefined && existing.expiresAt > now) {
+      return existing.value;
+    }
+    if (existing?.inflight) {
+      return existing.inflight;
     }
 
-    return [];
+    const inflight = loader()
+      .then((value) => {
+        cache.set(key, { value, expiresAt: Date.now() + ACCESS_CACHE_TTL_MS });
+        return value;
+      })
+      .catch((error) => {
+        cache.delete(key);
+        throw error;
+      });
+
+    cache.set(key, { expiresAt: now + ACCESS_CACHE_TTL_MS, inflight });
+    return inflight;
   }
 }

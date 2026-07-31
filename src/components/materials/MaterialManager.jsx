@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
-import { openMaterial, downloadMaterialFile } from '@/lib/materialUrl';
+import { openMaterial } from '@/lib/materialUrl';
 import { toast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,12 +20,34 @@ import MaterialDialog from './MaterialDialog';
 import MaterialTable from './MaterialTable';
 import { TUTOR_LIBRARY_COURSE_ID, isTutorLibraryCourseId } from '@/lib/tutorMaterials';
 
+function MaterialsSkeleton() {
+  return (
+    <div className="animate-pulse space-y-4" data-testid="materials-skeleton">
+      <div className="h-8 w-64 rounded bg-muted" />
+      <div className="h-4 w-96 max-w-full rounded bg-muted" />
+      <div className="flex flex-col lg:flex-row gap-4">
+        <div className="w-full lg:w-72 space-y-2 rounded-xl border border-border p-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-8 rounded bg-muted" />
+          ))}
+        </div>
+        <div className="flex-1 space-y-2 rounded-xl border border-border p-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-12 rounded bg-muted" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MaterialManager() {
   const { user, isLoadingAuth } = useAuth();
   const [materials, setMaterials] = useState([]);
   const [courses, setCourses] = useState([]);
   const [folders, setFolders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [treeLoading, setTreeLoading] = useState(true);
+  const [materialsLoading, setMaterialsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('all');
@@ -37,6 +59,8 @@ export default function MaterialManager() {
   const [accessMaterial, setAccessMaterial] = useState(null);
   const [showGrant, setShowGrant] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const materialsRequestId = useRef(0);
+  const courseInitialized = useRef(false);
 
   const isAdmin = user?.role === 'admin';
   const isTeacher = user?.role === 'teacher' || Boolean(user?.has_teacher_profile);
@@ -50,70 +74,128 @@ export default function MaterialManager() {
   const canDragMaterials = canCreateMaterials;
   const canReceiveMaterials = canCreateMaterials;
 
-  const loadData = useCallback(async () => {
+  const mapFolders = useCallback((flds, courseList) => {
+    const activeCourseIds = new Set(courseList.map((c) => c.id).filter(Boolean));
+    return (Array.isArray(flds) ? flds : [])
+      .filter((f) => {
+        if (isTutor) return !f.course_id;
+        return !f.course_id || activeCourseIds.has(f.course_id);
+      })
+      .map((f) => (
+        isTutor
+          ? { ...f, course_id: f.course_id || TUTOR_LIBRARY_COURSE_ID }
+          : f
+      ));
+  }, [isTutor]);
+
+  const mapMaterials = useCallback((mats) => (
+    (Array.isArray(mats) ? mats : [])
+      .filter((m) => m.status !== 'deleted')
+      .map((m) => (
+        isTutor
+          ? { ...m, course_id: m.course_id || TUTOR_LIBRARY_COURSE_ID }
+          : m
+      ))
+  ), [isTutor]);
+
+  /** Tree + courses first — unlock UI without waiting for the full materials list. */
+  const loadTree = useCallback(async () => {
     if (!user) return;
     setLoadError(null);
+    setTreeLoading(true);
     try {
-      const requests = [
-        api.materials.list('-created_date'),
-        api.materials.folders.list(),
-      ];
+      const requests = [api.materials.folders.list()];
       if (!isTutor) {
-        requests.splice(1, 0, api.courses.list());
+        requests.unshift(api.courses.list());
       }
       const results = await Promise.all(requests);
-      const mats = results[0];
-      const crs = isTutor ? [] : results[1];
-      const flds = isTutor ? results[1] : results[2];
-
       const courseList = isTutor
         ? [{ id: TUTOR_LIBRARY_COURSE_ID, name: 'Мои материалы', sort_order: 0 }]
-        : (Array.isArray(crs) ? crs : []);
-      const activeCourseIds = new Set(courseList.map((c) => c.id).filter(Boolean));
+        : (Array.isArray(results[0]) ? results[0] : []);
+      const flds = isTutor ? results[0] : results[1];
 
-      const mappedFolders = (Array.isArray(flds) ? flds : [])
-        .filter((f) => {
-          if (isTutor) return !f.course_id;
-          return !f.course_id || activeCourseIds.has(f.course_id);
-        })
-        .map((f) => (
-          isTutor
-            ? { ...f, course_id: f.course_id || TUTOR_LIBRARY_COURSE_ID }
-            : f
-        ));
-
-      const mappedMaterials = (Array.isArray(mats) ? mats : [])
-        .filter((m) => m.status !== 'deleted')
-        .map((m) => (
-          isTutor
-            ? { ...m, course_id: m.course_id || TUTOR_LIBRARY_COURSE_ID }
-            : m
-        ));
-
-      setMaterials(mappedMaterials);
       setCourses(courseList);
-      setFolders(mappedFolders);
+      setFolders(mapFolders(flds, courseList));
+
       if (isTutor) {
         setSelectedCourseId((prev) => prev || TUTOR_LIBRARY_COURSE_ID);
+        courseInitialized.current = true;
+      } else if (!courseInitialized.current && courseList.length > 0) {
+        // Prefer a concrete course on first open so materials load scoped (lazy).
+        setSelectedCourseId((prev) => prev || courseList[0].id);
+        courseInitialized.current = true;
       }
     } catch (err) {
-      setMaterials([]);
       setCourses([]);
       setFolders([]);
+      setLoadError(err?.message || 'Не удалось загрузить дерево материалов');
+    } finally {
+      setTreeLoading(false);
+    }
+  }, [user, isTutor, mapFolders]);
+
+  /**
+   * Materials list — scoped by selected course/folder when possible.
+   * Does not download file bytes; open/download is on-demand only.
+   */
+  const loadMaterials = useCallback(async (courseId, folderId) => {
+    if (!user) return;
+    const reqId = ++materialsRequestId.current;
+    setMaterialsLoading(true);
+    setLoadError(null);
+    try {
+      const scope = {};
+      if (courseId && !isTutorLibraryCourseId(courseId)) {
+        scope.courseId = courseId;
+      }
+      if (folderId) {
+        scope.folderId = folderId;
+      }
+      // Tutor library / "all courses": no server course filter.
+      const mats = await api.materials.list('-created_date', undefined, scope);
+      if (reqId !== materialsRequestId.current) return;
+      setMaterials(mapMaterials(mats));
+    } catch (err) {
+      if (reqId !== materialsRequestId.current) return;
+      setMaterials([]);
       setLoadError(err?.message || 'Не удалось загрузить материалы');
     } finally {
-      setLoading(false);
+      if (reqId === materialsRequestId.current) {
+        setMaterialsLoading(false);
+      }
     }
-  }, [user, isTutor]);
+  }, [user, mapMaterials]);
+
+  const loadData = useCallback(async () => {
+    await loadTree();
+  }, [loadTree]);
 
   useEffect(() => {
     if (isLoadingAuth) return;
     if (!user) {
-      setLoading(false);
+      setTreeLoading(false);
+      setMaterialsLoading(false);
       return;
     }
-    loadData();
-  }, [user?.id, isLoadingAuth, loadData]);
+    void loadTree();
+  }, [user?.id, isLoadingAuth, loadTree]);
+
+  // After tree is ready (and when course/folder selection changes), load materials lazily.
+  useEffect(() => {
+    if (isLoadingAuth || !user || treeLoading) return;
+    // Wait until default course is chosen so the first fetch is scoped.
+    if (!isTutor && courses.length > 0 && !courseInitialized.current) return;
+    void loadMaterials(selectedCourseId, selectedFolderId);
+  }, [
+    user?.id,
+    isLoadingAuth,
+    treeLoading,
+    isTutor,
+    courses.length,
+    selectedCourseId,
+    selectedFolderId,
+    loadMaterials,
+  ]);
 
   const filtered = useMemo(() => {
     return materials.filter((m) => {
@@ -152,7 +234,7 @@ export default function MaterialManager() {
     setDeletingId(matId);
     try {
       const result = await api.materials.delete(matId);
-      await loadData();
+      await loadMaterials(selectedCourseId, selectedFolderId);
       alert(
         result?.message
         || (result?.mode === 'soft'
@@ -213,7 +295,10 @@ export default function MaterialManager() {
         setSelectedCourseId(target.courseId);
         setSelectedFolderId(target.folderId || null);
       }
-      await loadData();
+      await Promise.all([
+        loadTree(),
+        loadMaterials(target?.courseId || selectedCourseId, target?.folderId || null),
+      ]);
     } catch (err) {
       toast({
         title: 'Не удалось переместить материалы',
@@ -223,7 +308,7 @@ export default function MaterialManager() {
     }
   };
 
-  if (loading || isLoadingAuth) {
+  if (isLoadingAuth) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-brand" />
@@ -231,13 +316,24 @@ export default function MaterialManager() {
     );
   }
 
-  if (loadError) {
+  if (treeLoading && courses.length === 0 && folders.length === 0) {
+    return (
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
+        <MaterialsSkeleton />
+      </div>
+    );
+  }
+
+  if (loadError && courses.length === 0 && materials.length === 0) {
     return (
       <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
         <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-6 text-center space-y-3">
           <h1 className="text-xl font-semibold text-foreground">Не удалось открыть материалы</h1>
           <p className="text-sm text-muted-foreground">{loadError}</p>
-          <Button onClick={() => { setLoading(true); loadData(); }} className="bg-primary hover:bg-primary/90">
+          <Button
+            onClick={() => { void loadTree(); }}
+            className="bg-primary hover:bg-primary/90"
+          >
             Повторить
           </Button>
         </div>
@@ -362,12 +458,20 @@ export default function MaterialManager() {
                 setSelectedCourseId(courseId);
                 setSelectedFolderId(folderId);
               }}
-              onRefresh={loadData}
+              onRefresh={async () => {
+                await loadTree();
+                await loadMaterials(selectedCourseId, selectedFolderId);
+              }}
               canManage={canManageCourses}
               canReceiveMaterials={canReceiveMaterials}
               onDropMaterials={moveMaterials}
             />
-            <div className="flex-1 min-w-0 w-full">
+            <div className="flex-1 min-w-0 w-full relative">
+              {materialsLoading && (
+                <div className="absolute inset-0 z-10 flex items-start justify-center rounded-xl bg-background/60 pt-16">
+                  <Loader2 className="h-6 w-6 animate-spin text-brand" />
+                </div>
+              )}
               <MaterialTable
                 materials={filtered}
                 courses={courses}
@@ -420,7 +524,8 @@ export default function MaterialManager() {
           onClose={() => setDialog(null)}
           onSaved={async () => {
             setDialog(null);
-            await loadData();
+            await loadTree();
+            await loadMaterials(selectedCourseId, selectedFolderId);
           }}
         />
       )}
@@ -431,7 +536,9 @@ export default function MaterialManager() {
           course={courses.find((c) => c.id === accessMaterial.course_id)}
           folders={folders}
           onClose={() => setAccessMaterial(null)}
-          onSave={loadData}
+          onSave={async () => {
+            await loadMaterials(selectedCourseId, selectedFolderId);
+          }}
         />
       )}
 
@@ -443,7 +550,7 @@ export default function MaterialManager() {
           onSuccess={() => {
             setShowGrant(false);
             setSelectedIds(new Set());
-            loadData();
+            void loadMaterials(selectedCourseId, selectedFolderId);
           }}
         />
       )}

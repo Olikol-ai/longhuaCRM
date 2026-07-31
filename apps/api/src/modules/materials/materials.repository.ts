@@ -47,7 +47,23 @@ export class MaterialsRepository {
       ...where,
       status: (where as { status?: MaterialEntity['status'] }).status ?? 'active',
     };
-    return this.materialRepo.find({ where: scoped });
+    // List metadata only (no file content). fileUrl is a path/link for on-demand open.
+    return this.materialRepo.find({
+      where: scoped,
+      select: [
+        'id',
+        'folderId',
+        'title',
+        'fileUrl',
+        'fileType',
+        'description',
+        'status',
+        'createdByUserId',
+        'createdAt',
+        'updatedAt',
+      ],
+      order: { createdAt: 'DESC' },
+    });
   }
 
   countLinksByMaterialId(materialId: string): Promise<number> {

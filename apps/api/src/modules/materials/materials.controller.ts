@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -38,8 +39,15 @@ export class MaterialsController {
   ) {}
 
   @Get()
-  findAllMaterials(@CurrentUser() user: JwtPayload) {
-    return this.materialsService.findAllMaterials(user);
+  findAllMaterials(
+    @CurrentUser() user: JwtPayload,
+    @Query('courseId') courseId?: string,
+    @Query('folderId') folderId?: string,
+  ) {
+    return this.materialsService.findAllMaterials(user, {
+      courseId: courseId?.trim() || undefined,
+      folderId: folderId?.trim() || undefined,
+    });
   }
 
   @Post('filter')
