@@ -58,8 +58,13 @@ export class SecureFilesController {
     if (!allowed) {
       return { url: null };
     }
-    return {
-      url: this.secureFiles.createSignedFileUrl(user.sub, materialId, user.role),
-    };
+    // Throws NotFoundException when the DB row exists but the blob is gone —
+    // same ACL as list, honest disk check (no signed URL for orphans).
+    const url = await this.secureFiles.createSignedFileUrl(
+      user.sub,
+      materialId,
+      user.role,
+    );
+    return { url };
   }
 }

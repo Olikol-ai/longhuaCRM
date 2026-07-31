@@ -65,5 +65,7 @@ export default () => ({
     ttl: parseInt(process.env.RATE_LIMIT_TTL ?? '60', 10),
     limit: parseInt(process.env.RATE_LIMIT_MAX ?? '120', 10),
   },
+  /** Absolute uploads root — materials, chat, avatars, assessment share this. */
+  uploadsDir: (process.env.UPLOADS_DIR || process.env.UPLOADS_ROOT || '').trim(),
 });
 

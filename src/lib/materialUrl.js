@@ -94,7 +94,13 @@ export async function openMaterial(material) {
     return url;
   } catch (err) {
     const message = String(err?.message || '');
-    if (/not found on disk|File not found/i.test(message)) {
+    const status = Number(err?.status || 0);
+    // Preserve API message for missing blobs (404 from /url or stream).
+    if (
+      status === 404
+      || /Файл был удалён или недоступен/i.test(message)
+      || /not found on disk|File not found/i.test(message)
+    ) {
       throw new Error('Файл был удалён или недоступен.');
     }
     throw err;
