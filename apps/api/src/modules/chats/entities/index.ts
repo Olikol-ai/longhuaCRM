@@ -11,8 +11,6 @@ import { ChatDirectPairEntity } from './chat-direct-pair.entity';
 import { ChatReadReceiptEntity } from './chat-read-receipt.entity';
 import { ChatPinnedMessageEntity } from './chat-pinned-message.entity';
 import { ChatMessageReactionEntity } from './chat-message-reaction.entity';
-import { AiConversationEntity } from './ai-conversation.entity';
-import { AiConversationTurnEntity } from './ai-conversation-turn.entity';
 import { DirectChatRequestEntity } from './direct-chat-request.entity';
 import { UserPrivacySettingsEntity } from './user-privacy-settings.entity';
 import { UserBlockEntity } from './user-block.entity';
@@ -32,8 +30,6 @@ export const CHAT_ENTITIES = [
   ChatReadReceiptEntity,
   ChatPinnedMessageEntity,
   ChatMessageReactionEntity,
-  AiConversationEntity,
-  AiConversationTurnEntity,
   DirectChatRequestEntity,
   UserPrivacySettingsEntity,
   UserBlockEntity,
@@ -54,8 +50,6 @@ export {
   ChatReadReceiptEntity,
   ChatPinnedMessageEntity,
   ChatMessageReactionEntity,
-  AiConversationEntity,
-  AiConversationTurnEntity,
   DirectChatRequestEntity,
   UserPrivacySettingsEntity,
   UserBlockEntity,

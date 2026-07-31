@@ -159,10 +159,6 @@ export class ChatMessagesService {
     return this.create(actor, chatId, type, body, null, null, null, options);
   }
 
-  createAiResponse(chatId: string, body: string): Promise<ChatMessageEntity> {
-    return this.persist(chatId, null, ChatMessageType.AiResponse, body, null);
-  }
-
   async getHydrated(messageId: string): Promise<ChatMessageEntity | null> {
     return this.messageRepo.findOne({
       where: { id: messageId, deletedAt: IsNull() },

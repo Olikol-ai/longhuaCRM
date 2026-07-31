@@ -65,23 +65,5 @@ export default () => ({
     ttl: parseInt(process.env.RATE_LIMIT_TTL ?? '60', 10),
     limit: parseInt(process.env.RATE_LIMIT_MAX ?? '120', 10),
   },
-  ai: {
-    // Prefer OPENAI_*; accept AI_* / MODEL_NAME aliases used in ops docs.
-    openaiApiKey: (
-      process.env.OPENAI_API_KEY ||
-      process.env.AI_API_KEY ||
-      ''
-    ).trim(),
-    openaiBaseUrl: (
-      process.env.OPENAI_BASE_URL ||
-      process.env.AI_BASE_URL ||
-      'https://api.openai.com/v1'
-    ).trim(),
-    openaiModel: (
-      process.env.OPENAI_MODEL ||
-      process.env.MODEL_NAME ||
-      'gpt-4o-mini'
-    ).trim(),
-  },
 });
 

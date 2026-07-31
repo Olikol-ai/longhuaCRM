@@ -61,14 +61,6 @@ export const chatsApi = {
   unpin: (chatId, messageId) => apiFetch(`/chats/${chatId}/pins/${messageId}`, { method: 'DELETE' }),
   uploadAttachment: (chatId, file, { kind = 'file', durationMs } = {}) =>
     apiUploadTo(`/chats/${chatId}/attachments${queryString({ kind, durationMs })}`, file),
-  askAi: (chatId, prompt) => apiFetch(`/chats/${chatId}/ai`, {
-    method: 'POST',
-    body: JSON.stringify({ prompt }),
-  }),
-  explainEphemeral: (text) => apiFetch('/chats/ai/explain-ephemeral', {
-    method: 'POST',
-    body: JSON.stringify({ text }),
-  }),
   e2ee: async (chatId) => {
     const raw = await apiFetch(`/chats/${chatId}/e2ee`);
     const peersRaw = raw?.peers;

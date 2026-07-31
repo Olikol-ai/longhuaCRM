@@ -1,9 +1,7 @@
-import { ArrowLeft, Bot, Info, Lock, Pin, Users } from 'lucide-react';
+import { ArrowLeft, Info, Lock, Pin, Users } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { toast } from '@/components/ui/use-toast';
-import { chatsApi } from '@/api/chats.api';
 import { chatAttachmentSrc } from '@/lib/chat-attachment-url';
 import { displayUserName, pickField } from '@/lib/chat-normalize';
 import { resolveDirectPeerPublicKey } from '@/lib/e2ee/dm';
@@ -19,7 +17,7 @@ const CRM_TYPES = new Set(['lesson', 'homework', 'exam', 'material']);
 
 function senderName(message) {
   const sender = message.senderUser;
-  if (!sender) return message.type === 'ai_response' ? 'Longhua AI' : 'Система';
+  if (!sender) return 'Система';
   return displayUserName(sender);
 }
 
@@ -56,8 +54,6 @@ function MessageBody({
   isDirect,
   decryptedBody,
   decryptError,
-  onExplain,
-  explaining,
 }) {
   if (CRM_TYPES.has(message.type)) {
     return <CrmMessageCard message={message} />;
@@ -70,20 +66,7 @@ function MessageBody({
       return <p className="text-sm text-muted-foreground">Расшифровка…</p>;
     }
     return (
-      <div className="space-y-1">
-        <p className="whitespace-pre-wrap break-words text-sm leading-5">{decryptedBody}</p>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 text-xs text-muted-foreground"
-          disabled={explaining}
-          onClick={() => onExplain?.(decryptedBody)}
-        >
-          <Bot className="mr-1 h-3.5 w-3.5" />
-          Объяснить через AI
-        </Button>
-      </div>
+      <p className="whitespace-pre-wrap break-words text-sm leading-5">{decryptedBody}</p>
     );
   }
   if (message.body) {
@@ -117,7 +100,6 @@ export default function ChatMessagePane({
   const markedForChatRef = useRef(null);
   const [plaintextById, setPlaintextById] = useState({});
   const [errorsById, setErrorsById] = useState({});
-  const [explainingId, setExplainingId] = useState(null);
   const isDirect = chat?.kind === 'direct';
 
   const subtitle = useMemo(() => {
@@ -249,31 +231,6 @@ export default function ChatMessagePane({
     () => messages.filter((m) => m.ciphertext).length,
     [messages],
   );
-
-  const explain = async (messageId, text) => {
-    setExplainingId(messageId);
-    try {
-      const result = await chatsApi.explainEphemeral(text);
-      const reply =
-        result?.reply ||
-        result?.answer ||
-        result?.text ||
-        result?.message ||
-        null;
-      toast({
-        title: 'Ответ AI',
-        description: reply || 'Longhua AI временно недоступен.',
-      });
-    } catch (err) {
-      toast({
-        title: 'AI не ответил',
-        description: err?.message || 'Longhua AI временно недоступен.',
-        variant: 'destructive',
-      });
-    } finally {
-      setExplainingId(null);
-    }
-  };
 
   if (!chat) {
     return (
@@ -412,8 +369,6 @@ export default function ChatMessagePane({
                         ? 'Зашифрованное сообщение'
                         : errorsById[message.id]
                     }
-                    onExplain={(text) => void explain(message.id, text)}
-                    explaining={explainingId === message.id}
                   />
                   {message.attachments?.map((attachment) => (
                     <Attachment key={attachment.id} attachment={attachment} />

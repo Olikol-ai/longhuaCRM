@@ -20,8 +20,7 @@ import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { JwtPayload } from '../../auth/auth.service';
-import { ChatAiService } from '../ai/chat-ai.service';
-import { AskAiDto, ChatDirectoryQueryDto, CreateBlockDto, CreateCrmCardDto, CreateDirectChatDto, CreateDmRequestDto, CreateGroupChatDto, CreateMessageDto, ExplainEphemeralDto, InviteMembersDto, ListDmRequestsQueryDto, ListMessagesDto, MarkReadDto, UpdateChatProfileDto, UpdateDmPrivacyDto, UpdateMessageDto, UploadAttachmentDto } from '../dto/chats.dto';
+import { ChatDirectoryQueryDto, CreateBlockDto, CreateCrmCardDto, CreateDirectChatDto, CreateDmRequestDto, CreateGroupChatDto, CreateMessageDto, InviteMembersDto, ListDmRequestsQueryDto, ListMessagesDto, MarkReadDto, UpdateChatProfileDto, UpdateDmPrivacyDto, UpdateMessageDto, UploadAttachmentDto } from '../dto/chats.dto';
 import { ChatAttachmentKind, DirectChatRequestStatus, DmPrivacyPolicy } from '../enums/chat.enums';
 import { ChatAttachmentsService } from '../services/chat-attachments.service';
 import { ChatDirectoryService } from '../services/chat-directory.service';
@@ -39,7 +38,6 @@ export class ChatsController {
     private readonly messages: ChatMessagesService,
     private readonly attachments: ChatAttachmentsService,
     private readonly directory: ChatDirectoryService,
-    private readonly ai: ChatAiService,
     private readonly dmRequests: DirectChatRequestService,
     private readonly privacy: ChatPrivacyService,
     private readonly crypto: UserCryptoService,
@@ -182,14 +180,6 @@ export class ChatsController {
     return this.chats.hideMembership(actor, chatId);
   }
 
-  @Post('ai/explain-ephemeral')
-  explainEphemeral(
-    @CurrentUser() actor: JwtPayload,
-    @Body() dto: ExplainEphemeralDto,
-  ) {
-    return this.ai.explainEphemeral(actor, dto.text);
-  }
-
   @Get(':chatId/members')
   members(@CurrentUser() actor: JwtPayload, @Param('chatId') chatId: string) {
     return this.chats.listMembers(actor, chatId);
@@ -281,15 +271,6 @@ export class ChatsController {
       dto.refEntityType,
       dto.refEntityId,
     );
-  }
-
-  @Post(':chatId/ai')
-  askAi(
-    @CurrentUser() actor: JwtPayload,
-    @Param('chatId') chatId: string,
-    @Body() dto: AskAiDto,
-  ) {
-    return this.ai.ask(actor, chatId, dto.prompt);
   }
 
   @Post(':chatId/pins/:messageId')

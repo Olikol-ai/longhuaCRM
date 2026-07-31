@@ -26,7 +26,6 @@ export enum ChatMessageType {
   Homework = 'homework',
   Exam = 'exam',
   Material = 'material',
-  AiResponse = 'ai_response',
   Voice = 'voice',
   Image = 'image',
   File = 'file',

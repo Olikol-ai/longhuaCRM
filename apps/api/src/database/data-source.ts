@@ -62,6 +62,7 @@ import { ChatPrivacyAndDmRequests1743900000000 } from './migrations/174390000000
 import { DropAssessmentContentTasks1744000000000 } from './migrations/1744000000000-DropAssessmentContentTasks';
 import { ChatLessonId1744100000000 } from './migrations/1744100000000-ChatLessonId';
 import { UserCryptoAndDmE2ee1744200000000 } from './migrations/1744200000000-UserCryptoAndDmE2ee';
+import { DropLonghuaAiTables1744300000000 } from './migrations/1744300000000-DropLonghuaAiTables';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -127,6 +128,7 @@ export default new DataSource({
     DropAssessmentContentTasks1744000000000,
     ChatLessonId1744100000000,
     UserCryptoAndDmE2ee1744200000000,
+    DropLonghuaAiTables1744300000000,
   ],
   synchronize: false,
 });

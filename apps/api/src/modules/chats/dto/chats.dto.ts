@@ -146,18 +146,6 @@ export class CreateCrmCardDto {
   refEntityId!: string;
 }
 
-export class AskAiDto {
-  @IsString()
-  @Length(1, 4000)
-  prompt!: string;
-}
-
-export class ExplainEphemeralDto {
-  @IsString()
-  @Length(1, 8000)
-  text!: string;
-}
-
 export class UpdateMessageDto {
   @IsOptional()
   @IsString()

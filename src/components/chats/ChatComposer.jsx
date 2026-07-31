@@ -1,4 +1,4 @@
-import { Bot, Mic, Paperclip, Send, Square } from 'lucide-react';
+import { Mic, Paperclip, Send, Square } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -145,30 +145,6 @@ export default function ChatComposer({
     }
   };
 
-  const askAi = async () => {
-    if (isDirect) return;
-    const prompt = body.trim();
-    if (!prompt || sending || disabled) return;
-    setSending(true);
-    try {
-      const result = await chatsApi.askAi(chat.id, prompt);
-      setBody('');
-      const userMessage = result?.userMessage || result?.user_message;
-      const aiMessage = result?.aiMessage || result?.ai_message;
-      if (userMessage) onMessageCreated(userMessage);
-      if (aiMessage) onMessageCreated(aiMessage);
-      else if (!userMessage) onMessageCreated(result);
-    } catch (err) {
-      toast({
-        title: 'AI не ответил',
-        description: err?.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setSending(false);
-    }
-  };
-
   if (disabled) {
     return (
       <div className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
@@ -210,17 +186,6 @@ export default function ChatComposer({
           placeholder={isDirect ? 'Зашифрованное сообщение…' : 'Написать сообщение…'}
           disabled={sending}
         />
-        {!isDirect ? (
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => void askAi()}
-            disabled={!body.trim() || sending}
-            aria-label="Спросить AI"
-          >
-            <Bot />
-          </Button>
-        ) : null}
         <Button
           size="icon"
           variant={recording ? 'destructive' : 'ghost'}
