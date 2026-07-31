@@ -10,6 +10,7 @@ import ExamCompletionScreen from '@/components/assessment/ExamCompletionScreen';
 import ExamProgress from '@/components/assessment/ExamProgress';
 import ExamTimer from '@/components/assessment/ExamTimer';
 import QuestionCard from '@/components/assessment/QuestionCard';
+import TaskMaterialHeader from '@/components/assessment/TaskMaterialHeader';
 import QuestionNavigator from '@/components/assessment/QuestionNavigator';
 import { useAttemptSession } from '@/hooks/useAttemptSession';
 import { userFacingError } from '@/lib/userFacingError';
@@ -217,6 +218,11 @@ export default function StudentExamTake() {
           />
         </div>
 
+        <TaskMaterialHeader
+          instructions={currentQuestion?.task_instructions}
+          vocabulary={currentQuestion?.vocabulary}
+          passageText={currentQuestion?.passage_text}
+        />
         <QuestionCard
           question={currentQuestion}
           index={currentIndex}

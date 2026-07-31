@@ -20,8 +20,14 @@ import {
   AssessmentListeningQuestionAnswerEntity,
   AssessmentListeningQuestionEntity,
   AssessmentListeningTaskEntity,
+  AssessmentListeningTaskVocabularyEntity,
 } from '../entities';
 import { NestedQuestionInput } from './reading-task.service';
+import {
+  mapVocabularyDto,
+  normalizeVocabularyInput,
+  VocabularyItemInput,
+} from './task-vocabulary.util';
 import { uploadsJoin } from '../../../common/storage/uploads-root';
 
 const AUDIO_DIR = uploadsJoin('assessment');
@@ -39,6 +45,7 @@ export type CreateListeningTaskInput = {
   title: string;
   instructions?: string | null;
   levelLabel?: string | null;
+  vocabulary?: VocabularyItemInput[];
   questions?: NestedQuestionInput[];
 };
 
@@ -46,6 +53,7 @@ export type UpdateListeningTaskInput = {
   title?: string;
   instructions?: string | null;
   levelLabel?: string | null;
+  vocabulary?: VocabularyItemInput[];
   questions?: NestedQuestionInput[];
   status?: ContentLifecycleStatus;
 };
@@ -57,6 +65,8 @@ export type UploadedAudio = {
   size: number;
 };
 
+const TASK_RELATIONS = ['questions', 'questions.answers', 'vocabulary'] as const;
+
 @Injectable()
 export class ListeningTaskService {
   constructor(
@@ -66,6 +76,8 @@ export class ListeningTaskService {
     private readonly questions: Repository<AssessmentListeningQuestionEntity>,
     @InjectRepository(AssessmentListeningQuestionAnswerEntity)
     private readonly answers: Repository<AssessmentListeningQuestionAnswerEntity>,
+    @InjectRepository(AssessmentListeningTaskVocabularyEntity)
+    private readonly vocabulary: Repository<AssessmentListeningTaskVocabularyEntity>,
     private readonly access: AssessmentAccessService,
   ) {}
 
@@ -75,7 +87,7 @@ export class ListeningTaskService {
     const rows = await this.tasks.find({
       where,
       order: { updatedAt: 'DESC' },
-      relations: ['questions', 'questions.answers'],
+      relations: [...TASK_RELATIONS],
     });
     return rows.map((row) => this.toDto(row));
   }
@@ -99,6 +111,7 @@ export class ListeningTaskService {
         createdByUserId: actor.sub,
       }),
     );
+    if (input.vocabulary) await this.replaceVocabulary(task.id, input.vocabulary);
     if (input.questions?.length) await this.replaceQuestions(task.id, input.questions);
     return this.get(actor, task.id);
   }
@@ -114,6 +127,7 @@ export class ListeningTaskService {
     }
     if (input.status !== undefined) task.status = input.status;
     await this.tasks.save(task);
+    if (input.vocabulary) await this.replaceVocabulary(id, input.vocabulary);
     if (input.questions) await this.replaceQuestions(id, input.questions);
     return this.get(actor, id);
   }
@@ -182,8 +196,26 @@ export class ListeningTaskService {
     if (!ids.length) return [];
     return this.tasks.find({
       where: ids.map((id) => ({ id, status: ContentLifecycleStatus.Published })),
-      relations: ['questions', 'questions.answers'],
+      relations: [...TASK_RELATIONS],
     });
+  }
+
+  private async replaceVocabulary(taskId: string, items: VocabularyItemInput[]) {
+    await this.vocabulary.delete({ listeningTaskId: taskId });
+    const normalized = normalizeVocabularyInput(items);
+    if (!normalized.length) return;
+    await this.vocabulary.save(
+      normalized.map((row) =>
+        this.vocabulary.create({
+          listeningTaskId: taskId,
+          word: row.word,
+          pinyin: row.pinyin,
+          translation: row.translation,
+          explanation: row.explanation,
+          sortOrder: row.sortOrder,
+        }),
+      ),
+    );
   }
 
   private async replaceQuestions(taskId: string, items: NestedQuestionInput[]) {
@@ -227,7 +259,7 @@ export class ListeningTaskService {
   private async requireOwned(actor: DomainAccessActor, id: string) {
     const row = await this.tasks.findOne({
       where: { id },
-      relations: ['questions', 'questions.answers'],
+      relations: [...TASK_RELATIONS],
     });
     if (!row) throw new NotFoundException('Listening task not found');
     this.access.assertCanManageCreatedContent(actor, row, 'listening task');
@@ -248,6 +280,7 @@ export class ListeningTaskService {
       created_by_user_id: row.createdByUserId,
       created_at: row.createdAt,
       updated_at: row.updatedAt,
+      vocabulary: mapVocabularyDto(row.vocabulary),
       questions: questions.map((q) => ({
         id: q.id,
         sort_order: q.sortOrder,

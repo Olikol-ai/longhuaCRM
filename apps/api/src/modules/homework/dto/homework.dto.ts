@@ -68,6 +68,10 @@ export class HomeworkItemDto {
   passage_text?: string;
 
   @IsOptional()
+  @IsString()
+  task_instructions?: string;
+
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => HomeworkItemAnswerDto)

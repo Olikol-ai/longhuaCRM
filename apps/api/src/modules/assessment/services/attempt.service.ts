@@ -121,6 +121,15 @@ export type AttemptStateSection = {
     type: QuestionType;
     stem: string;
     points: string;
+    passageText: string | null;
+    taskInstructions: string | null;
+    vocabulary: Array<{
+      word: string;
+      pinyin: string | null;
+      translation: string | null;
+      explanation: string | null;
+      sortOrder: number;
+    }>;
     attachments: Array<{ id: string; kind: string; url: string | null }>;
     answers: Array<{ snapshotId: string; text: string; sortOrder: number }>;
     savedAnswer: {
@@ -274,6 +283,17 @@ export class AttemptService {
         type: qSnap.type,
         stem: qSnap.stem,
         points: String(qSnap.points),
+        passageText: qSnap.passageText ?? null,
+        taskInstructions: qSnap.taskInstructions ?? null,
+        vocabulary: [...(qSnap.vocabulary ?? [])]
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((row) => ({
+            word: row.word,
+            pinyin: row.pinyin,
+            translation: row.translation,
+            explanation: row.explanation,
+            sortOrder: row.sortOrder,
+          })),
         attachments,
         answers: answerSnaps.map((a) => ({
           snapshotId: a.id,
@@ -763,6 +783,15 @@ export class AttemptService {
       points: string;
       difficulty: number;
       explanation: string | null;
+      passageText?: string | null;
+      taskInstructions?: string | null;
+      vocabulary?: Array<{
+        word: string;
+        pinyin: string | null;
+        translation: string | null;
+        explanation: string | null;
+        sortOrder: number;
+      }>;
       sortOrder: number;
       answers: Array<{
         text: string;
@@ -830,22 +859,33 @@ export class AttemptService {
             `Task «${task.title}» has no questions for part ${part.id}`,
           );
         }
+        const vocab = [...(task.vocabulary ?? [])]
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((row) => ({
+            word: row.word,
+            pinyin: row.pinyin,
+            translation: row.translation,
+            explanation: row.explanation,
+            sortOrder: row.sortOrder,
+          }));
+        const passageText =
+          part.partKind === 'reading' && 'textContent' in task ? task.textContent : null;
+        const taskInstructions = task.instructions ?? null;
         for (const q of nested) {
           const answers = [...(q.answers ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
           if (randomizeAnswers) this.shuffleInPlace(answers);
-          const passagePrefix =
-            part.partKind === 'reading' && 'textContent' in task && task.textContent
-              ? `${task.textContent}\n\n`
-              : '';
           prepared.push({
             attemptId: attempt.id,
             sourceQuestionId: q.id,
             sectionKey,
             type: q.type,
-            stem: `${passagePrefix}${q.stem}`,
+            stem: q.stem,
             points: String(q.points),
             difficulty: 1,
             explanation: q.explanation,
+            passageText,
+            taskInstructions,
+            vocabulary: vocab,
             sortOrder: sortOrder++,
             answers: answers.map((a, idx) => ({
               sourceAnswerId: a.id,
@@ -950,6 +990,15 @@ export class AttemptService {
       points: string;
       difficulty: number;
       explanation: string | null;
+      passageText?: string | null;
+      taskInstructions?: string | null;
+      vocabulary?: Array<{
+        word: string;
+        pinyin: string | null;
+        translation: string | null;
+        explanation: string | null;
+        sortOrder: number;
+      }>;
       sortOrder: number;
       answers: Array<{
         text: string;
@@ -968,6 +1017,8 @@ export class AttemptService {
       points: p.points,
       difficulty: p.difficulty,
       explanation: p.explanation,
+      passageText: p.passageText ?? null,
+      taskInstructions: p.taskInstructions ?? null,
       sortOrder: p.sortOrder,
     }));
 
@@ -992,6 +1043,22 @@ export class AttemptService {
 
     if (answerSnapshots.length > 0) {
       await this.attempts.saveSnapshotsInBulk([], answerSnapshots);
+    }
+
+    const vocabularyRows = prepared.flatMap((p) => {
+      const qSnap = qSnapBySource.get(p.sourceQuestionId);
+      if (!qSnap || !p.vocabulary?.length) return [];
+      return p.vocabulary.map((row) => ({
+        questionSnapshotId: qSnap.id,
+        word: row.word,
+        pinyin: row.pinyin,
+        translation: row.translation,
+        explanation: row.explanation,
+        sortOrder: row.sortOrder,
+      }));
+    });
+    if (vocabularyRows.length > 0) {
+      await this.attempts.saveVocabularySnapshots(vocabularyRows);
     }
   }
 

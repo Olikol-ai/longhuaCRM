@@ -17,6 +17,10 @@ import {
   QUESTION_TYPES,
   needsAnswerOptions,
 } from '@/lib/assessment-admin';
+import TaskVocabularyEditor, {
+  mapVocabularyFromApi,
+  mapVocabularyToApi,
+} from './TaskVocabularyEditor';
 
 function emptyAnswer(sortOrder = 0) {
   return { text: '', is_correct: false, sort_order: sortOrder };
@@ -34,13 +38,14 @@ function emptyQuestion() {
 }
 
 /**
- * ReadingTask editor: passage + inline nested questions (not from the Test bank).
+ * ReadingTask editor: passage + vocabulary + inline nested questions (not from the Test bank).
  */
 export default function ReadingTaskEditor({ open, onOpenChange, editing = null, onSaved }) {
   const [title, setTitle] = useState('');
   const [textContent, setTextContent] = useState('');
   const [instructions, setInstructions] = useState('');
   const [levelLabel, setLevelLabel] = useState('');
+  const [vocabulary, setVocabulary] = useState([]);
   const [questions, setQuestions] = useState([emptyQuestion()]);
   const [loadingMeta, setLoadingMeta] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -58,6 +63,7 @@ export default function ReadingTaskEditor({ open, onOpenChange, editing = null, 
           setTextContent(detail.text_content || '');
           setInstructions(detail.instructions || '');
           setLevelLabel(detail.level_label || '');
+          setVocabulary(mapVocabularyFromApi(detail.vocabulary));
           const nested = (detail.questions || []).map((q, i) => ({
             localKey: q.id || `q-${i}`,
             type: q.type || 'single_choice',
@@ -78,6 +84,7 @@ export default function ReadingTaskEditor({ open, onOpenChange, editing = null, 
           setTextContent('');
           setInstructions('');
           setLevelLabel('');
+          setVocabulary([]);
           setQuestions([emptyQuestion()]);
         }
       } catch (err) {
@@ -132,6 +139,7 @@ export default function ReadingTaskEditor({ open, onOpenChange, editing = null, 
       text_content: textContent.trim(),
       instructions: instructions.trim() || null,
       level_label: levelLabel.trim() || null,
+      vocabulary: mapVocabularyToApi(vocabulary),
       questions: questions.map((q) => ({
         type: q.type,
         stem: q.stem.trim(),
@@ -193,10 +201,11 @@ export default function ReadingTaskEditor({ open, onOpenChange, editing = null, 
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Инструкции (необяз.)</Label>
+                <Label>Описание задания (необяз.)</Label>
                 <Input
                   value={instructions}
                   onChange={(e) => setInstructions(e.target.value)}
+                  placeholder="Прочитайте текст и ответьте на вопросы"
                 />
               </div>
               <div className="space-y-1.5">
@@ -208,6 +217,8 @@ export default function ReadingTaskEditor({ open, onOpenChange, editing = null, 
                 />
               </div>
             </div>
+
+            <TaskVocabularyEditor items={vocabulary} onChange={setVocabulary} />
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">

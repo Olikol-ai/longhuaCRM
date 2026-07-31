@@ -5,6 +5,7 @@ import { api } from '@/api';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import QuestionCard from '@/components/assessment/QuestionCard';
+import TaskMaterialHeader from '@/components/assessment/TaskMaterialHeader';
 import { userFacingError } from '@/lib/userFacingError';
 
 const STATUS_LABEL = {
@@ -203,13 +204,22 @@ export default function HomeworkViewer() {
           </Button>
         </div>
 
-        {(attempt.questions || []).map((q, index) => (
+        {(attempt.questions || []).map((q, index) => {
+          const prev = index > 0 ? attempt.questions[index - 1] : null;
+          const showPrelude =
+            !prev ||
+            prev.passage_text !== q.passage_text ||
+            prev.task_instructions !== q.task_instructions ||
+            JSON.stringify(prev.vocabulary || []) !== JSON.stringify(q.vocabulary || []);
+          return (
           <div key={q.id}>
-            {q.passage_text && (
-              <div className="mb-3 p-4 rounded-xl border bg-amber-50/50 dark:bg-amber-950/20 text-sm whitespace-pre-wrap">
-                {q.passage_text}
-              </div>
-            )}
+            {showPrelude ? (
+              <TaskMaterialHeader
+                instructions={q.task_instructions}
+                vocabulary={q.vocabulary}
+                passageText={q.passage_text}
+              />
+            ) : null}
             <QuestionCard
               question={q}
               index={index}
@@ -232,7 +242,8 @@ export default function HomeworkViewer() {
               }
             />
           </div>
-        ))}
+          );
+        })}
 
         {submitted && attempt.result && (
           <div className="rounded-2xl border p-4 bg-emerald-50/50 dark:bg-emerald-950/20">

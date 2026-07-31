@@ -5,6 +5,7 @@ import { HomeworkAssignmentEntity } from './homework-assignment.entity';
 import { HomeworkAttemptEntity } from './homework-attempt.entity';
 import { HomeworkQuestionSnapshotEntity } from './homework-question-snapshot.entity';
 import { HomeworkAnswerSnapshotEntity } from './homework-answer-snapshot.entity';
+import { HomeworkQuestionSnapshotVocabularyEntity } from './homework-question-snapshot-vocabulary.entity';
 import { HomeworkAttemptAnswerEntity } from './homework-attempt-answer.entity';
 import { HomeworkAttemptAnswerSelectionEntity } from './homework-attempt-answer-selection.entity';
 import { HomeworkResultEntity } from './homework-result.entity';
@@ -19,6 +20,7 @@ export const HOMEWORK_ENTITIES = [
   HomeworkAttemptEntity,
   HomeworkQuestionSnapshotEntity,
   HomeworkAnswerSnapshotEntity,
+  HomeworkQuestionSnapshotVocabularyEntity,
   HomeworkAttemptAnswerEntity,
   HomeworkAttemptAnswerSelectionEntity,
   HomeworkResultEntity,
@@ -33,6 +35,7 @@ export {
   HomeworkAttemptEntity,
   HomeworkQuestionSnapshotEntity,
   HomeworkAnswerSnapshotEntity,
+  HomeworkQuestionSnapshotVocabularyEntity,
   HomeworkAttemptAnswerEntity,
   HomeworkAttemptAnswerSelectionEntity,
   HomeworkResultEntity,

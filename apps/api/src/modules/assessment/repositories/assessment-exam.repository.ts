@@ -57,9 +57,11 @@ export class AssessmentExamRepository {
         'parts.poolItems.readingTask',
         'parts.poolItems.readingTask.questions',
         'parts.poolItems.readingTask.questions.answers',
+        'parts.poolItems.readingTask.vocabulary',
         'parts.poolItems.listeningTask',
         'parts.poolItems.listeningTask.questions',
         'parts.poolItems.listeningTask.questions.answers',
+        'parts.poolItems.listeningTask.vocabulary',
       ],
     });
   }

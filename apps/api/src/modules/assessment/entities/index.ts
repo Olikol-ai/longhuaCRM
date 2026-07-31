@@ -23,9 +23,12 @@ import { AssessmentExamPartPoolItemEntity } from './assessment-exam-part-pool-it
 import { AssessmentReadingTaskEntity } from './assessment-reading-task.entity';
 import { AssessmentReadingQuestionEntity } from './assessment-reading-question.entity';
 import { AssessmentReadingQuestionAnswerEntity } from './assessment-reading-question-answer.entity';
+import { AssessmentReadingTaskVocabularyEntity } from './assessment-reading-task-vocabulary.entity';
 import { AssessmentListeningTaskEntity } from './assessment-listening-task.entity';
 import { AssessmentListeningQuestionEntity } from './assessment-listening-question.entity';
 import { AssessmentListeningQuestionAnswerEntity } from './assessment-listening-question-answer.entity';
+import { AssessmentListeningTaskVocabularyEntity } from './assessment-listening-task-vocabulary.entity';
+import { AssessmentQuestionSnapshotVocabularyEntity } from './assessment-question-snapshot-vocabulary.entity';
 
 /** All Assessment TypeORM entities for module / registry registration. */
 export const ASSESSMENT_ENTITIES = [
@@ -37,9 +40,11 @@ export const ASSESSMENT_ENTITIES = [
   AssessmentReadingTaskEntity,
   AssessmentReadingQuestionEntity,
   AssessmentReadingQuestionAnswerEntity,
+  AssessmentReadingTaskVocabularyEntity,
   AssessmentListeningTaskEntity,
   AssessmentListeningQuestionEntity,
   AssessmentListeningQuestionAnswerEntity,
+  AssessmentListeningTaskVocabularyEntity,
   AssessmentExamBlockEntity,
   AssessmentExamBlockItemEntity,
   AssessmentExamEntity,
@@ -52,6 +57,7 @@ export const ASSESSMENT_ENTITIES = [
   AssessmentAttemptEntity,
   AssessmentQuestionSnapshotEntity,
   AssessmentAnswerSnapshotEntity,
+  AssessmentQuestionSnapshotVocabularyEntity,
   AssessmentAttemptAnswerEntity,
   AssessmentAttemptAnswerSelectionEntity,
   AssessmentResultEntity,
@@ -68,9 +74,11 @@ export {
   AssessmentReadingTaskEntity,
   AssessmentReadingQuestionEntity,
   AssessmentReadingQuestionAnswerEntity,
+  AssessmentReadingTaskVocabularyEntity,
   AssessmentListeningTaskEntity,
   AssessmentListeningQuestionEntity,
   AssessmentListeningQuestionAnswerEntity,
+  AssessmentListeningTaskVocabularyEntity,
   AssessmentExamBlockEntity,
   AssessmentExamBlockItemEntity,
   AssessmentExamEntity,
@@ -83,6 +91,7 @@ export {
   AssessmentAttemptEntity,
   AssessmentQuestionSnapshotEntity,
   AssessmentAnswerSnapshotEntity,
+  AssessmentQuestionSnapshotVocabularyEntity,
   AssessmentAttemptAnswerEntity,
   AssessmentAttemptAnswerSelectionEntity,
   AssessmentResultEntity,

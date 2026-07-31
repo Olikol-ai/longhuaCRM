@@ -7,6 +7,7 @@ import {
   AssessmentAttemptAnswerSelectionEntity,
   AssessmentAttemptEntity,
   AssessmentQuestionSnapshotEntity,
+  AssessmentQuestionSnapshotVocabularyEntity,
 } from '../entities';
 import { AttemptStatus } from '../enums';
 
@@ -24,6 +25,8 @@ export class AssessmentAttemptRepository {
     private readonly questionSnapshotRepo: Repository<AssessmentQuestionSnapshotEntity>,
     @InjectRepository(AssessmentAnswerSnapshotEntity)
     private readonly answerSnapshotRepo: Repository<AssessmentAnswerSnapshotEntity>,
+    @InjectRepository(AssessmentQuestionSnapshotVocabularyEntity)
+    private readonly vocabularySnapshotRepo: Repository<AssessmentQuestionSnapshotVocabularyEntity>,
     @InjectRepository(AssessmentAttemptAnswerEntity)
     private readonly attemptAnswerRepo: Repository<AssessmentAttemptAnswerEntity>,
     @InjectRepository(AssessmentAttemptAnswerSelectionEntity)
@@ -139,8 +142,18 @@ export class AssessmentAttemptRepository {
   ): Promise<AssessmentQuestionSnapshotEntity[]> {
     return this.questionSnapshotRepo.find({
       where: { attemptId },
+      relations: ['vocabulary'],
       order: { sortOrder: 'ASC' },
     });
+  }
+
+  async saveVocabularySnapshots(
+    rows: Partial<AssessmentQuestionSnapshotVocabularyEntity>[],
+  ): Promise<AssessmentQuestionSnapshotVocabularyEntity[]> {
+    if (!rows.length) return [];
+    return this.vocabularySnapshotRepo.save(
+      rows.map((row) => this.vocabularySnapshotRepo.create(row)),
+    );
   }
 
   findAnswerSnapshotsByQuestionSnapshotId(

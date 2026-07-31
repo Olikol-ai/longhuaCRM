@@ -70,6 +70,10 @@ describe('Assessment authoring access', () => {
     );
     assert.match(reading, /createReadingTask|updateReadingTask/);
     assert.match(listening, /createListeningTask|updateListeningTask/);
+    assert.match(reading, /TaskVocabularyEditor/);
+    assert.match(listening, /TaskVocabularyEditor/);
+    assert.match(reading, /vocabulary/);
+    assert.match(listening, /vocabulary/);
     assert.doesNotMatch(reading, /api\.assessment\.listQuestions/);
     assert.doesNotMatch(listening, /api\.assessment\.listQuestions/);
   });

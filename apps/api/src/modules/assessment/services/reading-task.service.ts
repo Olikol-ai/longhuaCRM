@@ -16,7 +16,13 @@ import {
   AssessmentReadingQuestionAnswerEntity,
   AssessmentReadingQuestionEntity,
   AssessmentReadingTaskEntity,
+  AssessmentReadingTaskVocabularyEntity,
 } from '../entities';
+import {
+  mapVocabularyDto,
+  normalizeVocabularyInput,
+  VocabularyItemInput,
+} from './task-vocabulary.util';
 
 export type NestedQuestionInput = {
   type: QuestionType;
@@ -31,6 +37,7 @@ export type CreateReadingTaskInput = {
   textContent: string;
   instructions?: string | null;
   levelLabel?: string | null;
+  vocabulary?: VocabularyItemInput[];
   questions?: NestedQuestionInput[];
 };
 
@@ -39,9 +46,12 @@ export type UpdateReadingTaskInput = {
   textContent?: string;
   instructions?: string | null;
   levelLabel?: string | null;
+  vocabulary?: VocabularyItemInput[];
   questions?: NestedQuestionInput[];
   status?: ContentLifecycleStatus;
 };
+
+const TASK_RELATIONS = ['questions', 'questions.answers', 'vocabulary'] as const;
 
 @Injectable()
 export class ReadingTaskService {
@@ -52,6 +62,8 @@ export class ReadingTaskService {
     private readonly questions: Repository<AssessmentReadingQuestionEntity>,
     @InjectRepository(AssessmentReadingQuestionAnswerEntity)
     private readonly answers: Repository<AssessmentReadingQuestionAnswerEntity>,
+    @InjectRepository(AssessmentReadingTaskVocabularyEntity)
+    private readonly vocabulary: Repository<AssessmentReadingTaskVocabularyEntity>,
     private readonly access: AssessmentAccessService,
   ) {}
 
@@ -61,7 +73,7 @@ export class ReadingTaskService {
     const rows = await this.tasks.find({
       where,
       order: { updatedAt: 'DESC' },
-      relations: ['questions', 'questions.answers'],
+      relations: [...TASK_RELATIONS],
     });
     return rows.map((row) => this.toDto(row));
   }
@@ -84,6 +96,7 @@ export class ReadingTaskService {
         createdByUserId: actor.sub,
       }),
     );
+    if (input.vocabulary) await this.replaceVocabulary(task.id, input.vocabulary);
     if (input.questions?.length) {
       await this.replaceQuestions(task.id, input.questions);
     }
@@ -102,6 +115,7 @@ export class ReadingTaskService {
     }
     if (input.status !== undefined) task.status = input.status;
     await this.tasks.save(task);
+    if (input.vocabulary) await this.replaceVocabulary(id, input.vocabulary);
     if (input.questions) await this.replaceQuestions(id, input.questions);
     return this.get(actor, id);
   }
@@ -127,8 +141,26 @@ export class ReadingTaskService {
     if (!ids.length) return [];
     return this.tasks.find({
       where: ids.map((id) => ({ id, status: ContentLifecycleStatus.Published })),
-      relations: ['questions', 'questions.answers'],
+      relations: [...TASK_RELATIONS],
     });
+  }
+
+  private async replaceVocabulary(taskId: string, items: VocabularyItemInput[]) {
+    await this.vocabulary.delete({ readingTaskId: taskId });
+    const normalized = normalizeVocabularyInput(items);
+    if (!normalized.length) return;
+    await this.vocabulary.save(
+      normalized.map((row) =>
+        this.vocabulary.create({
+          readingTaskId: taskId,
+          word: row.word,
+          pinyin: row.pinyin,
+          translation: row.translation,
+          explanation: row.explanation,
+          sortOrder: row.sortOrder,
+        }),
+      ),
+    );
   }
 
   private async replaceQuestions(taskId: string, items: NestedQuestionInput[]) {
@@ -176,7 +208,7 @@ export class ReadingTaskService {
   private async requireOwned(actor: DomainAccessActor, id: string) {
     const row = await this.tasks.findOne({
       where: { id },
-      relations: ['questions', 'questions.answers'],
+      relations: [...TASK_RELATIONS],
     });
     if (!row) throw new NotFoundException('Reading task not found');
     this.access.assertCanManageCreatedContent(actor, row, 'reading task');
@@ -195,6 +227,7 @@ export class ReadingTaskService {
       created_by_user_id: row.createdByUserId,
       created_at: row.createdAt,
       updated_at: row.updatedAt,
+      vocabulary: mapVocabularyDto(row.vocabulary),
       questions: questions.map((q) => ({
         id: q.id,
         sort_order: q.sortOrder,

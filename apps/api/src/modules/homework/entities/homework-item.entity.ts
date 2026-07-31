@@ -64,6 +64,10 @@ export class HomeworkItemEntity {
   @Column({ name: 'passage_text', type: 'text', nullable: true })
   passageText: string | null;
 
+  /** Reading/listening task instructions shown before the material. */
+  @Column({ name: 'task_instructions', type: 'text', nullable: true })
+  taskInstructions: string | null;
+
   @OneToMany(() => HomeworkItemAnswerEntity, (answer) => answer.item)
   answers?: HomeworkItemAnswerEntity[];
 

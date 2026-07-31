@@ -51,10 +51,14 @@ import {
   HomeworkResultEntity,
   HomeworkTaskEntity,
 } from '../entities';
+import { AssessmentListeningQuestionEntity } from '../../assessment/entities/assessment-listening-question.entity';
 import { AssessmentListeningTaskEntity } from '../../assessment/entities/assessment-listening-task.entity';
 import { AssessmentQuestionEntity } from '../../assessment/entities/assessment-question.entity';
+import { AssessmentReadingQuestionEntity } from '../../assessment/entities/assessment-reading-question.entity';
 import { AssessmentReadingTaskEntity } from '../../assessment/entities/assessment-reading-task.entity';
+import { HomeworkQuestionSnapshotVocabularyEntity } from '../entities/homework-question-snapshot-vocabulary.entity';
 import { HomeworkNotifierService } from './homework-notifier.service';
+import { mapVocabularyDto } from '../../assessment/services/task-vocabulary.util';
 
 type HomeworkOwnerType = 'teacher' | 'tutor';
 type ManagerRole = 'admin' | 'teacher' | 'tutor';
@@ -115,6 +119,12 @@ export class HomeworkService {
     private readonly readingTasks: Repository<AssessmentReadingTaskEntity>,
     @InjectRepository(AssessmentListeningTaskEntity)
     private readonly listeningTasks: Repository<AssessmentListeningTaskEntity>,
+    @InjectRepository(AssessmentReadingQuestionEntity)
+    private readonly readingQuestions: Repository<AssessmentReadingQuestionEntity>,
+    @InjectRepository(AssessmentListeningQuestionEntity)
+    private readonly listeningQuestions: Repository<AssessmentListeningQuestionEntity>,
+    @InjectRepository(HomeworkQuestionSnapshotVocabularyEntity)
+    private readonly snapshotVocabulary: Repository<HomeworkQuestionSnapshotVocabularyEntity>,
     @InjectRepository(TeacherEntity)
     private readonly teachers: Repository<TeacherEntity>,
     @InjectRepository(StudentEntity)
@@ -678,7 +688,7 @@ export class HomeworkService {
     const qSnaps = await this.questionSnapshots.find({
       where: { attemptId },
       order: { sortOrder: 'ASC' },
-      relations: ['answerSnapshots'],
+      relations: ['answerSnapshots', 'vocabulary'],
     });
     const answers = await this.attemptAnswers.find({
       where: { attemptId },
@@ -718,6 +728,19 @@ export class HomeworkService {
           })),
         );
       }
+      const listeningQs = await this.listeningQuestions.find({
+        where: { id: In(sourceIds) },
+      });
+      for (const lq of listeningQs) {
+        if (attachmentsBySource.has(lq.id)) continue;
+        attachmentsBySource.set(lq.id, [
+          {
+            id: lq.listeningTaskId,
+            kind: 'audio',
+            url: `/api/assessment/listening-tasks/${lq.listeningTaskId}/audio`,
+          },
+        ]);
+      }
     }
 
     return {
@@ -743,6 +766,8 @@ export class HomeworkService {
         points: Number(question.points),
         explanation: isManager ? question.explanation : null,
         passage_text: question.passageText,
+        task_instructions: question.taskInstructions,
+        vocabulary: mapVocabularyDto(question.vocabulary),
         sort_order: question.sortOrder,
         attachments: question.sourceQuestionId
           ? attachmentsBySource.get(question.sourceQuestionId) ?? []
@@ -972,6 +997,7 @@ export class HomeworkService {
           sortOrder: item.sort_order ?? idx,
           points: item.points != null ? String(item.points) : '1',
           passageText: item.passage_text?.trim() || null,
+          taskInstructions: item.task_instructions?.trim() || null,
         }),
       );
       const answers = item.answers ?? [];
@@ -1084,9 +1110,11 @@ export class HomeworkService {
         'readingTask',
         'readingTask.questions',
         'readingTask.questions.answers',
+        'readingTask.vocabulary',
         'listeningTask',
         'listeningTask.questions',
         'listeningTask.questions.answers',
+        'listeningTask.vocabulary',
       ],
     });
     if (!tasks.length) return;
@@ -1123,6 +1151,7 @@ export class HomeworkService {
             explanation: q.explanation ?? undefined,
             section_key: 'reading',
             passage_text: rt.textContent ?? undefined,
+            task_instructions: rt.instructions ?? undefined,
             source_question_id: q.id,
             answers: (q.answers ?? []).map((a) => ({
               text: a.text,
@@ -1144,6 +1173,7 @@ export class HomeworkService {
             difficulty: 1,
             explanation: q.explanation ?? undefined,
             section_key: 'listening',
+            task_instructions: lt.instructions ?? undefined,
             source_question_id: q.id,
             answers: (q.answers ?? []).map((a) => ({
               text: a.text,
@@ -1182,6 +1212,7 @@ export class HomeworkService {
           sortOrder: item.sort_order ?? idx,
           points: item.points != null ? String(item.points) : '1',
           passageText: item.passage_text?.trim() || null,
+          taskInstructions: item.task_instructions?.trim() || null,
         }),
       );
       const answers = item.answers ?? [];
@@ -1258,6 +1289,33 @@ export class HomeworkService {
           });
     const byId = new Map(withAnswers.map((item) => [item.id, item]));
 
+    const readingSourceIds = items
+      .filter((item) => item.sectionKey === 'reading' && item.questionId)
+      .map((item) => item.questionId as string);
+    const listeningSourceIds = items
+      .filter((item) => item.sectionKey === 'listening' && item.questionId)
+      .map((item) => item.questionId as string);
+
+    const readingQs = readingSourceIds.length
+      ? await this.readingQuestions.find({
+          where: { id: In(readingSourceIds) },
+          relations: ['task', 'task.vocabulary'],
+        })
+      : [];
+    const listeningQs = listeningSourceIds.length
+      ? await this.listeningQuestions.find({
+          where: { id: In(listeningSourceIds) },
+          relations: ['task', 'task.vocabulary'],
+        })
+      : [];
+    const vocabBySource = new Map<string, ReturnType<typeof mapVocabularyDto>>();
+    for (const q of readingQs) {
+      vocabBySource.set(q.id, mapVocabularyDto(q.task?.vocabulary));
+    }
+    for (const q of listeningQs) {
+      vocabBySource.set(q.id, mapVocabularyDto(q.task?.vocabulary));
+    }
+
     for (const item of items) {
       const full = byId.get(item.id) ?? item;
       const questionSnapshot = await this.questionSnapshots.save(
@@ -1271,6 +1329,7 @@ export class HomeworkService {
           difficulty: full.difficulty ?? 1,
           explanation: full.explanation,
           passageText: full.passageText,
+          taskInstructions: full.taskInstructions,
           sortOrder: full.sortOrder,
         }),
       );
@@ -1286,6 +1345,24 @@ export class HomeworkService {
             isCorrect: answer.isCorrect,
             sortOrder: answer.sortOrder,
           }),
+        );
+      }
+      const vocab =
+        full.questionId && vocabBySource.has(full.questionId)
+          ? vocabBySource.get(full.questionId)!
+          : [];
+      if (vocab.length) {
+        await this.snapshotVocabulary.save(
+          vocab.map((row, index) =>
+            this.snapshotVocabulary.create({
+              questionSnapshotId: questionSnapshot.id,
+              word: row.word,
+              pinyin: row.pinyin,
+              translation: row.translation,
+              explanation: row.explanation,
+              sortOrder: row.sort_order ?? index,
+            }),
+          ),
         );
       }
     }
@@ -1775,6 +1852,7 @@ export class HomeworkService {
       section_key: item.sectionKey,
       sort_order: item.sortOrder,
       passage_text: item.passageText,
+      task_instructions: item.taskInstructions,
       answers: (item.answers ?? [])
         .slice()
         .sort((left, right) => left.sortOrder - right.sortOrder)

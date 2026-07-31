@@ -11,6 +11,7 @@ import {
 import { QuestionType } from '../enums';
 import { AssessmentAttemptEntity } from './assessment-attempt.entity';
 import { AssessmentAnswerSnapshotEntity } from './assessment-answer-snapshot.entity';
+import { AssessmentQuestionSnapshotVocabularyEntity } from './assessment-question-snapshot-vocabulary.entity';
 
 @Entity('assessment_question_snapshots')
 export class AssessmentQuestionSnapshotEntity {
@@ -49,11 +50,22 @@ export class AssessmentQuestionSnapshotEntity {
   @Column({ type: 'text', nullable: true })
   explanation: string | null;
 
+  /** Reading passage frozen onto each question of the block. */
+  @Column({ name: 'passage_text', type: 'text', nullable: true })
+  passageText: string | null;
+
+  /** Task instructions shown before the material (reading/listening). */
+  @Column({ name: 'task_instructions', type: 'text', nullable: true })
+  taskInstructions: string | null;
+
   @Column({ name: 'sort_order', type: 'int', default: 0 })
   sortOrder: number;
 
   @OneToMany(() => AssessmentAnswerSnapshotEntity, (a) => a.questionSnapshot)
   answerSnapshots?: AssessmentAnswerSnapshotEntity[];
+
+  @OneToMany(() => AssessmentQuestionSnapshotVocabularyEntity, (v) => v.questionSnapshot)
+  vocabulary?: AssessmentQuestionSnapshotVocabularyEntity[];
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

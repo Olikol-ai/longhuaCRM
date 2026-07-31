@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { ContentLifecycleStatus } from '../enums';
 import { AssessmentListeningQuestionEntity } from './assessment-listening-question.entity';
+import { AssessmentListeningTaskVocabularyEntity } from './assessment-listening-task-vocabulary.entity';
 
 @Entity('assessment_listening_tasks')
 export class AssessmentListeningTaskEntity {
@@ -43,6 +44,9 @@ export class AssessmentListeningTaskEntity {
 
   @OneToMany(() => AssessmentListeningQuestionEntity, (q) => q.task)
   questions?: AssessmentListeningQuestionEntity[];
+
+  @OneToMany(() => AssessmentListeningTaskVocabularyEntity, (v) => v.task)
+  vocabulary?: AssessmentListeningTaskVocabularyEntity[];
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

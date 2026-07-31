@@ -11,6 +11,7 @@ import {
 import { QuestionType } from '../../assessment/enums';
 import { HomeworkAttemptEntity } from './homework-attempt.entity';
 import { HomeworkAnswerSnapshotEntity } from './homework-answer-snapshot.entity';
+import { HomeworkQuestionSnapshotVocabularyEntity } from './homework-question-snapshot-vocabulary.entity';
 
 @Entity('homework_question_snapshots')
 export class HomeworkQuestionSnapshotEntity {
@@ -52,11 +53,17 @@ export class HomeworkQuestionSnapshotEntity {
   @Column({ name: 'passage_text', type: 'text', nullable: true })
   passageText: string | null;
 
+  @Column({ name: 'task_instructions', type: 'text', nullable: true })
+  taskInstructions: string | null;
+
   @Column({ name: 'sort_order', type: 'int', default: 0 })
   sortOrder: number;
 
   @OneToMany(() => HomeworkAnswerSnapshotEntity, (a) => a.questionSnapshot)
   answerSnapshots?: HomeworkAnswerSnapshotEntity[];
+
+  @OneToMany(() => HomeworkQuestionSnapshotVocabularyEntity, (v) => v.questionSnapshot)
+  vocabulary?: HomeworkQuestionSnapshotVocabularyEntity[];
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

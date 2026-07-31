@@ -17,6 +17,10 @@ import {
   QUESTION_TYPES,
   needsAnswerOptions,
 } from '@/lib/assessment-admin';
+import TaskVocabularyEditor, {
+  mapVocabularyFromApi,
+  mapVocabularyToApi,
+} from './TaskVocabularyEditor';
 
 function emptyAnswer(sortOrder = 0) {
   return { text: '', is_correct: false, sort_order: sortOrder };
@@ -40,6 +44,7 @@ export default function ListeningTaskEditor({ open, onOpenChange, editing = null
   const [title, setTitle] = useState('');
   const [instructions, setInstructions] = useState('');
   const [levelLabel, setLevelLabel] = useState('');
+  const [vocabulary, setVocabulary] = useState([]);
   const [audioFile, setAudioFile] = useState(null);
   const [hasAudio, setHasAudio] = useState(false);
   const [questions, setQuestions] = useState([emptyQuestion()]);
@@ -59,6 +64,7 @@ export default function ListeningTaskEditor({ open, onOpenChange, editing = null
           setTitle(detail.title || '');
           setInstructions(detail.instructions || '');
           setLevelLabel(detail.level_label || '');
+          setVocabulary(mapVocabularyFromApi(detail.vocabulary));
           setHasAudio(Boolean(detail.has_audio));
           const nested = (detail.questions || []).map((q, i) => ({
             localKey: q.id || `q-${i}`,
@@ -79,6 +85,7 @@ export default function ListeningTaskEditor({ open, onOpenChange, editing = null
           setTitle('');
           setInstructions('');
           setLevelLabel('');
+          setVocabulary([]);
           setHasAudio(false);
           setQuestions([emptyQuestion()]);
         }
@@ -133,6 +140,7 @@ export default function ListeningTaskEditor({ open, onOpenChange, editing = null
       title: title.trim(),
       instructions: instructions.trim() || null,
       level_label: levelLabel.trim() || null,
+      vocabulary: mapVocabularyToApi(vocabulary),
       questions: questions.map((q) => ({
         type: q.type,
         stem: q.stem.trim(),
@@ -201,10 +209,11 @@ export default function ListeningTaskEditor({ open, onOpenChange, editing = null
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Инструкции (необяз.)</Label>
+                <Label>Описание задания (необяз.)</Label>
                 <Input
                   value={instructions}
                   onChange={(e) => setInstructions(e.target.value)}
+                  placeholder="Прослушайте аудио и ответьте на вопросы"
                 />
               </div>
               <div className="space-y-1.5">
@@ -216,6 +225,8 @@ export default function ListeningTaskEditor({ open, onOpenChange, editing = null
                 />
               </div>
             </div>
+
+            <TaskVocabularyEditor items={vocabulary} onChange={setVocabulary} />
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">

@@ -74,6 +74,12 @@ class CreateListeningTaskDto {
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
+  @Type(() => VocabularyItemDto)
+  vocabulary?: VocabularyItemDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
   @Type(() => NestedQuestionDto)
   questions?: NestedQuestionDto[];
 }
@@ -94,8 +100,31 @@ class UpdateListeningTaskDto {
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
+  @Type(() => VocabularyItemDto)
+  vocabulary?: VocabularyItemDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
   @Type(() => NestedQuestionDto)
   questions?: NestedQuestionDto[];
+}
+
+class VocabularyItemDto {
+  @IsString()
+  word!: string;
+
+  @IsOptional()
+  @IsString()
+  pinyin?: string | null;
+
+  @IsOptional()
+  @IsString()
+  translation?: string | null;
+
+  @IsOptional()
+  @IsString()
+  explanation?: string | null;
 }
 
 function mapQuestions(questions?: NestedQuestionDto[]) {
@@ -108,6 +137,15 @@ function mapQuestions(questions?: NestedQuestionDto[]) {
       text: a.text,
       isCorrect: a.is_correct,
     })),
+  }));
+}
+
+function mapVocabulary(items?: VocabularyItemDto[]) {
+  return items?.map((item) => ({
+    word: item.word,
+    pinyin: item.pinyin,
+    translation: item.translation,
+    explanation: item.explanation,
   }));
 }
 
@@ -129,6 +167,7 @@ export class AssessmentListeningTasksController {
       title: dto.title,
       instructions: dto.instructions,
       levelLabel: dto.level_label,
+      vocabulary: mapVocabulary(dto.vocabulary),
       questions: mapQuestions(dto.questions),
     });
   }
@@ -156,6 +195,7 @@ export class AssessmentListeningTasksController {
       title: dto.title,
       instructions: dto.instructions,
       levelLabel: dto.level_label,
+      vocabulary: mapVocabulary(dto.vocabulary),
       questions: mapQuestions(dto.questions),
     });
   }
