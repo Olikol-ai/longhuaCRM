@@ -13,6 +13,7 @@ import { validateEnv } from './config/env.validation';
 import { ALL_V2_ENTITIES } from './database/entity-registry';
 import { GuardsModule } from './common/guards/guards.module';
 import { DomainAccessModule } from './common/access/domain-access.module';
+import { StorageModule } from './common/storage/storage.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AssessmentModule } from './modules/assessment/assessment.module';
@@ -106,6 +107,7 @@ function resolveEnvFilePaths(): string[] {
     }),
     ScheduleModule.forRoot(),
     EventEmitterModule.forRoot(),
+    StorageModule,
     GuardsModule,
     DomainAccessModule,
     AuditModule,

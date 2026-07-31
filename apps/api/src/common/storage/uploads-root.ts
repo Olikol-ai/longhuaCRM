@@ -1,67 +1,84 @@
 import { existsSync, mkdirSync } from 'fs';
 import { basename, join, normalize, resolve } from 'path';
+import { STORAGE_NAMESPACES, StorageNamespace } from './storage.constants';
 
 /**
- * Single uploads root for materials, chat, avatars, assessment.
- * Prefer UPLOADS_DIR / UPLOADS_ROOT env (absolute). Fallback candidates only
- * when env is unset — never silently pick a second root after the first write.
+ * Permanent file root for LonghuaCRM.
+ *
+ * MUST be an absolute path via UPLOADS_DIR / UPLOADS_ROOT
+ * (e.g. /mnt/storage/longhua-storage). Never derive the root from the process working directory.
  */
 let cachedRoot: string | null = null;
 
-function candidateRoots(): string[] {
+export class UploadsRootNotConfiguredError extends Error {
+  constructor() {
+    super(
+      'UPLOADS_DIR is not set to an absolute path. ' +
+        'Set UPLOADS_DIR=/mnt/storage/longhua-storage (or your permanent HDD root).',
+    );
+    this.name = 'UploadsRootNotConfiguredError';
+  }
+}
+
+function readConfiguredRoot(): string {
   const fromEnv = (process.env.UPLOADS_DIR || process.env.UPLOADS_ROOT || '').trim();
-  const list: string[] = [];
-  if (fromEnv) list.push(resolve(fromEnv));
-  // Common layouts: nest cwd = apps/api, or monorepo root.
-  list.push(resolve(process.cwd(), 'uploads'));
-  list.push(resolve(process.cwd(), 'apps', 'api', 'uploads'));
-  list.push(resolve(process.cwd(), '..', 'uploads'));
-  list.push(resolve(process.cwd(), '..', '..', 'uploads'));
-  return [...new Set(list)];
+  if (!fromEnv) {
+    throw new UploadsRootNotConfiguredError();
+  }
+  if (!fromEnv.startsWith('/')) {
+    throw new Error(`UPLOADS_DIR must be an absolute path, got: ${fromEnv}`);
+  }
+  return resolve(fromEnv);
+}
+
+/** Ensure namespace folders exist under the pinned root. */
+export function ensureStorageLayout(root: string = getUploadsRoot()): void {
+  mkdirSync(root, { recursive: true });
+  for (const ns of STORAGE_NAMESPACES) {
+    mkdirSync(join(root, ns), { recursive: true });
+  }
 }
 
 /**
- * Pin the uploads root once. If UPLOADS_DIR is set, it always wins (created if missing).
- * Otherwise the first existing candidate is used; if none exist, cwd/uploads is created.
+ * Pin and return the permanent uploads root.
+ * Creates the directory + namespace layout on first use.
  */
 export function getUploadsRoot(): string {
   if (cachedRoot) return cachedRoot;
-
-  const fromEnv = (process.env.UPLOADS_DIR || process.env.UPLOADS_ROOT || '').trim();
-  if (fromEnv) {
-    const absolute = resolve(fromEnv);
-    mkdirSync(absolute, { recursive: true });
-    cachedRoot = absolute;
-    return cachedRoot;
-  }
-
-  const candidates = candidateRoots();
-  const existing = candidates.find((dir) => existsSync(dir));
-  if (existing) {
-    cachedRoot = existing;
-    return cachedRoot;
-  }
-
-  const fallback = candidates[0] || resolve(process.cwd(), 'uploads');
-  mkdirSync(fallback, { recursive: true });
-  cachedRoot = fallback;
+  const absolute = readConfiguredRoot();
+  ensureStorageLayout(absolute);
+  cachedRoot = absolute;
   return cachedRoot;
 }
 
-/** Absolute path under uploads root (creates logical path only — caller mkdirs). */
 export function uploadsJoin(...parts: string[]): string {
   return join(getUploadsRoot(), ...parts);
 }
 
+export function namespaceDir(namespace: StorageNamespace): string {
+  const dir = uploadsJoin(namespace);
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
 /**
- * Resolve a stored key like `/uploads/file.pdf`, `uploads/chat/x`, or bare filename
- * to an absolute path under the uploads root. Rejects path traversal.
+ * Normalize a DB storage key to a relative path under the uploads root
+ * (no leading /uploads/).
  */
-export function resolveUploadPath(storageKey: string): string {
-  const raw = String(storageKey || '')
+export function normalizeStorageKey(storageKey: string): string {
+  return String(storageKey || '')
     .trim()
     .replace(/^\/uploads\//, '')
-    .replace(/^uploads\//, '');
+    .replace(/^uploads\//, '')
+    .replace(/^\/+/, '');
+}
+
+/**
+ * Resolve a stored key to an absolute path under the uploads root.
+ * Rejects path traversal.
+ */
+export function resolveUploadPath(storageKey: string): string {
+  const raw = normalizeStorageKey(storageKey);
   if (!raw || raw.includes('..')) {
     throw new Error('INVALID_UPLOAD_PATH');
   }
@@ -75,8 +92,8 @@ export function resolveUploadPath(storageKey: string): string {
 }
 
 /**
- * Find an existing file for a storage key, trying the unified root and legacy
- * basename-only locations (older materials stored flat under alternate roots).
+ * Find an existing file for a storage key.
+ * Tries the primary path, then legacy flat / namespace locations.
  */
 export function findExistingUpload(storageKey: string): string | null {
   try {
@@ -86,28 +103,37 @@ export function findExistingUpload(storageKey: string): string | null {
     // continue
   }
 
-  const name = basename(
-    String(storageKey || '')
-      .replace(/^\/uploads\//, '')
-      .replace(/^uploads\//, ''),
-  );
+  const raw = normalizeStorageKey(storageKey);
+  const name = basename(raw);
   if (!name || name === '.' || name.includes('..')) return null;
 
-  for (const root of candidateRoots()) {
-    const candidate = join(root, name);
+  const root = getUploadsRoot();
+  const candidates = [
+    join(root, name),
+    join(root, 'materials', name),
+    join(root, 'chat', name),
+    join(root, 'voice', name),
+    join(root, 'speaking', name),
+    join(root, 'assessment', name),
+    join(root, 'homework', name),
+    join(root, 'temp', name),
+  ];
+
+  // If key already includes a namespace prefix, also try as-is under root (done above).
+  if (raw.includes('/')) {
+    candidates.unshift(join(root, raw));
+  }
+
+  for (const candidate of candidates) {
     if (existsSync(candidate)) return candidate;
-    const chatCandidate = join(root, 'chat', name);
-    if (existsSync(chatCandidate)) return chatCandidate;
   }
   return null;
 }
 
-/** List other upload directories that exist besides the pinned root (split-brain risk). */
-export function listAlternateUploadRoots(): string[] {
-  const primary = normalize(getUploadsRoot());
-  return candidateRoots().filter(
-    (dir) => existsSync(dir) && normalize(dir) !== primary,
-  );
+/** Public URL/key prefix stored in DB for browser-facing paths. */
+export function toPublicStorageKey(relativePath: string): string {
+  const cleaned = normalizeStorageKey(relativePath);
+  return `/uploads/${cleaned}`;
 }
 
 /** Reset cache (tests). */

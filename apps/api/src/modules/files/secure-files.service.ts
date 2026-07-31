@@ -8,17 +8,11 @@ import {
   StreamableFile,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { randomUUID } from 'crypto';
-import { createReadStream, existsSync, mkdirSync, writeFileSync } from 'fs';
-import { basename, extname, join } from 'path';
+import { basename, extname } from 'path';
 import { Repository } from 'typeorm';
 import { normalizeRole } from '../../common/constants/roles';
-import {
-  findExistingUpload,
-  getUploadsRoot,
-  listAlternateUploadRoots,
-  resolveUploadPath,
-} from '../../common/storage/uploads-root';
+import { STORAGE_NAMESPACE } from '../../common/storage/storage.constants';
+import { StorageService } from '../../common/storage/storage.service';
 import { MaterialEntity } from '../materials/entities/material.entity';
 import { MaterialAccessCheckService } from '../materials/material-access-check.service';
 import { SignedFilePayload, SignedFileUrlService } from './signed-file-url.service';
@@ -54,25 +48,18 @@ export class SecureFilesService implements OnModuleInit {
   constructor(
     private readonly signedFileUrl: SignedFileUrlService,
     private readonly materialAccess: MaterialAccessCheckService,
+    private readonly storage: StorageService,
     @InjectRepository(MaterialEntity)
     private readonly materialRepo: Repository<MaterialEntity>,
   ) {}
 
   async onModuleInit(): Promise<void> {
-    const root = getUploadsRoot();
-    this.logger.log(`Uploads root pinned to ${root}`);
-    const alternates = listAlternateUploadRoots();
-    if (alternates.length > 0) {
-      this.logger.warn(
-        `Other upload directories exist (set UPLOADS_DIR to avoid split storage): ${alternates.join(', ')}`,
-      );
-    }
-    await this.warnOrphanMaterialFiles(root);
+    this.logger.log(`SecureFiles using storage root=${this.storage.getRoot()}`);
+    await this.warnOrphanMaterialFiles();
   }
 
   /**
    * Issue a signed open URL only when ACL allows AND the file exists on disk.
-   * Prevents "list OK / signed URL OK / stream 404" for orphan DB rows.
    */
   async createSignedFileUrl(userId: string, materialId: string, role: string): Promise<string> {
     const material = await this.materialRepo.findOne({
@@ -83,25 +70,13 @@ export class SecureFilesService implements OnModuleInit {
       throw new NotFoundException('Material not found');
     }
     if (!material.fileUrl?.trim()) {
-      this.logMissingFile({
-        materialId,
-        fileUrl: null,
-        resolvedPath: null,
-        exists: false,
-        status: material.status,
-      });
+      this.logMissing(materialId, null, null);
       throw new NotFoundException(FILE_MISSING_MESSAGE);
     }
 
-    const resolvedPath = this.resolveExistingOrNull(material.fileUrl);
+    const resolvedPath = this.storage.resolveExisting(material.fileUrl);
     if (!resolvedPath) {
-      this.logMissingFile({
-        materialId,
-        fileUrl: material.fileUrl,
-        resolvedPath: this.safeResolveAttempt(material.fileUrl),
-        exists: false,
-        status: material.status,
-      });
+      this.logMissing(materialId, material.fileUrl, null);
       throw new NotFoundException(FILE_MISSING_MESSAGE);
     }
 
@@ -125,20 +100,16 @@ export class SecureFilesService implements OnModuleInit {
       throw new BadRequestException('File type is not allowed');
     }
 
-    const uploadDir = getUploadsRoot();
-    const safeBaseName = basename(file.originalname || 'upload', extension)
-      .replace(/[^a-zA-Z0-9._-]+/g, '_')
-      .slice(0, 80);
-    const storedName = `${randomUUID()}-${safeBaseName || 'upload'}${extension}`;
-    mkdirSync(uploadDir, { recursive: true });
-    const absolutePath = join(uploadDir, storedName);
-    writeFileSync(absolutePath, file.buffer);
-
-    this.logger.log(
-      `Uploaded material file storedName=${storedName} bytes=${file.size} path=${absolutePath}`,
+    const stored = this.storage.saveBuffer(
+      STORAGE_NAMESPACE.Materials,
+      file.buffer,
+      file.originalname || `upload${extension}`,
     );
-
-    return `/uploads/${storedName}`;
+    this.logger.log(
+      `material.upload publicKey=${stored.publicKey} absolutePath=${stored.absolutePath} ` +
+        `sizeBytes=${stored.sizeBytes}`,
+    );
+    return stored.publicKey;
   }
 
   async streamSignedFile(token: string): Promise<StreamableFile> {
@@ -146,38 +117,20 @@ export class SecureFilesService implements OnModuleInit {
     await this.assertMaterialFileAccess(payload);
     const material = await this.materialRepo.findOne({ where: { id: payload.materialId } });
     if (!material?.fileUrl) {
-      this.logMissingFile({
-        materialId: payload.materialId,
-        fileUrl: material?.fileUrl ?? null,
-        resolvedPath: null,
-        exists: false,
-        status: material?.status ?? null,
-      });
+      this.logMissing(payload.materialId, material?.fileUrl ?? null, null);
       throw new NotFoundException(FILE_MISSING_MESSAGE);
     }
 
-    const resolvedPath = this.resolveExistingOrNull(material.fileUrl);
-    if (!resolvedPath) {
-      this.logMissingFile({
-        materialId: payload.materialId,
-        fileUrl: material.fileUrl,
-        resolvedPath: this.safeResolveAttempt(material.fileUrl),
-        exists: false,
-        status: material.status,
-      });
-      throw new NotFoundException(FILE_MISSING_MESSAGE);
-    }
-
-    return this.streamByStorageKey(material.fileUrl, {
-      disposition: 'inline',
-      filename: basename(resolvedPath),
+    const resolved = this.storage.openReadStream(
+      material.fileUrl,
+      `material:${payload.materialId}`,
+    );
+    return new StreamableFile(resolved.stream, {
+      type: this.guessContentType(material.fileUrl),
+      disposition: `inline; filename="${resolved.filename.replace(/["\r\n]/g, '_')}"`,
     });
   }
 
-  /**
-   * Stream a file previously stored via saveUploadedFile (Assessment attachments, etc.).
-   * Callers must authorize access before invoking this method.
-   */
   streamByStorageKey(
     storageKey: string,
     options?: {
@@ -186,33 +139,10 @@ export class SecureFilesService implements OnModuleInit {
       disposition?: 'inline' | 'attachment';
     },
   ): StreamableFile {
-    const absolutePath =
-      findExistingUpload(storageKey) ||
-      (() => {
-        try {
-          return resolveUploadPath(storageKey);
-        } catch {
-          return null;
-        }
-      })();
-
-    if (!absolutePath || !existsSync(absolutePath)) {
-      this.logMissingFile({
-        materialId: null,
-        fileUrl: storageKey,
-        resolvedPath: absolutePath,
-        exists: false,
-        status: null,
-      });
-      throw new NotFoundException(FILE_MISSING_MESSAGE);
-    }
+    const resolved = this.storage.openReadStream(storageKey, 'streamByStorageKey');
     const disposition = options?.disposition ?? 'inline';
-    const filename = (options?.filename?.trim() || basename(absolutePath)).replace(
-      /["\r\n]/g,
-      '_',
-    );
-    const stream = createReadStream(absolutePath);
-    return new StreamableFile(stream, {
+    const filename = (options?.filename?.trim() || resolved.filename).replace(/["\r\n]/g, '_');
+    return new StreamableFile(resolved.stream, {
       type: options?.mime?.trim() || this.guessContentType(storageKey),
       disposition: `${disposition}; filename="${filename}"`,
     });
@@ -240,8 +170,7 @@ export class SecureFilesService implements OnModuleInit {
     if (!materialId) {
       return { ...record, file_url: null };
     }
-    // Do not claim a signed URL when the blob is already gone from disk.
-    if (!fileUrl.startsWith('http') && !findExistingUpload(fileUrl)) {
+    if (!fileUrl.startsWith('http') && !this.storage.exists(fileUrl)) {
       return { ...record, file_url: null, file_missing: true };
     }
     const signed = this.signedFileUrl.generateSignedUrl(userId, materialId, role);
@@ -264,38 +193,21 @@ export class SecureFilesService implements OnModuleInit {
   }
 
   resolveStoragePath(fileUrl: string): string {
-    const found = findExistingUpload(fileUrl);
-    if (found) return found;
-    return resolveUploadPath(fileUrl);
+    return this.storage.requireExisting(fileUrl, 'resolveStoragePath');
   }
 
-  private resolveExistingOrNull(fileUrl: string): string | null {
-    return findExistingUpload(fileUrl);
-  }
-
-  private safeResolveAttempt(fileUrl: string): string | null {
-    try {
-      return resolveUploadPath(fileUrl);
-    } catch {
-      return null;
-    }
-  }
-
-  private logMissingFile(info: {
-    materialId: string | null;
-    fileUrl: string | null;
-    resolvedPath: string | null;
-    exists: boolean;
-    status: string | null;
-  }): void {
+  private logMissing(
+    materialId: string | null,
+    fileUrl: string | null,
+    resolvedPath: string | null,
+  ): void {
     this.logger.warn(
-      `Material file missing materialId=${info.materialId ?? '-'} ` +
-        `fileUrl=${info.fileUrl ?? '-'} resolvedPath=${info.resolvedPath ?? '-'} ` +
-        `exists=${info.exists} status=${info.status ?? '-'} uploadsRoot=${getUploadsRoot()}`,
+      `Material file missing materialId=${materialId ?? '-'} fileUrl=${fileUrl ?? '-'} ` +
+        `resolvedPath=${resolvedPath ?? '-'} exists=false root=${this.storage.getRoot()}`,
     );
   }
 
-  private async warnOrphanMaterialFiles(root: string): Promise<void> {
+  private async warnOrphanMaterialFiles(): Promise<void> {
     const rows = await this.materialRepo.find({
       where: { status: 'active' },
       select: ['id', 'fileUrl', 'title'],
@@ -303,10 +215,8 @@ export class SecureFilesService implements OnModuleInit {
     let missing = 0;
     for (const row of rows) {
       const fileUrl = row.fileUrl?.trim();
-      if (!fileUrl || /^https?:\/\//i.test(fileUrl)) {
-        continue;
-      }
-      if (!findExistingUpload(fileUrl)) {
+      if (!fileUrl || /^https?:\/\//i.test(fileUrl)) continue;
+      if (!this.storage.exists(fileUrl)) {
         missing += 1;
         this.logger.warn(
           `Orphan material on disk missing id=${row.id} title=${row.title} fileUrl=${fileUrl}`,
@@ -315,7 +225,7 @@ export class SecureFilesService implements OnModuleInit {
     }
     if (missing > 0) {
       this.logger.warn(
-        `${missing} active material(s) reference files missing under uploads root ${root}`,
+        `${missing} active material(s) reference files missing under ${this.storage.getRoot()}`,
       );
     }
   }

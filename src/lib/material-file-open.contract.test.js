@@ -14,22 +14,32 @@ describe('material file open integrity', () => {
   it('checks disk existence before issuing signed material URLs', () => {
     const service = read('apps/api/src/modules/files/secure-files.service.ts');
     assert.match(service, /createSignedFileUrl/);
-    assert.match(service, /findExistingUpload/);
-    assert.match(service, /logMissingFile/);
+    assert.match(service, /storage\.resolveExisting|storage\.exists|storage\.openReadStream/);
     assert.match(service, /warnOrphanMaterialFiles/);
     assert.match(service, /OnModuleInit/);
+    assert.match(service, /StorageService/);
   });
 
-  it('pins uploads via UPLOADS_DIR in docker prod', () => {
+  it('pins uploads via UPLOADS_DIR on permanent HDD path', () => {
     const compose = read('docker-compose.prod.yml');
-    assert.match(compose, /UPLOADS_DIR:\s*\/app\/uploads/);
+    assert.match(compose, /UPLOADS_DIR:\s*\/mnt\/storage\/longhua-storage/);
+    assert.match(compose, /longhua-storage/);
   });
 
-  it('uses shared uploads-root for materials storage', () => {
-    const service = read('apps/api/src/modules/files/secure-files.service.ts');
+  it('exposes a global StorageService module', () => {
+    const mod = read('apps/api/src/common/storage/storage.module.ts');
+    const svc = read('apps/api/src/common/storage/storage.service.ts');
+    const app = read('apps/api/src/app.module.ts');
+    assert.match(mod, /StorageModule/);
+    assert.match(svc, /class StorageService/);
+    assert.match(app, /StorageModule/);
+  });
+
+  it('uses shared uploads-root without cwd fallbacks', () => {
     const uploads = read('apps/api/src/common/storage/uploads-root.ts');
-    assert.match(service, /getUploadsRoot/);
     assert.match(uploads, /UPLOADS_DIR/);
-    assert.match(uploads, /mkdirSync\(absolute, \{ recursive: true \}\)/);
+    assert.match(uploads, /UploadsRootNotConfiguredError/);
+    assert.doesNotMatch(uploads, /resolve\(process\.cwd\(/);
+    assert.doesNotMatch(uploads, /__dirname/);
   });
 });

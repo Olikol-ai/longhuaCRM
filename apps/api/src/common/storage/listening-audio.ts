@@ -12,7 +12,8 @@ import {
 } from 'fs';
 import { tmpdir } from 'os';
 import { basename, extname, join } from 'path';
-import { uploadsJoin } from './uploads-root';
+import { namespaceDir } from './uploads-root';
+import { STORAGE_NAMESPACE } from './storage.constants';
 
 /** Pure audio extensions accepted for listening tasks. */
 export const LISTENING_AUDIO_EXTENSIONS = new Set([
@@ -67,7 +68,7 @@ export type DetectedListeningMedia =
   | { kind: 'container'; extension: string; mime: string };
 
 function listeningDir(): string {
-  return uploadsJoin('assessment');
+  return namespaceDir(STORAGE_NAMESPACE.Assessment);
 }
 
 function resolveFfmpegPath(): string {

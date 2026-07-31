@@ -58,12 +58,12 @@ services:
       JITSI_BASE_URL: ${JITSI_BASE_URL:-}
       JITSI_JWT_APP_ID: ${JITSI_JWT_APP_ID:-}
       JITSI_JWT_APP_SECRET: ${JITSI_JWT_APP_SECRET:-}
-      UPLOADS_DIR: /app/uploads
+      # Permanent HDD storage (host path). Survives container recreate.
+      UPLOADS_DIR: /mnt/storage/longhua-storage
     volumes:
-      - uploads_data:/app/uploads
+      - ${LONGHUA_STORAGE_HOST:-/mnt/storage/longhua-storage}:/mnt/storage/longhua-storage
       - backups_data:/app/backups
 
 volumes:
   postgres_data:
-  uploads_data:
   backups_data:

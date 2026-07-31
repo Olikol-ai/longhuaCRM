@@ -55,6 +55,10 @@ export async function createTestApp(options: CreateTestAppOptions = {}): Promise
   if (!process.env.TELEGRAM_BOT_USERNAME?.trim()) {
     process.env.TELEGRAM_BOT_USERNAME = 'longhua_academy_test_bot';
   }
+  // Isolate uploads from production HDD during e2e unless explicitly configured.
+  if (!process.env.UPLOADS_DIR?.trim()) {
+    process.env.UPLOADS_DIR = `/tmp/longhua-e2e-uploads-${process.pid}`;
+  }
   const mockMailSuccess = options.mockMailSuccess ?? true;
   let moduleBuilder: TestingModuleBuilder = Test.createTestingModule({
     imports: [AppModule],

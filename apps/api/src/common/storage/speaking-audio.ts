@@ -2,7 +2,8 @@ import { BadRequestException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs';
 import { basename, extname, join } from 'path';
-import { uploadsJoin } from './uploads-root';
+import { STORAGE_NAMESPACE } from './storage.constants';
+import { namespaceDir } from './uploads-root';
 
 export const SPEAKING_AUDIO_EXTENSIONS = new Set([
   '.ogg',
@@ -44,7 +45,7 @@ export type StoredSpeakingAudio = {
 };
 
 function speakingDir(): string {
-  return uploadsJoin('speaking');
+  return namespaceDir(STORAGE_NAMESPACE.Voice);
 }
 
 export function assertSpeakingAudioFile(file: SpeakingAudioFile | null | undefined): void {
@@ -91,8 +92,10 @@ export function storeSpeakingAudio(file: SpeakingAudioFile): StoredSpeakingAudio
 export function resolveSpeakingAudioPath(storageKey: string): string | null {
   const key = basename(String(storageKey || '').trim());
   if (!key || key.includes('..')) return null;
-  const path = join(speakingDir(), key);
-  return existsSync(path) ? path : null;
+  const voicePath = join(namespaceDir(STORAGE_NAMESPACE.Voice), key);
+  if (existsSync(voicePath)) return voicePath;
+  const legacy = join(namespaceDir(STORAGE_NAMESPACE.Speaking), key);
+  return existsSync(legacy) ? legacy : null;
 }
 
 export function deleteSpeakingAudio(storageKey: string | null | undefined): void {

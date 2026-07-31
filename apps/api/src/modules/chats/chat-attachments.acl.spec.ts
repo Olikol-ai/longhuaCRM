@@ -8,6 +8,7 @@ import {
 } from './services/chat-attachments.service';
 import { ChatAttachmentKind } from './enums/chat.enums';
 import { resetUploadsRootCache } from '../../common/storage/uploads-root';
+import { StorageService } from '../../common/storage/storage.service';
 
 describe('normalizeChatAttachmentMime', () => {
   it('maps voice recorder formats to playable audio types', () => {
@@ -29,12 +30,17 @@ describe('normalizeChatAttachmentMime', () => {
 describe('ChatAttachmentsService.resolveFile ACL', () => {
   const root = join(tmpdir(), `longhua-chat-att-${Date.now()}`);
   const storageKey = 'acl-test-voice.webm';
+  let storage: StorageService;
 
   beforeAll(() => {
     process.env.UPLOADS_DIR = root;
     resetUploadsRootCache();
     mkdirSync(join(root, 'chat'), { recursive: true });
     writeFileSync(join(root, 'chat', storageKey), Buffer.from('fake-webm-bytes'));
+    storage = new StorageService({
+      get: (key: string) => (key === 'uploadsDir' ? root : undefined),
+    } as never);
+    storage.onModuleInit();
   });
 
   afterAll(() => {
@@ -59,6 +65,7 @@ describe('ChatAttachmentsService.resolveFile ACL', () => {
       voiceRepo as never,
       access as never,
       messages as never,
+      storage,
     );
     return { service, attachmentRepo };
   }

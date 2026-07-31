@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createReadStream, existsSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'fs';
-import { extname, join } from 'path';
+import { extname } from 'path';
 import sharp from 'sharp';
 import { Repository } from 'typeorm';
 import { normalizeRole } from '../../../common/constants/roles';
@@ -26,7 +26,7 @@ import {
   avatarThumbRelativePath,
   ensureAvatarUserDir,
 } from './avatar-storage';
-import { getUploadsRoot, findExistingUpload as findExistingUploadShared } from '../../../common/storage/uploads-root';
+import { findExistingUpload as findExistingUploadShared } from '../../../common/storage/uploads-root';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -254,11 +254,8 @@ export class AvatarService {
         : `/uploads/${cleaned}`,
     );
     if (fromShared) return fromShared;
-    const candidates = [
-      this.resolveReadablePath(cleaned),
-      join(getUploadsRoot(), cleaned),
-    ];
-    return candidates.find((p): p is string => Boolean(p && existsSync(p))) ?? null;
+    const candidate = this.resolveReadablePath(cleaned);
+    return candidate && existsSync(candidate) ? candidate : null;
   }
 
   private validateUpload(file: UploadedFilePayload & { mimetype?: string }): void {
