@@ -122,43 +122,122 @@ export class ChatsService {
     return this.countUnread(chatId, member, actor.sub);
   }
 
-  async markRead(actor: DomainAccessActor, chatId: string, messageId: string): Promise<void> {
+  /**
+   * Persist read cursor for the actor in this chat.
+   * When messageId is omitted, advances to the latest non-deleted message.
+   * Membership is ensured so system/subject/course chats always store last_read.
+   */
+  async markRead(
+    actor: DomainAccessActor,
+    chatId: string,
+    messageId?: string | null,
+  ): Promise<{ lastReadMessageId: string | null; unreadCount: number }> {
     await this.access.assertCanRead(actor, chatId);
-    const message = await this.messageRepo.findOne({
-      where: { id: messageId, chatId, deletedAt: IsNull() },
+    // Readers (incl. school/subject members) must have a ChatMember row for last_read.
+    await this.membershipSync.addMember(chatId, actor.sub);
+
+    let target: ChatMessageEntity | null;
+    if (messageId) {
+      target = await this.messageRepo.findOne({
+        where: { id: messageId, chatId, deletedAt: IsNull() },
+      });
+      if (!target) throw new NotFoundException('Message not found');
+    } else {
+      target = await this.messageRepo.findOne({
+        where: { chatId, deletedAt: IsNull() },
+        order: { createdAt: 'DESC', id: 'DESC' },
+      });
+    }
+
+    if (!target) {
+      const unreadCount = await this.unreadCount(actor, chatId);
+      await this.emitUnreadSummary(actor);
+      return { lastReadMessageId: null, unreadCount };
+    }
+
+    const member = await this.memberRepo.findOne({
+      where: { chatId, userId: actor.sub },
+      relations: { lastReadMessage: true },
     });
-    if (!message) throw new NotFoundException('Message not found');
-    await this.memberRepo.update({ chatId, userId: actor.sub }, { lastReadMessageId: messageId });
+    if (!member) {
+      throw new NotFoundException('Chat membership not found');
+    }
+
+    // Never move the cursor backwards (e.g. stale client / race with newer WS reads).
+    if (!this.isMessageAfterOrEqual(target, member.lastReadMessage ?? null)) {
+      const unreadCount = await this.countUnread(chatId, member, actor.sub);
+      await this.emitUnreadSummary(actor);
+      return { lastReadMessageId: member.lastReadMessageId, unreadCount };
+    }
+
+    member.lastReadMessageId = target.id;
+    member.hiddenAt = null;
+    await this.memberRepo.save(member);
 
     const toMark = await this.messageRepo
       .createQueryBuilder('message')
       .select(['message.id'])
       .where('message.chatId = :chatId', { chatId })
       .andWhere('message.deletedAt IS NULL')
-      .andWhere('message.createdAt <= :createdAt', { createdAt: message.createdAt })
+      .andWhere('message.createdAt <= :createdAt', { createdAt: target.createdAt })
       .getMany();
 
-    if (toMark.length === 0) return;
+    if (toMark.length > 0) {
+      await this.receiptRepo
+        .createQueryBuilder()
+        .insert()
+        .into(ChatReadReceiptEntity)
+        .values(
+          toMark.map((row) => ({
+            messageId: row.id,
+            userId: actor.sub,
+          })),
+        )
+        .orIgnore()
+        .execute();
+    }
 
-    await this.receiptRepo
-      .createQueryBuilder()
-      .insert()
-      .into(ChatReadReceiptEntity)
-      .values(
-        toMark.map((row) => ({
-          messageId: row.id,
-          userId: actor.sub,
-        })),
-      )
-      .orIgnore()
-      .execute();
+    const refreshed = await this.memberRepo.findOne({
+      where: { chatId, userId: actor.sub },
+      relations: { lastReadMessage: true },
+    });
+    const unreadCount = await this.countUnread(chatId, refreshed, actor.sub);
+    await this.emitUnreadSummary(actor);
+    return { lastReadMessageId: target.id, unreadCount };
+  }
 
+  /** Advance read cursor when the actor sends a message (group/system/subject/course/DM). */
+  async advanceLastReadForSender(
+    chatId: string,
+    userId: string,
+    messageId: string,
+  ): Promise<void> {
+    await this.membershipSync.addMember(chatId, userId);
+    await this.memberRepo.update(
+      { chatId, userId },
+      { lastReadMessageId: messageId, hiddenAt: null },
+    );
+  }
+
+  private async emitUnreadSummary(actor: DomainAccessActor): Promise<void> {
     try {
       const summary = await this.unreadSummary(actor);
       this.gateway?.emitToUser(actor.sub, 'chat.unread', summary);
     } catch {
       // ignore badge fan-out failures
     }
+  }
+
+  private isMessageAfterOrEqual(
+    candidate: ChatMessageEntity,
+    current: ChatMessageEntity | null,
+  ): boolean {
+    if (!current) return true;
+    const candidateAt = new Date(candidate.createdAt).getTime();
+    const currentAt = new Date(current.createdAt).getTime();
+    if (candidateAt > currentAt) return true;
+    if (candidateAt < currentAt) return false;
+    return candidate.id >= current.id;
   }
 
   async createGroup(
@@ -274,6 +353,7 @@ export class ChatsService {
       .andWhere('message.deletedAt IS NULL');
 
     if (viewerUserId) {
+      // Own messages never increment unread; system messages (null sender) do until read.
       query.andWhere(
         '(message.senderUserId IS NULL OR message.senderUserId <> :viewerUserId)',
         { viewerUserId },

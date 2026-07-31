@@ -19,6 +19,7 @@ describe('ChatMessagesService Direct E2EE', () => {
         execute: jest.fn(),
       })),
       find: jest.fn().mockResolvedValue([]),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
     };
     const chatRepo = {
       findOne: jest.fn().mockResolvedValue({ id: 'chat-1', kind }),
@@ -30,6 +31,7 @@ describe('ChatMessagesService Direct E2EE', () => {
     };
     const presence = { isOnline: jest.fn().mockReturnValue(true) };
     const notifications = { create: jest.fn() };
+    const membershipSync = { addMember: jest.fn().mockResolvedValue({}) };
     const service = new ChatMessagesService(
       messageRepo as never,
       memberRepo as never,
@@ -37,6 +39,7 @@ describe('ChatMessagesService Direct E2EE', () => {
       access as never,
       presence as never,
       notifications as never,
+      membershipSync as never,
       undefined,
     );
     jest.spyOn(service, 'getHydrated').mockResolvedValue({

@@ -372,12 +372,18 @@ export default function Chats() {
   const onMarkRead = useCallback(
     (messageId) => {
       const chatId = activeChatIdRef.current;
-      if (!chatId || !messageId) return;
+      if (!chatId) return;
       void chatsApi
-        .markRead(chatId, messageId)
-        .then(async () => {
-          emitMessageRead(chatId, messageId);
-          setGroups((prev) => patchUnread(prev, chatId, 0));
+        .markRead(chatId, messageId || undefined)
+        .then(async (result) => {
+          const lastReadId =
+            pickField(result, 'lastReadMessageId', 'last_read_message_id') || messageId;
+          if (lastReadId) emitMessageRead(chatId, lastReadId);
+          const unread =
+            pickField(result, 'unreadCount', 'unread_count');
+          setGroups((prev) =>
+            patchUnread(prev, chatId, typeof unread === 'number' ? unread : 0),
+          );
           await syncUnreadFromServer();
         })
         .catch(() => {});

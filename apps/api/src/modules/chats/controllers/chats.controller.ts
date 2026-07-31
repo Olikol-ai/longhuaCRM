@@ -243,7 +243,7 @@ export class ChatsController {
     @Param('chatId') chatId: string,
     @Body() dto: MarkReadDto,
   ) {
-    return this.chats.markRead(actor, chatId, dto.messageId);
+    return this.chats.markRead(actor, chatId, dto.messageId ?? null);
   }
 
   @Get(':chatId/messages')

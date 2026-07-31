@@ -259,11 +259,13 @@ export default function ChatMessagePane({
 
   useEffect(() => {
     if (!chat?.id || historyStatus !== 'ready') return;
+    // Prefer explicit latest loaded message; if history is empty, still ask
+    // the server to mark up to its own latest cursor.
     const last = messages.at(-1);
-    if (!last?.id) return;
-    if (markedForChatRef.current === `${chat.id}:${last.id}`) return;
-    markedForChatRef.current = `${chat.id}:${last.id}`;
-    onMarkRead(last.id);
+    const markKey = `${chat.id}:${last?.id || 'empty'}`;
+    if (markedForChatRef.current === markKey) return;
+    markedForChatRef.current = markKey;
+    onMarkRead?.(last?.id || null);
   }, [chat?.id, historyStatus, messages, onMarkRead]);
 
   useEffect(() => {

@@ -53,7 +53,7 @@ export const chatsApi = {
   }),
   markRead: (chatId, messageId) => apiFetch(`/chats/${chatId}/read`, {
     method: 'PATCH',
-    body: JSON.stringify({ messageId }),
+    body: JSON.stringify(messageId ? { messageId } : {}),
   }),
   members: (chatId) => apiFetch(`/chats/${chatId}/members`),
   pins: (chatId) => apiFetch(`/chats/${chatId}/pins`),

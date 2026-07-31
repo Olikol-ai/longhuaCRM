@@ -223,8 +223,10 @@ export class ActivateUserCryptoDto {
 }
 
 export class MarkReadDto {
+  /** When omitted, the server marks up to the latest message in the chat. */
+  @IsOptional()
   @IsUUID('4')
-  messageId!: string;
+  messageId?: string;
 }
 
 export class ListMessagesDto {

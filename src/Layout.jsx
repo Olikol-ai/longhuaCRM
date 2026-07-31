@@ -34,6 +34,7 @@ import { buildUserAvatarUrl } from "@/api/http";
 import { chatsApi } from "@/api/chats.api";
 import { connectChatSocket, subscribeToChatSocket } from "@/lib/chat-socket";
 import { subscribeChatUnreadTotal } from "@/lib/chat-unread-events";
+import { pickField } from "@/lib/chat-normalize";
 
 const adminNav = [
   { name: "Главная", icon: LayoutDashboard, page: "Dashboard" },
@@ -129,7 +130,9 @@ export default function Layout({ children, currentPageName }) {
   React.useEffect(() => {
     if (!isAuthenticated) return undefined;
     const refreshUnread = () => {
-      void chatsApi.unreadCount().then(({ total }) => setChatUnread(total || 0)).catch(() => {});
+      void chatsApi.unreadCount().then((summary) => {
+        setChatUnread(pickField(summary, 'total') || 0);
+      }).catch(() => {});
     };
     refreshUnread();
     connectChatSocket();
@@ -138,7 +141,7 @@ export default function Layout({ children, currentPageName }) {
     const unsubLocal = subscribeChatUnreadTotal((total) => setChatUnread(total));
     const unsubSocket = subscribeToChatSocket({
       'chat.unread': (payload) => {
-        const total = payload?.total ?? payload?.Total;
+        const total = pickField(payload, 'total') ?? payload?.Total;
         if (typeof total === 'number') setChatUnread(total);
         else refreshUnread();
       },

@@ -15,6 +15,7 @@ import { ChatEntity, ChatMemberEntity, ChatMessageEntity } from '../entities';
 import { ChatKind, ChatMessageType } from '../enums/chat.enums';
 import { ChatGateway } from '../gateway/chat.gateway';
 import { E2EE_ALGORITHM } from './user-crypto.service';
+import { ChatMembershipSyncService } from './chat-membership-sync.service';
 import { ChatPresenceService } from './chat-presence.service';
 
 const UUID_RE =
@@ -39,6 +40,7 @@ export class ChatMessagesService {
     private readonly access: ChatAccessService,
     private readonly presence: ChatPresenceService,
     private readonly notifications: NotificationsService,
+    private readonly membershipSync: ChatMembershipSyncService,
     @Optional() private readonly gateway?: ChatGateway,
   ) {}
 
@@ -292,6 +294,13 @@ export class ChatMessagesService {
     });
 
     if (senderUserId) {
+      // Sender has seen their own message — advance read cursor so older
+      // peer messages do not stay "unread" after they participate in the chat.
+      await this.membershipSync.addMember(chatId, senderUserId);
+      await this.memberRepo.update(
+        { chatId, userId: senderUserId },
+        { lastReadMessageId: saved.id, hiddenAt: null },
+      );
       await this.memberRepo
         .createQueryBuilder()
         .update(ChatMemberEntity)
