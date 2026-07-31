@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ChatMembershipModule } from '../chats/chat-membership.module';
 import { GroupEntity } from '../groups/entities/group.entity';
 import { LessonSeriesEntity } from '../lesson-series/entities/lesson-series.entity';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
@@ -25,6 +26,7 @@ import { TeachersService } from './teachers.service';
   imports: [
     ScheduleModule,
     forwardRef(() => UsersModule),
+    ChatMembershipModule,
     TypeOrmModule.forFeature([
       TeacherEntity,
       TeacherInviteLinkEntity,

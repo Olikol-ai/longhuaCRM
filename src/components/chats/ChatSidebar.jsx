@@ -1,11 +1,12 @@
-import { Hash, Inbox, MessageCircle, Search, Users } from 'lucide-react';
+import { BookOpen, Hash, Inbox, MessageCircle, Search, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { usePresence } from '@/lib/PresenceContext';
 import { cn } from '@/lib/utils';
 
 const sections = [
-  { title: 'Системные', kinds: ['subject', 'school_news', 'school_community'], icon: Hash },
+  { title: 'Предметы', kinds: ['subject'], icon: BookOpen },
+  { title: 'Системные', kinds: ['school_news', 'school_community'], icon: Hash },
   { title: 'Курсы', kinds: ['course'], icon: Hash },
   { title: 'Группы', kinds: ['group'], icon: Users },
   { title: 'Личные', kinds: ['direct'], icon: MessageCircle },
@@ -43,7 +44,7 @@ function ChatRow({ chat, active, onSelect, currentUserId }) {
     >
       <span className="relative shrink-0">
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-semibold">
-          {(chat.title || '?').slice(0, 1).toUpperCase()}
+          {chat.kind === 'subject' ? '📚' : (chat.title || '?').slice(0, 1).toUpperCase()}
         </span>
         {chat.kind === 'direct' && peerOnline ? (
           <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-card bg-emerald-500" />

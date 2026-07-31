@@ -42,8 +42,11 @@ describe('Chats privacy and DM requests', () => {
 
   it('socket client listens for dotted event names', () => {
     const page = readFileSync(join(root, 'src/pages/Chats.jsx'), 'utf8');
+    const socket = readFileSync(join(root, 'src/lib/chat-socket.js'), 'utf8');
+    const presence = readFileSync(join(root, 'src/lib/PresenceContext.jsx'), 'utf8');
     assert.match(page, /message\.created/);
-    assert.match(page, /user\.online/);
     assert.match(page, /chat\.request\.created/);
+    assert.match(socket, /user\.online/);
+    assert.match(presence, /user\.online/);
   });
 });

@@ -6,16 +6,19 @@ import {
   Download,
   Settings2,
   BookOpen,
+  Library,
 } from "lucide-react";
 import Analytics from "./Analytics";
 import Salary from "./Salary";
 import ExportData from "./ExportData";
 import AdminPanelSystem from "@/components/admin/AdminPanelSystem";
 import AdminTutors from "./AdminTutors";
+import AdminSubjects from "./AdminSubjects";
 
 const TABS = [
   { id: "analytics", label: "Аналитика", icon: TrendingUp },
   { id: "tutors", label: "Репетиторы", icon: BookOpen },
+  { id: "subjects", label: "Предметы", icon: Library },
   { id: "salary", label: "Зарплата", icon: DollarSign },
   { id: "export", label: "Экспорт", icon: Download },
   { id: "system", label: "Система", icon: Settings2 },
@@ -59,6 +62,7 @@ export default function AdminPanel() {
       <div className="flex-1 overflow-auto">
         {activeTab === "analytics" && <Analytics />}
         {activeTab === "tutors" && <AdminTutors />}
+        {activeTab === "subjects" && <AdminSubjects />}
         {activeTab === "salary" && <Salary />}
         {activeTab === "export" && <ExportData />}
         {activeTab === "system" && <AdminPanelSystem />}

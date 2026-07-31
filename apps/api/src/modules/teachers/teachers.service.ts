@@ -1,8 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, In, Repository } from 'typeorm';
 import { TeacherAccessService } from '../../common/access/teacher-access.service';
 import { JwtPayload } from '../auth/auth.service';
+import { ChatMembershipSyncService } from '../chats/services/chat-membership-sync.service';
 import { LessonEntity, LessonStatus } from '../lessons/entities/lesson.entity';
 import { ScheduleService } from '../schedule/schedule.service';
 import { RoleEntitySyncService } from '../users/role-entity-sync.service';
@@ -36,6 +37,8 @@ export class TeachersService {
     private readonly userRepo: Repository<UserEntity>,
     @InjectRepository(LessonEntity)
     private readonly lessonRepo: Repository<LessonEntity>,
+    @Optional()
+    private readonly chatMembershipSync?: ChatMembershipSyncService,
   ) {}
 
   async findAll(actor: JwtPayload): Promise<TeacherEntity[]> {
@@ -71,15 +74,25 @@ export class TeachersService {
     return enriched;
   }
 
-  create(dto: CreateTeacherDto): Promise<TeacherEntity> {
-    return this.repository.save(dto);
+  async create(dto: CreateTeacherDto): Promise<TeacherEntity> {
+    const { subjectIds, ...rest } = dto;
+    const teacher = await this.repository.save(rest);
+    if (this.chatMembershipSync) {
+      if (subjectIds !== undefined) {
+        await this.chatMembershipSync.setTeacherSubjects(teacher.id, subjectIds);
+      } else {
+        await this.chatMembershipSync.assignDefaultTeachingSubject(teacher.id, 'teacher');
+      }
+    }
+    return teacher;
   }
 
   async update(actor: JwtPayload, id: string, dto: UpdateTeacherDto): Promise<TeacherEntity> {
+    const { subjectIds, ...rest } = dto;
     const payload = await this.teacherAccess.assertCanUpdateTeacher(
       actor,
       id,
-      dto as Record<string, unknown>,
+      rest as Record<string, unknown>,
     );
     const row = await this.repository.update(id, payload as UpdateTeacherDto);
     if (!row) {
@@ -91,6 +104,7 @@ export class TeachersService {
       (payload as Record<string, unknown>).firstName !== undefined ||
       (payload as Record<string, unknown>).lastName !== undefined;
 
+    let result = row;
     if (nameTouched) {
       this.roleEntitySync.normalizeTeacherNameFields(row);
       const saved = await this.repository.update(id, {
@@ -100,10 +114,21 @@ export class TeachersService {
       });
       const synced = saved ?? row;
       await this.roleEntitySync.syncLinkedUserFromTeacher(synced);
-      return synced;
+      result = synced;
     }
 
-    return row;
+    if (this.chatMembershipSync) {
+      if (subjectIds !== undefined) {
+        await this.chatMembershipSync.setTeacherSubjects(id, subjectIds);
+      } else if (
+        Object.prototype.hasOwnProperty.call(payload, 'userId')
+        || Object.prototype.hasOwnProperty.call(payload, 'status')
+      ) {
+        await this.chatMembershipSync.syncSubjectChatsForTeacher(id);
+      }
+    }
+
+    return result;
   }
 
   delete(id: string): Promise<TeacherDeleteResult> {

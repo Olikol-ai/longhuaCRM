@@ -1,4 +1,6 @@
 import {
+  ArrayUnique,
+  IsArray,
   IsEmail,
   IsEnum,
   IsNumber,
@@ -49,4 +51,10 @@ export class CreateTutorDto {
   @IsOptional()
   @IsString()
   payoutAccountRef?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsUUID('4', { each: true })
+  subjectIds?: string[];
 }

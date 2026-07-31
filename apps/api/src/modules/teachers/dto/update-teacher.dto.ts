@@ -1,4 +1,6 @@
 import {
+  ArrayUnique,
+  IsArray,
   IsEmail,
   IsEnum,
   IsNumber,
@@ -52,4 +54,10 @@ export class UpdateTeacherDto {
   @IsOptional()
   @IsUUID()
   userId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsUUID('4', { each: true })
+  subjectIds?: string[];
 }

@@ -11,6 +11,9 @@ import {
 import { UserEntity } from '../../users/entities/user.entity';
 import { SubjectEntity } from './subject.entity';
 
+/** How the user↔subject link was established. */
+export type UserSubjectSource = 'manual' | 'derived';
+
 @Entity('user_subjects')
 @Unique(['userId', 'subjectId'])
 export class UserSubjectEntity {
@@ -32,6 +35,10 @@ export class UserSubjectEntity {
   @ManyToOne(() => SubjectEntity, (s) => s.userSubjects, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'subject_id' })
   subject?: SubjectEntity;
+
+  /** manual = admin assign; derived = computed from learning/teaching links. */
+  @Column({ type: 'varchar', length: 32, default: 'manual' })
+  source: UserSubjectSource;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

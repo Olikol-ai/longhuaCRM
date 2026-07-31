@@ -85,4 +85,40 @@ export const chatsApi = {
   }),
   downloadUrl: (attachmentId, { disposition } = {}) =>
     `/api/chats/attachments/${attachmentId}/download${queryString({ disposition })}`,
+  subjects: {
+    list: () => apiFetch('/chats/subjects'),
+    listAdmin: () => apiFetch('/chats/subjects/admin'),
+    getAdmin: (id) => apiFetch(`/chats/subjects/admin/${id}`),
+    create: (payload) => apiFetch('/chats/subjects', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+    update: (id, payload) => apiFetch(`/chats/subjects/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+    assign: (userId, subjectId) => apiFetch('/chats/subjects/assign', {
+      method: 'POST',
+      body: JSON.stringify({ userId, subjectId }),
+    }),
+    unassign: (userId, subjectId) => apiFetch('/chats/subjects/assign', {
+      method: 'DELETE',
+      body: JSON.stringify({ userId, subjectId }),
+    }),
+    setTeacherSubjects: (teacherId, subjectIds) =>
+      apiFetch(`/chats/subjects/teachers/${teacherId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ subjectIds }),
+      }),
+    setTutorSubjects: (tutorId, subjectIds) =>
+      apiFetch(`/chats/subjects/tutors/${tutorId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ subjectIds }),
+      }),
+    setCourseSubjects: (courseTemplateId, subjectIds) =>
+      apiFetch(`/chats/subjects/courses/${courseTemplateId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ subjectIds }),
+      }),
+  },
 };

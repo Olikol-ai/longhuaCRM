@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
@@ -9,6 +10,7 @@ import { FindOptionsWhere, In, Not, Repository } from 'typeorm';
 import { TutorAccessService } from '../../common/access/tutor-access.service';
 import { TutorStudentAccessService } from '../../common/access/tutor-student-access.service';
 import { JwtPayload } from '../auth/auth.service';
+import { ChatMembershipSyncService } from '../chats/services/chat-membership-sync.service';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
 import { RoleEntitySyncService } from '../users/role-entity-sync.service';
 import { resolveNameParts } from '../users/display-name.util';
@@ -103,6 +105,8 @@ export class TutorsService {
     private readonly workDayRepo: Repository<TutorWorkDayEntity>,
     @InjectRepository(TutorMaterialEntity)
     private readonly materialRepo: Repository<TutorMaterialEntity>,
+    @Optional()
+    private readonly chatMembershipSync?: ChatMembershipSyncService,
   ) {}
 
   async findAll(actor: JwtPayload): Promise<TutorEntity[]> {
@@ -302,19 +306,28 @@ export class TutorsService {
     });
   }
 
-  create(dto: CreateTutorDto): Promise<TutorEntity> {
-    return this.repository.save({
-      displayName: dto.displayName,
-      bio: dto.bio ?? null,
-      specializations: dto.specializations ?? null,
-      email: dto.email ?? null,
-      phone: dto.phone ?? null,
-      status: dto.status ?? 'pending',
-      userId: dto.userId ?? null,
-      defaultLessonPrice: dto.defaultLessonPrice ?? null,
-      commissionPercent: dto.commissionPercent ?? 1,
-      payoutAccountRef: dto.payoutAccountRef ?? null,
+  async create(dto: CreateTutorDto): Promise<TutorEntity> {
+    const { subjectIds, ...rest } = dto;
+    const tutor = await this.repository.save({
+      displayName: rest.displayName,
+      bio: rest.bio ?? null,
+      specializations: rest.specializations ?? null,
+      email: rest.email ?? null,
+      phone: rest.phone ?? null,
+      status: rest.status ?? 'pending',
+      userId: rest.userId ?? null,
+      defaultLessonPrice: rest.defaultLessonPrice ?? null,
+      commissionPercent: rest.commissionPercent ?? 1,
+      payoutAccountRef: rest.payoutAccountRef ?? null,
     });
+    if (this.chatMembershipSync) {
+      if (subjectIds !== undefined) {
+        await this.chatMembershipSync.setTutorSubjects(tutor.id, subjectIds);
+      } else {
+        await this.chatMembershipSync.assignDefaultTeachingSubject(tutor.id, 'tutor');
+      }
+    }
+    return tutor;
   }
 
   async update(
@@ -322,10 +335,11 @@ export class TutorsService {
     id: string,
     dto: UpdateTutorDto,
   ): Promise<TutorEntity> {
+    const { subjectIds, ...dtoRest } = dto;
     const payload = await this.tutorAccess.assertCanUpdateTutor(
       actor,
       id,
-      dto as Record<string, unknown>,
+      dtoRest as Record<string, unknown>,
     );
 
     const mapped: Partial<TutorEntity> = {};
@@ -419,6 +433,17 @@ export class TutorsService {
     }
     if (payload.workDays !== undefined) {
       await this.replaceWorkDays(id, payload.workDays as unknown[]);
+    }
+
+    if (this.chatMembershipSync) {
+      if (subjectIds !== undefined) {
+        await this.chatMembershipSync.setTutorSubjects(id, subjectIds);
+      } else if (
+        Object.prototype.hasOwnProperty.call(payload, 'userId')
+        || Object.prototype.hasOwnProperty.call(payload, 'status')
+      ) {
+        await this.chatMembershipSync.syncSubjectChatsForTutor(id);
+      }
     }
 
     const refreshed = await this.repository.findById(id);

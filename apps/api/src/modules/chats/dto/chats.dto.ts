@@ -1,7 +1,9 @@
 import { Type, Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayUnique,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsInt,
   IsOptional,
@@ -307,6 +309,30 @@ export class CreateSubjectDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class UpdateSubjectDto {
+  @IsOptional()
+  @IsString()
+  @Length(1, 255)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  slug?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class AssignUserSubjectDto {
@@ -315,4 +341,11 @@ export class AssignUserSubjectDto {
 
   @IsUUID('4')
   subjectId!: string;
+}
+
+export class SetSubjectIdsDto {
+  @IsArray()
+  @ArrayUnique()
+  @IsUUID('4', { each: true })
+  subjectIds!: string[];
 }

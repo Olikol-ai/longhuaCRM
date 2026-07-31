@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { FindOptionsWhere } from 'typeorm';
 import { CourseAccessService } from '../../common/access/course-access.service';
 import { JwtPayload } from '../auth/auth.service';
@@ -18,7 +18,6 @@ export class CoursesService {
     private readonly repository: CoursesRepository,
     private readonly courseAccess: CourseAccessService,
     private readonly enrollmentProgress: EnrollmentProgressService,
-    @Inject(forwardRef(() => ChatMembershipSyncService))
     private readonly chatMembershipSync: ChatMembershipSyncService,
   ) {}
 
@@ -38,8 +37,8 @@ export class CoursesService {
   }
 
   createTemplate(dto: CreateCourseTemplateDto): Promise<CourseTemplateEntity> {
-    return this.nextCourseSortOrder().then((sortOrder) =>
-      this.repository.saveTemplate({
+    return this.nextCourseSortOrder().then(async (sortOrder) => {
+      const template = await this.repository.saveTemplate({
         name: dto.name,
         courseType: dto.courseType ?? 'basic_beginner',
         totalLessons: dto.totalLessons ?? 35,
@@ -48,8 +47,10 @@ export class CoursesService {
         // DB column price is NOT NULL — materials UI creates courses by name only.
         price: dto.price ?? 0,
         isActive: dto.isActive ?? true,
-      }),
-    );
+      });
+      await this.chatMembershipSync.assignDefaultCourseSubject(template.id);
+      return template;
+    });
   }
 
   private async nextCourseSortOrder(): Promise<number> {
@@ -118,7 +119,7 @@ export class CoursesService {
 
   async createEnrollment(dto: CreateEnrollmentDto): Promise<EnrollmentEntity> {
     const enrollment = await this.repository.saveEnrollment(dto);
-    await this.chatMembershipSync.ensureCourseChatForEnrollment(enrollment);
+    await this.chatMembershipSync.syncAfterEnrollment(enrollment);
     return enrollment;
   }
 
@@ -127,6 +128,7 @@ export class CoursesService {
     if (!row) {
       throw new NotFoundException('Enrollment not found');
     }
+    await this.chatMembershipSync.syncAfterEnrollment(row);
     return row;
   }
 
@@ -135,7 +137,11 @@ export class CoursesService {
     if (!row) {
       throw new NotFoundException('Enrollment not found');
     }
+    const studentId = row.studentId;
     await this.repository.deleteEnrollment(id);
+    if (studentId) {
+      await this.chatMembershipSync.syncSubjectChatsForStudent(studentId);
+    }
   }
 
   async filterEnrollments(

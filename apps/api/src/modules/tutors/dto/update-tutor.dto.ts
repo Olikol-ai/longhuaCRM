@@ -111,4 +111,10 @@ export class UpdateTutorDto {
   @Min(0, { each: true })
   @Max(6, { each: true })
   workDays?: number[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsUUID('4', { each: true })
+  subjectIds?: string[];
 }

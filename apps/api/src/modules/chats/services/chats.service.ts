@@ -51,7 +51,7 @@ export class ChatsService {
     await this.membershipSync.ensureForUser(actor.sub);
     const memberships = await this.memberRepo.find({
       where: { userId: actor.sub, hiddenAt: IsNull() },
-      relations: { chat: true, lastReadMessage: true },
+      relations: { chat: { subject: true }, lastReadMessage: true },
     });
     const membershipChats = memberships
       .map((row) => row.chat)
@@ -61,6 +61,7 @@ export class ChatsService {
     if (this.access.isAdmin(actor)) {
       const nonDirect = await this.chatRepo
         .createQueryBuilder('chat')
+        .leftJoinAndSelect('chat.subject', 'subject')
         .where('chat.kind <> :direct', { direct: ChatKind.Direct })
         .orderBy('chat.updated_at', 'DESC')
         .getMany();

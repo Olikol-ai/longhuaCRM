@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { FindOptionsWhere } from 'typeorm';
 import { StudentAccessService } from '../../common/access/student-access.service';
 import { JwtPayload } from '../auth/auth.service';
+import { ChatMembershipSyncService } from '../chats/services/chat-membership-sync.service';
 import { RoleEntitySyncService } from '../users/role-entity-sync.service';
 import { UsersRepository } from '../users/users.repository';
 import { StudentEntity } from './entities/student.entity';
@@ -18,6 +19,8 @@ export class StudentsService {
     private readonly roleEntitySync: RoleEntitySyncService,
     private readonly usersRepository: UsersRepository,
     private readonly studentDeletion: StudentDeletionService,
+    @Optional()
+    private readonly chatMembershipSync?: ChatMembershipSyncService,
   ) {}
 
   async findAll(actor: JwtPayload): Promise<StudentEntity[]> {
@@ -55,7 +58,11 @@ export class StudentsService {
       }
     }
 
-    return this.roleEntitySync.upsertStudentFromCreate(payload);
+    const student = await this.roleEntitySync.upsertStudentFromCreate(payload);
+    if (this.chatMembershipSync) {
+      await this.chatMembershipSync.syncSubjectChatsForStudent(student.id);
+    }
+    return student;
   }
 
   async update(actor: JwtPayload, id: string, dto: UpdateStudentDto): Promise<StudentEntity> {
@@ -119,6 +126,7 @@ export class StudentsService {
       normalized.firstName !== undefined ||
       normalized.lastName !== undefined;
 
+    let result = row;
     if (nameTouched) {
       // Admin-edited `name` is SSOT — re-split first/last so schedule labels stay in sync.
       const nameIsSource = normalized.name !== undefined;
@@ -130,10 +138,19 @@ export class StudentsService {
       });
       const synced = saved ?? row;
       await this.roleEntitySync.syncLinkedUserFromStudent(synced);
-      return synced;
+      result = synced;
     }
 
-    return row;
+    const subjectRelevant =
+      Object.prototype.hasOwnProperty.call(normalized, 'assignedTeacherId')
+      || Object.prototype.hasOwnProperty.call(normalized, 'assignedTutorId')
+      || Object.prototype.hasOwnProperty.call(normalized, 'status')
+      || Object.prototype.hasOwnProperty.call(normalized, 'userId');
+    if (subjectRelevant && this.chatMembershipSync) {
+      await this.chatMembershipSync.syncSubjectChatsForStudent(result.id);
+    }
+
+    return result;
   }
 
   delete(id: string): Promise<StudentDeleteResult> {

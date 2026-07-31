@@ -12,7 +12,7 @@ import { CoursesController } from './courses.controller';
 import { CoursesRepository } from './courses.repository';
 import { CoursesService } from './courses.service';
 import { EnrollmentProgressService } from './enrollment-progress.service';
-import { ChatsModule } from '../chats/chats.module';
+import { ChatMembershipModule } from '../chats/chat-membership.module';
 
 @Module({
   imports: [
@@ -26,7 +26,7 @@ import { ChatsModule } from '../chats/chats.module';
       MaterialGroupGrantEntity,
     ]),
     forwardRef(() => CertificatesModule),
-    forwardRef(() => ChatsModule),
+    ChatMembershipModule,
   ],
   controllers: [CoursesController],
   providers: [CoursesRepository, CoursesService, EnrollmentProgressService],

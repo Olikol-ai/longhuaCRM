@@ -45,6 +45,14 @@ export default function ChatInfoPanel({
     <div className="flex h-full min-h-0 flex-col bg-card">
       <div className="border-b border-border p-4 space-y-2">
         <h2 className="text-sm font-semibold">{chat.title || 'Чат'}</h2>
+        {chat.kind === 'subject' ? (
+          <p className="text-xs text-muted-foreground">
+            Предметный системный чат
+            {pickField(chat, 'subject')?.name
+              ? ` · ${pickField(chat, 'subject').name}`
+              : ''}
+          </p>
+        ) : null}
         {isDirect ? (
           <p className="text-xs text-muted-foreground">{directStatus}</p>
         ) : (

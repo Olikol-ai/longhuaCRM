@@ -1,6 +1,8 @@
 import { SubjectEntity } from './subject.entity';
 import { UserSubjectEntity } from './user-subject.entity';
 import { CourseSubjectEntity } from './course-subject.entity';
+import { TeacherSubjectEntity } from './teacher-subject.entity';
+import { TutorSubjectEntity } from './tutor-subject.entity';
 import { UserChatProfileEntity } from './user-chat-profile.entity';
 import { ChatEntity } from './chat.entity';
 import { ChatMemberEntity } from './chat-member.entity';
@@ -20,6 +22,8 @@ export const CHAT_ENTITIES = [
   SubjectEntity,
   UserSubjectEntity,
   CourseSubjectEntity,
+  TeacherSubjectEntity,
+  TutorSubjectEntity,
   UserChatProfileEntity,
   ChatEntity,
   ChatMemberEntity,
@@ -40,6 +44,8 @@ export {
   SubjectEntity,
   UserSubjectEntity,
   CourseSubjectEntity,
+  TeacherSubjectEntity,
+  TutorSubjectEntity,
   UserChatProfileEntity,
   ChatEntity,
   ChatMemberEntity,
