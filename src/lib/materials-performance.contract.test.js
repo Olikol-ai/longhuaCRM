@@ -57,4 +57,16 @@ describe('materials performance contract', () => {
     assert.doesNotMatch(manager, /resolveMaterialOpenUrl/);
     assert.match(url, /\/files\/material\/\$\{material\.id\}\/url/);
   });
+
+  it('opens signed materials by navigation (no full-file blob wait)', () => {
+    const url = read('src/lib/materialUrl.js');
+    const openFn = url.slice(
+      url.indexOf('export async function openMaterial'),
+      url.indexOf('export async function downloadMaterialFile'),
+    );
+    assert.match(openFn, /window\.open\('about:blank'/);
+    assert.match(openFn, /popup\.location\.replace/);
+    assert.doesNotMatch(openFn, /res\.blob\(\)/);
+    assert.doesNotMatch(openFn, /createObjectURL/);
+  });
 });

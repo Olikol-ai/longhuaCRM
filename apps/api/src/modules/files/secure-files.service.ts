@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -8,14 +7,13 @@ import {
   StreamableFile,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { basename, extname } from 'path';
+import { extname } from 'path';
 import { Repository } from 'typeorm';
 import { normalizeRole } from '../../common/constants/roles';
 import { STORAGE_NAMESPACE } from '../../common/storage/storage.constants';
 import { StorageService } from '../../common/storage/storage.service';
 import { MaterialEntity } from '../materials/entities/material.entity';
-import { MaterialAccessCheckService } from '../materials/material-access-check.service';
-import { SignedFilePayload, SignedFileUrlService } from './signed-file-url.service';
+import { SignedFileUrlService } from './signed-file-url.service';
 import { UploadedFilePayload } from './uploaded-file.types';
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
@@ -47,7 +45,6 @@ export class SecureFilesService implements OnModuleInit {
 
   constructor(
     private readonly signedFileUrl: SignedFileUrlService,
-    private readonly materialAccess: MaterialAccessCheckService,
     private readonly storage: StorageService,
     @InjectRepository(MaterialEntity)
     private readonly materialRepo: Repository<MaterialEntity>,
@@ -113,10 +110,15 @@ export class SecureFilesService implements OnModuleInit {
   }
 
   async streamSignedFile(token: string): Promise<StreamableFile> {
+    const started = Date.now();
     const payload = this.signedFileUrl.validateSignedUrl(token);
-    await this.assertMaterialFileAccess(payload);
-    const material = await this.materialRepo.findOne({ where: { id: payload.materialId } });
-    if (!material?.fileUrl) {
+    // Auth is the HMAC token issued after ACL at /url. Do not rebuild the full
+    // materials ACL graph here — that blocked first-byte for teachers/tutors.
+    const material = await this.materialRepo.findOne({
+      where: { id: payload.materialId },
+      select: ['id', 'fileUrl', 'status'],
+    });
+    if (!material?.fileUrl || material.status === 'deleted') {
       this.logMissing(payload.materialId, material?.fileUrl ?? null, null);
       throw new NotFoundException(FILE_MISSING_MESSAGE);
     }
@@ -125,9 +127,14 @@ export class SecureFilesService implements OnModuleInit {
       material.fileUrl,
       `material:${payload.materialId}`,
     );
+    this.logger.log(
+      `material.stream materialId=${payload.materialId} sizeBytes=${resolved.size} ` +
+        `setupMs=${Date.now() - started}`,
+    );
     return new StreamableFile(resolved.stream, {
       type: this.guessContentType(material.fileUrl),
       disposition: `inline; filename="${resolved.filename.replace(/["\r\n]/g, '_')}"`,
+      length: resolved.size,
     });
   }
 
@@ -145,6 +152,7 @@ export class SecureFilesService implements OnModuleInit {
     return new StreamableFile(resolved.stream, {
       type: options?.mime?.trim() || this.guessContentType(storageKey),
       disposition: `${disposition}; filename="${filename}"`,
+      length: resolved.size,
     });
   }
 
@@ -175,21 +183,6 @@ export class SecureFilesService implements OnModuleInit {
     }
     const signed = this.signedFileUrl.generateSignedUrl(userId, materialId, role);
     return { ...record, file_url: signed };
-  }
-
-  private async assertMaterialFileAccess(payload: SignedFilePayload): Promise<void> {
-    const allowed = await this.materialAccess.canAccessMaterial(
-      payload.userId,
-      payload.materialId,
-      payload.role,
-    );
-    const material = await this.materialRepo.findOne({ where: { id: payload.materialId } });
-    if (!material || material.status === 'deleted') {
-      throw new NotFoundException('Material not found');
-    }
-    if (!allowed) {
-      throw new ForbiddenException('Forbidden: no access to this material file');
-    }
   }
 
   resolveStoragePath(fileUrl: string): string {

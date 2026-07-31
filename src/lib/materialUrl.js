@@ -59,32 +59,23 @@ export async function resolveMaterialOpenUrl(material) {
   return signed;
 }
 
-/** Open material in a new tab (PDF/file via signed URL, links as-is). */
+/**
+ * Open material in a new tab.
+ *
+ * Signed URLs embed auth in the path — the browser navigates/streams immediately.
+ * Do NOT fetch+blob the whole file first (that blocked UI for large PDFs for minutes).
+ */
 export async function openMaterial(material) {
+  // Open the tab synchronously on the click stack so popup blockers allow it,
+  // then point it at the signed URL as soon as ACL returns.
+  const popup = window.open('about:blank', '_blank', 'noopener,noreferrer');
+
   try {
     const url = await resolveMaterialOpenUrl(material);
 
-    if (url.startsWith('/api/files/signed/')) {
-      const token = getToken();
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch(url, { headers });
-      if (!res.ok) {
-        if (res.status === 404) {
-          throw new Error('Файл был удалён или недоступен.');
-        }
-        if (res.status === 403) {
-          throw new Error('Нет доступа к файлу материала');
-        }
-        throw new Error('Не удалось открыть файл материала');
-      }
-      const blob = await res.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const opened = window.open(objectUrl, '_blank', 'noopener,noreferrer');
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
-      if (!opened) {
-        window.location.assign(objectUrl);
-      }
-      return objectUrl;
+    if (popup && !popup.closed) {
+      popup.location.replace(url);
+      return url;
     }
 
     const opened = window.open(url, '_blank', 'noopener,noreferrer');
@@ -93,9 +84,13 @@ export async function openMaterial(material) {
     }
     return url;
   } catch (err) {
+    try {
+      popup?.close();
+    } catch {
+      // ignore
+    }
     const message = String(err?.message || '');
     const status = Number(err?.status || 0);
-    // Preserve API message for missing blobs (404 from /url or stream).
     if (
       status === 404
       || /Файл был удалён или недоступен/i.test(message)
@@ -107,12 +102,13 @@ export async function openMaterial(material) {
   }
 }
 
-/** Fetch material file as blob (for download with auth cookie/token when needed). */
+/** Fetch material file as blob (download only — open uses streaming navigation). */
 export async function downloadMaterialFile(material, filename) {
   const url = await resolveMaterialOpenUrl(material);
   const token = getToken();
   const headers = {};
-  if (token && url.startsWith('/api/')) {
+  // Signed URLs are self-authenticating; Bearer only needed for legacy absolute API paths.
+  if (token && url.startsWith('/api/') && !url.startsWith('/api/files/signed/')) {
     headers.Authorization = `Bearer ${token}`;
   }
   const res = await fetch(url, { headers });
