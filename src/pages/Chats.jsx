@@ -28,6 +28,7 @@ import {
   leaveChat,
   subscribeToChatSocket,
 } from '@/lib/chat-socket';
+import { publishChatUnreadTotal } from '@/lib/chat-unread-events';
 
 const emptyGroups = {};
 const PAGE_SIZE = 50;
@@ -132,27 +133,32 @@ export default function Chats() {
     }
   }, []);
 
-  const refreshUnreadBadges = useCallback(() => {
-    void chatsApi
-      .unreadCount()
-      .then((summary) => {
-        const byChat = pickField(summary, 'byChat', 'by_chat') || {};
-        setGroups((previous) =>
-          Object.fromEntries(
-            Object.entries(previous).map(([kind, chats]) => [
-              kind,
-              chats.map((chat) =>
-                normalizeChat({
-                  ...chat,
-                  unreadCount: byChat?.[chat.id] || 0,
-                }),
-              ),
-            ]),
-          ),
-        );
-      })
-      .catch(() => {});
+  const syncUnreadFromServer = useCallback(async () => {
+    try {
+      const summary = await chatsApi.unreadCount();
+      const byChat = pickField(summary, 'byChat', 'by_chat') || {};
+      setGroups((previous) =>
+        Object.fromEntries(
+          Object.entries(previous).map(([kind, chats]) => [
+            kind,
+            chats.map((chat) =>
+              normalizeChat({
+                ...chat,
+                unreadCount: byChat?.[chat.id] || 0,
+              }),
+            ),
+          ]),
+        ),
+      );
+      publishChatUnreadTotal(summary?.total || 0);
+    } catch {
+      // ignore
+    }
   }, []);
+
+  const refreshUnreadBadges = useCallback(() => {
+    void syncUnreadFromServer();
+  }, [syncUnreadFromServer]);
 
   useEffect(() => {
     void loadChats().finally(() => setLoading(false));
@@ -255,6 +261,18 @@ export default function Chats() {
           if (next.chatId === activeChatIdRef.current) {
             setHistoryStatusByChat((prev) => ({ ...prev, [next.chatId]: 'ready' }));
             setGroups((prev) => patchUnread(prev, next.chatId, 0));
+            // Persist read so counters stay 0 after reload.
+            if (next.id && next.senderUserId !== user?.id) {
+              void chatsApi
+                .markRead(next.chatId, next.id)
+                .then(() => {
+                  emitMessageRead(next.chatId, next.id);
+                  void syncUnreadFromServer();
+                })
+                .catch(() => {});
+            } else {
+              void syncUnreadFromServer();
+            }
           } else {
             setGroups((prev) => {
               const chat = Object.values(prev)
@@ -263,7 +281,26 @@ export default function Chats() {
               const current = chat?.unreadCount || 0;
               return patchUnread(prev, next.chatId, current + 1);
             });
+            void syncUnreadFromServer();
           }
+        },
+        'chat.unread': (payload) => {
+          const byChat = pickField(payload, 'byChat', 'by_chat') || {};
+          const total = pickField(payload, 'total') ?? 0;
+          setGroups((previous) =>
+            Object.fromEntries(
+              Object.entries(previous).map(([kind, chats]) => [
+                kind,
+                chats.map((chat) =>
+                  normalizeChat({
+                    ...chat,
+                    unreadCount: byChat?.[chat.id] || 0,
+                  }),
+                ),
+              ]),
+            ),
+          );
+          publishChatUnreadTotal(total);
         },
         'message.updated': (message) => {
           const next = normalizeMessage(message);
@@ -315,7 +352,7 @@ export default function Chats() {
           void loadChats();
         },
       }),
-    [loadChats, loadPendingCount, user?.id],
+    [loadChats, loadPendingCount, user?.id, syncUnreadFromServer],
   );
 
   const selectChat = (chat) => {
@@ -338,13 +375,14 @@ export default function Chats() {
       if (!chatId || !messageId) return;
       void chatsApi
         .markRead(chatId, messageId)
-        .then(() => {
+        .then(async () => {
           emitMessageRead(chatId, messageId);
           setGroups((prev) => patchUnread(prev, chatId, 0));
+          await syncUnreadFromServer();
         })
         .catch(() => {});
     },
-    [],
+    [syncUnreadFromServer],
   );
 
   const loadOlderMessages = useCallback(async () => {

@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   Res,
   UploadedFile,
   UseGuards,
@@ -15,7 +16,8 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { Response } from 'express';
+import { createReadStream } from 'fs';
+import { Request, Response } from 'express';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
@@ -144,15 +146,46 @@ export class ChatsController {
   async download(
     @CurrentUser() actor: JwtPayload,
     @Param('attachmentId') attachmentId: string,
+    @Query('disposition') dispositionQuery: string | undefined,
+    @Req() request: Request,
     @Res() response: Response,
   ): Promise<void> {
-    const { attachment, stream } = await this.attachments.download(actor, attachmentId);
-    response.setHeader('Content-Type', attachment.mime ?? 'application/octet-stream');
+    const file = await this.attachments.resolveFile(actor, attachmentId);
+    const { attachment, absolutePath, size } = file;
+    const mime = attachment.mime || 'application/octet-stream';
+    const filename = (attachment.originalFilename || attachment.storageKey || 'file').replace(
+      /["\r\n]/g,
+      '_',
+    );
+    const forceDownload = dispositionQuery === 'attachment';
+    const disposition = forceDownload ? 'attachment' : 'inline';
+
+    response.setHeader('Content-Type', mime);
+    response.setHeader('Accept-Ranges', 'bytes');
+    response.setHeader('Cache-Control', 'private, max-age=3600');
     response.setHeader(
       'Content-Disposition',
-      `attachment; filename="${attachment.originalFilename ?? attachment.storageKey}"`,
+      `${disposition}; filename="${filename}"`,
     );
-    stream.pipe(response);
+
+    const range = request.headers.range;
+    if (range && /^bytes=/.test(range)) {
+      const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+      if (match) {
+        const start = match[1] ? parseInt(match[1], 10) : 0;
+        const end = match[2] ? parseInt(match[2], 10) : size - 1;
+        if (Number.isFinite(start) && Number.isFinite(end) && start <= end && end < size) {
+          response.status(206);
+          response.setHeader('Content-Range', `bytes ${start}-${end}/${size}`);
+          response.setHeader('Content-Length', String(end - start + 1));
+          createReadStream(absolutePath, { start, end }).pipe(response);
+          return;
+        }
+      }
+    }
+
+    response.setHeader('Content-Length', String(size));
+    createReadStream(absolutePath).pipe(response);
   }
 
   @Patch('messages/:messageId')

@@ -26,6 +26,7 @@ import {
   avatarThumbRelativePath,
   ensureAvatarUserDir,
 } from './avatar-storage';
+import { getUploadsRoot } from '../../../common/storage/uploads-root';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -249,6 +250,7 @@ export class AvatarService {
       .replace(/^\/+/, '');
     const candidates = [
       this.resolveReadablePath(cleaned),
+      join(getUploadsRoot(), cleaned),
       join(process.cwd(), photoUrl.replace(/^\//, '')),
       join(process.cwd(), 'uploads', cleaned),
     ];

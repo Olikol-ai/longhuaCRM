@@ -83,5 +83,6 @@ export const chatsApi = {
     method: 'PATCH',
     body: JSON.stringify(payload),
   }),
-  downloadUrl: (attachmentId) => `/api/chats/attachments/${attachmentId}/download`,
+  downloadUrl: (attachmentId, { disposition } = {}) =>
+    `/api/chats/attachments/${attachmentId}/download${queryString({ disposition })}`,
 };

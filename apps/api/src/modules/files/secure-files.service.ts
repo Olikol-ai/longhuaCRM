@@ -11,12 +11,16 @@ import { createReadStream, existsSync, mkdirSync, writeFileSync } from 'fs';
 import { basename, extname, join, normalize } from 'path';
 import { Repository } from 'typeorm';
 import { normalizeRole } from '../../common/constants/roles';
+import {
+  findExistingUpload,
+  getUploadsRoot,
+  resolveUploadPath,
+} from '../../common/storage/uploads-root';
 import { MaterialEntity } from '../materials/entities/material.entity';
 import { MaterialAccessCheckService } from '../materials/material-access-check.service';
 import { SignedFilePayload, SignedFileUrlService } from './signed-file-url.service';
 import { UploadedFilePayload } from './uploaded-file.types';
 
-const UPLOAD_DIR = join(process.cwd(), 'uploads');
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = new Set([
   '.pdf',
@@ -29,7 +33,11 @@ const ALLOWED_EXTENSIONS = new Set([
   '.jpg',
   '.jpeg',
   '.png',
+  '.gif',
+  '.webp',
 ]);
+
+const FILE_MISSING_MESSAGE = 'Файл был удалён или недоступен.';
 
 @Injectable()
 export class SecureFilesService {
@@ -57,12 +65,13 @@ export class SecureFilesService {
       throw new BadRequestException('File type is not allowed');
     }
 
+    const uploadDir = getUploadsRoot();
     const safeBaseName = basename(file.originalname || 'upload', extension)
       .replace(/[^a-zA-Z0-9._-]+/g, '_')
       .slice(0, 80);
     const storedName = `${randomUUID()}-${safeBaseName || 'upload'}${extension}`;
-    mkdirSync(UPLOAD_DIR, { recursive: true });
-    const absolutePath = join(UPLOAD_DIR, storedName);
+    mkdirSync(uploadDir, { recursive: true });
+    const absolutePath = join(uploadDir, storedName);
     writeFileSync(absolutePath, file.buffer);
 
     return `/uploads/${storedName}`;
@@ -73,7 +82,7 @@ export class SecureFilesService {
     await this.assertMaterialFileAccess(payload);
     const material = await this.materialRepo.findOne({ where: { id: payload.materialId } });
     if (!material?.fileUrl) {
-      throw new NotFoundException('Material file not found');
+      throw new NotFoundException(FILE_MISSING_MESSAGE);
     }
     return this.streamByStorageKey(material.fileUrl, {
       disposition: 'inline',
@@ -93,9 +102,18 @@ export class SecureFilesService {
       disposition?: 'inline' | 'attachment';
     },
   ): StreamableFile {
-    const absolutePath = this.resolveStoragePath(storageKey);
-    if (!existsSync(absolutePath)) {
-      throw new NotFoundException('File not found on disk');
+    const absolutePath =
+      findExistingUpload(storageKey) ||
+      (() => {
+        try {
+          return resolveUploadPath(storageKey);
+        } catch {
+          return null;
+        }
+      })();
+
+    if (!absolutePath || !existsSync(absolutePath)) {
+      throw new NotFoundException(FILE_MISSING_MESSAGE);
     }
     const disposition = options?.disposition ?? 'inline';
     const filename = (options?.filename?.trim() || basename(absolutePath)).replace(
@@ -151,17 +169,9 @@ export class SecureFilesService {
   }
 
   resolveStoragePath(fileUrl: string): string {
-    const raw = fileUrl.replace(/^\/uploads\//, '').replace(/^uploads\//, '');
-    const filename = basename(normalize(raw));
-    if (!filename || filename === '.' || filename.includes('..')) {
-      throw new ForbiddenException('Invalid file path');
-    }
-    const absolute = join(UPLOAD_DIR, filename);
-    const normalizedAbsolute = normalize(absolute);
-    if (!normalizedAbsolute.startsWith(normalize(UPLOAD_DIR))) {
-      throw new ForbiddenException('Invalid file path');
-    }
-    return normalizedAbsolute;
+    const found = findExistingUpload(fileUrl);
+    if (found) return found;
+    return resolveUploadPath(fileUrl);
   }
 
   private guessContentType(fileUrl: string): string {
@@ -170,6 +180,8 @@ export class SecureFilesService {
     if (lower.endsWith('.mp4')) return 'video/mp4';
     if (lower.endsWith('.webm')) return 'video/webm';
     if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.webp')) return 'image/webp';
     if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
     if (lower.endsWith('.pptx')) {
       return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';

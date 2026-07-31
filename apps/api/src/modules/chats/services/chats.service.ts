@@ -151,6 +151,13 @@ export class ChatsService {
       )
       .orIgnore()
       .execute();
+
+    try {
+      const summary = await this.unreadSummary(actor);
+      this.gateway?.emitToUser(actor.sub, 'chat.unread', summary);
+    } catch {
+      // ignore badge fan-out failures
+    }
   }
 
   async createGroup(

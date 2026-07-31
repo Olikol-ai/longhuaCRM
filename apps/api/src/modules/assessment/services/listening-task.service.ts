@@ -22,8 +22,9 @@ import {
   AssessmentListeningTaskEntity,
 } from '../entities';
 import { NestedQuestionInput } from './reading-task.service';
+import { uploadsJoin } from '../../../common/storage/uploads-root';
 
-const AUDIO_DIR = join(process.cwd(), 'uploads', 'assessment');
+const AUDIO_DIR = uploadsJoin('assessment');
 const AUDIO_EXTENSIONS = new Set([
   '.mp3',
   '.ogg',

@@ -61,13 +61,44 @@ export async function resolveMaterialOpenUrl(material) {
 
 /** Open material in a new tab (PDF/file via signed URL, links as-is). */
 export async function openMaterial(material) {
-  const url = await resolveMaterialOpenUrl(material);
-  const opened = window.open(url, '_blank', 'noopener,noreferrer');
-  if (!opened) {
-    // Popup blocked — navigate current tab
-    window.location.assign(url);
+  try {
+    const url = await resolveMaterialOpenUrl(material);
+
+    if (url.startsWith('/api/files/signed/')) {
+      const token = getToken();
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch(url, { headers });
+      if (!res.ok) {
+        if (res.status === 404) {
+          throw new Error('Файл был удалён или недоступен.');
+        }
+        if (res.status === 403) {
+          throw new Error('Нет доступа к файлу материала');
+        }
+        throw new Error('Не удалось открыть файл материала');
+      }
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const opened = window.open(objectUrl, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      if (!opened) {
+        window.location.assign(objectUrl);
+      }
+      return objectUrl;
+    }
+
+    const opened = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!opened) {
+      window.location.assign(url);
+    }
+    return url;
+  } catch (err) {
+    const message = String(err?.message || '');
+    if (/not found on disk|File not found/i.test(message)) {
+      throw new Error('Файл был удалён или недоступен.');
+    }
+    throw err;
   }
-  return url;
 }
 
 /** Fetch material file as blob (for download with auth cookie/token when needed). */
@@ -80,7 +111,21 @@ export async function downloadMaterialFile(material, filename) {
   }
   const res = await fetch(url, { headers });
   if (!res.ok) {
-    throw new Error('Не удалось скачать файл');
+    let message = 'Не удалось скачать файл';
+    if (res.status === 404) {
+      message = 'Файл был удалён или недоступен.';
+    } else if (res.status === 403) {
+      message = 'Нет доступа к файлу материала';
+    }
+    try {
+      const body = await res.json();
+      if (body?.message && typeof body.message === 'string') {
+        message = body.message;
+      }
+    } catch {
+      // keep mapped message
+    }
+    throw new Error(message);
   }
   const blob = await res.blob();
   const objectUrl = URL.createObjectURL(blob);

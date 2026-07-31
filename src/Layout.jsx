@@ -32,6 +32,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { buildUserAvatarUrl } from "@/api/http";
 import { chatsApi } from "@/api/chats.api";
+import { connectChatSocket, subscribeToChatSocket } from "@/lib/chat-socket";
+import { subscribeChatUnreadTotal } from "@/lib/chat-unread-events";
 
 const adminNav = [
   { name: "Главная", icon: LayoutDashboard, page: "Dashboard" },
@@ -125,11 +127,26 @@ export default function Layout({ children, currentPageName }) {
       void chatsApi.unreadCount().then(({ total }) => setChatUnread(total || 0)).catch(() => {});
     };
     refreshUnread();
+    connectChatSocket();
     const interval = window.setInterval(refreshUnread, 30_000);
     window.addEventListener('focus', refreshUnread);
+    const unsubLocal = subscribeChatUnreadTotal((total) => setChatUnread(total));
+    const unsubSocket = subscribeToChatSocket({
+      'chat.unread': (payload) => {
+        const total = payload?.total ?? payload?.Total;
+        if (typeof total === 'number') setChatUnread(total);
+        else refreshUnread();
+      },
+      'message.created': () => {
+        // Badge may change for chats other than the open one — refresh soon.
+        window.setTimeout(refreshUnread, 250);
+      },
+    });
     return () => {
       window.clearInterval(interval);
       window.removeEventListener('focus', refreshUnread);
+      unsubLocal();
+      unsubSocket();
     };
   }, [isAuthenticated]);
 

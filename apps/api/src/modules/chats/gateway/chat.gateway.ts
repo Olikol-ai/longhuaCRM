@@ -7,7 +7,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Inject, OnModuleDestroy, OnModuleInit, Optional, forwardRef } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Server, Socket } from 'socket.io';
@@ -18,6 +18,7 @@ import { JwtPayload } from '../../auth/auth.service';
 import { UserEntity } from '../../users/entities/user.entity';
 import { ChatMessageEntity } from '../entities';
 import { ChatPresenceService } from '../services/chat-presence.service';
+import { ChatsService } from '../services/chats.service';
 
 type TypingKey = string;
 
@@ -44,6 +45,9 @@ export class ChatGateway
     private readonly access: ChatAccessService,
     private readonly presence: ChatPresenceService,
     @InjectRepository(UserEntity) private readonly userRepo: Repository<UserEntity>,
+    @Optional()
+    @Inject(forwardRef(() => ChatsService))
+    private readonly chats?: ChatsService,
   ) {}
 
   onModuleInit(): void {
@@ -169,13 +173,30 @@ export class ChatGateway
     @MessageBody() payload: { chatId: string; messageId: string },
   ): Promise<void> {
     const actor = this.actor(client);
+    if (!payload?.chatId || !payload?.messageId) return;
     await this.access.assertCanRead(actor, payload.chatId);
+    // Persist receipt even if the client only emits over the socket.
+    if (this.chats) {
+      try {
+        await this.chats.markRead(actor, payload.chatId, payload.messageId);
+      } catch {
+        // ignore — still broadcast read state to peers
+      }
+    }
     this.server.to(`chat:${payload.chatId}`).emit('message.read', {
       chatId: payload.chatId,
       userId: actor.sub,
       messageId: payload.messageId,
       readAt: new Date().toISOString(),
     });
+    if (this.chats) {
+      try {
+        const summary = await this.chats.unreadSummary(actor);
+        this.emitToUser(actor.sub, 'chat.unread', summary);
+      } catch {
+        // ignore
+      }
+    }
   }
 
   emitMessageCreated(message: ChatMessageEntity): void {

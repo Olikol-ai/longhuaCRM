@@ -1,11 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { createReadStream, existsSync, mkdirSync, writeFileSync } from 'fs';
+import { createReadStream, existsSync, mkdirSync, statSync, writeFileSync } from 'fs';
 import { basename, join } from 'path';
 import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
 import { ChatAccessService } from '../../../common/access/chat-access.service';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
+import {
+  findExistingUpload,
+  getUploadsRoot,
+  uploadsJoin,
+} from '../../../common/storage/uploads-root';
 import { ChatAttachmentEntity, ChatMessageEntity, ChatVoiceMessageEntity } from '../entities';
 import { ChatAttachmentKind, ChatMessageType } from '../enums/chat.enums';
 import { ChatMessagesService } from './chat-messages.service';
@@ -20,6 +25,12 @@ export interface UploadedChatFile {
 export interface ChatAttachmentUploadResult {
   attachment: ChatAttachmentEntity;
   message: ChatMessageEntity | null;
+}
+
+export interface ChatAttachmentFile {
+  attachment: ChatAttachmentEntity;
+  absolutePath: string;
+  size: number;
 }
 
 @Injectable()
@@ -41,9 +52,10 @@ export class ChatAttachmentsService {
     durationMs?: number,
   ): Promise<ChatAttachmentUploadResult> {
     await this.access.assertCanWrite(actor, chatId);
-    const directory = join(process.cwd(), 'uploads', 'chat');
+    const directory = uploadsJoin('chat');
     mkdirSync(directory, { recursive: true });
-    const storageKey = `${randomUUID()}-${basename(file.originalname)}`;
+    const safeName = basename(file.originalname || 'file').replace(/[^\w.\-()+\u0400-\u04FF]+/g, '_');
+    const storageKey = `${randomUUID()}-${safeName || 'file'}`;
     writeFileSync(join(directory, storageKey), file.buffer);
 
     const messageType =
@@ -62,7 +74,7 @@ export class ChatAttachmentsService {
       kind,
       storageKey,
       mime: file.mimetype || null,
-      originalFilename: basename(file.originalname),
+      originalFilename: basename(file.originalname || safeName),
       sizeBytes: String(file.size),
       durationMs: durationMs ?? null,
       sortOrder: 0,
@@ -86,18 +98,42 @@ export class ChatAttachmentsService {
     };
   }
 
-  async download(
+  async resolveFile(
     actor: DomainAccessActor,
     attachmentId: string,
-  ): Promise<{ attachment: ChatAttachmentEntity; stream: ReturnType<typeof createReadStream> }> {
+  ): Promise<ChatAttachmentFile> {
     const attachment = await this.attachmentRepo.findOne({
       where: { id: attachmentId },
       relations: { message: true },
     });
-    if (!attachment?.message) throw new NotFoundException('Attachment not found');
+    if (!attachment?.message) {
+      throw new NotFoundException('Вложение не найдено');
+    }
     await this.access.assertCanRead(actor, attachment.message.chatId);
-    const filePath = join(process.cwd(), 'uploads', 'chat', attachment.storageKey);
-    if (!existsSync(filePath)) throw new NotFoundException('Attachment file not found');
-    return { attachment, stream: createReadStream(filePath) };
+
+    const primary = join(getUploadsRoot(), 'chat', attachment.storageKey);
+    const absolutePath =
+      (existsSync(primary) ? primary : null) ||
+      findExistingUpload(`chat/${attachment.storageKey}`) ||
+      findExistingUpload(attachment.storageKey);
+
+    if (!absolutePath || !existsSync(absolutePath)) {
+      throw new NotFoundException('Файл был удалён или недоступен.');
+    }
+
+    const size = statSync(absolutePath).size;
+    return { attachment, absolutePath, size };
+  }
+
+  /** @deprecated Prefer resolveFile + Range-aware streaming in the controller. */
+  async download(
+    actor: DomainAccessActor,
+    attachmentId: string,
+  ): Promise<{ attachment: ChatAttachmentEntity; stream: ReturnType<typeof createReadStream> }> {
+    const file = await this.resolveFile(actor, attachmentId);
+    return {
+      attachment: file.attachment,
+      stream: createReadStream(file.absolutePath),
+    };
   }
 }

@@ -1,8 +1,11 @@
-import { ArrowLeft, Info, Lock, Pin, Users } from 'lucide-react';
+import { ArrowLeft, Download, FileText, Info, Lock, Pin, Users } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { chatAttachmentSrc } from '@/lib/chat-attachment-url';
+import {
+  chatAttachmentDownloadSrc,
+  chatAttachmentSrc,
+} from '@/lib/chat-attachment-url';
 import { displayUserName, pickField } from '@/lib/chat-normalize';
 import { resolveDirectPeerPublicKey } from '@/lib/e2ee/dm';
 import { useE2ee } from '@/lib/e2ee/E2eeContext';
@@ -10,10 +13,15 @@ import { decryptDirectMessage } from '@/lib/e2ee/message';
 import { getMyPrivateKey } from '@/lib/e2ee/vault';
 import { usePresence } from '@/lib/PresenceContext';
 import { formatDirectPresence } from '@/lib/presence-format';
+import { cn } from '@/lib/utils';
+import ChatMediaLightbox from './ChatMediaLightbox';
 import CrmMessageCard from './CrmMessageCard';
 import VoicePlayer from './VoicePlayer';
 
 const CRM_TYPES = new Set(['lesson', 'homework', 'exam', 'material']);
+const IMAGE_EXT = /\.(jpe?g|png|gif|webp)$/i;
+const VIDEO_EXT = /\.(mp4|webm|mov|m4v)$/i;
+const PDF_EXT = /\.pdf$/i;
 
 function senderName(message) {
   const sender = message.senderUser;
@@ -21,31 +29,133 @@ function senderName(message) {
   return displayUserName(sender);
 }
 
-function Attachment({ attachment }) {
+function isImageAttachment(attachment) {
+  if (attachment.kind === 'image') return true;
+  const mime = String(attachment.mime || '').toLowerCase();
+  if (mime.startsWith('image/')) return true;
+  return IMAGE_EXT.test(attachment.originalFilename || attachment.original_filename || '');
+}
+
+function isVideoAttachment(attachment) {
+  const mime = String(attachment.mime || '').toLowerCase();
+  if (mime.startsWith('video/')) return true;
+  return VIDEO_EXT.test(attachment.originalFilename || attachment.original_filename || '');
+}
+
+function isPdfAttachment(attachment) {
+  const mime = String(attachment.mime || '').toLowerCase();
+  if (mime === 'application/pdf') return true;
+  return PDF_EXT.test(attachment.originalFilename || attachment.original_filename || '');
+}
+
+function Attachment({
+  attachment,
+  imageItems,
+  imageIndex,
+  onOpenImage,
+}) {
   const src = chatAttachmentSrc(attachment.id);
+  const downloadSrc = chatAttachmentDownloadSrc(attachment.id);
+  const name = attachment.originalFilename || attachment.original_filename || 'Файл';
+
   if (attachment.kind === 'voice') return <VoicePlayer attachment={attachment} />;
   if (!src) {
     return <span className="mt-1 block text-xs text-muted-foreground">Вложение недоступно</span>;
   }
-  if (attachment.kind === 'image') {
+
+  if (isImageAttachment(attachment)) {
     return (
-      <a href={src} target="_blank" rel="noreferrer" className="block max-w-full">
-        <img
-          className="mt-1 max-h-64 max-w-full rounded-md border border-border object-contain"
-          src={src}
-          alt={attachment.originalFilename || 'Изображение'}
-        />
-      </a>
+      <div className="mt-1 space-y-1">
+        <button
+          type="button"
+          className="block max-w-full overflow-hidden rounded-md border border-border text-left"
+          onClick={() => onOpenImage?.(imageIndex ?? 0)}
+        >
+          <img
+            className="max-h-64 max-w-full object-contain"
+            src={src}
+            alt={name}
+          />
+        </button>
+        <a
+          className="inline-flex min-h-9 items-center gap-1 text-xs text-muted-foreground hover:text-brand"
+          href={downloadSrc}
+          download={name}
+        >
+          <Download className="h-3.5 w-3.5" /> Скачать
+        </a>
+      </div>
     );
   }
+
+  if (isVideoAttachment(attachment)) {
+    return (
+      <div className="mt-1 max-w-full space-y-1">
+        <video
+          className="max-h-72 w-full max-w-md rounded-md border border-border bg-black"
+          src={src}
+          controls
+          playsInline
+          preload="metadata"
+        >
+          Ваш браузер не поддерживает видео.
+        </video>
+        <a
+          className="inline-flex min-h-9 items-center gap-1 text-xs text-muted-foreground hover:text-brand"
+          href={downloadSrc}
+          download={name}
+        >
+          <Download className="h-3.5 w-3.5" /> Скачать
+        </a>
+      </div>
+    );
+  }
+
+  if (isPdfAttachment(attachment)) {
+    return (
+      <div className="mt-1 space-y-1">
+        <a
+          href={src}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-brand hover:bg-muted"
+        >
+          <FileText className="h-4 w-4 shrink-0" />
+          <span className="truncate">{name}</span>
+          <span className="text-xs text-muted-foreground">Открыть PDF</span>
+        </a>
+        <a
+          className="inline-flex min-h-9 items-center gap-1 text-xs text-muted-foreground hover:text-brand"
+          href={downloadSrc}
+          download={name}
+        >
+          <Download className="h-3.5 w-3.5" /> Скачать
+        </a>
+      </div>
+    );
+  }
+
   return (
-    <a
-      className="mt-1 inline-flex break-all text-sm text-brand hover:underline"
-      href={src}
-      download={attachment.originalFilename || true}
-    >
-      {attachment.originalFilename || 'Скачать файл'}
-    </a>
+    <div className="mt-1 flex flex-wrap items-center gap-2">
+      <a
+        className={cn(
+          'inline-flex min-h-11 max-w-full items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm',
+        )}
+        href={src}
+        target="_blank"
+        rel="noreferrer"
+      >
+        <FileText className="h-4 w-4 shrink-0" />
+        <span className="truncate">{name}</span>
+      </a>
+      <a
+        className="inline-flex min-h-9 items-center gap-1 text-xs text-muted-foreground hover:text-brand"
+        href={downloadSrc}
+        download={name}
+      >
+        <Download className="h-3.5 w-3.5" /> Скачать
+      </a>
+    </div>
   );
 }
 
@@ -100,7 +210,27 @@ export default function ChatMessagePane({
   const markedForChatRef = useRef(null);
   const [plaintextById, setPlaintextById] = useState({});
   const [errorsById, setErrorsById] = useState({});
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const isDirect = chat?.kind === 'direct';
+
+  const imageGallery = useMemo(() => {
+    const items = [];
+    for (const message of messages || []) {
+      for (const attachment of message.attachments || []) {
+        if (!isImageAttachment(attachment)) continue;
+        const src = chatAttachmentSrc(attachment.id);
+        if (!src) continue;
+        items.push({
+          id: attachment.id,
+          src,
+          name: attachment.originalFilename || attachment.original_filename || 'Изображение',
+          downloadSrc: chatAttachmentDownloadSrc(attachment.id),
+        });
+      }
+    }
+    return items;
+  }, [messages]);
 
   const subtitle = useMemo(() => {
     if (!chat) return '';
@@ -370,9 +500,22 @@ export default function ChatMessagePane({
                         : errorsById[message.id]
                     }
                   />
-                  {message.attachments?.map((attachment) => (
-                    <Attachment key={attachment.id} attachment={attachment} />
-                  ))}
+                  {message.attachments?.map((attachment) => {
+                    const imageIndex = isImageAttachment(attachment)
+                      ? imageGallery.findIndex((item) => item.id === attachment.id)
+                      : -1;
+                    return (
+                      <Attachment
+                        key={attachment.id}
+                        attachment={attachment}
+                        imageIndex={imageIndex >= 0 ? imageIndex : 0}
+                        onOpenImage={(idx) => {
+                          setLightboxIndex(idx);
+                          setLightboxOpen(true);
+                        }}
+                      />
+                    );
+                  })}
                   {message.editedAt ? (
                     <span className="text-[10px] text-muted-foreground">изменено</span>
                   ) : null}
@@ -388,6 +531,20 @@ export default function ChatMessagePane({
           <div ref={bottomRef} />
         </div>
       </ScrollArea>
+      <ChatMediaLightbox
+        open={lightboxOpen}
+        index={lightboxIndex}
+        items={imageGallery}
+        onClose={() => setLightboxOpen(false)}
+        onDownload={(item) => {
+          if (!item?.downloadSrc) return;
+          const a = document.createElement('a');
+          a.href = item.downloadSrc;
+          a.download = item.name || 'image';
+          a.rel = 'noopener';
+          a.click();
+        }}
+      />
     </div>
   );
 }
