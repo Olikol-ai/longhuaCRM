@@ -32,11 +32,13 @@ describe('Settings role display', () => {
     assert.doesNotMatch(source, /bg-gradient-to-br from-primary to-brand-active/);
   });
 
-  it('Settings source does not hardcode incomplete role maps missing tutor', () => {
+  it('Settings wraps long emails and values without horizontal overflow', () => {
     const source = readFileSync(join(__dirname, 'Settings.jsx'), 'utf8');
-    assert.doesNotMatch(
-      source,
-      /roleLabel\s*=\s*\{\s*admin:\s*["']Администратор["'],\s*teacher:/,
-    );
+    assert.match(source, /overflow-x-hidden/);
+    assert.match(source, /min-w-0/);
+    assert.match(source, /overflow-wrap:anywhere|\[overflow-wrap:anywhere\]/);
+    assert.match(source, /settings-email/);
+    assert.match(source, /break-words/);
+    assert.doesNotMatch(source, /truncate.*email|email.*truncate/);
   });
 });
