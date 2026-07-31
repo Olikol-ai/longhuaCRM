@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from "@/components/responsive/ResponsiveDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -137,11 +136,10 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{student ? "Редактировать ученика" : "Добавить ученика"}</DialogTitle>
-        </DialogHeader>
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} className="sm:max-w-lg" fullscreenOnMobile>
+      <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>{student ? "Редактировать ученика" : "Добавить ученика"}</ResponsiveDialogTitle>
+        </ResponsiveDialogHeader>
         <div className="space-y-4 py-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -257,7 +255,7 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
             />
           </div>
         </div>
-        <DialogFooter>
+        <ResponsiveDialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Отмена</Button>
           <Button
             type="button"
@@ -269,8 +267,7 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {student ? "Сохранить" : "Создать"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+    </ResponsiveDialog>
   );
 }

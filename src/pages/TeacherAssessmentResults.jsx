@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { api } from '@/api';
 import { ResultStatusBadge } from '@/components/assessment/StatusBadges';
+import PageHeader from '@/components/responsive/PageHeader';
+import PageShell from '@/components/responsive/PageShell';
+import ResponsiveTable from '@/components/responsive/ResponsiveTable';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { createPageUrl } from '@/utils';
@@ -56,32 +59,67 @@ export default function TeacherAssessmentResults() {
     });
   };
 
+  const columns = [
+    {
+      id: 'exam',
+      header: 'Экзамен',
+      cell: (row) => row.exam_name,
+    },
+    {
+      id: 'student',
+      header: 'Ученик',
+      cell: (row) => row.student_name,
+    },
+    {
+      id: 'status',
+      header: 'Статус',
+      cell: (row) => <ResultStatusBadge status={row.status} />,
+    },
+    {
+      id: 'score',
+      header: 'Балл',
+      cell: (row) => (
+        <>
+          {row.score} / {row.max_score}
+          {row.percent != null ? ` (${row.percent}%)` : ''}
+        </>
+      ),
+    },
+    {
+      id: 'date',
+      header: 'Дата',
+      cell: (row) => formatDateTime(row.finished_at || row.created_at),
+    },
+  ];
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <Link
-            to={createPageUrl('TeacherAssessment')}
-            className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
-          >
-            ← Мои экзамены
-          </Link>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-            Результаты учеников
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Итоги попыток ваших учеников
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => reload()}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Обновить
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        title={
+          <div>
+            <Link
+              to={createPageUrl('TeacherAssessment')}
+              className="text-xs text-muted-foreground hover:text-brand"
+            >
+              ← Мои экзамены
+            </Link>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground mt-1">
+              Результаты учеников
+            </h1>
+          </div>
+        }
+        description="Итоги попыток ваших учеников"
+        actions={
+          <Button variant="outline" size="sm" onClick={() => reload()}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Обновить
+          </Button>
+        }
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
         <select
-          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          className="min-h-11 md:min-h-10 h-11 md:h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
           value={examId}
           onChange={(e) => setExamId(e.target.value)}
         >
@@ -93,7 +131,7 @@ export default function TeacherAssessmentResults() {
           ))}
         </select>
         <select
-          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          className="min-h-11 md:min-h-10 h-11 md:h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
           value={studentId}
           onChange={(e) => setStudentId(e.target.value)}
         >
@@ -105,7 +143,7 @@ export default function TeacherAssessmentResults() {
           ))}
         </select>
         <select
-          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          className="min-h-11 md:min-h-10 h-11 md:h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
           value={status}
           onChange={(e) => setStatus(e.target.value)}
         >
@@ -128,7 +166,9 @@ export default function TeacherAssessmentResults() {
           onChange={(e) => setToLocal(e.target.value)}
           aria-label="Период по"
         />
-        <Button onClick={applyFilters}>Применить</Button>
+        <Button className="w-full sm:w-auto" onClick={applyFilters}>
+          Применить
+        </Button>
       </div>
 
       {error && (
@@ -144,46 +184,14 @@ export default function TeacherAssessmentResults() {
         <div className="flex justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-brand" />
         </div>
-      ) : results.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-10 text-center text-slate-500">
-          Результатов пока нет
-        </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/80">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-slate-500">
-                <th className="p-3 font-medium">Экзамен</th>
-                <th className="p-3 font-medium">Ученик</th>
-                <th className="p-3 font-medium">Статус</th>
-                <th className="p-3 font-medium">Балл</th>
-                <th className="p-3 font-medium">Дата</th>
-              </tr>
-            </thead>
-            <tbody>
-              {results.map((row) => (
-                <tr
-                  key={row.id}
-                  className="border-b border-slate-100 dark:border-slate-800 last:border-0"
-                >
-                  <td className="p-3 text-slate-900 dark:text-white">{row.exam_name}</td>
-                  <td className="p-3">{row.student_name}</td>
-                  <td className="p-3">
-                    <ResultStatusBadge status={row.status} />
-                  </td>
-                  <td className="p-3">
-                    {row.score} / {row.max_score}
-                    {row.percent != null ? ` (${row.percent}%)` : ''}
-                  </td>
-                  <td className="p-3 whitespace-nowrap">
-                    {formatDateTime(row.finished_at || row.created_at)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ResponsiveTable
+          rows={results}
+          columns={columns}
+          cardTitle={(row) => row.exam_name || 'Экзамен'}
+          empty="Результатов пока нет"
+        />
       )}
-    </div>
+    </PageShell>
   );
 }

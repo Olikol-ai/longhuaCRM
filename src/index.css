@@ -180,6 +180,17 @@
     min-height: var(--touch-min);
     min-width: var(--touch-min);
   }
+
+  /* Native selects used outside Select component */
+  select:not([multiple]) {
+    min-height: var(--touch-min);
+  }
+
+  @media (min-width: 768px) {
+    select:not([multiple]) {
+      min-height: 2.25rem;
+    }
+  }
 }
 
 /* iOS PWA / Dynamic Island — requires viewport-fit=cover */

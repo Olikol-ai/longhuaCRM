@@ -2,7 +2,13 @@ import { Loader2, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { chatsApi } from '@/api/chats.api';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  ResponsiveDialog,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from '@/components/responsive/ResponsiveDialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
@@ -101,14 +107,13 @@ export default function FindInterlocutorDialog({ open, onOpenChange, onRequestSe
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Новый чат</DialogTitle>
-          <DialogDescription>
-            Найдите пользователя, выберите его в списке и отправьте запрос на переписку.
-          </DialogDescription>
-        </DialogHeader>
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} className="sm:max-w-lg" fullscreenOnMobile>
+      <ResponsiveDialogHeader>
+        <ResponsiveDialogTitle>Новый чат</ResponsiveDialogTitle>
+        <ResponsiveDialogDescription>
+          Найдите пользователя, выберите его в списке и отправьте запрос на переписку.
+        </ResponsiveDialogDescription>
+      </ResponsiveDialogHeader>
 
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -136,7 +141,7 @@ export default function FindInterlocutorDialog({ open, onOpenChange, onRequestSe
           />
         </div>
 
-        <div className="max-h-80 space-y-1 overflow-y-auto rounded-md border border-border/60 p-1">
+        <div className="max-h-[40dvh] sm:max-h-80 space-y-1 overflow-y-auto rounded-md border border-border/60 p-1">
           {loading ? (
             <div className="flex items-center justify-center gap-2 p-4 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Поиск…
@@ -158,7 +163,7 @@ export default function FindInterlocutorDialog({ open, onOpenChange, onRequestSe
                   disabled={sending}
                   onClick={() => setSelectedId(user.id)}
                   className={cn(
-                    'flex w-full items-start justify-between gap-3 rounded-md p-2 text-left transition-colors',
+                    'flex w-full items-start justify-between gap-3 rounded-md p-2.5 min-h-touch text-left transition-colors',
                     isSelected ? 'bg-brand/15 ring-1 ring-brand/40' : 'hover:bg-muted',
                   )}
                 >
@@ -194,7 +199,7 @@ export default function FindInterlocutorDialog({ open, onOpenChange, onRequestSe
           </p>
         ) : null}
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <ResponsiveDialogFooter className="gap-2 sm:gap-0">
           <Button
             type="button"
             variant="outline"
@@ -217,8 +222,7 @@ export default function FindInterlocutorDialog({ open, onOpenChange, onRequestSe
               'Отправить запрос'
             )}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+    </ResponsiveDialog>
   );
 }

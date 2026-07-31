@@ -116,8 +116,13 @@ export default function Layout({ children, currentPageName }) {
     if (!sidebarOpen) return undefined;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    const onKey = (e) => {
+      if (e.key === "Escape") setSidebarOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
     };
   }, [sidebarOpen]);
 

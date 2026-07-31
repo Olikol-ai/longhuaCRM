@@ -208,7 +208,7 @@ export default function StudentLessons() {
             </Button>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-x-auto shadow-sm">
+          <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-x-auto shadow-sm">
             {/* Weekday headers */}
             <div className="grid grid-cols-7 border-b border-slate-100 dark:border-slate-800 min-w-[520px]">
               {WEEK_DAYS_RU.map((d) => (
@@ -256,6 +256,32 @@ export default function StudentLessons() {
                 );
               })}
             </div>
+          </div>
+
+          {/* Mobile month agenda — no horizontal calendar scroll */}
+          <div className="md:hidden space-y-3">
+            {monthDays
+              .filter((day) => isSameMonth(day, currentDate))
+              .map((day) => {
+                const dayStr = format(day, "yyyy-MM-dd");
+                const dayLessons = getLessonsForDay(dayStr);
+                if (!dayLessons.length) return null;
+                return (
+                  <section key={dayStr} className="space-y-2">
+                    <h3 className={`text-sm font-semibold ${isToday(day) ? 'text-brand' : 'text-foreground'}`}>
+                      {format(day, "EEEE, d MMMM", { locale: ru })}
+                    </h3>
+                    <div className="space-y-2">
+                      {dayLessons.map((lesson) => (
+                        <LessonCard key={lesson.id} lesson={lesson} highlighted={lesson.id === highlightLessonId} />
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+            {!monthDays.some((day) => isSameMonth(day, currentDate) && getLessonsForDay(format(day, "yyyy-MM-dd")).length > 0) ? (
+              <p className="text-sm text-center text-muted-foreground py-8">Нет уроков в этом месяце</p>
+            ) : null}
           </div>
 
           {/* Selected day detail */}

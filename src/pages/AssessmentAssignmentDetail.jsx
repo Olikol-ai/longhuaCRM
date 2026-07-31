@@ -6,6 +6,7 @@ import {
   AssignmentStatusBadge,
   ResultStatusBadge,
 } from '@/components/assessment/StatusBadges';
+import ResponsiveTable from '@/components/responsive/ResponsiveTable';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -174,33 +175,32 @@ export default function AssessmentAssignmentDetail() {
         {attempts.length === 0 ? (
           <p className="text-sm text-slate-500">Попыток ещё нет</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[480px]">
-              <thead>
-                <tr className="text-left text-xs text-slate-500 border-b border-slate-200 dark:border-slate-700">
-                  <th className="pb-2 pr-3 font-medium">№</th>
-                  <th className="pb-2 pr-3 font-medium">Статус</th>
-                  <th className="pb-2 pr-3 font-medium">Старт</th>
-                  <th className="pb-2 font-medium">Сдача</th>
-                </tr>
-              </thead>
-              <tbody>
-                {attempts.map((a) => (
-                  <tr
-                    key={a.id}
-                    className="border-b border-slate-100 dark:border-slate-800 last:border-0"
-                  >
-                    <td className="py-2 pr-3">{a.attempt_number}</td>
-                    <td className="py-2 pr-3">
-                      {ATTEMPT_STATUS_LABEL[a.status] || a.status}
-                    </td>
-                    <td className="py-2 pr-3">{formatDateTime(a.started_at)}</td>
-                    <td className="py-2">{formatDateTime(a.submitted_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ResponsiveTable
+            rows={attempts}
+            columns={[
+              {
+                id: 'num',
+                header: '№',
+                cell: (a) => a.attempt_number,
+              },
+              {
+                id: 'status',
+                header: 'Статус',
+                cell: (a) => ATTEMPT_STATUS_LABEL[a.status] || a.status,
+              },
+              {
+                id: 'start',
+                header: 'Старт',
+                cell: (a) => formatDateTime(a.started_at),
+              },
+              {
+                id: 'submit',
+                header: 'Сдача',
+                cell: (a) => formatDateTime(a.submitted_at),
+              },
+            ]}
+            cardTitle={(a) => `Попытка #${a.attempt_number}`}
+          />
         )}
       </Card>
 
@@ -211,51 +211,46 @@ export default function AssessmentAssignmentDetail() {
         {results.length === 0 ? (
           <p className="text-sm text-slate-500">Результатов пока нет</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[520px]">
-              <thead>
-                <tr className="text-left text-xs text-slate-500 border-b border-slate-200 dark:border-slate-700">
-                  <th className="pb-2 pr-3 font-medium">Попытка</th>
-                  <th className="pb-2 pr-3 font-medium">Баллы</th>
-                  <th className="pb-2 pr-3 font-medium">%</th>
-                  <th className="pb-2 pr-3 font-medium">Статус</th>
-                  <th className="pb-2 font-medium" />
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((r) => (
-                  <tr
-                    key={r.id}
-                    className="border-b border-slate-100 dark:border-slate-800 last:border-0"
-                  >
-                    <td className="py-2 pr-3">#{r.attempt_number}</td>
-                    <td className="py-2 pr-3">
-                      {r.score} / {r.max_score}
-                    </td>
-                    <td className="py-2 pr-3">
-                      {r.percent != null ? `${Number(r.percent).toFixed(0)}%` : '—'}
-                    </td>
-                    <td className="py-2 pr-3">
-                      <ResultStatusBadge status={r.status} />
-                    </td>
-                    <td className="py-2 text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          navigate(
-                            `${createPageUrl('AssessmentResultDetail')}?id=${encodeURIComponent(r.id)}`,
-                          )
-                        }
-                      >
-                        Открыть
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ResponsiveTable
+            rows={results}
+            columns={[
+              {
+                id: 'attempt',
+                header: 'Попытка',
+                cell: (r) => `#${r.attempt_number}`,
+              },
+              {
+                id: 'score',
+                header: 'Баллы',
+                cell: (r) => `${r.score} / ${r.max_score}`,
+              },
+              {
+                id: 'percent',
+                header: '%',
+                cell: (r) =>
+                  r.percent != null ? `${Number(r.percent).toFixed(0)}%` : '—',
+              },
+              {
+                id: 'status',
+                header: 'Статус',
+                cell: (r) => <ResultStatusBadge status={r.status} />,
+              },
+            ]}
+            cardTitle={(r) => `Попытка #${r.attempt_number}`}
+            cardActions={(r) => (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  navigate(
+                    `${createPageUrl('AssessmentResultDetail')}?id=${encodeURIComponent(r.id)}`,
+                  )
+                }
+              >
+                Открыть
+              </Button>
+            )}
+          />
         )}
       </Card>
 

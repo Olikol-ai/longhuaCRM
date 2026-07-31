@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from "@/components/responsive/ResponsiveDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -86,11 +85,10 @@ export default function PaymentFormDialog({ open, onOpenChange, studentId, onSav
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Записать оплату</DialogTitle>
-        </DialogHeader>
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} className="sm:max-w-md" fullscreenOnMobile>
+      <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>Записать оплату</ResponsiveDialogTitle>
+        </ResponsiveDialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-2">
             <Label>Ученик *</Label>
@@ -148,7 +146,7 @@ export default function PaymentFormDialog({ open, onOpenChange, studentId, onSav
             />
           </div>
         </div>
-        <DialogFooter>
+        <ResponsiveDialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Отмена</Button>
           <Button
             onClick={handleSubmit}
@@ -158,8 +156,7 @@ export default function PaymentFormDialog({ open, onOpenChange, studentId, onSav
             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Сохранить оплату
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+    </ResponsiveDialog>
   );
 }

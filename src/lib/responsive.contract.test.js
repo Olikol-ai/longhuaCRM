@@ -27,9 +27,11 @@ describe('responsive foundation', () => {
     assert.match(read('components/responsive/ResponsiveTable.jsx'), /lg:hidden/);
     assert.match(read('components/responsive/ResponsiveDialog.jsx'), /side="bottom"/);
     assert.match(read('components/responsive/PageHeader.jsx'), /sm:flex-row/);
+    assert.match(read('components/responsive/PageShell.jsx'), /page-pad/);
     assert.match(read('index.css'), /--touch-min/);
     assert.match(read('index.css'), /\.page-pad/);
     assert.match(read('components/ui/button.jsx'), /min-h-11/);
+    assert.match(read('components/ui/input.jsx'), /min-h-11/);
   });
 
   it('adapts shell, chats, schedule, and lesson video for mobile', () => {
@@ -48,8 +50,13 @@ describe('responsive foundation', () => {
     assert.match(read('pages/Payments.jsx'), /ResponsiveTable/);
     assert.match(read('pages/AssessmentResults.jsx'), /ResponsiveTable/);
     assert.match(read('pages/TutorStats.jsx'), /ResponsiveTable/);
+    assert.match(read('pages/TutorsAnalytics.jsx'), /ResponsiveTable/);
+    assert.match(read('pages/TeacherAssessmentResults.jsx'), /ResponsiveTable/);
+    assert.match(read('pages/Salary.jsx'), /lg:hidden space-y-3/);
     assert.match(read('pages/LowBalanceStudents.jsx'), /lg:hidden space-y-3/);
     assert.match(read('pages/UserManagement.jsx'), /lg:hidden space-y-3/);
     assert.match(read('components/materials/MaterialTable.jsx'), /lg:hidden divide-y/);
+    assert.match(read('components/students/StudentFormDialog.jsx'), /ResponsiveDialog/);
+    assert.match(read('components/chats/FindInterlocutorDialog.jsx'), /ResponsiveDialog/);
   });
 });

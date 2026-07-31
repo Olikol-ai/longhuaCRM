@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from "@/components/responsive/ResponsiveDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,11 +67,10 @@ export default function TeacherFormDialog({ open, onOpenChange, teacher, onSave 
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{teacher ? "Редактировать преподавателя" : "Добавить преподавателя"}</DialogTitle>
-        </DialogHeader>
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} className="sm:max-w-md" fullscreenOnMobile>
+      <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>{teacher ? "Редактировать преподавателя" : "Добавить преподавателя"}</ResponsiveDialogTitle>
+        </ResponsiveDialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-2">
             <Label>Имя *</Label>
@@ -126,14 +124,13 @@ export default function TeacherFormDialog({ open, onOpenChange, teacher, onSave 
             />
           </div>
         </div>
-        <DialogFooter>
+        <ResponsiveDialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Отмена</Button>
           <Button onClick={handleSubmit} disabled={loading || !formData.name} className="bg-primary hover:bg-primary/90">
             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {teacher ? "Сохранить" : "Создать"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+    </ResponsiveDialog>
   );
 }

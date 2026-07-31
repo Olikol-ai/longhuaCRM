@@ -34,6 +34,7 @@ import {
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import StatCard from '@/components/dashboard/StatCard';
+import ResponsiveTable from '@/components/responsive/ResponsiveTable';
 
 const TABS = [
   { id: 'profile', label: 'Профиль', icon: User },
@@ -415,46 +416,40 @@ export default function AdminTutorDetail() {
           {students.length === 0 ? (
             <Card className="p-8 text-center text-slate-400">Записей в блокноте пока нет</Card>
           ) : (
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-x-auto">
-              <table className="w-full text-sm min-w-[560px]">
-                <thead>
-                  <tr className="border-b border-slate-100 dark:border-slate-800 text-left text-xs text-slate-400 uppercase">
-                    <th className="px-4 py-3">ФИО</th>
-                    <th className="px-4 py-3">Телефон</th>
-                    <th className="px-4 py-3">Комментарий</th>
-                    <th className="px-4 py-3" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {students.map((s) => (
-                    <tr key={s.id} className="border-b border-slate-50 dark:border-slate-800 last:border-0">
-                      <td className="px-4 py-3 font-medium">{s.name}</td>
-                      <td className="px-4 py-3 text-slate-500">{s.phone || '—'}</td>
-                      <td className="px-4 py-3 text-slate-500 max-w-xs truncate">{s.notes || '—'}</td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap">
-                        <Button type="button" variant="outline" size="sm" className="mr-2" onClick={() => openEditStudent(s)}>
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="text-red-600"
-                          disabled={deletingStudentId === s.id}
-                          onClick={() => deleteStudent(s)}
-                        >
-                          {deletingStudentId === s.id ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Trash2 className="w-3.5 h-3.5" />
-                          )}
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ResponsiveTable
+              rows={students}
+              columns={[
+                { id: 'name', header: 'ФИО', cell: (s) => s.name },
+                { id: 'phone', header: 'Телефон', cell: (s) => s.phone || '—' },
+                {
+                  id: 'notes',
+                  header: 'Комментарий',
+                  cell: (s) => s.notes || '—',
+                },
+              ]}
+              cardTitle={(s) => s.name}
+              cardActions={(s) => (
+                <>
+                  <Button type="button" variant="outline" size="sm" onClick={() => openEditStudent(s)}>
+                    <Pencil className="w-3.5 h-3.5 mr-1" /> Изменить
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-red-600"
+                    disabled={deletingStudentId === s.id}
+                    onClick={() => deleteStudent(s)}
+                  >
+                    {deletingStudentId === s.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-3.5 h-3.5" />
+                    )}
+                  </Button>
+                </>
+              )}
+            />
           )}
         </div>
       )}
@@ -467,32 +462,40 @@ export default function AdminTutorDetail() {
           {lessons.length === 0 ? (
             <Card className="p-8 text-center text-slate-400">Занятий пока нет</Card>
           ) : (
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-x-auto">
-              <table className="w-full text-sm min-w-[640px]">
-                <thead>
-                  <tr className="border-b border-slate-100 dark:border-slate-800 text-left text-xs text-slate-400 uppercase">
-                    <th className="px-4 py-3">Дата</th>
-                    <th className="px-4 py-3">Время</th>
-                    <th className="px-4 py-3">Ученик</th>
-                    <th className="px-4 py-3">Длительность</th>
-                    <th className="px-4 py-3">Статус</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lessons.map((lesson) => (
-                    <tr key={lesson.id} className="border-b border-slate-50 dark:border-slate-800 last:border-0">
-                      <td className="px-4 py-3">{formatLessonDate(lesson.date)}</td>
-                      <td className="px-4 py-3">
-                        {(lesson.start_time || lesson.startTime || '').toString().slice(0, 5)}
-                      </td>
-                      <td className="px-4 py-3">{lesson.student_name || lesson.studentName || '—'}</td>
-                      <td className="px-4 py-3">{lesson.duration || 60} мин</td>
-                      <td className="px-4 py-3">{localizeLessonStatus(lesson.status)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ResponsiveTable
+              rows={lessons}
+              columns={[
+                {
+                  id: 'date',
+                  header: 'Дата',
+                  cell: (lesson) => formatLessonDate(lesson.date),
+                },
+                {
+                  id: 'time',
+                  header: 'Время',
+                  cell: (lesson) =>
+                    (lesson.start_time || lesson.startTime || '').toString().slice(0, 5),
+                },
+                {
+                  id: 'student',
+                  header: 'Ученик',
+                  cell: (lesson) => lesson.student_name || lesson.studentName || '—',
+                },
+                {
+                  id: 'duration',
+                  header: 'Длительность',
+                  cell: (lesson) => `${lesson.duration || 60} мин`,
+                },
+                {
+                  id: 'status',
+                  header: 'Статус',
+                  cell: (lesson) => localizeLessonStatus(lesson.status),
+                },
+              ]}
+              cardTitle={(lesson) =>
+                lesson.student_name || lesson.studentName || formatLessonDate(lesson.date)
+              }
+            />
           )}
         </div>
       )}

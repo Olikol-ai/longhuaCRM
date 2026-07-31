@@ -4,14 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   ArrowLeft,
   User,
   Mail,
@@ -33,6 +25,7 @@ import {
   localizeLessonStatus,
 } from "@/lib/locale-by";
 import { resolveAssignedTeacherLabel, resolveLessonTeacherLabel } from "@/lib/teacherLabels";
+import ResponsiveTable from "@/components/responsive/ResponsiveTable";
 import StudentFormDialog from "@/components/students/StudentFormDialog";
 import PaymentFormDialog from "@/components/payments/PaymentFormDialog";
 import { Progress } from "@/components/ui/progress";
@@ -255,80 +248,64 @@ export default function StudentDetail() {
       {/* Lesson History */}
       <div className="mb-8">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">История уроков</h2>
-        <Card className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-slate-50/80 dark:bg-slate-800/60">
-                  <TableHead>Дата</TableHead>
-                  <TableHead>Время</TableHead>
-                  <TableHead>Преподаватель</TableHead>
-                  <TableHead>Статус</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {lessons.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-slate-500 dark:text-slate-400">Уроков пока нет</TableCell>
-                  </TableRow>
-                ) : (
-                  lessons.sort((a, b) => (b.date || "").localeCompare(a.date || "")).map((l) => (
-                    <TableRow key={l.id}>
-                      <TableCell className="font-medium">{l.date}</TableCell>
-                      <TableCell>{l.start_time}</TableCell>
-                      <TableCell>{resolveLessonTeacherLabel(l, teachers)}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={
-                          l.status === "completed" ? "bg-emerald-50 text-emerald-700" :
-                          l.status === "cancelled" ? "bg-red-50 text-red-700" :
-                          l.status === "rescheduled" ? "bg-amber-50 text-amber-700" :
-                          "bg-brand-soft text-brand"
-                        }>
-                          {localizeLessonStatus(l.status)}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
+        <ResponsiveTable
+          rows={[...lessons].sort((a, b) => (b.date || "").localeCompare(a.date || ""))}
+          columns={[
+            { id: 'date', header: 'Дата', cell: (l) => l.date },
+            { id: 'time', header: 'Время', cell: (l) => l.start_time },
+            {
+              id: 'teacher',
+              header: 'Преподаватель',
+              cell: (l) => resolveLessonTeacherLabel(l, teachers),
+            },
+            {
+              id: 'status',
+              header: 'Статус',
+              cell: (l) => (
+                <Badge variant="outline" className={
+                  l.status === "completed" ? "bg-emerald-50 text-emerald-700" :
+                  l.status === "cancelled" ? "bg-red-50 text-red-700" :
+                  l.status === "rescheduled" ? "bg-amber-50 text-amber-700" :
+                  "bg-brand-soft text-brand"
+                }>
+                  {localizeLessonStatus(l.status)}
+                </Badge>
+              ),
+            },
+          ]}
+          cardTitle={(l) => l.date || 'Урок'}
+          empty="Уроков пока нет"
+        />
       </div>
 
       {/* Payment History */}
       <div>
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">История платежей</h2>
-        <Card className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-slate-50/80 dark:bg-slate-800/60">
-                  <TableHead>Дата</TableHead>
-                  <TableHead>Сумма</TableHead>
-                  <TableHead>Уроков добавлено</TableHead>
-                  <TableHead className="hidden sm:table-cell">Комментарий</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {payments.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-slate-500 dark:text-slate-400">Платежей пока нет</TableCell>
-                  </TableRow>
-                ) : (
-                  payments.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.payment_date}</TableCell>
-                      <TableCell className="font-semibold text-emerald-600">${p.amount}</TableCell>
-                      <TableCell>+{p.lessons_added}</TableCell>
-                      <TableCell className="hidden sm:table-cell text-slate-500 dark:text-slate-400">{p.comment || "—"}</TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
+        <ResponsiveTable
+          rows={payments}
+          columns={[
+            { id: 'date', header: 'Дата', cell: (p) => p.payment_date },
+            {
+              id: 'amount',
+              header: 'Сумма',
+              cell: (p) => (
+                <span className="font-semibold text-emerald-600">${p.amount}</span>
+              ),
+            },
+            {
+              id: 'lessons',
+              header: 'Уроков добавлено',
+              cell: (p) => `+${p.lessons_added}`,
+            },
+            {
+              id: 'comment',
+              header: 'Комментарий',
+              cell: (p) => p.comment || '—',
+            },
+          ]}
+          cardTitle={(p) => p.payment_date || 'Платёж'}
+          empty="Платежей пока нет"
+        />
       </div>
 
       <StudentFormDialog

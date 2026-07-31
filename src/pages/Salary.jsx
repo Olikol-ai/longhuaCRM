@@ -211,7 +211,113 @@ export default function Salary() {
           </p>
         </Card>
       ) : (
-        <div className="overflow-x-auto border border-border rounded-xl bg-card">
+        <>
+          {/* Mobile / tablet cards */}
+          <div className="lg:hidden space-y-3">
+            {rows.map((row) => {
+              const teacherId = row.teacher_id ?? row.teacherId;
+              const paymentStatus = row.payment_status ?? row.paymentStatus;
+              const lessonsCount = row.lessons_count ?? row.lessonsCount ?? 0;
+              const totalHours = Number(row.total_hours ?? row.totalHours ?? 0);
+              const isExpanded = expandedTeacherId === teacherId;
+              const details = detailsByTeacher[teacherId] || [];
+
+              return (
+                <article
+                  key={teacherId}
+                  className="rounded-2xl border border-border bg-card p-4 space-y-3 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-semibold text-foreground min-w-0 break-words">
+                      {row.teacher_name ?? row.teacherName}
+                    </h3>
+                    <span
+                      className={
+                        paymentStatus === "paid"
+                          ? "text-xs font-medium text-emerald-600 dark:text-emerald-400 shrink-0"
+                          : "text-xs font-medium text-amber-700 dark:text-amber-400 shrink-0"
+                      }
+                    >
+                      {statusLabel(paymentStatus)}
+                    </span>
+                  </div>
+                  <dl className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Занятий</dt>
+                      <dd>{lessonsCount}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Часы</dt>
+                      <dd>{totalHours.toFixed(1)}</dd>
+                    </div>
+                    <div className="col-span-2">
+                      <dt className="text-xs text-muted-foreground">Сумма</dt>
+                      <dd className="font-semibold">{formatCurrency(row.amount || 0)}</dd>
+                    </div>
+                  </dl>
+                  <div className="flex flex-wrap gap-2 pt-1 border-t border-border">
+                    <button
+                      type="button"
+                      onClick={() => toggleDetails(teacherId)}
+                      className="inline-flex items-center gap-1 px-3 py-2 min-h-touch text-sm border border-border rounded-lg hover:bg-muted"
+                    >
+                      Подробнее
+                      {isExpanded ? (
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                    {paymentStatus !== "paid" ? (
+                      <button
+                        type="button"
+                        disabled={payingTeacherId === teacherId}
+                        onClick={() => payMonth(row)}
+                        className="inline-flex items-center gap-1 px-3 py-2 min-h-touch text-sm bg-emerald-600 text-white rounded-lg disabled:opacity-50"
+                      >
+                        {payingTeacherId === teacherId ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        )}
+                        Выплатить
+                      </button>
+                    ) : null}
+                  </div>
+                  {isExpanded ? (
+                    <div className="rounded-xl bg-muted/40 p-3">
+                      {detailsLoadingId === teacherId ? (
+                        <p className="text-xs text-muted-foreground flex items-center gap-2">
+                          <Loader2 className="w-3 h-3 animate-spin" /> Загрузка занятий…
+                        </p>
+                      ) : details.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">Нет занятий</p>
+                      ) : (
+                        <ul className="space-y-1.5">
+                          {details.map((lesson) => (
+                            <li
+                              key={lesson.lesson_id ?? lesson.lessonId}
+                              className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-1"
+                            >
+                              <span>
+                                {lesson.date}{" "}
+                                {String(lesson.start_time ?? lesson.startTime ?? "").slice(0, 5)}
+                              </span>
+                              <span>{lesson.duration || 60} мин</span>
+                              <span>{formatCurrency(lesson.amount || 0)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden lg:block overflow-x-auto border border-border rounded-xl bg-card">
           <table className="w-full text-sm min-w-[40rem]">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -259,7 +365,7 @@ export default function Salary() {
                           <button
                             type="button"
                             onClick={() => toggleDetails(teacherId)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs border border-border rounded-lg hover:bg-muted"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs border border-border rounded-lg hover:bg-muted min-h-touch"
                           >
                             Подробнее
                             {isExpanded ? (
@@ -273,7 +379,7 @@ export default function Salary() {
                               type="button"
                               disabled={payingTeacherId === teacherId}
                               onClick={() => payMonth(row)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs bg-emerald-600 text-white rounded-lg disabled:opacity-50"
+                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs bg-emerald-600 text-white rounded-lg disabled:opacity-50 min-h-touch"
                             >
                               {payingTeacherId === teacherId ? (
                                 <Loader2 className="w-3 h-3 animate-spin" />
@@ -320,7 +426,8 @@ export default function Salary() {
               })}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
 
       <div className="bg-muted rounded-xl p-4 text-xs text-muted-foreground">

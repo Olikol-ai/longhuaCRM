@@ -2,6 +2,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { ResultStatusBadge } from '@/components/assessment/StatusBadges';
 import { Button } from '@/components/ui/button';
+import ResponsiveTable from '@/components/responsive/ResponsiveTable';
 import { Card } from '@/components/ui/card';
 import { createPageUrl } from '@/utils';
 import { useAssessmentResultDetail } from '@/hooks/useAssessmentResults';
@@ -124,33 +125,33 @@ export default function AssessmentResultDetail() {
             Детализация по секциям недоступна для этого результата
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[420px]">
-              <thead>
-                <tr className="text-left text-xs text-slate-500 border-b border-slate-200 dark:border-slate-700">
-                  <th className="pb-2 pr-3 font-medium">Секция</th>
-                  <th className="pb-2 pr-3 font-medium">Вес</th>
-                  <th className="pb-2 pr-3 font-medium">Балл</th>
-                  <th className="pb-2 font-medium">Макс. балл</th>
-                </tr>
-              </thead>
-              <tbody>
-                {breakdowns.map((b) => (
-                  <tr
-                    key={b.id || b.section_key}
-                    className="border-b border-slate-100 dark:border-slate-800 last:border-0"
-                  >
-                    <td className="py-2.5 pr-3 font-medium text-slate-800 dark:text-slate-100">
-                      {b.section_key}
-                    </td>
-                    <td className="py-2.5 pr-3">{b.weight}%</td>
-                    <td className="py-2.5 pr-3">{b.score}</td>
-                    <td className="py-2.5">{b.max_score}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ResponsiveTable
+            rows={breakdowns}
+            getRowKey={(b) => b.id || b.section_key}
+            columns={[
+              {
+                id: 'section',
+                header: 'Секция',
+                cell: (b) => b.section_key,
+              },
+              {
+                id: 'weight',
+                header: 'Вес',
+                cell: (b) => `${b.weight}%`,
+              },
+              {
+                id: 'score',
+                header: 'Балл',
+                cell: (b) => b.score,
+              },
+              {
+                id: 'max',
+                header: 'Макс. балл',
+                cell: (b) => b.max_score,
+              },
+            ]}
+            cardTitle={(b) => b.section_key || 'Секция'}
+          />
         )}
       </Card>
     </div>
