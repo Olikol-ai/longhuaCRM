@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
 import { resolveRedirect } from '@/lib/routing';
+import { formatHelloGreeting } from '@/lib/display-name';
 import { BookOpen, Clock, KeyRound, Loader2, LogOut, Sparkles, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -148,8 +149,8 @@ export default function PendingApproval() {
             <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100" data-testid="registration-result-title">
               {registrationVerified
                 ? 'Регистрация успешно подтверждена'
-                : user?.full_name
-                  ? `Здравствуйте, ${user.full_name.split(' ')[0]}!`
+                : user
+                  ? formatHelloGreeting(user)
                   : settings.title}
             </h2>
 

@@ -370,7 +370,9 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
             Ученики
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            {getGreetingName(user)}, зарегистрированные и добавленные вручную в одном списке
+            {getGreetingName(user)
+              ? `${getGreetingName(user)}, зарегистрированные и добавленные вручную в одном списке`
+              : 'Зарегистрированные и добавленные вручную в одном списке'}
           </p>
         </div>
         <Button

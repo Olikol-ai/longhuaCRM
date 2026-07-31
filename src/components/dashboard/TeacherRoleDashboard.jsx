@@ -4,7 +4,7 @@ import { format, isToday, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { CalendarDays, Clock, CheckCircle2, XCircle, Video } from "lucide-react";
 import StatCard from "./StatCard";
-import { getGreetingName } from "@/lib/display-name";
+import { formatWelcomeGreeting } from "@/lib/display-name";
 import { Card } from "@/components/ui/card";
 import { resolveLessonStudentLabel } from "@/lib/studentLabels";
 import { filterLessonsWithinNext48Hours } from "@/lib/teacherUpcomingLessons";
@@ -68,7 +68,9 @@ export default function TeacherRoleDashboard({ user }) {
   return (
     <div className="p-6 space-y-6 max-w-4xl mx-auto">
       <div>
-        <h2 className="text-xl font-bold text-foreground">Добро пожаловать, {getGreetingName(user) || "Преподаватель"}</h2>
+        <h2 className="text-xl font-bold text-foreground">
+          {formatWelcomeGreeting(user)}
+        </h2>
         <p className="text-sm text-muted-foreground mt-0.5">Обзор вашего расписания</p>
       </div>
 

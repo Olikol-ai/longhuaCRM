@@ -61,7 +61,7 @@ export class UserProfileService {
       has_teacher_profile: snapshot.hasTeacherProfile,
       has_tutor_profile: snapshot.hasTutorProfile,
     };
-    // Expose Student.name as `name` so FE greetings/certificates prefer SSOT.
+    // Expose role display name as `name` for lists/certificates (not greetings).
     if (snapshot.studentDisplayName) {
       fields.name = snapshot.studentDisplayName;
     } else if (snapshot.teacherDisplayName) {

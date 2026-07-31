@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { api } from '@/api';
 import { useAuth } from "@/lib/AuthContext";
-import { getGreetingName } from "@/lib/display-name";
+import { formatWelcomeGreeting, getGreetingName } from "@/lib/display-name";
 import { BookOpen, Clock, Sparkles, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -52,7 +52,7 @@ export default function Welcome() {
 
           <div className="space-y-3">
             <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 text-center">
-              {greetingName ? `Добро пожаловать, ${greetingName}!` : settings.title}
+              {greetingName ? formatWelcomeGreeting(user) : settings.title}
             </h2>
             {settings.body_text.split("\n").filter(Boolean).map((line, i) => (
               <p key={i} className="text-slate-500 dark:text-slate-400 leading-relaxed">{line}</p>

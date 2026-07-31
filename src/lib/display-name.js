@@ -1,44 +1,49 @@
 /**
- * Display name for greetings — frontend only.
- * Prefer composed `name` / `full_name` (admin-edited student.name) so the
- * student cabinet matches lists and schedules after an admin rename.
+ * Greeting helpers for the educational platform.
+ *
+ * Priority for addressing the user:
+ *   firstName → displayName → (empty → neutral greeting without a name)
+ *
+ * Never use lastName / surname / composed full_name for greetings
+ * (full_name is stored as "Фамилия Имя" and would greet by surname).
+ */
+
+function pickTrimmed(...values) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return '';
+}
+
+/**
+ * Returns a short given name for greetings, or '' when none is available.
  */
 export function getGreetingName(profile) {
-  if (!profile) return '';
+  if (!profile || typeof profile !== 'object') return '';
 
-  const name = profile.name;
-  if (typeof name === 'string' && name.trim()) {
-    return name.trim();
-  }
+  const firstName = pickTrimmed(profile.first_name, profile.firstName);
+  if (firstName) return firstName;
 
-  const fullName = profile.full_name ?? profile.fullName;
-  if (typeof fullName === 'string' && fullName.trim()) {
-    return fullName.trim();
-  }
-
-  const firstName = profile.first_name ?? profile.firstName;
-  const lastName = profile.last_name ?? profile.lastName;
-  if (
-    typeof firstName === 'string' &&
-    firstName.trim() &&
-    typeof lastName === 'string' &&
-    lastName.trim()
-  ) {
-    return `${lastName.trim()} ${firstName.trim()}`;
-  }
-
-  if (typeof firstName === 'string' && firstName.trim()) {
-    return firstName.trim();
-  }
-
-  const displayName = profile.display_name ?? profile.displayName;
-  if (typeof displayName === 'string' && displayName.trim()) {
-    return displayName.trim();
-  }
-
-  if (typeof lastName === 'string' && lastName.trim()) {
-    return lastName.trim();
-  }
+  const displayName = pickTrimmed(profile.display_name, profile.displayName);
+  if (displayName) return displayName;
 
   return '';
+}
+
+/**
+ * "Здравствуйте, Иван!" or "Здравствуйте!"
+ */
+export function formatHelloGreeting(profile) {
+  const name = getGreetingName(profile);
+  return name ? `Здравствуйте, ${name}!` : 'Здравствуйте!';
+}
+
+/**
+ * "Добро пожаловать, Иван!" or "Добро пожаловать!"
+ */
+export function formatWelcomeGreeting(profile) {
+  const name = getGreetingName(profile);
+  return name ? `Добро пожаловать, ${name}!` : 'Добро пожаловать!';
 }

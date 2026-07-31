@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import StatCard from "@/components/dashboard/StatCard";
 import TopUpModal from "@/components/student/TopUpModal";
 import { useAuth } from "@/lib/AuthContext";
-import { getGreetingName } from "@/lib/display-name";
+import { formatWelcomeGreeting, getGreetingName } from "@/lib/display-name";
 import { useTheme } from "@/lib/ThemeContext";
 import { resolveAssignedTeacherLabel, resolveLessonTeacherLabel } from "@/lib/teacherLabels";
 import { isOnlineLesson, lessonVideoPath } from "@/lib/lesson-video";
@@ -129,7 +129,10 @@ export default function StudentDashboard() {
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Добро пожаловать, {getGreetingName(student) || getGreetingName(user) || "ученик"} 👋
+            {formatWelcomeGreeting(
+              getGreetingName(student) ? student : getGreetingName(user) ? user : null,
+            )}{' '}
+            👋
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             {format(new Date(), "EEEE, d MMMM yyyy", { locale: ru })}

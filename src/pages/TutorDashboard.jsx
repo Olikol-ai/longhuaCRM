@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
-import { getGreetingName } from '@/lib/display-name';
+import { formatHelloGreeting } from '@/lib/display-name';
 import StatCard from '@/components/dashboard/StatCard';
 import { resolveLessonStudentLabel } from '@/lib/studentLabels';
 import { filterLessonsWithinNext48Hours } from '@/lib/teacherUpcomingLessons';
@@ -87,7 +87,11 @@ export default function TutorDashboard() {
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-            Здравствуйте, {getGreetingName(user) || profile?.display_name || 'репетитор'}
+            {formatHelloGreeting({
+              ...user,
+              display_name:
+                profile?.display_name || profile?.displayName || user?.display_name,
+            })}
           </h1>
           <p className="text-sm text-slate-500 mt-1">Ваш кабинет на платформе Longhua</p>
         </div>

@@ -103,12 +103,15 @@ export default function AdminDashboard({ user }) {
     );
   }
 
-  const userName = getGreetingName(user) || "Администратор";
+  const greetingName = getGreetingName(user);
+  const heading = greetingName
+    ? `${getGreeting()}, ${greetingName}`
+    : `${getGreeting()}!`;
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-6xl mx-auto w-full min-w-0">
       <div>
-        <h2 className="text-xl font-bold text-foreground">{getGreeting()}, {userName}</h2>
+        <h2 className="text-xl font-bold text-foreground">{heading}</h2>
         <p className="text-sm text-muted-foreground mt-0.5">Вот что происходит сегодня</p>
       </div>
 

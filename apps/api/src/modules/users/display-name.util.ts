@@ -1,6 +1,8 @@
 /**
  * Shared helpers for User ↔ Student/Teacher display-name sync.
  * Canonical composed form matches user.mapper: `${lastName} ${firstName}`.
+ *
+ * Greetings must NOT use lastName / composed full name — see getGreetingName.
  */
 
 export function splitDisplayName(name: string): {
@@ -34,6 +36,40 @@ export function composeDisplayName(
     return `${last} ${first}`;
   }
   return first || last || fallback;
+}
+
+/**
+ * Given name for greetings / salutations.
+ * Priority: firstName → displayName → '' (caller uses a neutral greeting).
+ * Never returns lastName or composed "Фамилия Имя".
+ */
+export function getGreetingName(profile: {
+  firstName?: string | null;
+  first_name?: string | null;
+  displayName?: string | null;
+  display_name?: string | null;
+  /** Ignored for greetings — accepted so full user/profile objects can be passed. */
+  lastName?: string | null;
+  last_name?: string | null;
+  name?: string | null;
+  full_name?: string | null;
+  fullName?: string | null;
+  [key: string]: unknown;
+} | null | undefined): string {
+  if (!profile) return '';
+  const first = String(profile.firstName ?? profile.first_name ?? '').trim();
+  if (first) return first;
+  const display = String(profile.displayName ?? profile.display_name ?? '').trim();
+  if (display) return display;
+  return '';
+}
+
+/** "Здравствуйте, Иван!" or "Здравствуйте!" */
+export function formatHelloGreeting(
+  profile: Parameters<typeof getGreetingName>[0],
+): string {
+  const name = getGreetingName(profile);
+  return name ? `Здравствуйте, ${name}!` : 'Здравствуйте!';
 }
 
 /**

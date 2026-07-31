@@ -155,7 +155,8 @@ export class RoleEntitySyncService {
 
   /**
    * After admin/teacher edits a Student profile name, keep linked User in sync.
-   * User.firstName/lastName power /auth/me, Profile, and greetings.
+   * User.firstName powers /auth/me greetings (given name only).
+   * lastName is kept for composed full_name in directories, not for salutations.
    */
   async syncLinkedUserFromStudent(student: StudentEntity): Promise<void> {
     if (!student.userId) {

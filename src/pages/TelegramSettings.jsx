@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { api } from '@/api';
 import { Send, Save, CheckCircle2, TestTube, Info, Eye, Webhook, RefreshCw } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { getGreetingName } from "@/lib/display-name";
 
 const fieldCls = "w-full px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-brand/20";
 const fieldMono = `${fieldCls} font-mono`;
@@ -89,14 +90,17 @@ export default function TelegramSettings() {
     const target = testTarget.type === "student"
       ? students.find(s => s.id === testTarget.id)
       : teachers.find(t => t.id === testTarget.id);
-    const name = target?.name || "Пользователь";
+    const name = getGreetingName(target);
+    const address = name ? `Уважаемый(ая) ${name}` : 'Здравствуйте';
     switch (testTarget.msgType) {
-      case "lesson_completed": return `✅ Урок завершён!\n\nУважаемый(ая) ${name}, ваш урок успешно проведён. Осталось уроков на балансе: ${target?.lesson_balance ?? "N/A"}.`;
-      case "lesson_cancelled": return `❌ Урок отменён\n\nУважаемый(ая) ${name}, ваш урок был отменён. Для записи на новый урок обратитесь к администратору.`;
-      case "lesson_reminder": return `⏰ Напоминание об уроке\n\nУважаемый(ая) ${name}, напоминаем, что у вас скоро занятие по китайскому языку! Не забудьте подключиться вовремя.`;
-      case "balance_low": return `⚠️ Низкий баланс\n\nУважаемый(ая) ${name}, на вашем балансе осталось мало уроков. Рекомендуем пополнить баланс, чтобы не прерывать обучение.`;
-      case "payment_received": return `💳 Платёж получен\n\nУважаемый(ая) ${name}, ваш платёж успешно зачислен. Баланс уроков пополнен.`;
-      case "welcome": return `🎉 Добро пожаловать в Longhua Academy!\n\nУважаемый(ая) ${name}, рады приветствовать вас! Ваш аккаунт активирован. Желаем успехов в изучении китайского языка!`;
+      case "lesson_completed": return `✅ Урок завершён!\n\n${address}${name ? ',' : '!'} ваш урок успешно проведён. Осталось уроков на балансе: ${target?.lesson_balance ?? "N/A"}.`;
+      case "lesson_cancelled": return `❌ Урок отменён\n\n${address}${name ? ',' : '!'} ваш урок был отменён. Для записи на новый урок обратитесь к администратору.`;
+      case "lesson_reminder": return `⏰ Напоминание об уроке\n\n${address}${name ? ',' : '!'} напоминаем, что у вас скоро занятие по китайскому языку! Не забудьте подключиться вовремя.`;
+      case "balance_low": return `⚠️ Низкий баланс\n\n${address}${name ? ',' : '!'} на вашем балансе осталось мало уроков. Рекомендуем пополнить баланс, чтобы не прерывать обучение.`;
+      case "payment_received": return `💳 Платёж получен\n\n${address}${name ? ',' : '!'} ваш платёж успешно зачислен. Баланс уроков пополнен.`;
+      case "welcome": return name
+        ? `🎉 Добро пожаловать в Longhua Academy!\n\nУважаемый(ая) ${name}, рады приветствовать вас! Ваш аккаунт активирован. Желаем успехов в изучении китайского языка!`
+        : `🎉 Добро пожаловать в Longhua Academy!\n\nРады приветствовать вас! Ваш аккаунт активирован. Желаем успехов в изучении китайского языка!`;
       default: return testTarget.customMsg || "✅ Тестовое уведомление Longhua Academy успешно отправлено.";
     }
   };

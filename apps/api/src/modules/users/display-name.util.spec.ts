@@ -1,6 +1,8 @@
 import {
   composeDisplayName,
+  formatHelloGreeting,
   formatStudentProfileDisplayName,
+  getGreetingName,
   resolveNameParts,
   splitDisplayName,
 } from './display-name.util';
@@ -74,5 +76,34 @@ describe('formatStudentProfileDisplayName', () => {
 describe('composeDisplayName', () => {
   it('matches user.mapper format', () => {
     expect(composeDisplayName('Иван', 'Иванов')).toBe('Иванов Иван');
+  });
+});
+
+describe('getGreetingName / formatHelloGreeting', () => {
+  it('uses firstName, not lastName or composed full name', () => {
+    expect(
+      getGreetingName({
+        firstName: 'Иван',
+        lastName: 'Иванов',
+        name: 'Иванов Иван',
+      }),
+    ).toBe('Иван');
+    expect(
+      formatHelloGreeting({
+        firstName: 'Иван',
+        lastName: 'Иванов',
+      }),
+    ).toBe('Здравствуйте, Иван!');
+  });
+
+  it('falls back to displayName then neutral greeting', () => {
+    expect(getGreetingName({ displayName: 'Наставник' })).toBe('Наставник');
+    expect(formatHelloGreeting({ display_name: 'Наставник' })).toBe(
+      'Здравствуйте, Наставник!',
+    );
+    expect(formatHelloGreeting({ lastName: 'Иванов', name: 'Иванов' })).toBe(
+      'Здравствуйте!',
+    );
+    expect(formatHelloGreeting(null)).toBe('Здравствуйте!');
   });
 });
