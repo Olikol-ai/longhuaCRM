@@ -20,7 +20,6 @@ describe('detectListeningMedia', () => {
   });
 
   it('detects QuickTime mov via ftyp qt brand', () => {
-    // size(4) + 'ftyp' + 'qt  '
     const buf = Buffer.alloc(16, 0);
     buf.writeUInt32BE(16, 0);
     buf.write('ftyp', 4, 'ascii');
@@ -31,6 +30,24 @@ describe('detectListeningMedia', () => {
       extension: '.mov',
       mime: 'video/quicktime',
     });
+  });
+
+  it('accepts .mov even when client MIME is audio/mp4 or octet-stream', () => {
+    const moov = Buffer.alloc(16, 0);
+    moov.writeUInt32BE(16, 0);
+    moov.write('moov', 4, 'ascii');
+    expect(detectListeningMedia(moov, 'IMG_001.MOV', 'audio/mp4')?.kind).toBe('container');
+    expect(detectListeningMedia(moov, 'clip.mov', 'application/octet-stream')?.kind).toBe(
+      'container',
+    );
+    expect(detectListeningMedia(moov, 'clip.mov', '')?.extension).toBe('.mov');
+  });
+
+  it('detects classic QuickTime moov atom without ftyp when unlabeled', () => {
+    const moov = Buffer.alloc(16, 0);
+    moov.writeUInt32BE(16, 0);
+    moov.write('moov', 4, 'ascii');
+    expect(detectListeningMedia(moov, 'recording', 'video/quicktime')?.kind).toBe('container');
   });
 
   it('detects m4a audio brand inside ftyp', () => {

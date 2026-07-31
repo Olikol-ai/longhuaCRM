@@ -26,7 +26,7 @@ export const LISTENING_AUDIO_EXTENSIONS = new Set([
 ]);
 
 /** Video/media containers — audio track is extracted; video is never shown to students. */
-export const LISTENING_CONTAINER_EXTENSIONS = new Set(['.mov', '.mp4']);
+export const LISTENING_CONTAINER_EXTENSIONS = new Set(['.mov', '.mp4', '.m4v', '.3gp']);
 
 export const LISTENING_UPLOAD_EXTENSIONS = new Set([
   ...LISTENING_AUDIO_EXTENSIONS,
@@ -43,30 +43,8 @@ const AUDIO_MIME_BY_EXT: Record<string, string> = {
   '.webm': 'audio/webm',
 };
 
-const ALLOWED_AUDIO_MIMES = new Set([
-  'audio/mpeg',
-  'audio/mp3',
-  'audio/wav',
-  'audio/x-wav',
-  'audio/wave',
-  'audio/ogg',
-  'audio/opus',
-  'application/ogg',
-  'audio/mp4',
-  'audio/aac',
-  'audio/x-m4a',
-  'audio/m4a',
-  'audio/webm',
-]);
-
-const ALLOWED_CONTAINER_MIMES = new Set([
-  'video/quicktime',
-  'video/mp4',
-  'video/x-m4v',
-  'application/mp4',
-  // Some phones/browsers send generic types for .mov
-  'application/octet-stream',
-]);
+const UNSUPPORTED_MEDIA_MESSAGE =
+  'Файл не содержит аудиодорожку или имеет неподдерживаемый формат.';
 
 export type ListeningUploadFile = {
   buffer: Buffer;
@@ -106,8 +84,41 @@ function readFourCC(buffer: Buffer, offset: number): string {
   return buffer.subarray(offset, offset + 4).toString('ascii');
 }
 
+/** Classic QuickTime / ISO BMFF container atoms (may lack ftyp). */
+function looksLikeQuickTimeOrIsoContainer(buffer: Buffer): boolean {
+  if (buffer.length < 8) return false;
+  const type = readFourCC(buffer, 4).toLowerCase();
+  return (
+    type === 'ftyp' ||
+    type === 'moov' ||
+    type === 'mdat' ||
+    type === 'free' ||
+    type === 'wide' ||
+    type === 'skip' ||
+    type === 'pnot' ||
+    type === 'udta' ||
+    type === 'uuid'
+  );
+}
+
+function normalizeUploadName(originalname?: string | null): string {
+  const raw = String(originalname || '').trim();
+  if (!raw) return 'listening.bin';
+  // Multer often decodes UTF-8 filenames as latin1 — recover when possible.
+  try {
+    const recovered = Buffer.from(raw, 'latin1').toString('utf8');
+    if (recovered && !recovered.includes('\uFFFD') && /\.[a-z0-9]{2,5}$/i.test(recovered)) {
+      return recovered;
+    }
+  } catch {
+    // keep raw
+  }
+  return raw;
+}
+
 /**
  * Detect real media kind from magic bytes (not just client MIME / extension).
+ * .mov/.mp4 are always treated as containers — browsers may send audio/* or octet-stream.
  */
 export function detectListeningMedia(
   buffer: Buffer,
@@ -115,8 +126,24 @@ export function detectListeningMedia(
   clientMime?: string | null,
 ): DetectedListeningMedia | null {
   if (!buffer?.length) return null;
-  const ext = extname(originalname || '').toLowerCase();
+  const name = normalizeUploadName(originalname);
+  const ext = extname(name).toLowerCase();
   const mime = String(clientMime || '').toLowerCase().trim();
+
+  // Explicit media-container extensions win over misleading client MIME
+  // (iPhone/Safari may send audio/mp4 or application/octet-stream for .mov).
+  if (LISTENING_CONTAINER_EXTENSIONS.has(ext)) {
+    return {
+      kind: 'container',
+      extension: ext === '.mp4' || ext === '.m4v' ? (ext === '.m4v' ? '.m4v' : '.mp4') : ext === '.3gp' ? '.3gp' : '.mov',
+      mime:
+        mime.startsWith('video/') && mime !== 'application/octet-stream'
+          ? mime
+          : ext === '.mp4' || ext === '.m4v'
+            ? 'video/mp4'
+            : 'video/quicktime',
+    };
+  }
 
   // Ogg / Opus
   if (buffer.length >= 4 && buffer.subarray(0, 4).toString('ascii') === 'OggS') {
@@ -167,47 +194,59 @@ export function detectListeningMedia(
     ) {
       return { kind: 'audio', extension: '.m4a', mime: 'audio/mp4' };
     }
-    // Generic MP4 / iPhone movie often uses isom/mp42 without qt
     if (
-      LISTENING_CONTAINER_EXTENSIONS.has(ext) ||
       mime.startsWith('video/') ||
       brand.startsWith('mp4') ||
       brandsBlob.includes('isom') ||
       brandsBlob.includes('mp41') ||
       brandsBlob.includes('mp42') ||
-      brandsBlob.includes('avc1')
+      brandsBlob.includes('avc1') ||
+      brandsBlob.includes('3gp')
     ) {
-      return {
-        kind: 'container',
-        extension: ext === '.mov' ? '.mov' : '.mp4',
-        mime: ext === '.mov' ? 'video/quicktime' : 'video/mp4',
-      };
+      return { kind: 'container', extension: '.mp4', mime: 'video/mp4' };
     }
-    // Ambiguous ftyp — prefer container when extension says so, else m4a audio
     if (LISTENING_AUDIO_EXTENSIONS.has(ext)) {
       return { kind: 'audio', extension: ext === '.aac' ? '.aac' : '.m4a', mime: 'audio/mp4' };
     }
+    // Ambiguous ftyp without extension — extract as container (audio-only still works).
     return { kind: 'container', extension: '.mp4', mime: 'video/mp4' };
   }
 
-  // Fallback: trusted extension + client MIME pairs
-  if (LISTENING_AUDIO_EXTENSIONS.has(ext) && (!mime || ALLOWED_AUDIO_MIMES.has(mime) || mime.startsWith('audio/'))) {
+  // Classic QuickTime without ftyp, or unlabeled phone capture
+  if (looksLikeQuickTimeOrIsoContainer(buffer)) {
+    if (mime.startsWith('video/') || mime === 'application/octet-stream' || !mime) {
+      return {
+        kind: 'container',
+        extension: '.mov',
+        mime: mime.startsWith('video/') ? mime : 'video/quicktime',
+      };
+    }
+  }
+
+  // Fallback: trusted audio extension (+ optional audio MIME)
+  if (
+    LISTENING_AUDIO_EXTENSIONS.has(ext) &&
+    (!mime ||
+      mime.startsWith('audio/') ||
+      mime === 'application/ogg' ||
+      mime === 'application/octet-stream')
+  ) {
     return {
       kind: 'audio',
       extension: ext,
-      mime: ALLOWED_AUDIO_MIMES.has(mime) ? mime : AUDIO_MIME_BY_EXT[ext] || 'application/octet-stream',
+      mime: mime.startsWith('audio/') ? mime : AUDIO_MIME_BY_EXT[ext] || 'application/octet-stream',
     };
   }
-  if (
-    LISTENING_CONTAINER_EXTENSIONS.has(ext) &&
-    (!mime || ALLOWED_CONTAINER_MIMES.has(mime) || mime.startsWith('video/'))
-  ) {
+
+  // Extension-less but client says video/* — accept as container for ffmpeg extract
+  if (mime === 'video/quicktime' || mime === 'video/mp4' || mime === 'video/3gpp') {
     return {
       kind: 'container',
-      extension: ext,
-      mime: mime && mime !== 'application/octet-stream' ? mime : ext === '.mov' ? 'video/quicktime' : 'video/mp4',
+      extension: mime === 'video/mp4' ? '.mp4' : '.mov',
+      mime,
     };
   }
+
   return null;
 }
 
@@ -230,16 +269,14 @@ function runFfmpeg(args: string[]): Promise<void> {
         lower.includes('does not contain any stream') ||
         lower.includes('stream map') ||
         lower.includes('matches no streams') ||
-        lower.includes('output file does not contain any stream')
+        lower.includes('output file does not contain any stream') ||
+        lower.includes('could not find codec') ||
+        lower.includes('invalid data found')
       ) {
-        reject(new BadRequestException('В файле нет аудиодорожки'));
+        reject(new BadRequestException(UNSUPPORTED_MEDIA_MESSAGE));
         return;
       }
-      reject(
-        new BadRequestException(
-          'Не удалось извлечь аудио из файла. Проверьте, что в записи есть звук.',
-        ),
-      );
+      reject(new BadRequestException(UNSUPPORTED_MEDIA_MESSAGE));
     });
   });
 }
@@ -273,11 +310,11 @@ export async function extractListeningAudioToMp3(
       outputPath,
     ]);
     if (!existsSync(outputPath)) {
-      throw new BadRequestException('В файле нет аудиодорожки');
+      throw new BadRequestException(UNSUPPORTED_MEDIA_MESSAGE);
     }
     const out = readFileSync(outputPath);
     if (!out.length) {
-      throw new BadRequestException('В файле нет аудиодорожки');
+      throw new BadRequestException(UNSUPPORTED_MEDIA_MESSAGE);
     }
     return out;
   } finally {
@@ -300,16 +337,14 @@ export async function storeListeningAudio(
     throw new BadRequestException('Аудиофайл обязателен');
   }
 
-  const detected = detectListeningMedia(file.buffer, file.originalname, file.mimetype);
+  const originalFilename = basename(normalizeUploadName(file.originalname));
+  const detected = detectListeningMedia(file.buffer, originalFilename, file.mimetype);
   if (!detected) {
-    throw new BadRequestException(
-      'Поддерживаются: mp3, wav, ogg, m4a, aac и медиа mov/mp4 (будет взята аудиодорожка)',
-    );
+    throw new BadRequestException(UNSUPPORTED_MEDIA_MESSAGE);
   }
 
   const dir = listeningDir();
   mkdirSync(dir, { recursive: true });
-  const originalFilename = basename(file.originalname || `listening${detected.extension}`);
 
   // Prefer a single playback format (mp3). Keep ogg as-is (also preferred).
   const keepAsIs =

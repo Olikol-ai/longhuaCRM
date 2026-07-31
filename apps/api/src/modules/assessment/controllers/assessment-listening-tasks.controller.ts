@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -213,6 +214,11 @@ export class AssessmentListeningTasksController {
     @Param('id', ParseUUIDPipe) id: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException(
+        'Файл не получен. Выберите mp3, wav, ogg, m4a, aac или mov/mp4.',
+      );
+    }
     return this.listeningTasks.uploadAudio(user, id, {
       buffer: file.buffer,
       originalname: file.originalname,
