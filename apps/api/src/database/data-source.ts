@@ -67,6 +67,7 @@ import { ManualQuestionAudioAndReview1744400000000 } from './migrations/17444000
 import { SubjectSystemChats1744500000000 } from './migrations/1744500000000-SubjectSystemChats';
 import { ReadingListeningTaskVocabulary1744600000000 } from './migrations/1744600000000-ReadingListeningTaskVocabulary';
 import { ChatMemberLastReadAtAndUnreadRepair1744700000000 } from './migrations/1744700000000-ChatMemberLastReadAtAndUnreadRepair';
+import { ChatUnreadTimestampPrecisionRepair1744800000000 } from './migrations/1744800000000-ChatUnreadTimestampPrecisionRepair';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -137,6 +138,7 @@ export default new DataSource({
     SubjectSystemChats1744500000000,
     ReadingListeningTaskVocabulary1744600000000,
     ChatMemberLastReadAtAndUnreadRepair1744700000000,
+    ChatUnreadTimestampPrecisionRepair1744800000000,
   ],
   synchronize: false,
 });

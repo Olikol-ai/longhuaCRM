@@ -1,4 +1,4 @@
-import { ForbiddenException, GoneException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { ForbiddenException, GoneException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { ChatAccessService } from '../../../common/access/chat-access.service';
@@ -31,6 +31,8 @@ export type ChatListResponse = {
 
 @Injectable()
 export class ChatsService {
+  private readonly logger = new Logger(ChatsService.name);
+
   constructor(
     @InjectRepository(ChatEntity) private readonly chatRepo: Repository<ChatEntity>,
     @InjectRepository(ChatMemberEntity) private readonly memberRepo: Repository<ChatMemberEntity>,
@@ -134,6 +136,9 @@ export class ChatsService {
     chatId: string,
     messageId?: string | null,
   ): Promise<{ lastReadMessageId: string | null; unreadCount: number }> {
+    this.logger.log(
+      `markRead start userId=${actor.sub} chatId=${chatId} messageId=${messageId ?? 'latest'}`,
+    );
     await this.access.assertCanRead(actor, chatId);
     // Readers (incl. school/subject members) must have a ChatMember row for last_read.
     await this.membershipSync.addMember(chatId, actor.sub);
@@ -154,6 +159,9 @@ export class ChatsService {
     if (!target) {
       const unreadCount = await this.unreadCount(actor, chatId);
       await this.emitUnreadSummary(actor);
+      this.logger.log(
+        `markRead empty-chat userId=${actor.sub} chatId=${chatId} unread=${unreadCount}`,
+      );
       return { lastReadMessageId: null, unreadCount };
     }
 
@@ -170,6 +178,10 @@ export class ChatsService {
     if (!this.isMessageAfterOrEqual(target, currentCursor)) {
       const unreadCount = await this.countUnread(chatId, member, actor.sub);
       await this.emitUnreadSummary(actor);
+      this.logger.log(
+        `markRead no-backwards userId=${actor.sub} chatId=${chatId} ` +
+          `keepLastRead=${member.lastReadMessageId} target=${target.id} unread=${unreadCount}`,
+      );
       return { lastReadMessageId: member.lastReadMessageId, unreadCount };
     }
 
@@ -183,12 +195,21 @@ export class ChatsService {
       },
     );
 
+    // Compare entirely in Postgres — JS Date loses microsecond precision and would
+    // skip the cursor message when inserting receipts (created_at .722391 > Date .722).
     const toMark = await this.messageRepo
       .createQueryBuilder('message')
       .select(['message.id'])
       .where('message.chatId = :chatId', { chatId })
       .andWhere('message.deletedAt IS NULL')
-      .andWhere('message.createdAt <= :createdAt', { createdAt: target.createdAt })
+      .andWhere(
+        `(message.created_at, message.id) <= (
+           SELECT cursor.created_at, cursor.id
+           FROM chat_messages cursor
+           WHERE cursor.id = :targetId
+         )`,
+        { targetId: target.id },
+      )
       .getMany();
 
     if (toMark.length > 0) {
@@ -211,6 +232,12 @@ export class ChatsService {
     });
     const unreadCount = await this.countUnread(chatId, refreshed, actor.sub);
     await this.emitUnreadSummary(actor);
+    this.logger.log(
+      `markRead done userId=${actor.sub} chatId=${chatId} ` +
+        `lastReadMessageId=${refreshed?.lastReadMessageId ?? target.id} ` +
+        `lastReadAt=${refreshed?.lastReadAt?.toISOString?.() ?? 'null'} ` +
+        `latestTargetId=${target.id} unread=${unreadCount} receiptsMarked=${toMark.length}`,
+    );
     return {
       lastReadMessageId: refreshed?.lastReadMessageId ?? target.id,
       unreadCount,
@@ -240,6 +267,9 @@ export class ChatsService {
   private async emitUnreadSummary(actor: DomainAccessActor): Promise<void> {
     try {
       const summary = await this.unreadSummary(actor);
+      this.logger.log(
+        `chat.unread emit userId=${actor.sub} total=${summary.total} byChat=${JSON.stringify(summary.byChat)}`,
+      );
       this.gateway?.emitToUser(actor.sub, 'chat.unread', summary);
     } catch {
       // ignore badge fan-out failures
@@ -396,18 +426,48 @@ export class ChatsService {
       );
     }
 
-    // Prefer FK id (re-loaded), never a stale lastReadMessage relation from save().
-    const lastRead = await this.resolveReadCursor(chatId, member);
-
-    if (lastRead?.id) {
+    /**
+     * Source of truth: ChatMember.last_read_message_id (not ReadReceipt).
+     *
+     * CRITICAL: never pass JS Date into Postgres created_at comparisons.
+     * node-pg truncates timestamptz to milliseconds, so a cursor message with
+     * created_at=….722391 is counted as unread against Date(….722).
+     * Keep the row comparison entirely inside PostgreSQL.
+     */
+    if (member.lastReadMessageId) {
       query.andWhere(
-        '(message.createdAt > :readAt OR (message.createdAt = :readAt AND message.id > :readId))',
-        { readAt: lastRead.createdAt, readId: lastRead.id },
+        `(message.created_at, message.id) > (
+           SELECT cursor.created_at, cursor.id
+           FROM chat_messages cursor
+           WHERE cursor.id = :readId AND cursor.chat_id = :chatId
+         )`,
+        { readId: member.lastReadMessageId, chatId },
       );
-    } else if (lastRead?.createdAt) {
-      query.andWhere('message.createdAt > :readAt', { readAt: lastRead.createdAt });
+    } else if (member.lastReadAt) {
+      // Fallback when FK was cleared (message deleted): compare against stored column.
+      query.andWhere(
+        `message.created_at > (
+           SELECT cm.last_read_at FROM chat_members cm
+           WHERE cm.chat_id = :chatId AND cm.user_id = :memberUserId
+         )`,
+        { chatId, memberUserId: member.userId },
+      );
     }
 
-    return query.getCount();
+    const unread = await query.getCount();
+
+    const latest = await this.messageRepo.findOne({
+      where: { chatId, deletedAt: IsNull() },
+      order: { createdAt: 'DESC', id: 'DESC' },
+      select: ['id', 'createdAt'],
+    });
+    this.logger.debug(
+      `countUnread userId=${viewerUserId ?? member.userId} chatId=${chatId} ` +
+        `lastReadMessageId=${member.lastReadMessageId} ` +
+        `lastReadAt=${member.lastReadAt ? new Date(member.lastReadAt).toISOString() : 'null'} ` +
+        `latestMessageId=${latest?.id ?? 'null'} unread=${unread}`,
+    );
+
+    return unread;
   }
 }
