@@ -169,7 +169,7 @@ export class ChatMessagesService {
   }
 
   async broadcastCreated(message: ChatMessageEntity): Promise<void> {
-    this.gateway?.emitMessageCreated(message);
+    await this.gateway?.emitMessageCreated(message);
     await this.notifyOfflineMembers(message);
   }
 
@@ -313,7 +313,7 @@ export class ChatMessagesService {
 
     const message = (await this.getHydrated(saved.id)) ?? saved;
     if (options.broadcast !== false) {
-      this.gateway?.emitMessageCreated(message);
+      await this.gateway?.emitMessageCreated(message);
       await this.notifyOfflineMembers(message);
     }
     return message;

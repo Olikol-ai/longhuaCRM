@@ -144,15 +144,8 @@ export default function Chats() {
           Object.entries(previous).map(([kind, chats]) => [
             kind,
             chats.map((chat) => {
-              // While a chat is open we treat it as read unless the server
-              // explicitly still reports unread (new message arrived).
-              const serverUnread = byChat?.[chat.id];
               const unreadCount =
-                chat.id === openChatId
-                  ? typeof serverUnread === 'number'
-                    ? serverUnread
-                    : 0
-                  : serverUnread || 0;
+                chat.id === openChatId ? 0 : byChat?.[chat.id] || 0;
               return normalizeChat({
                 ...chat,
                 unreadCount,
@@ -304,13 +297,9 @@ export default function Chats() {
               Object.entries(previous).map(([kind, chats]) => [
                 kind,
                 chats.map((chat) => {
-                  const serverUnread = byChat?.[chat.id];
+                  // Open chat stays visually read; markRead is the source of truth.
                   const unreadCount =
-                    chat.id === openChatId
-                      ? typeof serverUnread === 'number'
-                        ? serverUnread
-                        : 0
-                      : serverUnread || 0;
+                    chat.id === openChatId ? 0 : byChat?.[chat.id] || 0;
                   return normalizeChat({
                     ...chat,
                     unreadCount,

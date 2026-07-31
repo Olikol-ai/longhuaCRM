@@ -7,7 +7,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { Inject, OnModuleDestroy, OnModuleInit, Optional, forwardRef } from '@nestjs/common';
+import { Inject, Logger, OnModuleDestroy, OnModuleInit, Optional, forwardRef } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Server, Socket } from 'socket.io';
@@ -16,7 +16,7 @@ import { ChatAccessService } from '../../../common/access/chat-access.service';
 import { entityToApiRecord } from '../../../common/utils/api-record.util';
 import { JwtPayload } from '../../auth/auth.service';
 import { UserEntity } from '../../users/entities/user.entity';
-import { ChatMessageEntity } from '../entities';
+import { ChatMemberEntity, ChatMessageEntity } from '../entities';
 import { ChatPresenceService } from '../services/chat-presence.service';
 import { ChatsService } from '../services/chats.service';
 
@@ -37,6 +37,7 @@ export class ChatGateway
   @WebSocketServer()
   server!: Server;
 
+  private readonly logger = new Logger(ChatGateway.name);
   private readonly typing = new Map<TypingKey, NodeJS.Timeout>();
   private sweepTimer: NodeJS.Timeout | null = null;
 
@@ -45,6 +46,7 @@ export class ChatGateway
     private readonly access: ChatAccessService,
     private readonly presence: ChatPresenceService,
     @InjectRepository(UserEntity) private readonly userRepo: Repository<UserEntity>,
+    @InjectRepository(ChatMemberEntity) private readonly memberRepo: Repository<ChatMemberEntity>,
     @Optional()
     @Inject(forwardRef(() => ChatsService))
     private readonly chats?: ChatsService,
@@ -199,10 +201,72 @@ export class ChatGateway
     }
   }
 
-  emitMessageCreated(message: ChatMessageEntity): void {
-    this.server
-      ?.to(`chat:${message.chatId}`)
-      .emit('message.created', entityToApiRecord(message));
+  /**
+   * Broadcast a new message to:
+   * 1) chat room (clients currently viewing the conversation);
+   * 2) each member's personal user room (so Layout badge / Chats list update
+   *    even when the recipient is on another CRM page and never joined chat:*).
+   * Also pushes chat.unread to recipients who are not currently in the chat room.
+   */
+  async emitMessageCreated(message: ChatMessageEntity): Promise<void> {
+    const payload = entityToApiRecord(message);
+    const chatId = message.chatId;
+    this.server?.to(`chat:${chatId}`).emit('message.created', payload);
+
+    const members = await this.memberRepo.find({ where: { chatId } });
+    const recipientIds = members
+      .map((row) => row.userId)
+      .filter((userId) => userId && userId !== message.senderUserId);
+
+    let viewingUserIds = new Set<string>();
+    try {
+      const socketsInChat = await this.server.in(`chat:${chatId}`).fetchSockets();
+      viewingUserIds = new Set(
+        socketsInChat
+          .map((sock) => (sock.data?.actor as JwtPayload | undefined)?.sub)
+          .filter((id): id is string => Boolean(id)),
+      );
+    } catch {
+      viewingUserIds = new Set();
+    }
+
+    this.logger.log(
+      `message.created chatId=${chatId} sender=${message.senderUserId ?? 'system'} ` +
+        `recipients=${recipientIds.length} viewing=${viewingUserIds.size}`,
+    );
+
+    for (const member of members) {
+      // Personal room — always connected while the CRM session is alive.
+      this.emitToUser(member.userId, 'message.created', payload);
+    }
+
+    if (!this.chats || !message.senderUserId) return;
+
+    for (const userId of recipientIds) {
+      // Viewer already gets live message + local markRead; avoid racing unread=1.
+      if (viewingUserIds.has(userId)) continue;
+      try {
+        const user = await this.userRepo.findOne({
+          where: { id: userId },
+          select: ['id', 'email', 'role'],
+        });
+        if (!user) continue;
+        const actor: JwtPayload = {
+          sub: user.id,
+          email: user.email,
+          role: user.role,
+        };
+        const summary = await this.chats.unreadSummary(actor);
+        this.logger.log(
+          `chat.unread emit userId=${userId} chatId=${chatId} total=${summary.total}`,
+        );
+        this.emitToUser(userId, 'chat.unread', summary);
+      } catch (err) {
+        this.logger.warn(
+          `chat.unread fan-out failed userId=${userId} chatId=${chatId}: ${String(err)}`,
+        );
+      }
+    }
   }
 
   emitMessageUpdated(message: ChatMessageEntity): void {
