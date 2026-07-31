@@ -13,7 +13,7 @@ import {
   AssessmentResultBreakdownEntity,
   AssessmentResultEntity,
 } from '../entities';
-import { EvaluationType, QuestionType, ResultStatus } from '../enums';
+import { EvaluationType, QuestionType, ResultStatus, isManualReviewQuestionType } from '../enums';
 import {
   ASSESSMENT_RESULT_PASSED,
   ASSESSMENT_RESULT_PENDING_REVIEW,
@@ -45,7 +45,13 @@ export type ReviewItemView = {
   type: QuestionType;
   stem: string;
   points: number;
+  explanation: string | null;
   textAnswer: string | null;
+  hasAudio: boolean;
+  audioUrl: string | null;
+  audioMime: string | null;
+  audioOriginalFilename: string | null;
+  audioDurationMs: number | null;
   selectedAnswerSnapshotIds: string[];
   answerOptions: Array<{ snapshotId: string; text: string }>;
   requiresManualReview: boolean;
@@ -293,9 +299,9 @@ export class ResultService {
           `Unknown question snapshot: ${row.questionSnapshotId}`,
         );
       }
-      if (qSnap.type !== QuestionType.ShortText) {
+      if (!isManualReviewQuestionType(qSnap.type)) {
         throw new BadRequestException(
-          'Only short_text answers can be scored during manual review',
+          'Only text/speaking answers can be scored during manual review',
         );
       }
 
@@ -382,7 +388,7 @@ export class ResultService {
     const answerByQ = new Map(attemptAnswers.map((a) => [a.questionSnapshotId, a]));
 
     for (const qSnap of qSnaps) {
-      if (qSnap.type !== QuestionType.ShortText) continue;
+      if (!isManualReviewQuestionType(qSnap.type)) continue;
       const ans = answerByQ.get(qSnap.id);
       if (!ans || ans.score == null || ans.score === '') {
         throw new BadRequestException(
@@ -425,7 +431,7 @@ export class ResultService {
       const ans = answerByQ.get(qSnap.id);
       let earned = 0;
 
-      if (qSnap.type === QuestionType.ShortText) {
+      if (isManualReviewQuestionType(qSnap.type)) {
         earned = Number(ans?.score ?? 0);
       } else if (ans?.score != null && ans.score !== '') {
         earned = Number(ans.score);
@@ -501,10 +507,16 @@ export class ResultService {
   }
 
   private assertCanPerformReview(actor: DomainAccessActor): void {
-    if (this.access.isAdmin(actor) || this.access.isTeacher(actor)) {
+    if (
+      this.access.isAdmin(actor) ||
+      this.access.isTeacher(actor) ||
+      this.access.isTutor(actor)
+    ) {
       return;
     }
-    throw new ForbiddenException('Forbidden: only teachers can review results');
+    throw new ForbiddenException(
+      'Forbidden: only the assigning teacher/tutor or admin can review results',
+    );
   }
 
   private assertPendingReview(result: AssessmentResultEntity): void {
@@ -553,7 +565,8 @@ export class ResultService {
         : [];
       const answerSnaps =
         await this.attempts.findAnswerSnapshotsByQuestionSnapshotId(qSnap.id);
-      const requiresManualReview = qSnap.type === QuestionType.ShortText;
+      const requiresManualReview = isManualReviewQuestionType(qSnap.type);
+      const hasAudio = Boolean(attemptAnswer?.audioStorageKey);
 
       items.push({
         questionSnapshotId: qSnap.id,
@@ -562,7 +575,15 @@ export class ResultService {
         type: qSnap.type,
         stem: qSnap.stem,
         points: Number(qSnap.points),
+        explanation: qSnap.explanation ?? null,
         textAnswer: attemptAnswer?.textAnswer ?? null,
+        hasAudio,
+        audioUrl: hasAudio
+          ? `/api/assessment/attempts/${attemptId}/answers/${attemptAnswer!.id}/audio`
+          : null,
+        audioMime: attemptAnswer?.audioMime ?? null,
+        audioOriginalFilename: attemptAnswer?.audioOriginalFilename ?? null,
+        audioDurationMs: attemptAnswer?.audioDurationMs ?? null,
         selectedAnswerSnapshotIds: selectedIds,
         answerOptions: answerSnaps.map((a) => ({
           snapshotId: a.id,

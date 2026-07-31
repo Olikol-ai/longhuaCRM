@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Loader2 } from 'lucide-react';
-import { api } from '@/api';
+import { api, getToken } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -25,6 +25,48 @@ function reviewStatusClass(status) {
     return 'bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100';
   }
   return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200';
+}
+
+function ReviewAudioPlayer({ url }) {
+  const [src, setSrc] = useState(null);
+
+  useEffect(() => {
+    let objectUrl = null;
+    let cancelled = false;
+    if (!url) {
+      setSrc(null);
+      return undefined;
+    }
+    (async () => {
+      try {
+        const token = getToken();
+        const res = await fetch(url, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) throw new Error('audio');
+        const blob = await res.blob();
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setSrc(objectUrl);
+      } catch {
+        if (!cancelled) setSrc(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [url]);
+
+  if (!url) return null;
+  if (!src) {
+    return <p className="text-xs text-slate-500">Загрузка аудио…</p>;
+  }
+  return (
+    <audio controls className="w-full" preload="metadata" src={src}>
+      Ваш браузер не поддерживает аудио.
+    </audio>
+  );
 }
 
 export default function TeacherAssessmentReviewDetail() {
@@ -305,12 +347,32 @@ export default function TeacherAssessmentReviewDetail() {
                 </ul>
               )}
 
+              {item.explanation ? (
+                <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-600 px-3 py-2 text-sm">
+                  <p className="text-xs text-slate-500 mb-1">
+                    {item.type === 'speaking'
+                      ? 'Критерии проверки'
+                      : 'Рекомендуемый ответ / заметки'}
+                  </p>
+                  <p className="whitespace-pre-wrap text-slate-700 dark:text-slate-200">
+                    {item.explanation}
+                  </p>
+                </div>
+              ) : null}
+
               {item.text_answer != null && item.text_answer !== '' && (
                 <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-sm">
                   <p className="text-xs text-slate-500 mb-1">Ответ ученика</p>
                   <p className="whitespace-pre-wrap text-slate-900 dark:text-white">
                     {item.text_answer}
                   </p>
+                </div>
+              )}
+
+              {(item.has_audio || item.audio_url) && (
+                <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-sm space-y-2">
+                  <p className="text-xs text-slate-500">Устный ответ</p>
+                  <ReviewAudioPlayer url={item.audio_url} />
                 </div>
               )}
 

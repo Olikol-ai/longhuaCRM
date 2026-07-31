@@ -11,6 +11,7 @@ import { userFacingError } from '@/lib/userFacingError';
 import {
   CONTENT_TASK_TYPE_LABEL,
   QUESTION_TYPE_LABEL,
+  isManualReviewQuestionType,
   unwrapItems,
 } from '@/lib/assessment-admin';
 
@@ -18,8 +19,8 @@ const ACTIVITY_OPTIONS = [
   { value: 'test', label: 'Тест' },
   { value: 'reading', label: 'Reading' },
   { value: 'listening', label: 'Listening' },
-  { value: 'speaking', label: 'Speaking (скоро)' },
-  { value: 'writing', label: 'Writing (скоро)' },
+  { value: 'speaking', label: 'Speaking' },
+  { value: 'writing', label: 'Writing (текст)' },
 ];
 
 function emptyTask(kind = 'question') {
@@ -106,6 +107,17 @@ export default function HomeworkEditor() {
       }
     })();
   }, [id]);
+
+  const filteredLibraryQuestions = libraryQuestions.filter((q) => {
+    if (form.activity_kind === 'speaking') return q.type === 'speaking';
+    if (form.activity_kind === 'writing') {
+      return q.type === 'short_text' || q.type === 'translation';
+    }
+    if (form.activity_kind === 'test') {
+      return !isManualReviewQuestionType(q.type) || q.type === 'short_text' || q.type === 'translation' || q.type === 'speaking';
+    }
+    return true;
+  });
 
   const updateTask = (localKey, patch) => {
     setForm((prev) => ({
@@ -291,11 +303,7 @@ export default function HomeworkEditor() {
               className="w-full px-3 py-2 text-sm border rounded-lg"
             >
               {ACTIVITY_OPTIONS.map((o) => (
-                <option
-                  key={o.value}
-                  value={o.value}
-                  disabled={o.value === 'speaking' || o.value === 'writing'}
-                >
+                <option key={o.value} value={o.value}>
                   {o.label}
                 </option>
               ))}
@@ -369,7 +377,7 @@ export default function HomeworkEditor() {
                   className="w-full px-3 py-2 text-sm border rounded-lg"
                 >
                   <option value="">Выберите…</option>
-                  {libraryQuestions.map((q) => (
+                  {filteredLibraryQuestions.map((q) => (
                     <option key={q.id} value={q.id}>
                       [{QUESTION_TYPE_LABEL[q.type] || q.type}] {q.stem.slice(0, 80)}
                     </option>

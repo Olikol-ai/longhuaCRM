@@ -1,15 +1,30 @@
 import { getToken } from '@/api';
 import { assessment } from '@/api/assessment.api';
+import SpeakingAnswerPanel from '@/components/assessment/SpeakingAnswerPanel';
 
 const TYPE_LABEL = {
   single_choice: 'Один ответ',
   multiple_choice: 'Несколько ответов',
   listening: 'Аудирование',
-  short_text: 'Короткий ответ',
+  short_text: 'Текстовый ответ',
+  translation: 'Развёрнутый ответ',
+  speaking: 'Speaking',
 };
 
 function sortedAnswers(answers = []) {
   return [...answers].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+}
+
+function optionId(opt) {
+  return opt.snapshot_id || opt.id;
+}
+
+function optionText(opt) {
+  return opt.text || opt.body || '';
+}
+
+function questionId(question) {
+  return question.snapshot_id || question.id;
 }
 
 function AudioAttachment({ attachment }) {
@@ -22,7 +37,6 @@ function AudioAttachment({ attachment }) {
   if (!src) return null;
 
   const token = getToken();
-  // Browser <audio> cannot set Authorization; prefer signed url from API when present.
   if (attachment?.url) {
     return (
       <audio controls className="w-full max-w-full mt-3" preload="metadata" src={attachment.url}>
@@ -41,7 +55,6 @@ function AudioAttachment({ attachment }) {
         rel="noreferrer"
         onClick={(e) => {
           if (!token) return;
-          // Fetch with auth and play via blob when URL is protected API path
           e.preventDefault();
           fetch(src, { headers: { Authorization: `Bearer ${token}` } })
             .then((r) => r.blob())
@@ -61,6 +74,34 @@ function AudioAttachment({ attachment }) {
   );
 }
 
+function ImageAttachment({ attachment }) {
+  const src =
+    attachment?.url ||
+    (attachment?.id
+      ? assessment.downloadAttachmentUrl(attachment.id, 'inline')
+      : null);
+  if (!src) return null;
+  return (
+    <img
+      src={src}
+      alt=""
+      className="mt-3 max-h-72 rounded-xl border border-slate-200 dark:border-slate-700 object-contain"
+      onError={(e) => {
+        // Auth-protected images: try blob fetch
+        const token = getToken();
+        if (!token || e.currentTarget.dataset.retried) return;
+        e.currentTarget.dataset.retried = '1';
+        fetch(src, { headers: { Authorization: `Bearer ${token}` } })
+          .then((r) => r.blob())
+          .then((blob) => {
+            e.currentTarget.src = URL.createObjectURL(blob);
+          })
+          .catch(() => {});
+      }}
+    />
+  );
+}
+
 export default function QuestionCard({
   question,
   index,
@@ -68,14 +109,19 @@ export default function QuestionCard({
   onSingleChoice,
   onToggleMultiple,
   onTextChange,
+  onSpeakingUpload,
+  readOnly = false,
 }) {
   if (!question) return null;
 
   const type = question.type;
+  const qid = questionId(question);
   const selected = localAnswer?.selected_answer_snapshot_ids || [];
   const text = localAnswer?.text ?? '';
   const options = sortedAnswers(question.answers);
   const attachments = Array.isArray(question.attachments) ? question.attachments : [];
+  const isTextType = type === 'short_text' || type === 'translation';
+  const textRows = type === 'translation' ? 10 : 6;
 
   return (
     <div
@@ -102,12 +148,17 @@ export default function QuestionCard({
         {question.stem}
       </p>
 
-      {attachments.map((att) =>
-        att.kind === 'audio' || !att.kind ? (
-          <AudioAttachment key={att.id || att.url} attachment={att} />
-        ) : (
+      {attachments.map((att) => {
+        const key = att.id || att.url;
+        if (att.kind === 'image') {
+          return <ImageAttachment key={key} attachment={att} />;
+        }
+        if (att.kind === 'audio' || !att.kind) {
+          return <AudioAttachment key={key} attachment={att} />;
+        }
+        return (
           <a
-            key={att.id || att.url}
+            key={key}
             href={att.url || assessment.downloadAttachmentUrl(att.id)}
             className="block text-sm text-brand dark:text-brand underline"
             target="_blank"
@@ -115,17 +166,18 @@ export default function QuestionCard({
           >
             Вложение
           </a>
-        ),
-      )}
+        );
+      })}
 
       {(type === 'single_choice' || type === 'listening') && (
-        <fieldset className="space-y-2">
+        <fieldset className="space-y-2" disabled={readOnly}>
           <legend className="sr-only">Варианты ответа</legend>
           {options.map((opt) => {
-            const checked = selected.includes(opt.snapshot_id);
+            const oid = optionId(opt);
+            const checked = selected.includes(oid);
             return (
               <label
-                key={opt.snapshot_id}
+                key={oid}
                 className={`flex items-start gap-3 rounded-xl border p-3.5 min-h-touch cursor-pointer transition-colors ${
                   checked
                     ? 'border-brand bg-brand-soft dark:bg-brand-soft/40 dark:border-brand/40'
@@ -135,12 +187,12 @@ export default function QuestionCard({
                 <input
                   type="radio"
                   className="mt-1 h-5 w-5 shrink-0 accent-brand"
-                  name={`q-${question.snapshot_id}`}
+                  name={`q-${qid}`}
                   checked={checked}
-                  onChange={() => onSingleChoice(question.snapshot_id, opt.snapshot_id)}
+                  onChange={() => onSingleChoice?.(qid, oid)}
                 />
                 <span className="text-sm sm:text-base text-slate-800 dark:text-slate-100 break-words min-w-0">
-                  {opt.text}
+                  {optionText(opt)}
                 </span>
               </label>
             );
@@ -149,15 +201,16 @@ export default function QuestionCard({
       )}
 
       {type === 'multiple_choice' && (
-        <fieldset className="space-y-2">
+        <fieldset className="space-y-2" disabled={readOnly}>
           <legend className="text-xs text-slate-500 dark:text-slate-400 mb-1">
             Можно выбрать несколько вариантов
           </legend>
           {options.map((opt) => {
-            const checked = selected.includes(opt.snapshot_id);
+            const oid = optionId(opt);
+            const checked = selected.includes(oid);
             return (
               <label
-                key={opt.snapshot_id}
+                key={oid}
                 className={`flex items-start gap-3 rounded-xl border p-3.5 min-h-touch cursor-pointer transition-colors ${
                   checked
                     ? 'border-brand bg-brand-soft dark:bg-brand-soft/40 dark:border-brand/40'
@@ -168,10 +221,10 @@ export default function QuestionCard({
                   type="checkbox"
                   className="mt-1 h-5 w-5 shrink-0 accent-brand"
                   checked={checked}
-                  onChange={() => onToggleMultiple(question.snapshot_id, opt.snapshot_id)}
+                  onChange={() => onToggleMultiple?.(qid, oid)}
                 />
                 <span className="text-sm sm:text-base text-slate-800 dark:text-slate-100 break-words min-w-0">
-                  {opt.text}
+                  {optionText(opt)}
                 </span>
               </label>
             );
@@ -179,23 +232,33 @@ export default function QuestionCard({
         </fieldset>
       )}
 
-      {type === 'short_text' && (
+      {isTextType && (
         <div>
           <label
-            htmlFor={`text-${question.snapshot_id}`}
+            htmlFor={`text-${qid}`}
             className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5"
           >
-            Введите ответ
+            {type === 'translation' ? 'Развёрнутый ответ' : 'Ваш ответ'}
           </label>
           <textarea
-            id={`text-${question.snapshot_id}`}
-            rows={4}
-            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 text-sm sm:text-base text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand"
-            placeholder="Ваш ответ…"
+            id={`text-${qid}`}
+            rows={textRows}
+            disabled={readOnly}
+            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 text-sm sm:text-base text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand whitespace-pre-wrap"
+            placeholder="Введите ответ…"
             value={text}
-            onChange={(e) => onTextChange(question.snapshot_id, e.target.value)}
+            onChange={(e) => onTextChange?.(qid, e.target.value)}
           />
         </div>
+      )}
+
+      {type === 'speaking' && (
+        <SpeakingAnswerPanel
+          disabled={readOnly || !onSpeakingUpload}
+          hasAudio={Boolean(localAnswer?.has_audio || localAnswer?.audio_url)}
+          audioUrl={localAnswer?.audio_url || null}
+          onUpload={onSpeakingUpload ? (file, durationMs) => onSpeakingUpload(qid, file, durationMs) : undefined}
+        />
       )}
     </div>
   );

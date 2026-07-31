@@ -237,3 +237,24 @@ export class SaveHomeworkAnswersDto {
   @Type(() => HomeworkAnswerDto)
   answers!: HomeworkAnswerDto[];
 }
+
+export class HomeworkReviewAnswerDto {
+  @IsUUID()
+  question_snapshot_id!: string;
+
+  @IsNumber()
+  @Min(0)
+  score!: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  comment?: string | null;
+}
+
+export class SaveHomeworkReviewDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => HomeworkReviewAnswerDto)
+  answers!: HomeworkReviewAnswerDto[];
+}

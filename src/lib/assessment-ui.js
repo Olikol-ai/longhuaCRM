@@ -62,7 +62,8 @@ export function isQuestionAnswered(localAnswer) {
   if (!localAnswer) return false;
   const selected = localAnswer.selected_answer_snapshot_ids || [];
   const text = (localAnswer.text || '').trim();
-  return selected.length > 0 || text.length > 0;
+  const hasAudio = Boolean(localAnswer.has_audio || localAnswer.audio_url);
+  return selected.length > 0 || text.length > 0 || hasAudio;
 }
 
 export function buildAutosavePayload(questionSnapshotId, localAnswer) {

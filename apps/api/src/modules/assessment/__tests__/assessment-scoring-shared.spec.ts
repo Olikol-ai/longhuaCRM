@@ -60,4 +60,26 @@ describe('AssessmentScoringService.scoreFromData (shared engine)', () => {
     expect(result.evaluationType).toBe(EvaluationType.Manual);
     expect(result.questions[0].requiresManualReview).toBe(true);
   });
+
+  it('marks speaking as requiring manual review', () => {
+    const result = scoring.scoreFromData({
+      questionSnapshots: [
+        { id: 'q3', sectionKey: 'speaking', type: QuestionType.Speaking, points: 10 },
+      ],
+      answers: [
+        {
+          id: 'ans3',
+          questionSnapshotId: 'q3',
+          selectedAnswerSnapshotIds: [],
+          textAnswer: null,
+        },
+      ],
+      answerSnapshotsByQuestionId: new Map(),
+    });
+
+    expect(result.requiresManualReview).toBe(true);
+    expect(result.evaluationType).toBe(EvaluationType.Manual);
+    expect(result.questions[0].requiresManualReview).toBe(true);
+    expect(result.questions[0].earnedPoints).toBe(0);
+  });
 });

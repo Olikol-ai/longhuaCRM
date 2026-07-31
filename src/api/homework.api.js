@@ -1,4 +1,4 @@
-import { apiFetch } from './http';
+import { apiFetch, getToken } from './http';
 
 export const homework = {
   list() {
@@ -64,5 +64,47 @@ export const homework = {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+  },
+
+  async uploadSpeakingAudio(attemptId, questionSnapshotId, file, durationMs) {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (durationMs != null) formData.append('duration_ms', String(durationMs));
+    const headers = {};
+    const token = getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await fetch(
+      `/api/homework/attempts/${encodeURIComponent(attemptId)}/questions/${encodeURIComponent(questionSnapshotId)}/audio`,
+      { method: 'POST', headers, body: formData },
+    );
+    const text = await res.text();
+    let data = {};
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      data = { raw: text };
+    }
+    if (!res.ok) {
+      throw new Error(
+        (Array.isArray(data?.message) ? data.message.join(', ') : data?.message) ||
+          data?.error ||
+          'Не удалось загрузить аудио',
+      );
+    }
+    return data;
+  },
+
+  saveReview(assignmentId, body) {
+    return apiFetch(`/homework/assignments/${encodeURIComponent(assignmentId)}/review`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  },
+
+  finalizeReview(assignmentId) {
+    return apiFetch(
+      `/homework/assignments/${encodeURIComponent(assignmentId)}/review/finalize`,
+      { method: 'POST', body: '{}' },
+    );
   },
 };

@@ -14,7 +14,9 @@ export default function ExamCompletionScreen({ result, examTitle, onBack }) {
 
   if (kind === 'pending_review' || kind === 'processing') {
     icon = <Clock3 className="h-12 w-12 text-amber-500" />;
-    subtitle = 'Результат ожидает проверки';
+    title = 'Ожидает проверки';
+    subtitle =
+      'Работа отправлена. Текстовые и Speaking-задания проверит преподаватель. Итоговая оценка будет после проверки.';
   } else if (kind === 'passed') {
     icon = <CheckCircle2 className="h-12 w-12 text-emerald-500" />;
     subtitle = 'Сдан';

@@ -40,11 +40,32 @@ export class HomeworkAttemptAnswerEntity {
   @Column({ name: 'text_answer', type: 'text', nullable: true })
   textAnswer: string | null;
 
+  @Column({ name: 'audio_storage_key', type: 'text', nullable: true })
+  audioStorageKey: string | null;
+
+  @Column({ name: 'audio_mime', type: 'varchar', length: 128, nullable: true })
+  audioMime: string | null;
+
+  @Column({ name: 'audio_original_filename', type: 'text', nullable: true })
+  audioOriginalFilename: string | null;
+
+  @Column({ name: 'audio_duration_ms', type: 'int', nullable: true })
+  audioDurationMs: number | null;
+
   @Column({ name: 'earned_points', type: 'numeric', precision: 10, scale: 2, nullable: true })
   earnedPoints: string | null;
 
   @Column({ name: 'is_correct', type: 'boolean', nullable: true })
   isCorrect: boolean | null;
+
+  @Column({ name: 'review_comment', type: 'text', nullable: true })
+  reviewComment: string | null;
+
+  @Column({ name: 'reviewed_by_user_id', type: 'uuid', nullable: true })
+  reviewedByUserId: string | null;
+
+  @Column({ name: 'reviewed_at', type: 'timestamptz', nullable: true })
+  reviewedAt: Date | null;
 
   @OneToMany(() => HomeworkAttemptAnswerSelectionEntity, (s) => s.attemptAnswer)
   selections?: HomeworkAttemptAnswerSelectionEntity[];

@@ -39,6 +39,7 @@ export default function StudentExamTake() {
     setSingleChoice,
     toggleMultipleChoice,
     setTextAnswer,
+    uploadSpeakingAnswer,
     submit,
   } = session;
 
@@ -223,6 +224,7 @@ export default function StudentExamTake() {
           onSingleChoice={setSingleChoice}
           onToggleMultiple={toggleMultipleChoice}
           onTextChange={setTextAnswer}
+          onSpeakingUpload={uploadSpeakingAnswer}
         />
 
         <div className="sm:hidden overflow-x-auto -mx-1 px-1 pb-1">

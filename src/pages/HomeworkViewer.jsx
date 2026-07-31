@@ -8,11 +8,12 @@ import QuestionCard from '@/components/assessment/QuestionCard';
 import { userFacingError } from '@/lib/userFacingError';
 
 const STATUS_LABEL = {
-  assigned: 'Новое',
-  in_progress: 'Выполняется',
-  submitted: 'Выполнено',
+  assigned: 'Не начато',
+  in_progress: 'В процессе',
+  submitted: 'Ожидает проверки',
   reviewed: 'Проверено',
   overdue: 'Просрочено',
+  needs_revision: 'На доработке',
 };
 
 export default function HomeworkViewer() {
@@ -101,6 +102,10 @@ export default function HomeworkViewer() {
         map[a.question_snapshot_id] = {
           selected_answer_snapshot_ids: a.selected_answer_snapshot_ids || [],
           text: a.text || '',
+          has_audio: Boolean(a.has_audio),
+          audio_url: a.audio_url || null,
+          audio_mime: a.audio_mime || null,
+          audio_duration_ms: a.audio_duration_ms ?? null,
         };
       }
       setLocalAnswers(map);
@@ -118,8 +123,27 @@ export default function HomeworkViewer() {
   const setAnswer = (questionId, patch) => {
     setLocalAnswers((prev) => ({
       ...prev,
-      [questionId]: { ...(prev[questionId] || { selected_answer_snapshot_ids: [], text: '' }), ...patch },
+      [questionId]: {
+        ...(prev[questionId] || { selected_answer_snapshot_ids: [], text: '' }),
+        ...patch,
+      },
     }));
+  };
+
+  const handleSpeakingUpload = async (questionId, file, durationMs) => {
+    if (!attempt?.id) return;
+    const payload = await api.homework.uploadSpeakingAudio(
+      attempt.id,
+      questionId,
+      file,
+      durationMs,
+    );
+    setAnswer(questionId, {
+      has_audio: true,
+      audio_url: payload.audio_url || null,
+      audio_mime: payload.audio_mime || null,
+      audio_duration_ms: payload.audio_duration_ms ?? durationMs ?? null,
+    });
   };
 
   const buildAnswersPayload = () =>
@@ -190,26 +214,43 @@ export default function HomeworkViewer() {
               question={q}
               index={index}
               localAnswer={localAnswers[q.id]}
-              onSingleChoice={(id) =>
+              readOnly={submitted}
+              onSingleChoice={(_qid, id) =>
                 !submitted && setAnswer(q.id, { selected_answer_snapshot_ids: [id] })
               }
-              onToggleMultiple={(id) => {
+              onToggleMultiple={(_qid, id) => {
                 if (submitted) return;
                 const cur = localAnswers[q.id]?.selected_answer_snapshot_ids || [];
                 const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
                 setAnswer(q.id, { selected_answer_snapshot_ids: next });
               }}
-              onTextChange={(text) => !submitted && setAnswer(q.id, { text })}
+              onTextChange={(_qid, text) => !submitted && setAnswer(q.id, { text })}
+              onSpeakingUpload={
+                submitted
+                  ? undefined
+                  : (qid, file, durationMs) => handleSpeakingUpload(qid, file, durationMs)
+              }
             />
           </div>
         ))}
 
         {submitted && attempt.result && (
           <div className="rounded-2xl border p-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-            <p className="font-semibold">Результат</p>
-            <p className="text-sm mt-1">
-              {attempt.result.score} / {attempt.result.max_score} ({attempt.result.percent}%)
+            <p className="font-semibold">
+              {attempt.result.status === 'pending_review'
+                ? 'Ожидает проверки преподавателем'
+                : 'Результат'}
             </p>
+            {attempt.result.status !== 'pending_review' && (
+              <p className="text-sm mt-1">
+                {attempt.result.score} / {attempt.result.max_score} ({attempt.result.percent}%)
+              </p>
+            )}
+            {attempt.result.status === 'pending_review' && (
+              <p className="text-sm mt-1 text-slate-600 dark:text-slate-300">
+                Автоматическая часть оценена. Текстовые и Speaking-ответы проверяет преподаватель.
+              </p>
+            )}
           </div>
         )}
 

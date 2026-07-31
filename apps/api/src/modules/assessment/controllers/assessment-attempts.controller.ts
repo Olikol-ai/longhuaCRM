@@ -9,14 +9,19 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
+  ApiConsumes,
   ApiOperation,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { memoryStorage } from 'multer';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
@@ -155,5 +160,51 @@ export class AssessmentAttemptsController {
         selectionsProvided: answer.selected_answer_snapshot_ids !== undefined,
       })),
     });
+  }
+
+  @Post(':attemptId/questions/:questionSnapshotId/audio')
+  @Roles('student', 'teacher', 'tutor')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload speaking answer audio' })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 25 * 1024 * 1024 },
+    }),
+  )
+  uploadSpeakingAudio(
+    @CurrentUser() user: JwtPayload,
+    @Param('attemptId', ParseUUIDPipe) attemptId: string,
+    @Param('questionSnapshotId', ParseUUIDPipe) questionSnapshotId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('duration_ms') durationMsRaw?: string,
+  ) {
+    const durationMs =
+      durationMsRaw != null && durationMsRaw !== ''
+        ? Number(durationMsRaw)
+        : null;
+    return this.attempts.uploadSpeakingAudio(
+      user,
+      attemptId,
+      questionSnapshotId,
+      {
+        buffer: file?.buffer,
+        originalname: file?.originalname || 'answer.webm',
+        mimetype: file?.mimetype,
+        size: file?.size,
+      },
+      durationMs,
+    );
+  }
+
+  @Get(':attemptId/answers/:attemptAnswerId/audio')
+  @Roles('admin', 'teacher', 'tutor', 'student')
+  @ApiOperation({ summary: 'Stream speaking answer audio' })
+  streamSpeakingAudio(
+    @CurrentUser() user: JwtPayload,
+    @Param('attemptId', ParseUUIDPipe) attemptId: string,
+    @Param('attemptAnswerId', ParseUUIDPipe) attemptAnswerId: string,
+  ) {
+    return this.attempts.streamSpeakingAudio(user, attemptId, attemptAnswerId);
   }
 }

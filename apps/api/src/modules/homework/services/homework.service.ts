@@ -4,13 +4,21 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  StreamableFile,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { createReadStream } from 'fs';
 import { In, IsNull, Repository } from 'typeorm';
 import { JwtPayload } from '../../auth/auth.service';
-import { EvaluationType, QuestionType } from '../../assessment/enums';
+import { EvaluationType, QuestionType, isManualReviewQuestionType } from '../../assessment/enums';
 import { AssessmentScoringService } from '../../assessment/services/assessment-scoring.service';
 import { TutorStudentAccessService } from '../../../common/access/tutor-student-access.service';
+import {
+  deleteSpeakingAudio,
+  resolveSpeakingAudioPath,
+  storeSpeakingAudio,
+  type SpeakingAudioFile,
+} from '../../../common/storage/speaking-audio';
 import { StudentEntity } from '../../students/entities/student.entity';
 import { TeacherEntity } from '../../teachers/entities/teacher.entity';
 import { TutorEntity } from '../../tutors/entities/tutor.entity';
@@ -21,6 +29,7 @@ import {
   HomeworkAnswerDto,
   HomeworkItemDto,
   HomeworkTaskDto,
+  SaveHomeworkReviewDto,
   UpdateHomeworkDto,
   UpdateLocalHomeworkStatusDto,
 } from '../dto/homework.dto';
@@ -685,6 +694,8 @@ export class HomeworkService {
     const ownerInfo = hw ? ownerMap.get(hw.id) ?? null : null;
 
     const hideCorrect = attempt.status !== HomeworkAttemptStatus.Submitted;
+    const isManager =
+      user.role === 'admin' || user.role === 'teacher' || user.role === 'tutor';
 
     const attachmentsBySource = new Map<string, Array<{ id: string; kind: string; url: string | null }>>();
     const sourceIds = [
@@ -725,10 +736,12 @@ export class HomeworkService {
       review_result: assignment?.reviewResult ?? null,
       questions: qSnaps.map((question) => ({
         id: question.id,
+        snapshot_id: question.id,
         section_key: question.sectionKey,
         type: question.type,
         stem: question.stem,
         points: Number(question.points),
+        explanation: isManager ? question.explanation : null,
         passage_text: question.passageText,
         sort_order: question.sortOrder,
         attachments: question.sourceQuestionId
@@ -739,6 +752,8 @@ export class HomeworkService {
           .sort((left, right) => left.sortOrder - right.sortOrder)
           .map((answer) => ({
             id: answer.id,
+            snapshot_id: answer.id,
+            text: answer.body,
             body: answer.body,
             sort_order: answer.sortOrder,
             ...(hideCorrect ? {} : { is_correct: answer.isCorrect }),
@@ -746,10 +761,20 @@ export class HomeworkService {
       })),
       answers: answers.map((answer) => ({
         question_snapshot_id: answer.questionSnapshotId,
+        attempt_answer_id: answer.id,
         selected_answer_snapshot_ids: (answer.selections ?? []).map(
           (selection) => selection.answerSnapshotId,
         ),
         text: answer.textAnswer,
+        has_audio: Boolean(answer.audioStorageKey),
+        audio_url: answer.audioStorageKey
+          ? `/api/homework/attempts/${attemptId}/answers/${answer.id}/audio`
+          : null,
+        audio_mime: answer.audioMime,
+        audio_original_filename: answer.audioOriginalFilename,
+        audio_duration_ms: answer.audioDurationMs,
+        review_comment:
+          !hideCorrect || isManager ? answer.reviewComment : null,
         ...(hideCorrect
           ? {}
           : {
@@ -1215,7 +1240,10 @@ export class HomeworkService {
   private sectionKeyForType(type: QuestionType | string): string {
     if (type === QuestionType.Listening) return 'listening';
     if (type === QuestionType.Reading) return 'reading';
-    if (type === QuestionType.Translation) return 'writing';
+    if (type === QuestionType.Speaking) return 'speaking';
+    if (type === QuestionType.Translation || type === QuestionType.ShortText) {
+      return 'writing';
+    }
     return 'test';
   }
 
@@ -1312,7 +1340,7 @@ export class HomeworkService {
     });
     const answerSnapshotsByQuestionId = new Map<string, HomeworkAnswerSnapshotEntity[]>();
     for (const question of questionSnapshots) {
-      if (question.type === QuestionType.ShortText) continue;
+      if (isManualReviewQuestionType(question.type)) continue;
       const answers = await this.answerSnapshots.find({
         where: { questionSnapshotId: question.id },
       });
@@ -1758,5 +1786,287 @@ export class HomeworkService {
           sort_order: answer.sortOrder,
         })),
     };
+  }
+
+  async uploadSpeakingAudio(
+    user: JwtPayload,
+    attemptId: string,
+    questionSnapshotId: string,
+    file: SpeakingAudioFile,
+    durationMs?: number | null,
+  ) {
+    const attempt = await this.requireMutableAttempt(user, attemptId);
+    const qSnap = await this.questionSnapshots.findOne({
+      where: { id: questionSnapshotId, attemptId: attempt.id },
+    });
+    if (!qSnap) {
+      throw new BadRequestException('question_snapshot_id does not belong to this Attempt');
+    }
+    if (qSnap.type !== QuestionType.Speaking) {
+      throw new BadRequestException('Audio upload is only allowed for speaking questions');
+    }
+
+    const stored = storeSpeakingAudio(file);
+    let answer = await this.attemptAnswers.findOne({
+      where: { attemptId: attempt.id, questionSnapshotId },
+    });
+
+    if (answer?.audioStorageKey) {
+      deleteSpeakingAudio(answer.audioStorageKey);
+    }
+
+    const audioPatch = {
+      audioStorageKey: stored.storageKey,
+      audioMime: stored.mime,
+      audioOriginalFilename: stored.originalFilename,
+      audioDurationMs:
+        durationMs != null && Number.isFinite(durationMs) ? Math.round(durationMs) : null,
+    };
+
+    if (!answer) {
+      answer = await this.attemptAnswers.save(
+        this.attemptAnswers.create({
+          attemptId: attempt.id,
+          questionSnapshotId,
+          textAnswer: null,
+          ...audioPatch,
+        }),
+      );
+    } else {
+      Object.assign(answer, audioPatch);
+      answer = await this.attemptAnswers.save(answer);
+    }
+
+    return {
+      attempt_answer_id: answer.id,
+      question_snapshot_id: questionSnapshotId,
+      has_audio: true,
+      audio_url: `/api/homework/attempts/${attempt.id}/answers/${answer.id}/audio`,
+      audio_mime: answer.audioMime,
+      audio_original_filename: answer.audioOriginalFilename,
+      audio_duration_ms: answer.audioDurationMs,
+    };
+  }
+
+  async streamSpeakingAudio(
+    user: JwtPayload,
+    attemptId: string,
+    attemptAnswerId: string,
+  ): Promise<StreamableFile> {
+    const attempt = await this.attempts.findOne({ where: { id: attemptId } });
+    if (!attempt) throw new NotFoundException('Attempt not found');
+    await this.assertCanAccessAttempt(user, attempt);
+
+    const answer = await this.attemptAnswers.findOne({
+      where: { id: attemptAnswerId, attemptId },
+    });
+    if (!answer?.audioStorageKey) {
+      throw new NotFoundException('Audio not found');
+    }
+    const path = resolveSpeakingAudioPath(answer.audioStorageKey);
+    if (!path) {
+      throw new NotFoundException('Audio file missing on disk');
+    }
+    return new StreamableFile(createReadStream(path), {
+      type: answer.audioMime ?? 'audio/mpeg',
+      disposition: `inline; filename="${answer.audioOriginalFilename ?? answer.audioStorageKey}"`,
+    });
+  }
+
+  async saveReview(
+    user: JwtPayload,
+    assignmentId: string,
+    dto: SaveHomeworkReviewDto,
+  ) {
+    await this.assertManagerOrAdmin(user);
+    const assignment = await this.assignments.findOne({
+      where: { id: assignmentId },
+      relations: ['homework'],
+    });
+    if (!assignment?.homework) {
+      throw new NotFoundException('Assignment not found');
+    }
+    await this.assertCanViewHomework(user, assignment.homework);
+
+    const attempt = await this.attempts.findOne({
+      where: { assignmentId, status: HomeworkAttemptStatus.Submitted },
+      order: { submittedAt: 'DESC' },
+    });
+    if (!attempt) {
+      throw new BadRequestException('Нет отправленной работы для проверки');
+    }
+
+    const result = await this.results.findOne({ where: { attemptId: attempt.id } });
+    if (!result || result.status !== 'pending_review') {
+      throw new ConflictException('Работа не ожидает проверки');
+    }
+
+    const qSnaps = await this.questionSnapshots.find({
+      where: { attemptId: attempt.id },
+    });
+    const qById = new Map(qSnaps.map((q) => [q.id, q]));
+    const now = new Date();
+
+    for (const row of dto.answers) {
+      const qSnap = qById.get(row.question_snapshot_id);
+      if (!qSnap) {
+        throw new BadRequestException(
+          `Unknown question snapshot: ${row.question_snapshot_id}`,
+        );
+      }
+      if (!isManualReviewQuestionType(qSnap.type)) {
+        throw new BadRequestException(
+          'Only text/speaking answers can be scored during manual review',
+        );
+      }
+      const maxPoints = Number(qSnap.points);
+      if (row.score < 0 || row.score > maxPoints) {
+        throw new BadRequestException(
+          `Score must be between 0 and ${maxPoints} for this question`,
+        );
+      }
+
+      let answer = await this.attemptAnswers.findOne({
+        where: {
+          attemptId: attempt.id,
+          questionSnapshotId: row.question_snapshot_id,
+        },
+      });
+      const isCorrect =
+        row.score >= maxPoints ? true : row.score <= 0 ? false : null;
+      const comment =
+        row.comment == null || String(row.comment).trim() === ''
+          ? null
+          : String(row.comment).trim();
+
+      if (!answer) {
+        answer = await this.attemptAnswers.save(
+          this.attemptAnswers.create({
+            attemptId: attempt.id,
+            questionSnapshotId: row.question_snapshot_id,
+            textAnswer: null,
+            earnedPoints: String(row.score),
+            isCorrect,
+            reviewComment: comment,
+            reviewedByUserId: user.sub,
+            reviewedAt: now,
+          }),
+        );
+      } else {
+        answer.earnedPoints = String(row.score);
+        answer.isCorrect = isCorrect;
+        answer.reviewComment = comment;
+        answer.reviewedByUserId = user.sub;
+        answer.reviewedAt = now;
+        await this.attemptAnswers.save(answer);
+      }
+    }
+
+    return this.getAttemptState(user, attempt.id);
+  }
+
+  async finalizeReview(user: JwtPayload, assignmentId: string) {
+    await this.assertManagerOrAdmin(user);
+    const assignment = await this.assignments.findOne({
+      where: { id: assignmentId },
+      relations: ['homework'],
+    });
+    if (!assignment?.homework) {
+      throw new NotFoundException('Assignment not found');
+    }
+    await this.assertCanViewHomework(user, assignment.homework);
+
+    const attempt = await this.attempts.findOne({
+      where: { assignmentId, status: HomeworkAttemptStatus.Submitted },
+      order: { submittedAt: 'DESC' },
+    });
+    if (!attempt) {
+      throw new BadRequestException('Нет отправленной работы для проверки');
+    }
+
+    const result = await this.results.findOne({ where: { attemptId: attempt.id } });
+    if (!result || result.status !== 'pending_review') {
+      throw new ConflictException('Работа не ожидает проверки');
+    }
+
+    const qSnaps = await this.questionSnapshots.find({
+      where: { attemptId: attempt.id },
+    });
+    const answers = await this.attemptAnswers.find({
+      where: { attemptId: attempt.id },
+    });
+    const answerByQ = new Map(answers.map((a) => [a.questionSnapshotId, a]));
+
+    let totalScore = 0;
+    let totalMax = 0;
+    for (const qSnap of qSnaps) {
+      const points = Number(qSnap.points);
+      totalMax += points;
+      const ans = answerByQ.get(qSnap.id);
+      if (isManualReviewQuestionType(qSnap.type)) {
+        if (ans?.earnedPoints == null || ans.earnedPoints === '') {
+          throw new BadRequestException(
+            'All manual questions must be scored before finishing review',
+          );
+        }
+        totalScore += Number(ans.earnedPoints);
+      } else {
+        totalScore += Number(ans?.earnedPoints ?? 0);
+      }
+    }
+
+    const percent =
+      totalMax > 0 ? Math.round((totalScore / totalMax) * 10000) / 100 : 0;
+    const passPercent =
+      assignment.homework.passScorePercent != null
+        ? Number(assignment.homework.passScorePercent)
+        : 60;
+    const passed = percent >= passPercent;
+
+    result.score = String(totalScore);
+    result.maxScore = String(totalMax);
+    result.percent = String(percent);
+    result.passed = passed;
+    result.status = 'reviewed';
+    await this.results.save(result);
+
+    assignment.status = HomeworkAssignmentStatus.Reviewed;
+    assignment.reviewResult = passed
+      ? `Проверено: ${percent}%`
+      : `Проверено: ${percent}% (ниже порога)`;
+    assignment.manualCheckedAt = new Date();
+    await this.assignments.save(assignment);
+
+    if (attempt.studentId) {
+      const learner = await this.students.findOne({ where: { id: attempt.studentId } });
+      if (learner) {
+        this.notifier.notifyReviewed(
+          assignment,
+          assignment.homework,
+          {
+            userId: learner.userId ?? null,
+            displayName: this.studentDisplayName(learner),
+          },
+          result,
+        );
+      }
+    } else if (attempt.tutorStudentId) {
+      const learner = await this.tutorStudents.findOne({
+        where: { id: attempt.tutorStudentId },
+      });
+      if (learner) {
+        this.notifier.notifyReviewed(
+          assignment,
+          assignment.homework,
+          {
+            userId: learner.userId ?? null,
+            displayName: this.tutorStudentDisplayName(learner),
+          },
+          result,
+        );
+      }
+    }
+
+    return this.getAttemptState(user, attempt.id);
   }
 }

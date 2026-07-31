@@ -1,5 +1,6 @@
 /**
- * Homework activity kinds (sections). Speaking/Writing reserved for future manual review.
+ * Homework activity kinds (sections).
+ * Speaking / Writing use manual-review question types from the assessment bank.
  */
 export enum HomeworkActivityKind {
   Test = 'test',

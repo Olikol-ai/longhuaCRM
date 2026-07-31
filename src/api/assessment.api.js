@@ -251,6 +251,20 @@ export const assessment = {
     });
   },
 
+  uploadSpeakingAudio(attemptId, questionSnapshotId, file, durationMs) {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (durationMs != null) formData.append('duration_ms', String(durationMs));
+    return apiFormFetch(
+      `/assessment/attempts/${attemptId}/questions/${questionSnapshotId}/audio`,
+      formData,
+    );
+  },
+
+  speakingAudioUrl(attemptId, attemptAnswerId) {
+    return `/api/assessment/attempts/${attemptId}/answers/${attemptAnswerId}/audio`;
+  },
+
   downloadAttachmentUrl(attachmentId, disposition = 'inline') {
     return `/api/assessment/attachments/${attachmentId}/download${toQuery({ disposition })}`;
   },

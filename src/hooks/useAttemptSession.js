@@ -39,6 +39,10 @@ export function useAttemptSession(attemptId) {
         initial[q.snapshot_id] = {
           selected_answer_snapshot_ids: saved.selected_answer_snapshot_ids || [],
           text: saved.text ?? '',
+          has_audio: Boolean(saved.has_audio),
+          audio_url: saved.audio_url || null,
+          audio_mime: saved.audio_mime || null,
+          audio_duration_ms: saved.audio_duration_ms ?? null,
         };
       });
       setAnswers(initial);
@@ -98,6 +102,7 @@ export function useAttemptSession(attemptId) {
       setAnswers((prev) => ({
         ...prev,
         [questionSnapshotId]: {
+          ...prev[questionSnapshotId],
           selected_answer_snapshot_ids: [answerSnapshotId],
           text: prev[questionSnapshotId]?.text || '',
         },
@@ -117,6 +122,7 @@ export function useAttemptSession(attemptId) {
         return {
           ...prev,
           [questionSnapshotId]: {
+            ...prev[questionSnapshotId],
             selected_answer_snapshot_ids: next,
             text: prev[questionSnapshotId]?.text || '',
           },
@@ -132,6 +138,7 @@ export function useAttemptSession(attemptId) {
       setAnswers((prev) => ({
         ...prev,
         [questionSnapshotId]: {
+          ...prev[questionSnapshotId],
           selected_answer_snapshot_ids:
             prev[questionSnapshotId]?.selected_answer_snapshot_ids || [],
           text,
@@ -140,6 +147,33 @@ export function useAttemptSession(attemptId) {
       scheduleAutosave(questionSnapshotId);
     },
     [scheduleAutosave],
+  );
+
+  const uploadSpeakingAnswer = useCallback(
+    async (questionSnapshotId, file, durationMs) => {
+      const payload = await api.assessment.uploadSpeakingAudio(
+        attemptId,
+        questionSnapshotId,
+        file,
+        durationMs,
+      );
+      setAnswers((prev) => ({
+        ...prev,
+        [questionSnapshotId]: {
+          ...prev[questionSnapshotId],
+          selected_answer_snapshot_ids:
+            prev[questionSnapshotId]?.selected_answer_snapshot_ids || [],
+          text: prev[questionSnapshotId]?.text || '',
+          has_audio: true,
+          audio_url: payload.audio_url || null,
+          audio_mime: payload.audio_mime || null,
+          audio_duration_ms: payload.audio_duration_ms ?? durationMs ?? null,
+        },
+      }));
+      setSaveStatus('saved');
+      return payload;
+    },
+    [attemptId],
   );
 
   const answeredCount = useMemo(
@@ -186,6 +220,7 @@ export function useAttemptSession(attemptId) {
     setSingleChoice,
     toggleMultipleChoice,
     setTextAnswer,
+    uploadSpeakingAnswer,
     submit,
     reload: load,
   };

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/api';
-import { displayPersonName } from '@/lib/assessment-admin';
+import { displayPersonName, isManualReviewQuestionType } from '@/lib/assessment-admin';
 import { unwrapItems } from '@/lib/assessment-ui';
 
 /**
@@ -154,7 +154,7 @@ export function useTeacherReviewQueue() {
             const state = await api.assessment.getAttemptState(row.attempt_id);
             const questions = (state?.sections || []).flatMap((s) => s.questions || []);
             const manual_question_count = questions.filter(
-              (q) => q.type === 'short_text',
+              (q) => isManualReviewQuestionType(q.type),
             ).length;
             return { ...row, manual_question_count };
           } catch {

@@ -10,8 +10,9 @@ export const LIFECYCLE_STATUS_LABEL = {
 export const QUESTION_TYPE_LABEL = {
   single_choice: 'Один ответ',
   multiple_choice: 'Несколько ответов',
-  short_text: 'Короткий ответ',
-  translation: 'Перевод',
+  short_text: 'Текстовый ответ',
+  translation: 'Развёрнутый ответ / перевод',
+  speaking: 'Speaking (устный ответ)',
   listening: 'Аудирование (legacy)',
   reading: 'Чтение (legacy)',
 };
@@ -22,7 +23,18 @@ export const QUESTION_TYPES = [
   'multiple_choice',
   'short_text',
   'translation',
+  'speaking',
 ];
+
+export const MANUAL_REVIEW_QUESTION_TYPES = new Set([
+  'short_text',
+  'translation',
+  'speaking',
+]);
+
+export function isManualReviewQuestionType(type) {
+  return MANUAL_REVIEW_QUESTION_TYPES.has(type);
+}
 
 export const CONTENT_TASK_TYPE_LABEL = {
   listening: 'Аудирование',

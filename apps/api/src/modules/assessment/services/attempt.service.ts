@@ -3,11 +3,20 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
+  StreamableFile,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { createReadStream } from 'fs';
 import { Repository } from 'typeorm';
 import { AssessmentAccessService } from '../../../common/access/assessment-access.service';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
+import {
+  deleteSpeakingAudio,
+  resolveSpeakingAudioPath,
+  storeSpeakingAudio,
+  type SpeakingAudioFile,
+} from '../../../common/storage/speaking-audio';
 import {
   AssessmentAnswerSnapshotEntity,
   AssessmentAttemptEntity,
@@ -117,6 +126,11 @@ export type AttemptStateSection = {
     savedAnswer: {
       selectedAnswerSnapshotIds: string[];
       text: string | null;
+      hasAudio: boolean;
+      audioUrl: string | null;
+      audioMime: string | null;
+      audioOriginalFilename: string | null;
+      audioDurationMs: number | null;
     };
   }>;
 };
@@ -269,6 +283,13 @@ export class AttemptService {
         savedAnswer: {
           selectedAnswerSnapshotIds: selectedIds,
           text: attemptAnswer?.textAnswer ?? null,
+          hasAudio: Boolean(attemptAnswer?.audioStorageKey),
+          audioUrl: attemptAnswer?.audioStorageKey
+            ? `/api/assessment/attempts/${attemptId}/answers/${attemptAnswer.id}/audio`
+            : null,
+          audioMime: attemptAnswer?.audioMime ?? null,
+          audioOriginalFilename: attemptAnswer?.audioOriginalFilename ?? null,
+          audioDurationMs: attemptAnswer?.audioDurationMs ?? null,
         },
       });
     }
@@ -561,8 +582,9 @@ export class AttemptService {
         break;
       case QuestionType.ShortText:
       case QuestionType.Translation:
+      case QuestionType.Speaking:
       case QuestionType.Reading:
-        // Legacy reading/translation snapshots: free-text (manual review), no choice selections.
+        // Free-text / speaking: manual review; no choice selections.
         if (selected.length > 0) {
           throw new BadRequestException(
             `${String(qSnap.type)} does not accept selected answers`,
@@ -574,6 +596,96 @@ export class AttemptService {
       default:
         throw new BadRequestException(`Unsupported question type: ${String(qSnap.type)}`);
     }
+  }
+
+  async uploadSpeakingAudio(
+    actor: DomainAccessActor,
+    attemptId: string,
+    questionSnapshotId: string,
+    file: SpeakingAudioFile,
+    durationMs?: number | null,
+  ) {
+    const attempt = await this.assertMutable(attemptId);
+    this.assertAttemptOwner(attempt, actor.sub, actor.role);
+
+    const qSnaps = await this.attempts.findQuestionSnapshotsByAttemptId(attemptId);
+    const qSnap = qSnaps.find((q) => q.id === questionSnapshotId);
+    if (!qSnap) {
+      throw new BadRequestException('question_snapshot_id does not belong to this Attempt');
+    }
+    if (qSnap.type !== QuestionType.Speaking) {
+      throw new BadRequestException('Audio upload is only allowed for speaking questions');
+    }
+
+    const stored = storeSpeakingAudio(file);
+    let attemptAnswer = (await this.attempts.findAttemptAnswersByAttemptId(attemptId)).find(
+      (a) => a.questionSnapshotId === questionSnapshotId,
+    );
+
+    if (attemptAnswer?.audioStorageKey) {
+      deleteSpeakingAudio(attemptAnswer.audioStorageKey);
+    }
+
+    if (!attemptAnswer) {
+      attemptAnswer = await this.attempts.saveAttemptAnswer({
+        attemptId,
+        questionSnapshotId,
+        textAnswer: null,
+        audioStorageKey: stored.storageKey,
+        audioMime: stored.mime,
+        audioOriginalFilename: stored.originalFilename,
+        audioDurationMs:
+          durationMs != null && Number.isFinite(durationMs) ? Math.round(durationMs) : null,
+      });
+    } else {
+      await this.attempts.updateAttemptAnswer(attemptAnswer.id, {
+        audioStorageKey: stored.storageKey,
+        audioMime: stored.mime,
+        audioOriginalFilename: stored.originalFilename,
+        audioDurationMs:
+          durationMs != null && Number.isFinite(durationMs) ? Math.round(durationMs) : null,
+      });
+      attemptAnswer = this.guard.requireFound(
+        await this.attempts.findAttemptAnswerById(attemptAnswer.id),
+        'Attempt answer',
+      );
+    }
+
+    return {
+      attemptAnswerId: attemptAnswer.id,
+      questionSnapshotId,
+      hasAudio: true,
+      audioUrl: `/api/assessment/attempts/${attemptId}/answers/${attemptAnswer.id}/audio`,
+      audioMime: attemptAnswer.audioMime,
+      audioOriginalFilename: attemptAnswer.audioOriginalFilename,
+      audioDurationMs: attemptAnswer.audioDurationMs,
+    };
+  }
+
+  async streamSpeakingAudio(
+    actor: DomainAccessActor,
+    attemptId: string,
+    attemptAnswerId: string,
+  ): Promise<StreamableFile> {
+    await this.access.assertCanAccessAttempt(actor, attemptId);
+    const answer = this.guard.requireFound(
+      await this.attempts.findAttemptAnswerById(attemptAnswerId),
+      'Attempt answer',
+    );
+    if (answer.attemptId !== attemptId) {
+      throw new NotFoundException('Attempt answer not found');
+    }
+    if (!answer.audioStorageKey) {
+      throw new NotFoundException('Audio not found');
+    }
+    const path = resolveSpeakingAudioPath(answer.audioStorageKey);
+    if (!path) {
+      throw new NotFoundException('Audio file missing on disk');
+    }
+    return new StreamableFile(createReadStream(path), {
+      type: answer.audioMime ?? 'audio/mpeg',
+      disposition: `inline; filename="${answer.audioOriginalFilename ?? answer.audioStorageKey}"`,
+    });
   }
 
   private toQuestionSnapshotDto(q: AssessmentQuestionSnapshotEntity) {

@@ -3,7 +3,7 @@ import {
   AssessmentAnswerSnapshotEntity,
   AssessmentQuestionSnapshotEntity,
 } from '../entities';
-import { EvaluationType, PassingMode, QuestionType } from '../enums';
+import { EvaluationType, PassingMode, QuestionType, isManualReviewQuestionType } from '../enums';
 import { AssessmentAttemptRepository } from '../repositories';
 
 export type QuestionScoreRow = {
@@ -102,7 +102,7 @@ export class AssessmentScoringService {
 
     const answerSnapshotsByQuestionId = new Map<string, ScorableAnswerSnapshot[]>();
     for (const qSnap of questionSnapshots) {
-      if (qSnap.type === QuestionType.ShortText) continue;
+      if (isManualReviewQuestionType(qSnap.type)) continue;
       const snaps = await this.attempts.findAnswerSnapshotsByQuestionSnapshotId(qSnap.id);
       answerSnapshotsByQuestionId.set(qSnap.id, snaps);
     }
@@ -157,7 +157,7 @@ export class AssessmentScoringService {
       bucket.maxScore += points;
       totalMax += points;
 
-      if (qSnap.type === QuestionType.ShortText) {
+      if (isManualReviewQuestionType(qSnap.type)) {
         manualCount += 1;
         questions.push({
           questionSnapshotId: qSnap.id,

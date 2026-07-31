@@ -15,7 +15,7 @@ import {
   ASSESSMENT_RESULT_PENDING_REVIEW,
   ASSESSMENT_RESULT_REVIEWED,
 } from '../events/assessment-result.events';
-import { QuestionType, ResultStatus } from '../enums';
+import { ResultStatus, isManualReviewQuestionType } from '../enums';
 import { AssessmentAttemptRepository } from '../repositories';
 
 /**
@@ -224,7 +224,7 @@ export class AssessmentReviewNotifier {
   private async countManualQuestions(attemptId: string): Promise<number> {
     const snaps =
       await this.attemptsRepo.findQuestionSnapshotsByAttemptId(attemptId);
-    return snaps.filter((q) => q.type === QuestionType.ShortText).length;
+    return snaps.filter((q) => isManualReviewQuestionType(q.type)).length;
   }
 
   private buildReviewUrl(resultId: string): string {

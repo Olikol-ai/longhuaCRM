@@ -8,8 +8,12 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
@@ -19,6 +23,7 @@ import {
   AssignHomeworkDto,
   CreateHomeworkDto,
   SaveHomeworkAnswersDto,
+  SaveHomeworkReviewDto,
   SubmitHomeworkDto,
   UpdateHomeworkDto,
   UpdateLocalHomeworkStatusDto,
@@ -66,6 +71,25 @@ export class HomeworkController {
     return this.homework.getResultForTeacher(user, id);
   }
 
+  @Patch('assignments/:id/review')
+  @Roles('admin', 'teacher', 'tutor')
+  saveReview(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SaveHomeworkReviewDto,
+  ) {
+    return this.homework.saveReview(user, id, dto);
+  }
+
+  @Post('assignments/:id/review/finalize')
+  @Roles('admin', 'teacher', 'tutor')
+  finalizeReview(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.homework.finalizeReview(user, id);
+  }
+
   @Post('assignments/:id/start')
   @Roles('admin', 'student', 'tutor_student')
   start(
@@ -92,6 +116,49 @@ export class HomeworkController {
     @Body() dto: SaveHomeworkAnswersDto,
   ) {
     return this.homework.saveAnswers(user, id, dto.answers);
+  }
+
+  @Post('attempts/:id/questions/:questionSnapshotId/audio')
+  @Roles('admin', 'student', 'tutor_student')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 25 * 1024 * 1024 },
+    }),
+  )
+  uploadSpeakingAudio(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('questionSnapshotId', ParseUUIDPipe) questionSnapshotId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('duration_ms') durationMsRaw?: string,
+  ) {
+    const durationMs =
+      durationMsRaw != null && durationMsRaw !== ''
+        ? Number(durationMsRaw)
+        : null;
+    return this.homework.uploadSpeakingAudio(
+      user,
+      id,
+      questionSnapshotId,
+      {
+        buffer: file?.buffer,
+        originalname: file?.originalname || 'answer.webm',
+        mimetype: file?.mimetype,
+        size: file?.size,
+      },
+      durationMs,
+    );
+  }
+
+  @Get('attempts/:id/answers/:attemptAnswerId/audio')
+  @Roles('admin', 'teacher', 'tutor', 'student', 'tutor_student')
+  streamSpeakingAudio(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('attemptAnswerId', ParseUUIDPipe) attemptAnswerId: string,
+  ) {
+    return this.homework.streamSpeakingAudio(user, id, attemptAnswerId);
   }
 
   @Post('attempts/:id/submit')

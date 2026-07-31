@@ -304,12 +304,25 @@ export default function QuestionFormDialog({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="q-expl">Пояснение (необязательно)</Label>
+              <Label htmlFor="q-expl">
+                {type === 'speaking'
+                  ? 'Критерии проверки (не видны ученику)'
+                  : type === 'short_text' || type === 'translation'
+                    ? 'Рекомендуемый ответ / комментарии для проверяющего'
+                    : 'Пояснение (необязательно)'}
+              </Label>
               <Textarea
                 id="q-expl"
-                rows={2}
+                rows={type === 'speaking' || type === 'translation' ? 4 : 2}
                 value={explanation}
                 onChange={(e) => setExplanation(e.target.value)}
+                placeholder={
+                  type === 'speaking'
+                    ? 'Например: чёткость произношения, темп, грамматика…'
+                    : type === 'short_text' || type === 'translation'
+                      ? 'Эталонный ответ или подсказки для проверяющего'
+                      : ''
+                }
                 disabled={readOnly}
               />
             </div>

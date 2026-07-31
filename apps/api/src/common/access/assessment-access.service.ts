@@ -538,6 +538,20 @@ export class AssessmentAccessService {
     actor: DomainAccessActor,
     attempt: AssessmentAttemptEntity,
   ): Promise<boolean> {
+    const exam = await this.examRepo.findOne({ where: { id: attempt.examId } });
+    if (exam?.createdByUserId === actor.sub) {
+      return true;
+    }
+
+    if (attempt.assignmentId) {
+      const assignment = await this.assignmentRepo.findOne({
+        where: { id: attempt.assignmentId },
+      });
+      if (assignment && (await this.teacherCanAccessAssignment(actor, assignment))) {
+        return true;
+      }
+    }
+
     const teacherId = await this.resolveTeacherId(actor);
     if (!teacherId) {
       return false;
@@ -553,8 +567,7 @@ export class AssessmentAccessService {
         return true;
       }
     }
-    const exam = await this.examRepo.findOne({ where: { id: attempt.examId } });
-    return exam?.createdByUserId === actor.sub;
+    return false;
   }
 
   private async studentHasAssignmentForExam(
