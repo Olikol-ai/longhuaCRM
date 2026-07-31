@@ -282,14 +282,13 @@ export default function ChatMessagePane({
 
   useEffect(() => {
     if (!chat?.id || historyStatus !== 'ready') return;
-    // Prefer explicit latest loaded message; if history is empty, still ask
-    // the server to mark up to its own latest cursor.
-    const last = messages.at(-1);
-    const markKey = `${chat.id}:${last?.id || 'empty'}`;
+    // Always ask the server to advance to its own latest message.
+    // Passing a client-side id can race with pagination / stale cache and leave unread stuck.
+    const markKey = `${chat.id}:server-latest`;
     if (markedForChatRef.current === markKey) return;
     markedForChatRef.current = markKey;
-    onMarkRead?.(last?.id || null);
-  }, [chat?.id, historyStatus, messages, onMarkRead]);
+    onMarkRead?.(null);
+  }, [chat?.id, historyStatus, onMarkRead]);
 
   useEffect(() => {
     if (historyStatus !== 'ready') return;

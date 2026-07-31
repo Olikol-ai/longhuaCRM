@@ -51,7 +51,7 @@ export class ChatsService {
     await this.membershipSync.ensureForUser(actor.sub);
     const memberships = await this.memberRepo.find({
       where: { userId: actor.sub, hiddenAt: IsNull() },
-      relations: { chat: { subject: true }, lastReadMessage: true },
+      relations: { chat: { subject: true } },
     });
     const membershipChats = memberships
       .map((row) => row.chat)
@@ -117,7 +117,6 @@ export class ChatsService {
     await this.access.assertCanRead(actor, chatId);
     const member = await this.memberRepo.findOne({
       where: { chatId, userId: actor.sub },
-      relations: { lastReadMessage: true },
     });
     return this.countUnread(chatId, member, actor.sub);
   }
@@ -126,6 +125,9 @@ export class ChatsService {
    * Persist read cursor for the actor in this chat.
    * When messageId is omitted, advances to the latest non-deleted message.
    * Membership is ensured so system/subject/course chats always store last_read.
+   *
+   * IMPORTANT: use QueryBuilder/update — never save() an entity that already has
+   * lastReadMessage relation loaded; TypeORM keeps the old FK and unread sticks.
    */
   async markRead(
     actor: DomainAccessActor,
@@ -157,22 +159,29 @@ export class ChatsService {
 
     const member = await this.memberRepo.findOne({
       where: { chatId, userId: actor.sub },
-      relations: { lastReadMessage: true },
     });
     if (!member) {
       throw new NotFoundException('Chat membership not found');
     }
 
+    const currentCursor = await this.resolveReadCursor(chatId, member);
+
     // Never move the cursor backwards (e.g. stale client / race with newer WS reads).
-    if (!this.isMessageAfterOrEqual(target, member.lastReadMessage ?? null)) {
+    if (!this.isMessageAfterOrEqual(target, currentCursor)) {
       const unreadCount = await this.countUnread(chatId, member, actor.sub);
       await this.emitUnreadSummary(actor);
       return { lastReadMessageId: member.lastReadMessageId, unreadCount };
     }
 
-    member.lastReadMessageId = target.id;
-    member.hiddenAt = null;
-    await this.memberRepo.save(member);
+    // Atomic FK update — avoids TypeORM relation save retaining the old cursor.
+    await this.memberRepo.update(
+      { chatId, userId: actor.sub },
+      {
+        lastReadMessageId: target.id,
+        lastReadAt: target.createdAt,
+        hiddenAt: null,
+      },
+    );
 
     const toMark = await this.messageRepo
       .createQueryBuilder('message')
@@ -199,11 +208,13 @@ export class ChatsService {
 
     const refreshed = await this.memberRepo.findOne({
       where: { chatId, userId: actor.sub },
-      relations: { lastReadMessage: true },
     });
     const unreadCount = await this.countUnread(chatId, refreshed, actor.sub);
     await this.emitUnreadSummary(actor);
-    return { lastReadMessageId: target.id, unreadCount };
+    return {
+      lastReadMessageId: refreshed?.lastReadMessageId ?? target.id,
+      unreadCount,
+    };
   }
 
   /** Advance read cursor when the actor sends a message (group/system/subject/course/DM). */
@@ -213,9 +224,16 @@ export class ChatsService {
     messageId: string,
   ): Promise<void> {
     await this.membershipSync.addMember(chatId, userId);
+    const message = await this.messageRepo.findOne({
+      where: { id: messageId, chatId },
+    });
     await this.memberRepo.update(
       { chatId, userId },
-      { lastReadMessageId: messageId, hiddenAt: null },
+      {
+        lastReadMessageId: messageId,
+        lastReadAt: message?.createdAt ?? new Date(),
+        hiddenAt: null,
+      },
     );
   }
 
@@ -229,15 +247,33 @@ export class ChatsService {
   }
 
   private isMessageAfterOrEqual(
-    candidate: ChatMessageEntity,
-    current: ChatMessageEntity | null,
+    candidate: Pick<ChatMessageEntity, 'id' | 'createdAt'>,
+    current: Pick<ChatMessageEntity, 'id' | 'createdAt'> | null,
   ): boolean {
     if (!current) return true;
     const candidateAt = new Date(candidate.createdAt).getTime();
     const currentAt = new Date(current.createdAt).getTime();
     if (candidateAt > currentAt) return true;
     if (candidateAt < currentAt) return false;
+    // Timestamp-only cursor (message deleted): treat equal time as already read.
+    if (!current.id) return true;
     return candidate.id >= current.id;
+  }
+
+  private async resolveReadCursor(
+    chatId: string,
+    member: ChatMemberEntity,
+  ): Promise<Pick<ChatMessageEntity, 'id' | 'createdAt'> | null> {
+    if (member.lastReadMessageId) {
+      const byId = await this.messageRepo.findOne({
+        where: { id: member.lastReadMessageId, chatId },
+      });
+      if (byId) return byId;
+    }
+    if (member.lastReadAt) {
+      return { id: '', createdAt: member.lastReadAt };
+    }
+    return null;
   }
 
   async createGroup(
@@ -360,18 +396,16 @@ export class ChatsService {
       );
     }
 
-    let lastRead = member.lastReadMessage ?? null;
-    if (!lastRead && member.lastReadMessageId) {
-      lastRead = await this.messageRepo.findOne({
-        where: { id: member.lastReadMessageId, chatId },
-      });
-    }
+    // Prefer FK id (re-loaded), never a stale lastReadMessage relation from save().
+    const lastRead = await this.resolveReadCursor(chatId, member);
 
-    if (lastRead) {
+    if (lastRead?.id) {
       query.andWhere(
         '(message.createdAt > :readAt OR (message.createdAt = :readAt AND message.id > :readId))',
         { readAt: lastRead.createdAt, readId: lastRead.id },
       );
+    } else if (lastRead?.createdAt) {
+      query.andWhere('message.createdAt > :readAt', { readAt: lastRead.createdAt });
     }
 
     return query.getCount();

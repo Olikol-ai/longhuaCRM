@@ -7,7 +7,7 @@ describe('ChatsService.markRead', () => {
       chatId: 'chat-1',
       userId: 'user-1',
       lastReadMessageId: null as string | null,
-      lastReadMessage: null as { id: string; createdAt: Date } | null,
+      lastReadAt: null as Date | null,
       hiddenAt: null as Date | null,
     };
     const latest = {
@@ -29,7 +29,10 @@ describe('ChatsService.markRead', () => {
         Object.assign(member, row);
         return row;
       }),
-      update: jest.fn(),
+      update: jest.fn(async (_where, patch) => {
+        Object.assign(member, patch);
+        return { affected: 1 };
+      }),
       find: jest.fn().mockResolvedValue([{ userId: 'user-1' }, { userId: 'user-2' }]),
     };
     const messageRepo = {
@@ -86,24 +89,33 @@ describe('ChatsService.markRead', () => {
 
     jest.spyOn(service, 'unreadSummary').mockResolvedValue({ total: 0, byChat: {} });
 
-    return { service, memberRepo, membershipSync, member, latest, older, gateway };
+    return { service, memberRepo, membershipSync, member, latest, older, gateway, messageRepo };
   }
 
   const actor = { sub: 'user-1', email: 'a@test', role: 'student' };
 
-  it('ensures membership and persists last_read_message_id for system chats', async () => {
+  it('ensures membership and persists last_read via update() for system chats', async () => {
     const { service, membershipSync, memberRepo, latest, member } = build();
     const result = await service.markRead(actor, 'chat-1', latest.id);
     expect(membershipSync.addMember).toHaveBeenCalledWith('chat-1', 'user-1');
-    expect(memberRepo.save).toHaveBeenCalled();
+    expect(memberRepo.update).toHaveBeenCalledWith(
+      { chatId: 'chat-1', userId: 'user-1' },
+      expect.objectContaining({
+        lastReadMessageId: latest.id,
+        lastReadAt: latest.createdAt,
+        hiddenAt: null,
+      }),
+    );
+    expect(memberRepo.save).not.toHaveBeenCalled();
     expect(member.lastReadMessageId).toBe(latest.id);
     expect(result.lastReadMessageId).toBe(latest.id);
     expect(result.unreadCount).toBe(0);
   });
 
   it('marks up to latest message when messageId is omitted', async () => {
-    const { service, member, latest } = build();
+    const { service, member, latest, memberRepo } = build();
     const result = await service.markRead(actor, 'chat-1', null);
+    expect(memberRepo.update).toHaveBeenCalled();
     expect(result.lastReadMessageId).toBe(latest.id);
     expect(member.lastReadMessageId).toBe(latest.id);
   });
@@ -111,9 +123,22 @@ describe('ChatsService.markRead', () => {
   it('does not move the cursor backwards', async () => {
     const { service, member, latest, older, memberRepo } = build();
     member.lastReadMessageId = latest.id;
-    member.lastReadMessage = latest;
+    member.lastReadAt = latest.createdAt;
     const result = await service.markRead(actor, 'chat-1', older.id);
     expect(result.lastReadMessageId).toBe(latest.id);
-    expect(memberRepo.save).not.toHaveBeenCalled();
+    expect(memberRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('advances past an existing cursor when a newer message is read', async () => {
+    const { service, member, latest, older, memberRepo } = build();
+    member.lastReadMessageId = older.id;
+    member.lastReadAt = older.createdAt;
+    const result = await service.markRead(actor, 'chat-1', latest.id);
+    expect(memberRepo.update).toHaveBeenCalledWith(
+      { chatId: 'chat-1', userId: 'user-1' },
+      expect.objectContaining({ lastReadMessageId: latest.id }),
+    );
+    expect(result.lastReadMessageId).toBe(latest.id);
+    expect(result.unreadCount).toBe(0);
   });
 });

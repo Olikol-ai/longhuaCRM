@@ -47,6 +47,10 @@ export class ChatMemberEntity {
   @JoinColumn({ name: 'last_read_message_id' })
   lastReadMessage?: ChatMessageEntity | null;
 
+  /** Wall-clock cursor; kept in sync with last_read_message_id (survives message deletes). */
+  @Column({ name: 'last_read_at', type: 'timestamptz', nullable: true })
+  lastReadAt: Date | null;
+
   @Column({ name: 'muted_until', type: 'timestamptz', nullable: true })
   mutedUntil: Date | null;
 

@@ -299,7 +299,7 @@ export class ChatMessagesService {
       await this.membershipSync.addMember(chatId, senderUserId);
       await this.memberRepo.update(
         { chatId, userId: senderUserId },
-        { lastReadMessageId: saved.id, hiddenAt: null },
+        { lastReadMessageId: saved.id, lastReadAt: saved.createdAt, hiddenAt: null },
       );
       await this.memberRepo
         .createQueryBuilder()

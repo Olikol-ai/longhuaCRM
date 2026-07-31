@@ -66,6 +66,7 @@ import { DropLonghuaAiTables1744300000000 } from './migrations/1744300000000-Dro
 import { ManualQuestionAudioAndReview1744400000000 } from './migrations/1744400000000-ManualQuestionAudioAndReview';
 import { SubjectSystemChats1744500000000 } from './migrations/1744500000000-SubjectSystemChats';
 import { ReadingListeningTaskVocabulary1744600000000 } from './migrations/1744600000000-ReadingListeningTaskVocabulary';
+import { ChatMemberLastReadAtAndUnreadRepair1744700000000 } from './migrations/1744700000000-ChatMemberLastReadAtAndUnreadRepair';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -135,6 +136,7 @@ export default new DataSource({
     ManualQuestionAudioAndReview1744400000000,
     SubjectSystemChats1744500000000,
     ReadingListeningTaskVocabulary1744600000000,
+    ChatMemberLastReadAtAndUnreadRepair1744700000000,
   ],
   synchronize: false,
 });

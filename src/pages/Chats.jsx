@@ -89,6 +89,7 @@ export default function Chats() {
 
   const activeChatIdRef = useRef(null);
   activeChatIdRef.current = activeChat?.id || null;
+  const markReadRequestRef = useRef(0);
   const isLgUpRef = useRef(isLgUp);
   isLgUpRef.current = isLgUp;
 
@@ -137,16 +138,26 @@ export default function Chats() {
     try {
       const summary = await chatsApi.unreadCount();
       const byChat = pickField(summary, 'byChat', 'by_chat') || {};
+      const openChatId = activeChatIdRef.current;
       setGroups((previous) =>
         Object.fromEntries(
           Object.entries(previous).map(([kind, chats]) => [
             kind,
-            chats.map((chat) =>
-              normalizeChat({
+            chats.map((chat) => {
+              // While a chat is open we treat it as read unless the server
+              // explicitly still reports unread (new message arrived).
+              const serverUnread = byChat?.[chat.id];
+              const unreadCount =
+                chat.id === openChatId
+                  ? typeof serverUnread === 'number'
+                    ? serverUnread
+                    : 0
+                  : serverUnread || 0;
+              return normalizeChat({
                 ...chat,
-                unreadCount: byChat?.[chat.id] || 0,
-              }),
-            ),
+                unreadCount,
+              });
+            }),
           ]),
         ),
       );
@@ -264,7 +275,7 @@ export default function Chats() {
             // Persist read so counters stay 0 after reload.
             if (next.id && next.senderUserId !== user?.id) {
               void chatsApi
-                .markRead(next.chatId, next.id)
+                .markRead(next.chatId)
                 .then(() => {
                   emitMessageRead(next.chatId, next.id);
                   void syncUnreadFromServer();
@@ -287,16 +298,24 @@ export default function Chats() {
         'chat.unread': (payload) => {
           const byChat = pickField(payload, 'byChat', 'by_chat') || {};
           const total = pickField(payload, 'total') ?? 0;
+          const openChatId = activeChatIdRef.current;
           setGroups((previous) =>
             Object.fromEntries(
               Object.entries(previous).map(([kind, chats]) => [
                 kind,
-                chats.map((chat) =>
-                  normalizeChat({
+                chats.map((chat) => {
+                  const serverUnread = byChat?.[chat.id];
+                  const unreadCount =
+                    chat.id === openChatId
+                      ? typeof serverUnread === 'number'
+                        ? serverUnread
+                        : 0
+                      : serverUnread || 0;
+                  return normalizeChat({
                     ...chat,
-                    unreadCount: byChat?.[chat.id] || 0,
-                  }),
-                ),
+                    unreadCount,
+                  });
+                }),
               ]),
             ),
           );
@@ -373,20 +392,28 @@ export default function Chats() {
     (messageId) => {
       const chatId = activeChatIdRef.current;
       if (!chatId) return;
+      const requestId = ++markReadRequestRef.current;
+      // Optimistic: hide badge immediately while server persists the cursor.
+      setGroups((prev) => patchUnread(prev, chatId, 0));
       void chatsApi
         .markRead(chatId, messageId || undefined)
         .then(async (result) => {
+          if (requestId !== markReadRequestRef.current) return;
+          if (activeChatIdRef.current !== chatId) return;
           const lastReadId =
             pickField(result, 'lastReadMessageId', 'last_read_message_id') || messageId;
           if (lastReadId) emitMessageRead(chatId, lastReadId);
-          const unread =
-            pickField(result, 'unreadCount', 'unread_count');
+          const unread = pickField(result, 'unreadCount', 'unread_count');
           setGroups((prev) =>
             patchUnread(prev, chatId, typeof unread === 'number' ? unread : 0),
           );
+          // Refresh other chats' badges; keep this chat at server-confirmed unread.
           await syncUnreadFromServer();
         })
-        .catch(() => {});
+        .catch(() => {
+          if (requestId !== markReadRequestRef.current) return;
+          void syncUnreadFromServer();
+        });
     },
     [syncUnreadFromServer],
   );
