@@ -115,7 +115,7 @@ describe('Video lesson UI contract', () => {
     const student = readFileSync(join(root, 'pages/StudentLessons.jsx'), 'utf8');
     const layout = readFileSync(join(root, 'Layout.jsx'), 'utf8');
 
-    assert.match(page, /Longhua/);
+    assert.match(page, /lesson-video-page/);
     assert.match(page, /Китайский язык/);
     assert.match(page, /Войти в урок|Начать урок/);
     assert.match(page, /LessonVideoSideRail/);
@@ -167,8 +167,15 @@ describe('Video lesson UI contract', () => {
 
     assert.match(page, /videoConnectionMeta|lesson-video-connection/);
     assert.match(page, /useIsLgUp/);
-    assert.match(controls, /min-h-11/);
+    assert.match(page, /grid-cols-\[minmax\(0,1fr\)/);
+    assert.match(page, /DESKTOP_RAIL_WIDTH|lesson-rail-w/);
+    assert.match(page, /side="bottom"/);
+    assert.match(page, /openSheetTab|lesson-video-dock-chat/);
+    assert.match(controls, /rounded-full/);
+    assert.match(controls, /Завершить/);
+    assert.match(controls, /h-12|h-14/);
     assert.match(rail, /участник|преподаватель|репетитор|ученик/i);
+    assert.match(rail, /activeTab|onActiveTabChange/);
 
     assert.doesNotMatch(page, /\bMeeting\b|\bRoom\b|\bLogin\b|\bJoin\b|\bLeave\b|Video conference/);
     assert.doesNotMatch(prejoin, /\bMeeting\b|\bRoom\b|\bLogin\b|\bJoin\b/);

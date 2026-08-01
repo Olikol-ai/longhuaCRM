@@ -19,6 +19,7 @@ import { createPageUrl } from '@/utils';
 import { cn } from '@/lib/utils';
 import { localizeAttendanceStatus } from '@/lib/locale-by';
 import { useAuth } from '@/lib/AuthContext';
+import { useTheme } from '@/lib/ThemeContext';
 import {
   connectChatSocket,
   joinChat,
@@ -33,11 +34,12 @@ import {
   shouldSuggestPresent,
 } from '@/lib/lesson-video';
 
+/** Order matches product UX: chat first, then study tools, then roster. */
 const BASE_TABS = [
-  { id: 'participants', label: 'Участники', icon: Users },
   { id: 'chat', label: 'Чат', icon: MessageCircle },
   { id: 'materials', label: 'Материалы', icon: BookOpen },
   { id: 'homework', label: 'ДЗ', icon: NotebookPen },
+  { id: 'participants', label: 'Участники', icon: Users },
   { id: 'info', label: 'Инфо', icon: Info },
 ];
 
@@ -91,16 +93,29 @@ export default function LessonVideoSideRail({
   timeRange = '',
   subject = '',
   connectionLabel = '',
+  activeTab,
+  onActiveTabChange,
+  onChatUnreadChange,
 }) {
   const { user } = useAuth();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
   const tabs = useMemo(() => {
     if (!canManageAttendance) return BASE_TABS;
     const next = [...BASE_TABS];
-    next.splice(1, 0, ATTENDANCE_TAB);
+    const participantsIdx = next.findIndex((t) => t.id === 'participants');
+    next.splice(participantsIdx + 1, 0, ATTENDANCE_TAB);
     return next;
   }, [canManageAttendance]);
 
-  const [tab, setTab] = useState('participants');
+  const [internalTab, setInternalTab] = useState(activeTab || 'chat');
+  const tab = activeTab ?? internalTab;
+  const setTab = (next) => {
+    if (onActiveTabChange) onActiveTabChange(next);
+    else setInternalTab(next);
+  };
+
   const tabRef = useRef(tab);
   const [participants, setParticipants] = useState([]);
   const [loadingPeople, setLoadingPeople] = useState(false);
@@ -120,8 +135,18 @@ export default function LessonVideoSideRail({
   }, [tab]);
 
   useEffect(() => {
+    if (typeof activeTab === 'string' && activeTab !== internalTab) {
+      setInternalTab(activeTab);
+    }
+  }, [activeTab, internalTab]);
+
+  useEffect(() => {
+    onChatUnreadChange?.(chatUnread);
+  }, [chatUnread, onChatUnreadChange]);
+
+  useEffect(() => {
     if (!canManageAttendance && tab === 'attendance') {
-      setTab('participants');
+      setTab('chat');
     }
   }, [canManageAttendance, tab]);
 
@@ -186,8 +211,6 @@ export default function LessonVideoSideRail({
     }
   }, []);
 
-  // Bind lesson chat early so history persists and in-lesson unread works
-  // without putting this chat into the global «Чаты» list.
   useEffect(() => {
     if (!lessonId) return undefined;
     let cancelled = false;
@@ -358,32 +381,47 @@ export default function LessonVideoSideRail({
     }
   };
 
+  const muted = isDark ? 'text-slate-400' : 'text-muted-foreground';
+  const soft = isDark ? 'text-slate-500' : 'text-muted-foreground';
+  const panel = isDark
+    ? 'border-white/10 bg-white/[0.03]'
+    : 'border-border bg-muted/40';
+  const inputCls = isDark
+    ? 'border-white/10 bg-neutral-900 text-slate-100 placeholder:text-slate-500'
+    : 'border-border bg-background text-foreground placeholder:text-muted-foreground';
+
   return (
     <aside
       className={cn(
-        'flex flex-col border border-slate-800 bg-slate-950 text-slate-100 overflow-hidden',
-        compact ? 'h-full min-h-0 rounded-t-2xl border-0' : 'h-full min-h-0 rounded-2xl',
+        'flex h-full min-h-0 flex-col overflow-hidden',
+        compact ? '' : '',
+        isDark ? 'bg-neutral-950 text-slate-100' : 'bg-card text-foreground',
       )}
       data-testid="lesson-video-side-rail"
     >
-      <div className="flex gap-1 overflow-x-auto border-b border-slate-800 p-2 shrink-0 scrollbar-none">
+      <div
+        className={cn(
+          'flex shrink-0 gap-1 overflow-x-auto border-b p-2 scrollbar-none',
+          isDark ? 'border-white/10' : 'border-border',
+        )}
+      >
         {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             type="button"
             onClick={() => setTab(id)}
             className={cn(
-              'inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-medium transition-colors',
+              'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-medium transition-colors sm:h-10 sm:px-3 sm:text-xs',
               tab === id
-                ? 'bg-brand/20 text-brand'
-                : 'text-slate-400 hover:bg-slate-900 hover:text-slate-100',
+                ? 'bg-brand/15 text-brand'
+                : muted + (isDark ? ' hover:bg-white/5 hover:text-slate-100' : ' hover:bg-muted hover:text-foreground'),
             )}
           >
-            <Icon className="h-4 w-4" />
-            {label}
+            <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="whitespace-nowrap">{label}</span>
             {id === 'chat' && chatUnread > 0 ? (
               <span
-                className="ml-0.5 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-semibold text-white"
+                className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[9px] font-semibold text-white"
                 data-testid="lesson-video-chat-unread"
               >
                 {chatUnread > 99 ? '99+' : chatUnread}
@@ -393,17 +431,17 @@ export default function LessonVideoSideRail({
         ))}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto p-3 text-sm space-y-3">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3 text-sm">
         {tab === 'materials' && (
           <div className="space-y-3">
-            <p className="text-slate-400 text-xs leading-relaxed">
-              Материалы урока открываются в CRM без выхода из видеозвонка — вернитесь сюда через «Назад» в браузере или вкладку урока.
+            <p className={cn('text-xs leading-relaxed', muted)}>
+              Материалы открываются в CRM — видеозвонок остаётся на этой вкладке.
             </p>
             <Button asChild className="w-full min-h-11">
               <Link to={materialsPath}>Открыть материалы</Link>
             </Button>
             {lesson?.notes ? (
-              <div className="rounded-lg bg-slate-900 p-3 text-xs whitespace-pre-wrap text-slate-300">
+              <div className={cn('rounded-xl border p-3 text-xs whitespace-pre-wrap', panel, muted)}>
                 {lesson.notes}
               </div>
             ) : null}
@@ -419,18 +457,18 @@ export default function LessonVideoSideRail({
                 {homework.map((row) => (
                   <li
                     key={row.id || row.assignment_id}
-                    className="rounded-lg border border-slate-800 bg-slate-900/60 p-3"
+                    className={cn('rounded-xl border p-3', panel)}
                   >
-                    <p className="font-medium text-xs">
+                    <p className="truncate text-xs font-medium">
                       {row.title || row.homework?.title || 'Домашнее задание'}
                     </p>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-xs text-slate-500">Нет ДЗ, привязанных к этому уроку.</p>
+              <p className={cn('text-xs', soft)}>Нет ДЗ, привязанных к этому уроку.</p>
             )}
-            <Button asChild variant="outline" className="w-full min-h-11 border-slate-700">
+            <Button asChild variant="outline" className="w-full min-h-11">
               <Link to={homeworkPath}>
                 {isHost ? 'Назначить / список ДЗ' : 'Мои задания'}
               </Link>
@@ -440,8 +478,8 @@ export default function LessonVideoSideRail({
 
         {tab === 'participants' && (
           <div className="space-y-3" data-testid="lesson-video-participants">
-            <div className="flex items-center justify-between text-xs text-slate-400">
-              <span>В уроке (CRM): {participants.length}</span>
+            <div className={cn('flex items-center justify-between text-xs', muted)}>
+              <span>В уроке: {participants.length}</span>
               {typeof jitsiParticipantCount === 'number' ? (
                 <span>В видео: {jitsiParticipantCount}</span>
               ) : null}
@@ -453,25 +491,25 @@ export default function LessonVideoSideRail({
                 {rosterWithPresence.map((p, idx) => (
                   <li
                     key={`${p.role}-${p.student_id || p.presence?.id || p.name}-${idx}`}
-                    className="rounded-lg border border-slate-800 bg-slate-900/60 p-3"
+                    className={cn('rounded-xl border p-3', panel)}
                   >
-                    <div className="flex items-start gap-2 min-w-0">
+                    <div className="flex min-w-0 items-start gap-2">
                       <span
                         className={cn(
-                          'mt-1 h-2.5 w-2.5 shrink-0 rounded-full',
-                          p.online ? 'bg-emerald-500' : 'bg-slate-600',
+                          'mt-1 h-2 w-2 shrink-0 rounded-full',
+                          p.online ? 'bg-emerald-500' : isDark ? 'bg-slate-600' : 'bg-muted-foreground/40',
                         )}
                         aria-hidden
                       />
                       <div className="min-w-0 space-y-0.5">
-                        <p className="truncate font-medium text-xs">{p.name}</p>
-                        <p className="text-[11px] text-slate-500">
+                        <p className="truncate text-xs font-medium">{p.name}</p>
+                        <p className={cn('text-[11px]', soft)}>
                           {roleLabel(p.role)}
                           {' · '}
                           {p.online ? 'онлайн' : 'офлайн'}
                         </p>
-                        <p className="text-[11px] text-slate-500">
-                          Подключение: {formatJoinedAt(p.joinedAt)}
+                        <p className={cn('text-[11px]', soft)}>
+                          {formatJoinedAt(p.joinedAt)}
                           {' · '}
                           {p.connectionStatus}
                         </p>
@@ -486,9 +524,9 @@ export default function LessonVideoSideRail({
 
         {tab === 'attendance' && canManageAttendance && (
           <div className="space-y-3" data-testid="lesson-video-attendance">
-            <p className="text-[11px] text-slate-500 leading-relaxed">
+            <p className={cn('text-[11px] leading-relaxed', soft)}>
               Отметьте посещаемость вручную. Если ученик был в конференции достаточно долго,
-              система предложит статус «Был» — вы всегда можете выбрать другой.
+              система предложит статус «Был».
             </p>
             {loadingPeople ? (
               <Loader2 className="h-5 w-5 animate-spin text-brand" />
@@ -502,26 +540,26 @@ export default function LessonVideoSideRail({
                   return (
                     <li
                       key={`${p.attendance_id || p.student_id}-${idx}`}
-                      className="rounded-lg border border-slate-800 bg-slate-900/60 p-3 space-y-2"
+                      className={cn('space-y-2 rounded-xl border p-3', panel)}
                     >
                       <div className="min-w-0">
-                        <p className="truncate font-medium text-xs">{p.name}</p>
-                        <p className="text-[11px] text-slate-500">
+                        <p className="truncate text-xs font-medium">{p.name}</p>
+                        <p className={cn('text-[11px]', soft)}>
                           {p.connectionStatus}
                           {' · '}
                           {localizeAttendanceStatus(status)}
                         </p>
                         {suggestPresent ? (
                           <p
-                            className="mt-1 text-[11px] text-emerald-400"
+                            className="mt-1 text-[11px] text-emerald-500"
                             data-testid="attendance-suggest-present"
                           >
-                            Рекомендуем: Был (достаточно долго в конференции)
+                            Рекомендуем: Был
                           </p>
                         ) : null}
                       </div>
                       {p.attendance_id ? (
-                        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                        <div className="grid grid-cols-2 gap-1.5">
                           {[
                             { status: 'attended', label: 'Был', suggest: suggestPresent },
                             { status: 'missed', label: 'Не был' },
@@ -537,9 +575,8 @@ export default function LessonVideoSideRail({
                                 variant={active ? 'default' : 'outline'}
                                 disabled={statusBusy}
                                 className={cn(
-                                  'min-h-11 px-2 text-[11px] whitespace-normal leading-tight',
-                                  !active && 'border-slate-700',
-                                  btn.suggest && !active && 'ring-1 ring-emerald-500/50',
+                                  'min-h-10 px-2 text-[11px] leading-tight',
+                                  btn.suggest && !active && 'ring-1 ring-emerald-500/40',
                                 )}
                                 onClick={() =>
                                   void setAttendanceStatus(p.attendance_id, btn.status)
@@ -551,8 +588,8 @@ export default function LessonVideoSideRail({
                           })}
                         </div>
                       ) : (
-                        <p className="text-[11px] text-amber-400/90">
-                          Нет записи посещаемости для этого ученика
+                        <p className="text-[11px] text-amber-600 dark:text-amber-400/90">
+                          Нет записи посещаемости
                         </p>
                       )}
                     </li>
@@ -560,35 +597,42 @@ export default function LessonVideoSideRail({
                 })}
               </ul>
             ) : (
-              <p className="text-xs text-slate-500">Нет учеников для отметки посещаемости.</p>
+              <p className={cn('text-xs', soft)}>Нет учеников для отметки посещаемости.</p>
             )}
           </div>
         )}
 
         {tab === 'chat' && (
-          <div className="flex h-full min-h-[240px] flex-col gap-2">
+          <div className="flex h-full min-h-[220px] flex-col gap-2">
             {loadingChat && !messages.length ? (
               <Loader2 className="h-5 w-5 animate-spin text-brand" />
             ) : (
-              <div className="flex-1 space-y-2 overflow-y-auto rounded-lg bg-slate-900/80 p-2">
+              <div
+                className={cn(
+                  'min-h-0 flex-1 space-y-2 overflow-y-auto rounded-xl border p-2',
+                  panel,
+                )}
+              >
                 {messages.length ? (
                   messages.map((m) => (
                     <div key={m.id} className="text-xs leading-relaxed">
                       <span className="font-medium text-brand">
-                        {m.sender_name || m.senderName || m.user?.firstName || 'Участник'}
+                        {m.sender_name || m.senderName || m.senderUser?.firstName || 'Участник'}
                         :{' '}
                       </span>
-                      <span className="text-slate-200">{messageBody(m)}</span>
+                      <span className={isDark ? 'text-slate-200' : 'text-foreground'}>
+                        {messageBody(m)}
+                      </span>
                     </div>
                   ))
                 ) : (
-                  <p className="text-xs text-slate-500">Сообщений пока нет</p>
+                  <p className={cn('text-xs', soft)}>Сообщений пока нет</p>
                 )}
               </div>
             )}
             <div className="flex gap-2">
               <input
-                className="min-h-11 flex-1 rounded-xl border border-slate-700 bg-slate-900 px-3 text-sm text-slate-100 placeholder:text-slate-500"
+                className={cn('min-h-11 flex-1 rounded-xl border px-3 text-sm', inputCls)}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder="Сообщение урока…"
@@ -613,36 +657,35 @@ export default function LessonVideoSideRail({
         )}
 
         {tab === 'info' && (
-          <div className="space-y-3 text-xs text-slate-300">
-            <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3 space-y-1.5">
+          <div className={cn('space-y-3 text-xs', isDark ? 'text-slate-300' : 'text-foreground')}>
+            <div className={cn('space-y-1.5 rounded-xl border p-3', panel)}>
               <p>
-                <span className="text-slate-500">Урок:</span>{' '}
-                <span className="font-medium text-slate-100">{lesson?.title || 'Онлайн-урок'}</span>
+                <span className={soft}>Урок:</span>{' '}
+                <span className="font-medium">{lesson?.title || 'Онлайн-урок'}</span>
               </p>
               <p>
-                <span className="text-slate-500">Предмет:</span> {subject || '—'}
+                <span className={soft}>Предмет:</span> {subject || '—'}
               </p>
               <p>
-                <span className="text-slate-500">Преподаватель:</span>{' '}
-                {lesson?.teacher_name || '—'}
+                <span className={soft}>Преподаватель:</span> {lesson?.teacher_name || '—'}
               </p>
               <p>
-                <span className="text-slate-500">Время:</span> {timeRange || '—'}
+                <span className={soft}>Время:</span> {timeRange || '—'}
               </p>
               {connectionLabel ? (
                 <p>
-                  <span className="text-slate-500">Статус:</span> {connectionLabel}
+                  <span className={soft}>Статус:</span> {connectionLabel}
                 </p>
               ) : null}
               {lesson?.group_name ? (
                 <p>
-                  <span className="text-slate-500">Группа:</span> {lesson.group_name}
+                  <span className={soft}>Группа:</span> {lesson.group_name}
                 </p>
               ) : null}
             </div>
             {isHost ? (
               <div className="space-y-2">
-                <p className="text-slate-500">Действия преподавателя</p>
+                <p className={soft}>Действия преподавателя</p>
                 <Button
                   type="button"
                   className="w-full min-h-11"
@@ -651,7 +694,7 @@ export default function LessonVideoSideRail({
                 >
                   Отметить урок завершённым
                 </Button>
-                <Button asChild variant="outline" className="w-full min-h-11 border-slate-700">
+                <Button asChild variant="outline" className="w-full min-h-11">
                   <Link to={homeworkPath}>Назначить домашнее задание</Link>
                 </Button>
                 <Button asChild variant="ghost" className="w-full min-h-11">
