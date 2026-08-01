@@ -6,37 +6,28 @@ import {
   hardReloadForStaleChunks,
   isChunkLoadError,
   logChunkLoadError,
-} from '@/lib/lazyRetry';
+  recordFrontendUpdateEvent,
+  saveNavigationStateForUpdate,
+} from '@/lib/frontendUpdate';
 
 /**
- * Catches render errors so one broken page does not blank the whole SPA.
- * Deploy / chunk failures use a dedicated update screen — never technical text.
+ * Thin boundary: chunk/deploy failures → FrontendUpdateScreen.
+ * All other errors → generic friendly fallback (no stack / no technical text).
  */
 export default class AppErrorBoundary extends Component {
   constructor(props) {
     super(props);
     this.state = {
       hasError: false,
-      message: '',
-      recovering: false,
       isChunkError: false,
       updatePhase: 'updating',
     };
-    this.autoReloadTimer = null;
-    this.autoRecoverStarted = false;
   }
 
   static getDerivedStateFromError(error) {
     const isChunkError = isChunkLoadError(error);
     return {
       hasError: true,
-      // Never surface raw error.message for chunk failures in UI state consumers.
-      message: isChunkError
-        ? ''
-        : error?.message
-          ? String(error.message)
-          : 'Неизвестная ошибка',
-      recovering: isChunkError,
       isChunkError,
       updatePhase: isChunkError ? 'updating' : 'idle',
     };
@@ -45,36 +36,23 @@ export default class AppErrorBoundary extends Component {
   componentDidCatch(error, info) {
     if (isChunkLoadError(error)) {
       logChunkLoadError(error, info);
-      if (this.autoRecoverStarted) return;
+      saveNavigationStateForUpdate({ reason: 'boundary' });
       if (!claimChunkAutoReload()) {
-        // Auto-reload already tried recently — show manual actions only.
-        this.setState({ recovering: false, updatePhase: 'manual' });
+        recordFrontendUpdateEvent({
+          type: 'frontend_update_manual_required',
+          reason: 'auto_reload_already_claimed',
+        });
+        this.setState({ updatePhase: 'manual' });
         return;
       }
-      this.autoRecoverStarted = true;
-      this.setState({ recovering: true, isChunkError: true, updatePhase: 'updating' });
-      this.autoReloadTimer = window.setTimeout(() => {
-        void hardReloadForStaleChunks('boundary');
-      }, 800);
+      this.setState({ updatePhase: 'updating' });
       return;
     }
 
     console.error('AppErrorBoundary', error, info?.componentStack);
   }
 
-  componentWillUnmount() {
-    if (this.autoReloadTimer) {
-      window.clearTimeout(this.autoReloadTimer);
-      this.autoReloadTimer = null;
-    }
-  }
-
   handleGoHome = async () => {
-    if (this.autoReloadTimer) {
-      window.clearTimeout(this.autoReloadTimer);
-      this.autoReloadTimer = null;
-    }
-    this.setState({ recovering: true });
     if (this.state.isChunkError) {
       await clearClientModuleCaches();
     }
@@ -82,21 +60,16 @@ export default class AppErrorBoundary extends Component {
   };
 
   handleReloadNow = async () => {
-    if (this.autoReloadTimer) {
-      window.clearTimeout(this.autoReloadTimer);
-      this.autoReloadTimer = null;
-    }
-    this.setState({ recovering: true, updatePhase: 'updating' });
-    await hardReloadForStaleChunks('retry');
+    this.setState({ updatePhase: 'updating' });
+    await hardReloadForStaleChunks('manual');
   };
 
-  handleRetry = async () => {
-    if (this.autoReloadTimer) {
-      window.clearTimeout(this.autoReloadTimer);
-      this.autoReloadTimer = null;
-    }
-    this.setState({ recovering: true });
-    this.setState({ hasError: false, message: '', recovering: false, isChunkError: false });
+  handleAutoReload = async () => {
+    await hardReloadForStaleChunks('boundary');
+  };
+
+  handleRetry = () => {
+    this.setState({ hasError: false, isChunkError: false, updatePhase: 'idle' });
     window.location.reload();
   };
 
@@ -109,6 +82,7 @@ export default class AppErrorBoundary extends Component {
       return (
         <FrontendUpdateScreen
           phase={this.state.updatePhase === 'manual' ? 'manual' : 'updating'}
+          onAutoReload={this.handleAutoReload}
           onReloadNow={this.handleReloadNow}
           onGoHome={this.handleGoHome}
         />
@@ -117,23 +91,23 @@ export default class AppErrorBoundary extends Component {
 
     return (
       <div className="min-h-app flex items-center justify-center bg-background p-6 text-foreground">
-        <div className="w-full max-w-md space-y-4 text-center">
+        <div className="w-full max-w-md space-y-4 rounded-2xl border border-border bg-card p-6 text-center shadow-sm">
           <h1 className="text-xl font-semibold">Что-то пошло не так</h1>
-          <p className="break-words text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Произошла ошибка. Попробуйте обновить страницу или вернуться на главную.
           </p>
           <div className="flex flex-col justify-center gap-2 sm:flex-row">
             <button
               type="button"
               onClick={this.handleRetry}
-              className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted"
+              className="rounded-xl border border-border px-4 py-2.5 text-sm font-medium hover:bg-muted"
             >
               Попробовать снова
             </button>
             <button
               type="button"
               onClick={this.handleGoHome}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+              className="rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground"
             >
               На главную
             </button>

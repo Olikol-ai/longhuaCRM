@@ -98,12 +98,10 @@ function pruneAssets(keepSet) {
 
 const beforeFiles = listAssetFiles(ASSETS);
 const generations = readGenerations();
-// Prefer explicit current generation; fall back to whatever is on disk now.
-const previousGeneration = beforeFiles.length
-  ? beforeFiles
-  : generations.current.length
-    ? generations.current
-    : generations.previous;
+// Keep exactly one previous Vite generation (not the entire accumulating assets dir).
+const previousGeneration = generations.current.length
+  ? generations.current
+  : beforeFiles;
 
 stashAssets(previousGeneration);
 
