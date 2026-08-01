@@ -218,13 +218,14 @@ export class VideoService {
   }
 
   /**
-   * Participants for the lesson side panel (teacher + attendance students).
+   * Participants for the lesson side panel (teacher + tutor + attendance students).
+   * Live online / join time come from the client (Jitsi presence); CRM provides roster.
    */
   async getLessonParticipants(actor: JwtPayload, lessonId: string) {
     await this.lessonAccess.assertCanReadLesson(actor, lessonId);
     const lesson = await this.lessons.findOne({
       where: { id: lessonId },
-      relations: ['teacher', 'primaryStudent'],
+      relations: ['teacher', 'tutor', 'primaryStudent'],
     });
     if (!lesson) throw new NotFoundException('Урок не найден');
 
@@ -261,6 +262,13 @@ export class VideoService {
             lesson.teacher.lastName,
             'Преподаватель',
           ),
+      });
+    }
+
+    if (lesson.tutor) {
+      participants.push({
+        role: 'tutor',
+        name: lesson.tutor.displayName?.trim() || 'Репетитор',
       });
     }
 

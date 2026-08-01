@@ -79,6 +79,18 @@ export class LessonsController {
     return this.lessonsService.markAbsent(user, id);
   }
 
+  @Patch('attendance/:id/late')
+  @Roles('admin', 'teacher', 'tutor')
+  markLate(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.lessonsService.markLate(user, id);
+  }
+
+  @Patch('attendance/:id/excused')
+  @Roles('admin', 'teacher', 'tutor')
+  markExcused(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.lessonsService.markExcused(user, id);
+  }
+
   @Delete('attendance/:id')
   @Roles('admin')
   deleteAttendance(@Param('id') id: string) {

@@ -16,8 +16,10 @@ import { TeacherStudentContactEntity } from '../../teacher-student-contacts/enti
 export type AttendanceStatus =
   | 'enrolled'
   | 'attended'
+  | 'late'
   | 'missed'
   | 'missed_no_notice'
+  | 'excused'
   | 'cancelled';
 
 @Entity('attendance_records')
@@ -66,7 +68,15 @@ export class AttendanceEntity {
   @Column({
     name: 'attendance_status',
     type: 'enum',
-    enum: ['enrolled', 'attended', 'missed', 'missed_no_notice', 'cancelled'],
+    enum: [
+      'enrolled',
+      'attended',
+      'late',
+      'missed',
+      'missed_no_notice',
+      'excused',
+      'cancelled',
+    ],
     default: 'enrolled',
   })
   attendanceStatus: AttendanceStatus;

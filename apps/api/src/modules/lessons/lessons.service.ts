@@ -85,8 +85,10 @@ const FINANCIALLY_FINALIZED_LESSON_STATUSES = new Set(['completed']);
 /** Attendance statuses a teacher cannot overwrite after confirmation. */
 const TEACHER_LOCKED_ATTENDANCE_STATUSES = new Set([
   'attended',
+  'late',
   'missed',
   'missed_no_notice',
+  'excused',
   'cancelled',
 ]);
 
@@ -1828,6 +1830,14 @@ export class LessonsService {
 
   async markAbsent(actor: JwtPayload, id: string): Promise<AttendanceEntity> {
     return this.updateAttendance(actor, id, { attendanceStatus: 'missed' });
+  }
+
+  async markLate(actor: JwtPayload, id: string): Promise<AttendanceEntity> {
+    return this.updateAttendance(actor, id, { attendanceStatus: 'late' });
+  }
+
+  async markExcused(actor: JwtPayload, id: string): Promise<AttendanceEntity> {
+    return this.updateAttendance(actor, id, { attendanceStatus: 'excused' });
   }
 
   async deleteAttendance(id: string): Promise<void> {

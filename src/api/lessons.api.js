@@ -22,6 +22,18 @@ const attendance = {
       body: '{}',
     });
   },
+  late(id) {
+    return apiFetch(`/lessons/attendance/${encodeURIComponent(id)}/late`, {
+      method: 'PATCH',
+      body: '{}',
+    });
+  },
+  excused(id) {
+    return apiFetch(`/lessons/attendance/${encodeURIComponent(id)}/excused`, {
+      method: 'PATCH',
+      body: '{}',
+    });
+  },
 };
 
 export const lessons = {

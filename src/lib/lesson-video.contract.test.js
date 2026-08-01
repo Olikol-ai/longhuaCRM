@@ -7,10 +7,15 @@ import {
   buildJitsiConfigOverwrite,
   buildJitsiInterfaceConfigOverwrite,
   canStartVideoLesson,
+  findLivePresence,
   isOnlineLesson,
   JITSI_IFRAME_ALLOW,
   lessonVideoPath,
+  normalizeVideoDisplayName,
   parseJitsiDomain,
+  participantConnectionLabel,
+  shouldSuggestPresent,
+  ATTENDANCE_SUGGEST_MS,
   videoConnectionMeta,
 } from './lesson-video.js';
 
@@ -68,6 +73,29 @@ describe('lesson-video helpers', () => {
     assert.equal(videoConnectionMeta('degraded').label, 'Проблемы соединения');
     assert.equal(videoConnectionMeta('reconnecting').label, 'Переподключение…');
   });
+
+  it('matches Jitsi display names and suggests present after long connection', () => {
+    assert.equal(normalizeVideoDisplayName('Иван Петров (ученик)'), 'иван петров');
+    const live = [
+      {
+        id: '1',
+        displayName: 'Иван Петров (ученик)',
+        online: true,
+        sessionStart: Date.now() - ATTENDANCE_SUGGEST_MS - 1000,
+        accumulatedMs: 0,
+      },
+    ];
+    assert.equal(findLivePresence('Иван Петров', live)?.id, '1');
+    assert.equal(shouldSuggestPresent(live[0]), true);
+    assert.equal(
+      participantConnectionLabel({ online: true, presence: live[0] }),
+      'в конференции',
+    );
+    assert.equal(
+      participantConnectionLabel({ online: false, presence: { leftAt: Date.now() } }),
+      'отключился',
+    );
+  });
 });
 
 describe('Video lesson UI contract', () => {
@@ -96,6 +124,25 @@ describe('Video lesson UI contract', () => {
     assert.match(rail, /Материалы/);
     assert.match(rail, /Домашнее задание|ДЗ/);
     assert.match(rail, /Чат/);
+    assert.match(rail, /Посещаемость/);
+    assert.match(rail, /canManageAttendance/);
+    assert.match(rail, /lesson-video-attendance/);
+    assert.match(rail, /attendance-suggest-present|Рекомендуем: Был/);
+    assert.match(rail, /Уважительная причина/);
+    assert.match(rail, /Опоздал/);
+    // Attendance actions stay on the attendance tab, not the participants roster.
+    assert.match(rail, /tab === 'attendance'/);
+    assert.match(rail, /tab === 'participants'/);
+    assert.match(rail, /data-testid="lesson-video-participants"/);
+    assert.match(rail, /data-testid="lesson-video-attendance"/);
+    const participantsBlock = rail.slice(
+      rail.indexOf("tab === 'participants'"),
+      rail.indexOf("tab === 'attendance'"),
+    );
+    assert.doesNotMatch(participantsBlock, /Был|Не был|Опоздал|Уважительная причина/);
+    assert.match(page, /canManageAttendance/);
+    assert.match(page, /onPresenceChange|livePresence/);
+    assert.match(embed, /onPresenceChange|getParticipantsInfo|participantJoined/);
     assert.match(prejoin, /Проверка оборудования/);
     assert.match(prejoin, /Камера/);
     assert.match(prejoin, /Микрофон/);

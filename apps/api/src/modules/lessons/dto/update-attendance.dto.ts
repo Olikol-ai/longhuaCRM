@@ -7,6 +7,14 @@ import { AttendanceStatus } from '../entities/attendance.entity';
  */
 export class UpdateAttendanceDto {
   @IsOptional()
-  @IsEnum(['enrolled', 'attended', 'missed', 'missed_no_notice', 'cancelled'])
+  @IsEnum([
+    'enrolled',
+    'attended',
+    'late',
+    'missed',
+    'missed_no_notice',
+    'excused',
+    'cancelled',
+  ])
   attendanceStatus?: AttendanceStatus;
 }

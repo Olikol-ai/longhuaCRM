@@ -89,6 +89,7 @@ export default function LessonVideo() {
   const [embedKey, setEmbedKey] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState('idle');
   const [jitsiParticipantCount, setJitsiParticipantCount] = useState(null);
+  const [livePresence, setLivePresence] = useState([]);
   /** JWT frozen for the current embed session (avoids remount when access payload refreshes). */
   const [sessionJwt, setSessionJwt] = useState(null);
 
@@ -174,6 +175,10 @@ export default function LessonVideo() {
   const tooEarly = phase === 'before' && !canJoinWindow;
   const isHost = Boolean(data?.is_host);
   const isStudent = data?.viewer_role === 'student';
+  const canManageAttendance =
+    user?.role === 'admin' ||
+    user?.role === 'teacher' ||
+    user?.role === 'tutor';
 
   const backPath = useMemo(() => {
     if (user?.role === 'student' || user?.role === 'tutor_student') {
@@ -336,9 +341,11 @@ export default function LessonVideo() {
     lesson,
     isHost,
     isStudent,
+    canManageAttendance,
     materialsPath,
     homeworkPath,
     jitsiParticipantCount,
+    livePresence,
     timeRange,
     subject,
     connectionLabel,
@@ -486,6 +493,7 @@ export default function LessonVideo() {
                   onVideoMuteChanged={setVideoMuted}
                   onConnectionStatus={setConnectionStatus}
                   onParticipantCount={setJitsiParticipantCount}
+                  onPresenceChange={setLivePresence}
                 />
               </div>
 

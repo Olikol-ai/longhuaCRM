@@ -36,8 +36,10 @@ export const LESSON_STATUS_LABEL = {
 export const ATTENDANCE_STATUS_LABEL = {
   enrolled: 'Записан',
   attended: 'Присутствовал',
+  late: 'Опоздал',
   missed: 'Пропуск',
   missed_no_notice: 'Пропуск без уведомления',
+  excused: 'Уважительная причина',
   cancelled: 'Отменено',
 };
 

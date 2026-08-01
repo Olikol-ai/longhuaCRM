@@ -203,6 +203,71 @@ export function videoConnectionMeta(status) {
   return VIDEO_CONNECTION_STATUS[status] || VIDEO_CONNECTION_STATUS.idle;
 }
 
+/** Min time in conference before suggesting attendance status «Был». */
+export const ATTENDANCE_SUGGEST_MS = 5 * 60 * 1000;
+
+/** Strip role suffix like « (ученик)» and normalize for name matching. */
+export function normalizeVideoDisplayName(name) {
+  return String(name || '')
+    .replace(/\s*\([^)]*\)\s*$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+/** Find Jitsi presence row matching a CRM roster display name. */
+export function findLivePresence(rosterName, liveList) {
+  const target = normalizeVideoDisplayName(rosterName);
+  if (!target || !Array.isArray(liveList) || liveList.length === 0) return null;
+  const exact = liveList.find(
+    (p) => normalizeVideoDisplayName(p.displayName || p.display_name) === target,
+  );
+  if (exact) return exact;
+  return (
+    liveList.find((p) => {
+      const live = normalizeVideoDisplayName(p.displayName || p.display_name);
+      return live.includes(target) || target.includes(live);
+    }) || null
+  );
+}
+
+export function connectedDurationMs(presence, now = Date.now()) {
+  if (!presence) return 0;
+  const base = Number(presence.accumulatedMs || presence.accumulated_ms || 0);
+  const sessionStart = presence.sessionStart || presence.session_start || null;
+  if (presence.online && sessionStart) {
+    return base + Math.max(0, now - Number(sessionStart));
+  }
+  return base;
+}
+
+export function shouldSuggestPresent(
+  presence,
+  thresholdMs = ATTENDANCE_SUGGEST_MS,
+  now = Date.now(),
+) {
+  return connectedDurationMs(presence, now) >= thresholdMs;
+}
+
+export function formatJoinedAt(ts) {
+  if (!ts) return '—';
+  try {
+    return new Date(ts).toLocaleTimeString('ru-RU', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return '—';
+  }
+}
+
+/** Human-readable conference connection status for the participants list. */
+export function participantConnectionLabel({ online, presence }) {
+  if (online) return 'в конференции';
+  if (presence?.leftAt || presence?.left_at) return 'отключился';
+  return 'не подключался';
+}
+
 /**
  * Probe camera / mic / network before join. Must run after a user gesture when possible.
  */

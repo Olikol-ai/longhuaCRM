@@ -31,6 +31,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     onVideoMuteChanged,
     onConnectionStatus,
     onParticipantCount,
+    onPresenceChange,
   },
   ref,
 ) {
@@ -47,6 +48,9 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
   const onVideoMuteChangedRef = useRef(onVideoMuteChanged);
   const onConnectionStatusRef = useRef(onConnectionStatus);
   const onParticipantCountRef = useRef(onParticipantCount);
+  const onPresenceChangeRef = useRef(onPresenceChange);
+  /** @type {React.MutableRefObject<Map<string, object>>} */
+  const presenceMapRef = useRef(new Map());
   const [booting, setBooting] = useState(true);
 
   // Keep latest props for listeners without re-creating the conference.
@@ -60,6 +64,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     onVideoMuteChangedRef.current = onVideoMuteChanged;
     onConnectionStatusRef.current = onConnectionStatus;
     onParticipantCountRef.current = onParticipantCount;
+    onPresenceChangeRef.current = onPresenceChange;
   }, [
     displayName,
     subject,
@@ -70,6 +75,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     onVideoMuteChanged,
     onConnectionStatus,
     onParticipantCount,
+    onPresenceChange,
   ]);
 
   // Apply identity changes to the live conference — never remount for this.
@@ -110,8 +116,10 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     let cancelled = false;
     let bootTimeout = null;
     joinedOnceRef.current = false;
+    presenceMapRef.current = new Map();
     setBooting(true);
     onConnectionStatusRef.current?.('connecting');
+    onPresenceChangeRef.current?.([]);
 
     const host = domain || parseJitsiDomain(roomUrl);
     const name = roomName || '';
@@ -195,6 +203,91 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           }
         };
 
+        const emitPresence = () => {
+          const list = Array.from(presenceMapRef.current.values()).map((row) => ({
+            id: row.id,
+            displayName: row.displayName,
+            online: Boolean(row.online),
+            joinedAt: row.joinedAt || null,
+            leftAt: row.leftAt || null,
+            sessionStart: row.sessionStart || null,
+            accumulatedMs: row.accumulatedMs || 0,
+          }));
+          onPresenceChangeRef.current?.(list);
+        };
+
+        const markOnline = (id, displayNameValue) => {
+          if (!id) return;
+          const now = Date.now();
+          const existing = presenceMapRef.current.get(id);
+          const label =
+            (displayNameValue && String(displayNameValue).trim()) ||
+            existing?.displayName ||
+            'Участник';
+          if (existing?.online) {
+            presenceMapRef.current.set(id, {
+              ...existing,
+              displayName: label,
+            });
+          } else {
+            presenceMapRef.current.set(id, {
+              id,
+              displayName: label,
+              online: true,
+              joinedAt: existing?.joinedAt || now,
+              leftAt: null,
+              sessionStart: now,
+              accumulatedMs: existing?.accumulatedMs || 0,
+            });
+          }
+          emitPresence();
+        };
+
+        const markOffline = (id) => {
+          if (!id) return;
+          const existing = presenceMapRef.current.get(id);
+          if (!existing) return;
+          const now = Date.now();
+          const sessionMs =
+            existing.online && existing.sessionStart
+              ? Math.max(0, now - existing.sessionStart)
+              : 0;
+          presenceMapRef.current.set(id, {
+            ...existing,
+            online: false,
+            leftAt: now,
+            sessionStart: null,
+            accumulatedMs: (existing.accumulatedMs || 0) + sessionMs,
+          });
+          emitPresence();
+        };
+
+        const syncParticipants = () => {
+          try {
+            const count = api.getNumberOfParticipants?.();
+            if (typeof count === 'number') onParticipantCountRef.current?.(count);
+          } catch {
+            // ignore
+          }
+
+          try {
+            const info = api.getParticipantsInfo?.() || [];
+            if (!Array.isArray(info) || info.length === 0) return;
+            const seen = new Set();
+            for (const row of info) {
+              const pid = row?.participantId || row?.id;
+              if (!pid) continue;
+              seen.add(pid);
+              markOnline(pid, row.displayName || row.formattedDisplayName);
+            }
+            for (const [pid, row] of presenceMapRef.current.entries()) {
+              if (!seen.has(pid) && row.online) markOffline(pid);
+            }
+          } catch {
+            // getParticipantsInfo may be unavailable on older builds
+          }
+        };
+
         const reportLeave = () => {
           if (!joinedOnceRef.current) return;
           onConnectionStatusRef.current?.('idle');
@@ -212,21 +305,16 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           onErrorRef.current?.(new Error(String(message)));
         };
 
-        const syncParticipants = () => {
-          try {
-            const count = api.getNumberOfParticipants?.();
-            if (typeof count === 'number') onParticipantCountRef.current?.(count);
-          } catch {
-            // ignore
-          }
-        };
-
-        api.addListener('videoConferenceJoined', () => {
+        api.addListener('videoConferenceJoined', (e) => {
           joinedOnceRef.current = true;
           setBooting(false);
           onConnectionStatusRef.current?.('connected');
           resizeJitsiEmbed(api, containerRef.current);
           applyIdentity();
+          const localId = e?.id || api.getMyUserId?.();
+          if (localId) {
+            markOnline(localId, displayNameRef.current || 'Участник');
+          }
           syncParticipants();
           onJoinedRef.current?.();
         });
@@ -247,8 +335,28 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
         api.addListener('videoMuteStatusChanged', (e) => {
           onVideoMuteChangedRef.current?.(Boolean(e?.muted));
         });
-        api.addListener('participantJoined', syncParticipants);
-        api.addListener('participantLeft', syncParticipants);
+        api.addListener('participantJoined', (e) => {
+          markOnline(e?.id, e?.displayName);
+          syncParticipants();
+        });
+        api.addListener('participantLeft', (e) => {
+          markOffline(e?.id);
+          syncParticipants();
+        });
+        api.addListener('displayNameChange', (e) => {
+          const pid = e?.id;
+          if (!pid) return;
+          const existing = presenceMapRef.current.get(pid);
+          if (!existing) {
+            markOnline(pid, e?.displayname || e?.displayName);
+            return;
+          }
+          presenceMapRef.current.set(pid, {
+            ...existing,
+            displayName: e?.displayname || e?.displayName || existing.displayName,
+          });
+          emitPresence();
+        });
         api.addListener('connectionInterrupted', () => {
           onConnectionStatusRef.current?.('reconnecting');
         });
@@ -278,6 +386,8 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
         // ignore
       }
       apiRef.current = null;
+      presenceMapRef.current = new Map();
+      onPresenceChangeRef.current?.([]);
       if (containerRef.current) containerRef.current.innerHTML = '';
     };
     // Intentionally omit jwt / displayName / subject — remounting on those broke the UI.

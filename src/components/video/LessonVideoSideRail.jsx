@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   BookOpen,
+  ClipboardCheck,
   NotebookPen,
   Users,
   MessageCircle,
@@ -16,14 +17,27 @@ import { toast } from '@/components/ui/use-toast';
 import { userFacingError } from '@/lib/userFacingError';
 import { createPageUrl } from '@/utils';
 import { cn } from '@/lib/utils';
+import { localizeAttendanceStatus } from '@/lib/locale-by';
+import {
+  findLivePresence,
+  formatJoinedAt,
+  participantConnectionLabel,
+  shouldSuggestPresent,
+} from '@/lib/lesson-video';
 
-const TABS = [
+const BASE_TABS = [
   { id: 'participants', label: 'Участники', icon: Users },
   { id: 'chat', label: 'Чат', icon: MessageCircle },
   { id: 'materials', label: 'Материалы', icon: BookOpen },
   { id: 'homework', label: 'ДЗ', icon: NotebookPen },
   { id: 'info', label: 'Инфо', icon: Info },
 ];
+
+const ATTENDANCE_TAB = {
+  id: 'attendance',
+  label: 'Посещаемость',
+  icon: ClipboardCheck,
+};
 
 function messageBody(row) {
   return row?.body || row?.text || row?.content || '';
@@ -33,7 +47,16 @@ function roleLabel(role) {
   if (role === 'teacher') return 'преподаватель';
   if (role === 'tutor') return 'репетитор';
   if (role === 'student') return 'ученик';
+  if (role === 'guest') return 'гость';
   return role || 'участник';
+}
+
+function attendanceActionLabel(status) {
+  if (status === 'attended') return 'Был';
+  if (status === 'missed') return 'Не был';
+  if (status === 'late') return 'Опоздал';
+  if (status === 'excused') return 'Уважительная причина';
+  return localizeAttendanceStatus(status);
 }
 
 export default function LessonVideoSideRail({
@@ -41,14 +64,23 @@ export default function LessonVideoSideRail({
   lesson,
   isHost,
   isStudent,
+  canManageAttendance = false,
   materialsPath,
   homeworkPath,
   compact = false,
   jitsiParticipantCount = null,
+  livePresence = [],
   timeRange = '',
   subject = '',
   connectionLabel = '',
 }) {
+  const tabs = useMemo(() => {
+    if (!canManageAttendance) return BASE_TABS;
+    const next = [...BASE_TABS];
+    next.splice(1, 0, ATTENDANCE_TAB);
+    return next;
+  }, [canManageAttendance]);
+
   const [tab, setTab] = useState('participants');
   const [participants, setParticipants] = useState([]);
   const [loadingPeople, setLoadingPeople] = useState(false);
@@ -60,6 +92,19 @@ export default function LessonVideoSideRail({
   const [homework, setHomework] = useState([]);
   const [loadingHw, setLoadingHw] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!canManageAttendance && tab === 'attendance') {
+      setTab('participants');
+    }
+  }, [canManageAttendance, tab]);
+
+  useEffect(() => {
+    if (tab !== 'attendance' && tab !== 'participants') return undefined;
+    const id = window.setInterval(() => setNowTick(Date.now()), 15_000);
+    return () => window.clearInterval(id);
+  }, [tab]);
 
   const loadParticipants = useCallback(async () => {
     if (!lessonId) return;
@@ -122,10 +167,48 @@ export default function LessonVideoSideRail({
   }, [lessonId]);
 
   useEffect(() => {
-    if (tab === 'participants') void loadParticipants();
+    if (tab === 'participants' || tab === 'attendance') void loadParticipants();
     if (tab === 'homework') void loadHomework();
     if (tab === 'chat' && !chatId) void ensureChat();
   }, [tab, loadParticipants, loadHomework, ensureChat, chatId]);
+
+  const rosterWithPresence = useMemo(() => {
+    const matchedLiveIds = new Set();
+    const rows = participants.map((p) => {
+      const presence = findLivePresence(p.name, livePresence);
+      if (presence?.id) matchedLiveIds.add(presence.id);
+      const online = Boolean(presence?.online);
+      return {
+        ...p,
+        presence,
+        online,
+        joinedAt: presence?.joinedAt || presence?.joined_at || null,
+        connectionStatus: participantConnectionLabel({ online, presence }),
+      };
+    });
+
+    for (const live of livePresence || []) {
+      if (!live?.id || matchedLiveIds.has(live.id)) continue;
+      const online = Boolean(live.online);
+      rows.push({
+        role: 'guest',
+        name: live.displayName || live.display_name || 'Участник',
+        presence: live,
+        online,
+        joinedAt: live.joinedAt || live.joined_at || null,
+        connectionStatus: participantConnectionLabel({ online, presence: live }),
+      });
+    }
+    return rows;
+  }, [participants, livePresence]);
+
+  const attendanceRows = useMemo(
+    () =>
+      rosterWithPresence.filter(
+        (p) => p.role === 'student' && (p.attendance_id || p.student_id),
+      ),
+    [rosterWithPresence],
+  );
 
   const sendChat = async () => {
     const text = draft.trim();
@@ -151,17 +234,25 @@ export default function LessonVideoSideRail({
     }
   };
 
-  const markAttendance = async (attendanceId, present) => {
-    if (!attendanceId) return;
+  const setAttendanceStatus = async (attendanceId, status) => {
+    if (!attendanceId || !status) return;
     setStatusBusy(true);
     try {
-      if (present) {
+      if (status === 'attended') {
         await api.lessons.attendance.present(attendanceId);
-      } else {
+      } else if (status === 'missed') {
         await api.lessons.attendance.absent(attendanceId);
+      } else if (status === 'late') {
+        await api.lessons.attendance.late(attendanceId);
+      } else if (status === 'excused') {
+        await api.lessons.attendance.excused(attendanceId);
+      } else {
+        await api.lessons.attendance.update(attendanceId, {
+          attendanceStatus: status,
+        });
       }
       await loadParticipants();
-      toast({ title: present ? 'Отмечен присутствующим' : 'Отмечен отсутствующим' });
+      toast({ title: `Посещаемость: ${attendanceActionLabel(status)}` });
     } catch (err) {
       toast({
         title: 'Не удалось обновить посещаемость',
@@ -199,7 +290,7 @@ export default function LessonVideoSideRail({
       data-testid="lesson-video-side-rail"
     >
       <div className="flex gap-1 overflow-x-auto border-b border-slate-800 p-2 shrink-0 scrollbar-none">
-        {TABS.map(({ id, label, icon: Icon }) => (
+        {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             type="button"
@@ -263,7 +354,7 @@ export default function LessonVideoSideRail({
         )}
 
         {tab === 'participants' && (
-          <div className="space-y-3">
+          <div className="space-y-3" data-testid="lesson-video-participants">
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>В уроке (CRM): {participants.length}</span>
               {typeof jitsiParticipantCount === 'number' ? (
@@ -274,61 +365,117 @@ export default function LessonVideoSideRail({
               <Loader2 className="h-5 w-5 animate-spin text-brand" />
             ) : (
               <ul className="space-y-2">
-                {participants.map((p, idx) => {
-                  const online =
-                    p.online === true ||
-                    p.is_online === true ||
-                    p.attendance_status === 'present';
+                {rosterWithPresence.map((p, idx) => (
+                  <li
+                    key={`${p.role}-${p.student_id || p.presence?.id || p.name}-${idx}`}
+                    className="rounded-lg border border-slate-800 bg-slate-900/60 p-3"
+                  >
+                    <div className="flex items-start gap-2 min-w-0">
+                      <span
+                        className={cn(
+                          'mt-1 h-2.5 w-2.5 shrink-0 rounded-full',
+                          p.online ? 'bg-emerald-500' : 'bg-slate-600',
+                        )}
+                        aria-hidden
+                      />
+                      <div className="min-w-0 space-y-0.5">
+                        <p className="truncate font-medium text-xs">{p.name}</p>
+                        <p className="text-[11px] text-slate-500">
+                          {roleLabel(p.role)}
+                          {' · '}
+                          {p.online ? 'онлайн' : 'офлайн'}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          Подключение: {formatJoinedAt(p.joinedAt)}
+                          {' · '}
+                          {p.connectionStatus}
+                        </p>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {tab === 'attendance' && canManageAttendance && (
+          <div className="space-y-3" data-testid="lesson-video-attendance">
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Отметьте посещаемость вручную. Если ученик был в конференции достаточно долго,
+              система предложит статус «Был» — вы всегда можете выбрать другой.
+            </p>
+            {loadingPeople ? (
+              <Loader2 className="h-5 w-5 animate-spin text-brand" />
+            ) : attendanceRows.length ? (
+              <ul className="space-y-3">
+                {attendanceRows.map((p, idx) => {
+                  const status = p.attendance_status || 'enrolled';
+                  const suggestPresent =
+                    status === 'enrolled' &&
+                    shouldSuggestPresent(p.presence, undefined, nowTick);
                   return (
                     <li
-                      key={`${p.role}-${p.student_id || p.name}-${idx}`}
-                      className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900/60 p-3"
+                      key={`${p.attendance_id || p.student_id}-${idx}`}
+                      className="rounded-lg border border-slate-800 bg-slate-900/60 p-3 space-y-2"
                     >
-                      <div className="min-w-0 flex items-start gap-2">
-                        <span
-                          className={cn(
-                            'mt-1 h-2.5 w-2.5 shrink-0 rounded-full',
-                            online ? 'bg-emerald-500' : 'bg-slate-600',
-                          )}
-                          aria-hidden
-                        />
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-xs">{p.name}</p>
-                          <p className="text-[11px] text-slate-500">
-                            {roleLabel(p.role)}
-                            {online ? ' · онлайн' : ' · отключён'}
-                            {p.attendance_status ? ` · ${p.attendance_status}` : ''}
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-xs">{p.name}</p>
+                        <p className="text-[11px] text-slate-500">
+                          {p.connectionStatus}
+                          {' · '}
+                          {localizeAttendanceStatus(status)}
+                        </p>
+                        {suggestPresent ? (
+                          <p
+                            className="mt-1 text-[11px] text-emerald-400"
+                            data-testid="attendance-suggest-present"
+                          >
+                            Рекомендуем: Был (достаточно долго в конференции)
                           </p>
-                        </div>
+                        ) : null}
                       </div>
-                      {isHost && p.attendance_id ? (
-                        <div className="flex gap-1 shrink-0">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={statusBusy}
-                            className="min-h-11 px-3 text-[11px] border-slate-700"
-                            onClick={() => markAttendance(p.attendance_id, true)}
-                          >
-                            Был
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            disabled={statusBusy}
-                            className="min-h-11 px-3 text-[11px]"
-                            onClick={() => markAttendance(p.attendance_id, false)}
-                          >
-                            Нет
-                          </Button>
+                      {p.attendance_id ? (
+                        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                          {[
+                            { status: 'attended', label: 'Был', suggest: suggestPresent },
+                            { status: 'missed', label: 'Не был' },
+                            { status: 'late', label: 'Опоздал' },
+                            { status: 'excused', label: 'Уважительная причина' },
+                          ].map((btn) => {
+                            const active = status === btn.status;
+                            return (
+                              <Button
+                                key={btn.status}
+                                type="button"
+                                size="sm"
+                                variant={active ? 'default' : 'outline'}
+                                disabled={statusBusy}
+                                className={cn(
+                                  'min-h-11 px-2 text-[11px] whitespace-normal leading-tight',
+                                  !active && 'border-slate-700',
+                                  btn.suggest && !active && 'ring-1 ring-emerald-500/50',
+                                )}
+                                onClick={() =>
+                                  void setAttendanceStatus(p.attendance_id, btn.status)
+                                }
+                              >
+                                {btn.label}
+                              </Button>
+                            );
+                          })}
                         </div>
-                      ) : null}
+                      ) : (
+                        <p className="text-[11px] text-amber-400/90">
+                          Нет записи посещаемости для этого ученика
+                        </p>
+                      )}
                     </li>
                   );
                 })}
               </ul>
+            ) : (
+              <p className="text-xs text-slate-500">Нет учеников для отметки посещаемости.</p>
             )}
           </div>
         )}
