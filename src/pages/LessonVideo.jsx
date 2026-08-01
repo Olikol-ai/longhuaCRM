@@ -8,6 +8,7 @@ import { toast } from '@/components/ui/use-toast';
 import { userFacingError } from '@/lib/userFacingError';
 import { createPageUrl } from '@/utils';
 import { useAuth } from '@/lib/AuthContext';
+import { useTheme } from '@/lib/ThemeContext';
 import {
   checkMediaDevices,
   parseJitsiDomain,
@@ -62,11 +63,14 @@ export default function LessonVideo() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const isMdUp = useIsMdUp();
   const isLgUp = useIsLgUp();
   const jitsiRef = useRef(null);
   const stageRef = useRef(null);
   const conferenceJoinedRef = useRef(false);
+  const sessionJwtRef = useRef(null);
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -81,9 +85,12 @@ export default function LessonVideo() {
   const [videoMuted, setVideoMuted] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [desktopRailOpen, setDesktopRailOpen] = useState(true);
+  /** Bump only when intentionally remounting after hangup / hard error — not on token refresh. */
   const [embedKey, setEmbedKey] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState('idle');
   const [jitsiParticipantCount, setJitsiParticipantCount] = useState(null);
+  /** JWT frozen for the current embed session (avoids remount when access payload refreshes). */
+  const [sessionJwt, setSessionJwt] = useState(null);
 
   useEffect(() => {
     if (!id) return;
@@ -149,6 +156,19 @@ export default function LessonVideo() {
     if (isLgUp) setSheetOpen(false);
   }, [isLgUp]);
 
+  // Side panel open/close must only resize the iframe — never remount Jitsi.
+  useEffect(() => {
+    if (!joined) return undefined;
+    const id = window.requestAnimationFrame(() => {
+      jitsiRef.current?.resize?.();
+    });
+    const t = window.setTimeout(() => jitsiRef.current?.resize?.(), 200);
+    return () => {
+      window.cancelAnimationFrame(id);
+      window.clearTimeout(t);
+    };
+  }, [joined, desktopRailOpen, sheetOpen, isLgUp]);
+
   const canJoinWindow = forceJoin || Boolean(data?.timing?.can_join);
   const phase = data?.timing?.phase;
   const tooEarly = phase === 'before' && !canJoinWindow;
@@ -194,7 +214,9 @@ export default function LessonVideo() {
         return;
       }
       setForceJoin(true);
-      setEmbedKey((k) => k + 1);
+      // New session JWT only when (re)starting embed — not on every access payload refresh.
+      sessionJwtRef.current = token;
+      setSessionJwt(token);
       setJoined(true);
     } catch (err) {
       setJoinError(userFacingError(err) || 'Не удалось подключиться к видеоконференции.');
@@ -221,6 +243,8 @@ export default function LessonVideo() {
     setJoinError(null);
     setConnectionStatus('idle');
     setJitsiParticipantCount(null);
+    sessionJwtRef.current = null;
+    setSessionJwt(null);
   }, []);
 
   const handleJoined = useCallback(() => {
@@ -237,6 +261,10 @@ export default function LessonVideo() {
     setJoined(false);
     setSessionEnded(false);
     setConnectionStatus('failed');
+    sessionJwtRef.current = null;
+    setSessionJwt(null);
+    // Next retry gets a fresh embed instance.
+    setEmbedKey((k) => k + 1);
   }, []);
 
   const hangup = useCallback(() => {
@@ -246,6 +274,9 @@ export default function LessonVideo() {
     setSessionEnded(true);
     setJoinError(null);
     setConnectionStatus('idle');
+    sessionJwtRef.current = null;
+    setSessionJwt(null);
+    setEmbedKey((k) => k + 1);
   }, []);
 
   const openPanel = useCallback(() => {
@@ -259,21 +290,31 @@ export default function LessonVideo() {
   if (loading) {
     return (
       <div
-        className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-slate-950 text-slate-100"
+        className={cn(
+          'flex min-h-dvh flex-col items-center justify-center gap-3',
+          isDark ? 'bg-slate-950 text-slate-100' : 'bg-background text-foreground',
+        )}
         data-testid="lesson-video-page-loading"
       >
         <Loader2 className="h-8 w-8 animate-spin text-brand" />
         <p className="text-sm font-medium">Загрузка урока…</p>
-        <p className="text-xs text-slate-500">Longhua · видеоурок</p>
+        <p className={cn('text-xs', isDark ? 'text-slate-500' : 'text-muted-foreground')}>
+          Longhua · видеоурок
+        </p>
       </div>
     );
   }
 
   if (!data) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-slate-950 p-6 text-center text-slate-100">
-        <p className="text-slate-300">Видеоурок недоступен</p>
-        <Button variant="outline" className="min-h-11 border-slate-700" onClick={() => navigate(backPath)}>
+      <div
+        className={cn(
+          'flex min-h-dvh flex-col items-center justify-center gap-4 p-6 text-center',
+          isDark ? 'bg-slate-950 text-slate-100' : 'bg-background text-foreground',
+        )}
+      >
+        <p className={isDark ? 'text-slate-300' : 'text-muted-foreground'}>Видеоурок недоступен</p>
+        <Button variant="outline" className="min-h-11" onClick={() => navigate(backPath)}>
           Назад
         </Button>
       </div>
@@ -286,7 +327,8 @@ export default function LessonVideo() {
     lesson.time_range_label ||
     `${formatClock(lesson.start_time)}${lesson.end_time ? ` – ${formatClock(lesson.end_time)}` : ''}`;
   const domain = data.domain || parseJitsiDomain(data.room_url);
-  const showVideo = joined && canJoinWindow && Boolean(data.token);
+  const embedJwt = sessionJwt || sessionJwtRef.current;
+  const showVideo = joined && canJoinWindow && Boolean(embedJwt);
   const connectionLabel = videoConnectionMeta(showVideo || joining ? connectionStatus : 'idle').label;
 
   const sideRailProps = {
@@ -304,15 +346,31 @@ export default function LessonVideo() {
 
   return (
     <div
-      className="flex h-dvh max-h-dvh flex-col overflow-hidden bg-slate-950 text-slate-100"
+      className={cn(
+        'flex h-dvh max-h-dvh flex-col overflow-hidden',
+        isDark ? 'bg-slate-950 text-slate-100' : 'bg-background text-foreground',
+      )}
       data-testid="lesson-video-page"
+      data-theme={theme}
     >
-      {/* Top bar */}
-      <header className="z-20 flex shrink-0 items-center gap-2 border-b border-slate-800/80 bg-slate-950/95 px-3 py-2 sm:px-4 safe-pt">
+      {/* Top bar — follows CRM theme; does not force html.dark */}
+      <header
+        className={cn(
+          'z-20 flex shrink-0 items-center gap-2 border-b px-3 py-2 sm:px-4 safe-pt',
+          isDark
+            ? 'border-slate-800/80 bg-slate-950/95'
+            : 'border-border bg-card/95',
+        )}
+      >
         <button
           type="button"
           onClick={() => navigate(backPath)}
-          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-900 hover:text-slate-100"
+          className={cn(
+            'inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl',
+            isDark
+              ? 'text-slate-400 hover:bg-slate-900 hover:text-slate-100'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+          )}
           aria-label="Назад"
         >
           <ArrowLeft className="h-5 w-5" />
@@ -323,20 +381,25 @@ export default function LessonVideo() {
             <p className="truncate text-sm font-semibold tracking-tight text-brand sm:text-base">
               Longhua
             </p>
-            <span className="hidden text-slate-600 sm:inline">·</span>
-            <p className="truncate text-sm font-medium text-slate-100">
+            <span className={cn('hidden sm:inline', isDark ? 'text-slate-600' : 'text-muted-foreground/50')}>·</span>
+            <p className={cn('truncate text-sm font-medium', isDark ? 'text-slate-100' : 'text-foreground')}>
               {lesson.title || 'Онлайн-урок'}
             </p>
           </div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-400 sm:text-xs">
+          <div
+            className={cn(
+              'mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] sm:text-xs',
+              isDark ? 'text-slate-400' : 'text-muted-foreground',
+            )}
+          >
             <span className="truncate">{subject}</span>
-            <span className="text-slate-600">·</span>
+            <span className={isDark ? 'text-slate-600' : 'text-muted-foreground/40'}>·</span>
             <span className="truncate">{lesson.teacher_name || 'Преподаватель'}</span>
-            <span className="text-slate-600">·</span>
+            <span className={isDark ? 'text-slate-600' : 'text-muted-foreground/40'}>·</span>
             <span className="tabular-nums">{timeRange}</span>
             {lesson.duration ? (
               <>
-                <span className="hidden text-slate-600 sm:inline">·</span>
+                <span className={cn('hidden sm:inline', isDark ? 'text-slate-600' : 'text-muted-foreground/40')}>·</span>
                 <span className="hidden sm:inline">{lesson.duration} мин</span>
               </>
             ) : null}
@@ -346,13 +409,18 @@ export default function LessonVideo() {
         <div className="flex shrink-0 items-center gap-2">
           {showVideo || joining ? <ConnectionPill status={connectionStatus} /> : null}
           {isHost && showVideo ? (
-            <span className="hidden items-center gap-1.5 text-[11px] text-emerald-400 md:inline-flex">
+            <span className="hidden items-center gap-1.5 text-[11px] text-emerald-500 md:inline-flex dark:text-emerald-400">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Вы проводите урок
             </span>
           ) : null}
           {phase === 'after' && !showVideo ? (
-            <span className="rounded-full bg-slate-800 px-2.5 py-1 text-[11px] text-slate-400">
+            <span
+              className={cn(
+                'rounded-full px-2.5 py-1 text-[11px]',
+                isDark ? 'bg-slate-800 text-slate-400' : 'bg-muted text-muted-foreground',
+              )}
+            >
               Урок завершён
             </span>
           ) : null}
@@ -362,7 +430,7 @@ export default function LessonVideo() {
               type="button"
               size="sm"
               variant="ghost"
-              className="min-h-11 min-w-11 px-2 text-slate-300"
+              className={cn('min-h-11 min-w-11 px-2', isDark ? 'text-slate-300' : '')}
               onClick={() => setDesktopRailOpen((v) => !v)}
               aria-label={desktopRailOpen ? 'Скрыть панель' : 'Показать панель'}
             >
@@ -377,7 +445,7 @@ export default function LessonVideo() {
               type="button"
               size="sm"
               variant="outline"
-              className="min-h-11 border-slate-700 px-3"
+              className={cn('min-h-11 px-3', isDark ? 'border-slate-700' : '')}
               onClick={() => setSheetOpen(true)}
             >
               <PanelRightOpen className="mr-1.5 h-4 w-4" />
@@ -392,14 +460,14 @@ export default function LessonVideo() {
         <section
           className={cn(
             'relative flex min-h-0 min-w-0 flex-1 flex-col',
-            showVideo ? 'bg-black' : 'bg-slate-950',
+            showVideo ? 'bg-neutral-950' : isDark ? 'bg-slate-950' : 'bg-muted/30',
           )}
         >
           {showVideo ? (
             <>
               <div
                 ref={stageRef}
-                className="relative min-h-0 w-full flex-1 overflow-hidden bg-black"
+                className="relative min-h-0 w-full flex-1 overflow-hidden bg-neutral-950"
               >
                 <JitsiLessonEmbed
                   key={embedKey}
@@ -410,7 +478,7 @@ export default function LessonVideo() {
                   displayName={data.display_name}
                   subject={data.conference_subject || lesson.title}
                   externalApiUrl={data.external_api_url}
-                  jwt={data.token}
+                  jwt={embedJwt}
                   onLeft={handleLeft}
                   onJoined={handleJoined}
                   onError={handleEmbedError}
@@ -532,7 +600,10 @@ export default function LessonVideo() {
         {/* Desktop rail (≥1024) */}
         {isLgUp && desktopRailOpen ? (
           <div
-            className="hidden h-full w-[min(400px,36vw)] min-w-[320px] max-w-[400px] shrink-0 border-l border-slate-800 bg-slate-950 p-3 lg:block"
+            className={cn(
+              'hidden h-full w-[min(400px,36vw)] min-w-[320px] max-w-[400px] shrink-0 border-l p-3 lg:block',
+              isDark ? 'border-slate-800 bg-slate-950' : 'border-border bg-card',
+            )}
             data-testid="lesson-video-desktop-rail"
           >
             <LessonVideoSideRail {...sideRailProps} />
@@ -546,15 +617,33 @@ export default function LessonVideo() {
           side={isMdUp ? 'right' : 'bottom'}
           className={
             isMdUp
-              ? 'w-full border-slate-800 bg-slate-950 p-0 text-slate-100 sm:max-w-md'
-              : 'h-[min(88dvh,100%)] max-h-[88dvh] w-full rounded-t-2xl border-slate-800 bg-slate-950 p-0 text-slate-100 safe-pb'
+              ? cn(
+                  'w-full p-0 sm:max-w-md',
+                  isDark
+                    ? 'border-slate-800 bg-slate-950 text-slate-100'
+                    : 'border-border bg-card text-foreground',
+                )
+              : cn(
+                  'h-[min(88dvh,100%)] max-h-[88dvh] w-full rounded-t-2xl p-0 safe-pb',
+                  isDark
+                    ? 'border-slate-800 bg-slate-950 text-slate-100'
+                    : 'border-border bg-card text-foreground',
+                )
           }
         >
           {!isMdUp ? (
-            <div className="mx-auto mt-2 mb-1 h-1 w-10 rounded-full bg-slate-700" aria-hidden />
+            <div
+              className={cn(
+                'mx-auto mt-2 mb-1 h-1 w-10 rounded-full',
+                isDark ? 'bg-slate-700' : 'bg-muted-foreground/30',
+              )}
+              aria-hidden
+            />
           ) : null}
-          <SheetHeader className="border-b border-slate-800 p-4 pb-3">
-            <SheetTitle className="text-slate-100">Панель урока</SheetTitle>
+          <SheetHeader className={cn('border-b p-4 pb-3', isDark ? 'border-slate-800' : 'border-border')}>
+            <SheetTitle className={isDark ? 'text-slate-100' : 'text-foreground'}>
+              Панель урока
+            </SheetTitle>
           </SheetHeader>
           <div className="h-[calc(100%-3.75rem)] overflow-hidden p-2">
             <LessonVideoSideRail {...sideRailProps} compact />

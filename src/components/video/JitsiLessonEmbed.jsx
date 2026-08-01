@@ -3,7 +3,6 @@ import { Loader2 } from 'lucide-react';
 import {
   buildJitsiConfigOverwrite,
   buildJitsiInterfaceConfigOverwrite,
-  hardenJitsiIframe,
   loadJitsiExternalApi,
   parseJitsiDomain,
   resizeJitsiEmbed,
@@ -13,8 +12,8 @@ import {
  * Embeds a lesson via JitsiMeetExternalAPI.
  * Native toolbar is hidden — control via ref.executeCommand from CRM shell.
  *
- * Important: External API builds https://{domain}/{roomName}.
- * JITSI_BASE_URL must be a host root (e.g. https://meet.example.com), not a path prefix.
+ * Conference identity (domain + room) mounts once. JWT / displayName / subject
+ * updates must NOT dispose+recreate the iframe (that was breaking the UI).
  */
 const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
   {
@@ -38,6 +37,9 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
   const containerRef = useRef(null);
   const apiRef = useRef(null);
   const joinedOnceRef = useRef(false);
+  const bootJwtRef = useRef(jwt);
+  const displayNameRef = useRef(displayName);
+  const subjectRef = useRef(subject);
   const onLeftRef = useRef(onLeft);
   const onJoinedRef = useRef(onJoined);
   const onErrorRef = useRef(onError);
@@ -47,7 +49,10 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
   const onParticipantCountRef = useRef(onParticipantCount);
   const [booting, setBooting] = useState(true);
 
+  // Keep latest props for listeners without re-creating the conference.
   useEffect(() => {
+    displayNameRef.current = displayName;
+    subjectRef.current = subject;
     onLeftRef.current = onLeft;
     onJoinedRef.current = onJoined;
     onErrorRef.current = onError;
@@ -56,6 +61,8 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     onConnectionStatusRef.current = onConnectionStatus;
     onParticipantCountRef.current = onParticipantCount;
   }, [
+    displayName,
+    subject,
     onLeft,
     onJoined,
     onError,
@@ -64,6 +71,18 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     onConnectionStatus,
     onParticipantCount,
   ]);
+
+  // Apply identity changes to the live conference — never remount for this.
+  useEffect(() => {
+    const api = apiRef.current;
+    if (!api || !joinedOnceRef.current) return;
+    try {
+      if (displayName) api.executeCommand('displayName', displayName);
+      if (subject) api.executeCommand('subject', subject);
+    } catch {
+      // ignore
+    }
+  }, [displayName, subject]);
 
   useImperativeHandle(ref, () => ({
     executeCommand: (command, ...args) => {
@@ -86,28 +105,42 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     },
   }));
 
+  // Mount conference once per domain + room (+ script URL). JWT is snapshotted at boot.
   useEffect(() => {
     let cancelled = false;
+    let bootTimeout = null;
     joinedOnceRef.current = false;
     setBooting(true);
     onConnectionStatusRef.current?.('connecting');
+
     const host = domain || parseJitsiDomain(roomUrl);
     const name = roomName || '';
+    const bootJwt = bootJwtRef.current || jwt;
 
     if (!host || !name || !containerRef.current) return undefined;
 
-    if (!jwt) {
+    if (!bootJwt) {
       onErrorRef.current?.(new Error('Нет токена доступа к видеоконференции'));
       onConnectionStatusRef.current?.('failed');
       setBooting(false);
       return undefined;
     }
 
+    // Capture JWT for this mount only — later prop jwt changes must not re-run this effect.
+    bootJwtRef.current = bootJwt;
+
     (async () => {
       try {
         const JitsiMeetExternalAPI = await loadJitsiExternalApi(host, externalApiUrl);
         if (cancelled || !containerRef.current) return;
 
+        // Dispose any stale instance before creating one (StrictMode / fast remount).
+        try {
+          apiRef.current?.dispose?.();
+        } catch {
+          // ignore
+        }
+        apiRef.current = null;
         containerRef.current.innerHTML = '';
 
         const options = {
@@ -116,11 +149,13 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           width: '100%',
           height: '100%',
           lang: 'ru',
-          jwt,
+          jwt: bootJwt,
           userInfo: {
-            displayName: displayName || 'Участник',
+            displayName: displayNameRef.current || 'Участник',
           },
-          configOverwrite: buildJitsiConfigOverwrite({ subject }),
+          configOverwrite: buildJitsiConfigOverwrite({
+            subject: subjectRef.current,
+          }),
           interfaceConfigOverwrite: buildJitsiInterfaceConfigOverwrite(),
           onload: () => {
             resizeJitsiEmbed(apiRef.current, containerRef.current);
@@ -128,22 +163,33 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
         };
 
         const api = new JitsiMeetExternalAPI(host, options);
+        if (cancelled) {
+          try {
+            api.dispose?.();
+          } catch {
+            // ignore
+          }
+          return;
+        }
         apiRef.current = api;
         resizeJitsiEmbed(api, containerRef.current);
 
         const iframe = api.getIFrame?.();
         if (iframe) {
+          // Isolate color-scheme so CRM html.dark / light does not restyle the iframe chrome.
+          iframe.style.colorScheme = 'normal';
           iframe.addEventListener('load', () => {
             resizeJitsiEmbed(api, containerRef.current);
-            // Keep black behind iframe until conference paints — avoids white flash.
-            iframe.style.background = '#000';
+            iframe.style.background = '#0a0a0a';
           });
         }
 
         const applyIdentity = () => {
           try {
-            if (displayName) api.executeCommand('displayName', displayName);
-            if (subject) api.executeCommand('subject', subject);
+            const dn = displayNameRef.current;
+            const subj = subjectRef.current;
+            if (dn) api.executeCommand('displayName', dn);
+            if (subj) api.executeCommand('subject', subj);
           } catch {
             // ignore
           }
@@ -211,8 +257,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
         });
 
         applyIdentity();
-        // Safety: if join never fires, drop the spinner after a while (iframe may still work).
-        window.setTimeout(() => {
+        bootTimeout = window.setTimeout(() => {
           if (!cancelled) setBooting(false);
         }, 12_000);
       } catch (err) {
@@ -226,6 +271,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
 
     return () => {
       cancelled = true;
+      if (bootTimeout) window.clearTimeout(bootTimeout);
       try {
         apiRef.current?.dispose?.();
       } catch {
@@ -234,8 +280,11 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
       apiRef.current = null;
       if (containerRef.current) containerRef.current.innerHTML = '';
     };
-  }, [domain, roomName, roomUrl, displayName, subject, externalApiUrl, jwt]);
+    // Intentionally omit jwt / displayName / subject — remounting on those broke the UI.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- room identity only
+  }, [domain, roomName, roomUrl, externalApiUrl]);
 
+  // Viewport / container size → resize only (rail open/close, orientation).
   useEffect(() => {
     const node = containerRef.current;
     if (!node) return undefined;
@@ -263,18 +312,22 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
       vv?.removeEventListener?.('resize', onResize);
       observer?.disconnect?.();
     };
-  }, [domain, roomName, jwt]);
+  }, [domain, roomName]);
 
   return (
-    <div className="absolute inset-0 w-full h-full bg-black" data-testid="lesson-video-jitsi-wrap">
+    <div
+      className="absolute inset-0 h-full w-full bg-neutral-950"
+      data-testid="lesson-video-jitsi-wrap"
+      style={{ colorScheme: 'normal' }}
+    >
       <div
         ref={containerRef}
-        className="absolute inset-0 w-full h-full bg-black [&_iframe]:w-full [&_iframe]:h-full [&_iframe]:border-0 [&_iframe]:bg-black"
+        className="absolute inset-0 h-full w-full bg-neutral-950 [&_iframe]:block [&_iframe]:h-full [&_iframe]:w-full [&_iframe]:border-0"
         data-testid="lesson-video-jitsi"
       />
       {booting ? (
         <div
-          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-slate-950 text-slate-100"
+          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-neutral-950/90 text-slate-100"
           data-testid="lesson-video-connecting"
         >
           <Loader2 className="h-8 w-8 animate-spin text-brand" />

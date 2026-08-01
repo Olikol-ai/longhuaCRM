@@ -108,7 +108,13 @@ describe('Video lesson UI contract', () => {
     assert.match(embed, /displayName/);
     assert.match(embed, /Подключение к видеоконференции/);
     assert.match(embed, /onConnectionStatus|connectionInterrupted/);
+    // Must not remount conference when jwt / displayName props change.
+    assert.match(embed, /Intentionally omit jwt|room identity only/);
+    assert.match(page, /useTheme|data-theme/);
+    assert.match(page, /sessionJwt|sessionJwtRef/);
+    assert.match(page, /jitsiRef\.current\?\.resize/);
     assert.match(layout, /LessonVideo/);
+    assert.doesNotMatch(layout, /LessonVideo[\s\S]*bg-slate-950/);
     assert.match(teacher, /Начать видеоурок/);
     assert.match(student, /Войти в видеоурок/);
 

@@ -179,9 +179,10 @@ export default function Layout({ children, currentPageName }) {
   }
 
   // Full-bleed lesson video shell — no CRM sidebar; video owns the viewport.
+  // Do not force dark theme here — LessonVideo follows ThemeContext.
   if (currentPageName === 'LessonVideo') {
     return (
-      <div className="h-dvh max-h-dvh overflow-hidden bg-slate-950">
+      <div className="h-dvh max-h-dvh overflow-hidden bg-background">
         {children}
       </div>
     );
