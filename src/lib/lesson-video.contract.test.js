@@ -216,6 +216,13 @@ describe('Video lesson UI contract', () => {
     assert.match(prejoin, /Проверка оборудования/);
     assert.match(prejoin, /Камера/);
     assert.match(prejoin, /Микрофон/);
+    assert.match(prejoin, /Соединение|Интернет/);
+    assert.match(prejoin, /Проверить снова/);
+    assert.match(prejoin, /RefreshCw|lesson-video-recheck/);
+    assert.match(prejoin, /Проверка…|Проверено|Ошибка/);
+    assert.match(prejoin, /Работает|Не найден|Хорошее|Проблемы/);
+    assert.match(prejoin, /min-h-11|min-h-12/);
+    assert.match(prejoin, /useTheme|isDark/);
     assert.match(page, /Не удалось подключиться к видеоконференции/);
     assert.match(page, /lesson-video-retry|Повторить/);
     assert.match(embed, /joinedOnceRef|conferenceFailed|connectionFailed/);
