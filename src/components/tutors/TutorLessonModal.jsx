@@ -130,6 +130,18 @@ export default function TutorLessonModal({
       }
     }
 
+    const lessonDateTime = new Date(`${form.date}T${form.start_time}`);
+    const hoursUntilLesson = (lessonDateTime - Date.now()) / (1000 * 60 * 60);
+    // Tutor keeps the 2-hour lead-time rule (backend enforces the same).
+    if (hoursUntilLesson < 2) {
+      toast({
+        title: 'Слишком поздно для создания',
+        description: 'Урок должен быть запланирован не ранее чем за 2 часа до начала',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = toLessonWritePayload({

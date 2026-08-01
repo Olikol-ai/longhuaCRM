@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { addDays, format, parseISO } from "date-fns";
 import { X, RefreshCw, Loader2 } from "lucide-react";
 import { api } from "@/api";
+import { useAuth } from "@/lib/AuthContext";
 import TeacherAvailabilityPanel, { dayIndexFromDate } from "./TeacherAvailabilityPanel";
 import {
   Select,
@@ -14,6 +15,9 @@ import {
 
 const DROPDOWN_Z = "z-[200]";
 const AVAILABLE_DEBOUNCE_MS = 400;
+const LESSON_CREATE_LEAD_HOURS = 2;
+const LESSON_CREATE_LEAD_MESSAGE =
+  "Урок должен быть запланирован не ранее чем за 2 часа до начала";
 
 function normalizeAvailableList(data) {
   if (Array.isArray(data)) return data;
@@ -32,6 +36,8 @@ export default function LessonModal({
   onClose,
   defaultTeacherId,
 }) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [form, setForm] = useState({
     teacher_id: defaultTeacherId || "",
     lesson_type: "individual",
@@ -218,8 +224,10 @@ export default function LessonModal({
     const lessonDateTime = new Date(`${form.date}T${form.start_time}`);
     const now = new Date();
     const hoursUntilLesson = (lessonDateTime - now) / (1000 * 60 * 60);
-    if (hoursUntilLesson < 2) {
-      alert("Урок должен быть запланирован не ранее чем за 2 часа до начала");
+    // Admin may create at any lead time; Teacher/Tutor keep the 2-hour rule.
+    // Backend enforces the same rule — this is UX only.
+    if (!isAdmin && hoursUntilLesson < LESSON_CREATE_LEAD_HOURS) {
+      alert(LESSON_CREATE_LEAD_MESSAGE);
       return;
     }
 

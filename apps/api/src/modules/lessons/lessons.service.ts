@@ -47,6 +47,11 @@ import {
   assertLessonParticipant,
 } from './lesson-participant';
 import {
+  isLessonCreateTooSoon,
+  LESSON_CREATE_LEAD_TIME_MESSAGE,
+  shouldEnforceLessonCreateLeadTime,
+} from './lesson-create-lead-time';
+import {
   LESSON_RESCHEDULED,
   LESSON_UPDATED,
   LessonRescheduledPayload,
@@ -543,6 +548,7 @@ export class LessonsService {
 
     if (actor) {
       await this.assertCanCreateLesson(actor, normalized);
+      this.assertLessonCreateLeadTime(actor, normalized.date, normalized.startTime);
     }
 
     if (normalized.tutorId) {
@@ -910,6 +916,23 @@ export class LessonsService {
     }
 
     throw new ForbiddenException('Forbidden');
+  }
+
+  /**
+   * Teacher/Tutor: must create at least 2 hours before start.
+   * Admin and system callers (actor=null, e.g. series generation) are unrestricted.
+   */
+  private assertLessonCreateLeadTime(
+    actor: JwtPayload,
+    date: string,
+    startTime: string,
+  ): void {
+    if (!shouldEnforceLessonCreateLeadTime(actor.role)) {
+      return;
+    }
+    if (isLessonCreateTooSoon(date, startTime)) {
+      throw new BadRequestException(LESSON_CREATE_LEAD_TIME_MESSAGE);
+    }
   }
 
   async update(actor: JwtPayload, id: string, dto: UpdateLessonDto): Promise<LessonEntity> {
