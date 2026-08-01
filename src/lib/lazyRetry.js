@@ -2,22 +2,45 @@
  * Recover from stale Vite chunks after deploy.
  *
  * Do NOT hang Suspense on an unresolved promise — always throw so
- * AppErrorBoundary can show the update message and reload once.
+ * AppErrorBoundary can show the update screen and reload once.
  */
 import { lazy } from 'react';
 
 export const CHUNK_RELOAD_STORAGE_KEY = 'lh_chunk_auto_reload_at';
-export const CHUNK_UPDATE_MESSAGE =
-  'Приложение было обновлено. Страница будет автоматически перезагружена.';
 
 const CHUNK_ERROR_RE =
   /Failed to fetch dynamically imported module|Loading chunk|error loading dynamically imported module|ChunkLoadError|MIME type|text\/html/i;
+
+const CHUNK_URL_RE = /https?:\/\/[^\s)'"]+\.js/i;
 
 export function isChunkLoadError(error) {
   if (!error) return false;
   if (error.name === 'ChunkLoadError') return true;
   const message = String(error.message || error || '');
   return CHUNK_ERROR_RE.test(message);
+}
+
+/** Extract chunk URL / filename for developer logs only. */
+export function extractChunkUrl(error) {
+  const message = String(error?.message || error || '');
+  const match = message.match(CHUNK_URL_RE);
+  if (match) return match[0];
+  return null;
+}
+
+/**
+ * Log technical deploy/chunk details for developers — never for the UI.
+ */
+export function logChunkLoadError(error, info = null) {
+  const chunkUrl = extractChunkUrl(error);
+  console.error('[Longhua] Frontend update required (stale chunk after deploy)', {
+    name: error?.name || 'ChunkLoadError',
+    message: error?.message ? String(error.message) : String(error || ''),
+    chunkUrl,
+    stack: error?.stack || null,
+    componentStack: info?.componentStack || null,
+    href: typeof window !== 'undefined' ? window.location.href : null,
+  });
 }
 
 function withTimeout(promise, ms) {
@@ -66,7 +89,6 @@ export async function hardReloadForStaleChunks(reason = 'chunk') {
   const url = new URL(window.location.href);
   url.searchParams.delete('_r');
   url.searchParams.set('_r', `${reason}-${Date.now()}`);
-  // replace() avoids stacking history entries on repeated recoveries
   window.location.replace(`${url.pathname}${url.search}${url.hash}`);
 }
 
@@ -98,7 +120,6 @@ export function markChunkLoadError(error) {
 export function lazyRetry(factory) {
   return lazy(() =>
     factory().catch((error) => {
-      // Always rethrow — ErrorBoundary owns messaging + one auto-reload.
       throw markChunkLoadError(error);
     }),
   );

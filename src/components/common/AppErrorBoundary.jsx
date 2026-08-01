@@ -1,15 +1,16 @@
 import { Component } from 'react';
+import FrontendUpdateScreen from '@/components/common/FrontendUpdateScreen';
 import {
-  CHUNK_UPDATE_MESSAGE,
   claimChunkAutoReload,
   clearClientModuleCaches,
   hardReloadForStaleChunks,
   isChunkLoadError,
+  logChunkLoadError,
 } from '@/lib/lazyRetry';
 
 /**
  * Catches render errors so one broken page does not blank the whole SPA.
- * Chunk/MIME failures show an update message and hard-reload once automatically.
+ * Deploy / chunk failures use a dedicated update screen — never technical text.
  */
 export default class AppErrorBoundary extends Component {
   constructor(props) {
@@ -19,6 +20,7 @@ export default class AppErrorBoundary extends Component {
       message: '',
       recovering: false,
       isChunkError: false,
+      updatePhase: 'updating',
     };
     this.autoReloadTimer = null;
     this.autoRecoverStarted = false;
@@ -28,25 +30,36 @@ export default class AppErrorBoundary extends Component {
     const isChunkError = isChunkLoadError(error);
     return {
       hasError: true,
+      // Never surface raw error.message for chunk failures in UI state consumers.
+      message: isChunkError
+        ? ''
+        : error?.message
+          ? String(error.message)
+          : 'Неизвестная ошибка',
       recovering: isChunkError,
-      message: error?.message ? String(error.message) : 'Неизвестная ошибка',
       isChunkError,
+      updatePhase: isChunkError ? 'updating' : 'idle',
     };
   }
 
   componentDidCatch(error, info) {
-    console.error('AppErrorBoundary', error, info?.componentStack);
-    if (!isChunkLoadError(error) || this.autoRecoverStarted) return;
-    if (!claimChunkAutoReload()) {
-      // Already auto-reloaded recently — show manual retry only.
-      this.setState({ recovering: false });
+    if (isChunkLoadError(error)) {
+      logChunkLoadError(error, info);
+      if (this.autoRecoverStarted) return;
+      if (!claimChunkAutoReload()) {
+        // Auto-reload already tried recently — show manual actions only.
+        this.setState({ recovering: false, updatePhase: 'manual' });
+        return;
+      }
+      this.autoRecoverStarted = true;
+      this.setState({ recovering: true, isChunkError: true, updatePhase: 'updating' });
+      this.autoReloadTimer = window.setTimeout(() => {
+        void hardReloadForStaleChunks('boundary');
+      }, 800);
       return;
     }
-    this.autoRecoverStarted = true;
-    this.setState({ recovering: true, isChunkError: true });
-    this.autoReloadTimer = window.setTimeout(() => {
-      void hardReloadForStaleChunks('boundary');
-    }, 900);
+
+    console.error('AppErrorBoundary', error, info?.componentStack);
   }
 
   componentWillUnmount() {
@@ -68,65 +81,65 @@ export default class AppErrorBoundary extends Component {
     window.location.assign('/');
   };
 
-  handleRetry = async () => {
-    if (this.state.recovering && this.state.isChunkError) {
-      // Second click while waiting — force reload immediately.
+  handleReloadNow = async () => {
+    if (this.autoReloadTimer) {
+      window.clearTimeout(this.autoReloadTimer);
+      this.autoReloadTimer = null;
     }
+    this.setState({ recovering: true, updatePhase: 'updating' });
+    await hardReloadForStaleChunks('retry');
+  };
+
+  handleRetry = async () => {
     if (this.autoReloadTimer) {
       window.clearTimeout(this.autoReloadTimer);
       this.autoReloadTimer = null;
     }
     this.setState({ recovering: true });
-
-    if (this.state.isChunkError || isChunkLoadError({ message: this.state.message })) {
-      await hardReloadForStaleChunks('retry');
-      return;
-    }
-
     this.setState({ hasError: false, message: '', recovering: false, isChunkError: false });
     window.location.reload();
   };
 
   render() {
-    if (this.state.hasError) {
+    if (!this.state.hasError) {
+      return this.props.children;
+    }
+
+    if (this.state.isChunkError) {
       return (
-        <div className="min-h-app flex items-center justify-center p-6 bg-background text-foreground">
-          <div className="max-w-md w-full space-y-4 text-center">
-            <h1 className="text-xl font-semibold">
-              {this.state.isChunkError ? 'Обновление приложения' : 'Что-то пошло не так'}
-            </h1>
-            <p className="text-sm text-muted-foreground break-words">
-              {this.state.isChunkError ? CHUNK_UPDATE_MESSAGE : this.state.message}
-            </p>
-            {this.state.isChunkError && this.state.recovering ? (
-              <p className="text-xs text-muted-foreground">Перезагрузка…</p>
-            ) : null}
-            <div className="flex flex-col sm:flex-row gap-2 justify-center">
-              <button
-                type="button"
-                onClick={this.handleRetry}
-                className="px-4 py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted"
-              >
-                {this.state.isChunkError
-                  ? this.state.recovering
-                    ? 'Перезагрузить сейчас'
-                    : 'Попробовать снова'
-                  : this.state.recovering
-                    ? 'Обновление…'
-                    : 'Попробовать снова'}
-              </button>
-              <button
-                type="button"
-                onClick={this.handleGoHome}
-                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium"
-              >
-                На главную
-              </button>
-            </div>
-          </div>
-        </div>
+        <FrontendUpdateScreen
+          phase={this.state.updatePhase === 'manual' ? 'manual' : 'updating'}
+          onReloadNow={this.handleReloadNow}
+          onGoHome={this.handleGoHome}
+        />
       );
     }
-    return this.props.children;
+
+    return (
+      <div className="min-h-app flex items-center justify-center bg-background p-6 text-foreground">
+        <div className="w-full max-w-md space-y-4 text-center">
+          <h1 className="text-xl font-semibold">Что-то пошло не так</h1>
+          <p className="break-words text-sm text-muted-foreground">
+            Произошла ошибка. Попробуйте обновить страницу или вернуться на главную.
+          </p>
+          <div className="flex flex-col justify-center gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={this.handleRetry}
+              className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted"
+            >
+              Попробовать снова
+            </button>
+            <button
+              type="button"
+              onClick={this.handleGoHome}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+            >
+              На главную
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 }

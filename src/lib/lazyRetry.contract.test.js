@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CHUNK_UPDATE_MESSAGE, isChunkLoadError } from './lazyRetry.js';
+import { extractChunkUrl, isChunkLoadError } from './lazyRetry.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -19,6 +19,13 @@ describe('lazy chunk recovery', () => {
     );
     assert.equal(isChunkLoadError({ message: 'ChunkLoadError', name: 'ChunkLoadError' }), true);
     assert.equal(isChunkLoadError({ message: 'Ordinary render bug' }), false);
+    assert.equal(
+      extractChunkUrl({
+        message:
+          'Failed to fetch dynamically imported module: https://lk.longhuachinese.online/assets/AdminPanel-CrlMmeRR.js',
+      }),
+      'https://lk.longhuachinese.online/assets/AdminPanel-CrlMmeRR.js',
+    );
   });
 
   it('uses lazyRetry for AdminPanel and other pages', () => {
@@ -29,20 +36,25 @@ describe('lazy chunk recovery', () => {
     assert.doesNotMatch(app, /\blazy\(\(\) => import\(/);
   });
 
-  it('error boundary auto-reloads with update message on chunk errors', () => {
+  it('shows a user-friendly update screen without technical errors', () => {
     const boundary = readFileSync(
       join(root, 'components/common/AppErrorBoundary.jsx'),
       'utf8',
     );
-    assert.match(boundary, /CHUNK_UPDATE_MESSAGE/);
-    assert.match(boundary, /hardReloadForStaleChunks/);
-    assert.match(boundary, /claimChunkAutoReload/);
-    assert.match(boundary, /Попробовать снова|Перезагрузить сейчас/);
-    assert.match(boundary, /setTimeout/);
-    assert.equal(
-      CHUNK_UPDATE_MESSAGE,
-      'Приложение было обновлено. Страница будет автоматически перезагружена.',
+    const screen = readFileSync(
+      join(root, 'components/common/FrontendUpdateScreen.jsx'),
+      'utf8',
     );
+    assert.match(boundary, /FrontendUpdateScreen/);
+    assert.match(boundary, /logChunkLoadError/);
+    assert.match(screen, /Longhua CRM была обновлена/);
+    assert.match(screen, /Загружаем новую версию/);
+    assert.match(screen, /Это займёт всего несколько секунд/);
+    assert.match(screen, /Longhua CRM не удалось обновить автоматически/);
+    assert.match(screen, /Обновить сейчас/);
+    assert.match(screen, /На главную/);
+    assert.doesNotMatch(screen, /Failed to fetch|ChunkLoadError|MIME type|stack/i);
+    assert.doesNotMatch(boundary, /error\.message.*isChunkError|isChunkError.*error\.message/);
   });
 
   it('preserves previous Vite assets across client builds', () => {
