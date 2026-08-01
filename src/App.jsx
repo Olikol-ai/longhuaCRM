@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -19,43 +19,44 @@ import RoleRouteGuard, { RoleHomeRedirect, OnboardingFallback, RootRedirect } fr
 import { AdminRoute, TeacherRoute, StudentRoute, TutorRoute, PathAccessGuard } from '@/components/auth/AdminRoute';
 import AppErrorBoundary from '@/components/common/AppErrorBoundary';
 import { ONBOARDING_PATH } from '@/lib/routing';
+import { lazyRetry } from '@/lib/lazyRetry';
 
-const UserManagement = lazy(() => import('./pages/UserManagement'));
-const LowBalanceStudents = lazy(() => import('./pages/LowBalanceStudents'));
-const StudentLessonMaterials = lazy(() => import('./pages/StudentLessonMaterials'));
-const MaterialsHub = lazy(() => import('./pages/MaterialsHub'));
-const AdminPanel = lazy(() => import('./pages/AdminPanel'));
-const AdminTutorDetail = lazy(() => import('./pages/AdminTutorDetail'));
-const Groups = lazy(() => import('./pages/Groups'));
-const GroupDetail = lazy(() => import('./pages/GroupDetail'));
-const Certificates = lazy(() => import('./pages/Certificates'));
-const StudentCertificates = lazy(() => import('./pages/StudentCertificates'));
-const StudentExams = lazy(() => import('./pages/StudentExams'));
-const StudentExamTake = lazy(() => import('./pages/StudentExamTake'));
-const CertificateView = lazy(() => import('./pages/CertificateView'));
-const CertificateVerify = lazy(() => import('./pages/CertificateVerify'));
-const Payments = lazy(() => import('./pages/Payments'));
-const PaymentReturn = lazy(() => import('./pages/PaymentReturn'));
-const AdminAssessment = lazy(() => import('./pages/AdminAssessment'));
-const AssessmentQuestions = lazy(() => import('./pages/AssessmentQuestions'));
-const AssessmentExams = lazy(() => import('./pages/AssessmentExams'));
-const AssessmentExamDetail = lazy(() => import('./pages/AssessmentExamDetail'));
-const AssessmentAssignments = lazy(() => import('./pages/AssessmentAssignments'));
-const AssessmentAssignmentDetail = lazy(() => import('./pages/AssessmentAssignmentDetail'));
-const AssessmentResults = lazy(() => import('./pages/AssessmentResults'));
-const AssessmentResultDetail = lazy(() => import('./pages/AssessmentResultDetail'));
-const TeacherAssessment = lazy(() => import('./pages/TeacherAssessment'));
-const TeacherAssessmentReview = lazy(() => import('./pages/TeacherAssessmentReview'));
-const TeacherAssessmentReviewDetail = lazy(() => import('./pages/TeacherAssessmentReviewDetail'));
-const TeacherAssessmentResults = lazy(() => import('./pages/TeacherAssessmentResults'));
-const TeacherStudents = lazy(() => import('./pages/TeacherStudents'));
-const HomeworkList = lazy(() => import('./pages/HomeworkList'));
-const HomeworkEditor = lazy(() => import('./pages/HomeworkEditor'));
-const HomeworkAssignment = lazy(() => import('./pages/HomeworkAssignment'));
-const HomeworkResults = lazy(() => import('./pages/HomeworkResults'));
-const HomeworkViewer = lazy(() => import('./pages/HomeworkViewer'));
-const LessonVideo = lazy(() => import('./pages/LessonVideo'));
-const Chats = lazy(() => import('./pages/Chats'));
+const UserManagement = lazyRetry(() => import('./pages/UserManagement'));
+const LowBalanceStudents = lazyRetry(() => import('./pages/LowBalanceStudents'));
+const StudentLessonMaterials = lazyRetry(() => import('./pages/StudentLessonMaterials'));
+const MaterialsHub = lazyRetry(() => import('./pages/MaterialsHub'));
+const AdminPanel = lazyRetry(() => import('./pages/AdminPanel'));
+const AdminTutorDetail = lazyRetry(() => import('./pages/AdminTutorDetail'));
+const Groups = lazyRetry(() => import('./pages/Groups'));
+const GroupDetail = lazyRetry(() => import('./pages/GroupDetail'));
+const Certificates = lazyRetry(() => import('./pages/Certificates'));
+const StudentCertificates = lazyRetry(() => import('./pages/StudentCertificates'));
+const StudentExams = lazyRetry(() => import('./pages/StudentExams'));
+const StudentExamTake = lazyRetry(() => import('./pages/StudentExamTake'));
+const CertificateView = lazyRetry(() => import('./pages/CertificateView'));
+const CertificateVerify = lazyRetry(() => import('./pages/CertificateVerify'));
+const Payments = lazyRetry(() => import('./pages/Payments'));
+const PaymentReturn = lazyRetry(() => import('./pages/PaymentReturn'));
+const AdminAssessment = lazyRetry(() => import('./pages/AdminAssessment'));
+const AssessmentQuestions = lazyRetry(() => import('./pages/AssessmentQuestions'));
+const AssessmentExams = lazyRetry(() => import('./pages/AssessmentExams'));
+const AssessmentExamDetail = lazyRetry(() => import('./pages/AssessmentExamDetail'));
+const AssessmentAssignments = lazyRetry(() => import('./pages/AssessmentAssignments'));
+const AssessmentAssignmentDetail = lazyRetry(() => import('./pages/AssessmentAssignmentDetail'));
+const AssessmentResults = lazyRetry(() => import('./pages/AssessmentResults'));
+const AssessmentResultDetail = lazyRetry(() => import('./pages/AssessmentResultDetail'));
+const TeacherAssessment = lazyRetry(() => import('./pages/TeacherAssessment'));
+const TeacherAssessmentReview = lazyRetry(() => import('./pages/TeacherAssessmentReview'));
+const TeacherAssessmentReviewDetail = lazyRetry(() => import('./pages/TeacherAssessmentReviewDetail'));
+const TeacherAssessmentResults = lazyRetry(() => import('./pages/TeacherAssessmentResults'));
+const TeacherStudents = lazyRetry(() => import('./pages/TeacherStudents'));
+const HomeworkList = lazyRetry(() => import('./pages/HomeworkList'));
+const HomeworkEditor = lazyRetry(() => import('./pages/HomeworkEditor'));
+const HomeworkAssignment = lazyRetry(() => import('./pages/HomeworkAssignment'));
+const HomeworkResults = lazyRetry(() => import('./pages/HomeworkResults'));
+const HomeworkViewer = lazyRetry(() => import('./pages/HomeworkViewer'));
+const LessonVideo = lazyRetry(() => import('./pages/LessonVideo'));
+const Chats = lazyRetry(() => import('./pages/Chats'));
 
 /**
  * Route registration: see docs/frontend-routing.md

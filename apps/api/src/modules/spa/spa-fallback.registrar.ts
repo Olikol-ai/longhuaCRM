@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import type { NextFunction, Request, Response } from 'express';
+import { applyNoStoreCacheHeaders } from './spa-cache-headers';
 import { isStaticAssetRequestPath } from './spa-static-path';
 
 /**
@@ -35,7 +36,7 @@ export class SpaFallbackRegistrar implements OnModuleInit {
       }
 
       // express.static already tried; file is missing.
-      res.setHeader('Cache-Control', 'no-cache');
+      applyNoStoreCacheHeaders(res);
       return res.status(404).type('text/plain').send('Not found');
     });
   }

@@ -33,6 +33,7 @@ import { LessonSeriesModule } from './modules/lesson-series/lesson-series.module
 import { TeacherPaymentsModule } from './modules/teacher-payments/teacher-payments.module';
 import { ScheduleModule as ScheduleDomainModule } from './modules/schedule/schedule.module';
 import { SpaModule } from './modules/spa/spa.module';
+import { applySpaStaticFileHeaders } from './modules/spa/spa-cache-headers';
 import { StudentsModule } from './modules/students/students.module';
 import { TeachersModule } from './modules/teachers/teachers.module';
 import { TeacherStudentContactsModule } from './modules/teacher-student-contacts/teacher-student-contacts.module';
@@ -158,26 +159,11 @@ function resolveEnvFilePaths(): string[] {
             ],
             serveStaticOptions: {
               /**
-               * Hashed `/assets/*` can be cached forever; `index.html` must always
-               * revalidate so clients pick up new chunk filenames after deploy.
+               * Hashed `/assets/*` can be cached forever; `index.html` / `sw.js`
+               * must never stick in Cloudflare or the browser after a deploy.
                */
               setHeaders: (res, filePath) => {
-                const normalized = String(filePath).replace(/\\/g, '/');
-                if (normalized.includes('/assets/')) {
-                  res.setHeader(
-                    'Cache-Control',
-                    'public, max-age=31536000, immutable',
-                  );
-                  return;
-                }
-                if (normalized.endsWith('/index.html') || normalized.endsWith('index.html')) {
-                  res.setHeader(
-                    'Cache-Control',
-                    'no-cache, no-store, must-revalidate',
-                  );
-                  return;
-                }
-                res.setHeader('Cache-Control', 'public, max-age=3600');
+                applySpaStaticFileHeaders(res, filePath);
               },
             },
           }),

@@ -1,8 +1,7 @@
-/* Longhua Academy — minimal service worker for installability (network-first). */
-/* Bump CACHE when icons / shell assets change so old favicons are dropped. */
-const CACHE = 'longhua-academy-shell-v4-20260801a';
+/* Longhua Academy — installability SW (network-first). */
+/* Bump CACHE when icons change. Never precache index.html — stale HTML → broken hashed chunks. */
+const CACHE = 'longhua-academy-shell-v5-20260801b';
 const PRECACHE = [
-  '/',
   '/manifest.webmanifest',
   '/favicon.ico',
   '/icons/favicon-16x16.png',
@@ -17,6 +16,14 @@ function isScriptOrStyleRequest(url) {
     url.pathname.startsWith('/assets/') ||
     /\.(js|mjs|cjs|css)(\?|$)/i.test(url.pathname)
   );
+}
+
+function isHtmlNavigation(request, url) {
+  if (request.mode === 'navigate') return true;
+  const accept = request.headers.get('accept') || '';
+  if (accept.includes('text/html')) return true;
+  if (url.pathname === '/' || url.pathname.endsWith('.html')) return true;
+  return false;
 }
 
 function isHtmlContentType(response) {
@@ -46,6 +53,17 @@ self.addEventListener('fetch', (event) => {
   // Never cache API — always network
   if (url.pathname.startsWith('/api')) return;
 
+  // HTML shell must always come from network so hashed chunk URLs stay current.
+  if (isHtmlNavigation(request, url)) {
+    event.respondWith(
+      fetch(request).catch(async () => {
+        const cached = await caches.match(request);
+        return cached || new Response('Offline', { status: 503, statusText: 'Offline' });
+      }),
+    );
+    return;
+  }
+
   event.respondWith(
     fetch(request)
       .then((response) => {
@@ -57,13 +75,13 @@ self.addEventListener('fetch', (event) => {
           });
         }
 
+        // Only cache icons / manifest — never /assets/* (immutable on CDN) or HTML.
         const copy = response.clone();
         if (
           response.ok &&
-          (request.mode === 'navigate'
-            || url.pathname.startsWith('/icons/')
-            || url.pathname === '/favicon.ico'
-            || url.pathname.endsWith('.webmanifest'))
+          (url.pathname.startsWith('/icons/') ||
+            url.pathname === '/favicon.ico' ||
+            url.pathname.endsWith('.webmanifest'))
         ) {
           caches.open(CACHE).then((cache) => cache.put(request, copy));
         }
@@ -79,7 +97,7 @@ self.addEventListener('fetch', (event) => {
             headers: { 'Content-Type': 'text/plain; charset=utf-8' },
           });
         }
-        return caches.match('/');
+        return new Response('Offline', { status: 503, statusText: 'Offline' });
       }),
   );
 });

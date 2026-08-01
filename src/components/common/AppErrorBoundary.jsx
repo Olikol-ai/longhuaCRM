@@ -1,29 +1,10 @@
 import { Component } from 'react';
-
-function isChunkOrMimeLoadError(message) {
-  return /MIME type|text\/html|Failed to fetch dynamically imported module|Loading chunk|error loading dynamically imported module|ChunkLoadError/i.test(
-    String(message || ''),
-  );
-}
-
-async function clearClientCaches() {
-  try {
-    if ('serviceWorker' in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map((reg) => reg.unregister()));
-    }
-  } catch {
-    /* ignore */
-  }
-  try {
-    if ('caches' in window) {
-      const keys = await caches.keys();
-      await Promise.all(keys.map((key) => caches.delete(key)));
-    }
-  } catch {
-    /* ignore */
-  }
-}
+import {
+  claimChunkAutoReload,
+  clearClientModuleCaches,
+  hardReloadForStaleChunks,
+  isChunkLoadError,
+} from '@/lib/lazyRetry';
 
 /**
  * Catches render errors so one broken page does not blank the whole SPA.
@@ -33,24 +14,41 @@ async function clearClientCaches() {
 export default class AppErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, message: '', recovering: false };
+    this.state = { hasError: false, message: '', recovering: false, isChunkError: false };
+    this.autoRecoverStarted = false;
   }
 
   static getDerivedStateFromError(error) {
+    const message = error?.message ? String(error.message) : 'Неизвестная ошибка';
     return {
       hasError: true,
       recovering: false,
-      message: error?.message ? String(error.message) : 'Неизвестная ошибка',
+      message,
+      isChunkError: isChunkLoadError(error),
     };
   }
 
   componentDidCatch(error, info) {
     console.error('AppErrorBoundary', error, info?.componentStack);
+    if (isChunkLoadError(error) && !this.autoRecoverStarted && claimChunkAutoReload()) {
+      this.autoRecoverStarted = true;
+      void this.recoverFromStaleChunk();
+    }
   }
 
+  recoverFromStaleChunk = async () => {
+    this.setState({ recovering: true });
+    try {
+      await hardReloadForStaleChunks('boundary');
+    } catch {
+      this.setState({ recovering: false });
+    }
+  };
+
   handleGoHome = async () => {
-    if (isChunkOrMimeLoadError(this.state.message)) {
-      await clearClientCaches();
+    this.setState({ recovering: true });
+    if (this.state.isChunkError || isChunkLoadError({ message: this.state.message })) {
+      await clearClientModuleCaches();
     }
     window.location.assign('/');
   };
@@ -59,15 +57,15 @@ export default class AppErrorBoundary extends Component {
     if (this.state.recovering) return;
     this.setState({ recovering: true });
 
-    const hardReload = isChunkOrMimeLoadError(this.state.message);
+    const hardReload =
+      this.state.isChunkError || isChunkLoadError({ message: this.state.message });
     if (hardReload) {
-      await clearClientCaches();
-      window.location.reload();
+      // Manual retry always clears caches and reloads (bypass auto-reload gate).
+      await hardReloadForStaleChunks('retry');
       return;
     }
 
-    // Soft recovery for ordinary render errors, then remount via reload if needed.
-    this.setState({ hasError: false, message: '', recovering: false });
+    this.setState({ hasError: false, message: '', recovering: false, isChunkError: false });
     window.location.reload();
   };
 
@@ -78,8 +76,13 @@ export default class AppErrorBoundary extends Component {
           <div className="max-w-md w-full space-y-4 text-center">
             <h1 className="text-xl font-semibold">Что-то пошло не так</h1>
             <p className="text-sm text-muted-foreground break-words">
-              {this.state.message}
+              {this.state.isChunkError
+                ? 'Приложение обновилось на сервере. Нажмите «Попробовать снова», чтобы загрузить актуальную версию.'
+                : this.state.message}
             </p>
+            {this.state.isChunkError ? (
+              <p className="text-xs text-muted-foreground break-words">{this.state.message}</p>
+            ) : null}
             <div className="flex flex-col sm:flex-row gap-2 justify-center">
               <button
                 type="button"

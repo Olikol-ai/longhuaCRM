@@ -1,6 +1,7 @@
 import { Controller, Get, Req, Res } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { join } from 'path';
+import { applyNoStoreCacheHeaders } from './spa-cache-headers';
 import { isStaticAssetRequestPath } from './spa-static-path';
 
 const INDEX_HTML = join(__dirname, '../../../dist/index.html');
@@ -24,11 +25,11 @@ export class SpaController {
     }
 
     if (isStaticAssetRequestPath(pathname)) {
-      res.setHeader('Cache-Control', 'no-cache');
+      applyNoStoreCacheHeaders(res);
       return res.status(404).type('text/plain').send('Not found');
     }
 
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    applyNoStoreCacheHeaders(res);
     return res.sendFile(INDEX_HTML);
   }
 }
