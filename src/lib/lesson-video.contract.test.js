@@ -256,7 +256,13 @@ describe('Video lesson UI contract', () => {
     assert.match(rail, /участник|преподаватель|репетитор|ученик/i);
     assert.match(rail, /mergeRosterWithPresence/);
     assert.match(rail, /activeTab|onActiveTabChange/);
+    assert.match(rail, /openMaterial|lesson-video-materials/);
+    assert.match(rail, /openCrmInNewTab|noopener/);
+    // In-app Link navigation away from /lesson/:id/video would dispose Jitsi.
+    assert.doesNotMatch(rail, /Link to=\{materialsPath\}|<Link to=\{materialsPath\}/);
+    assert.doesNotMatch(rail, /asChild[\s\S]*materialsPath/);
     assert.match(page, /crmUserId|crmEmail/);
+    assert.match(page, /Only swaps SidePanel|never navigate away/);
     assert.match(embed, /crmUserId|setParticipantProperty|coalesceLivePresence/);
 
     assert.doesNotMatch(page, /\bMeeting\b|\bRoom\b|\bLogin\b|\bJoin\b|\bLeave\b|Video conference/);

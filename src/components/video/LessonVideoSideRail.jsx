@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import {
   BookOpen,
   ClipboardCheck,
+  ExternalLink,
   NotebookPen,
   Users,
   MessageCircle,
@@ -32,6 +32,7 @@ import {
   mergeRosterWithPresence,
   shouldSuggestPresent,
 } from '@/lib/lesson-video';
+import { openMaterial } from '@/lib/materialUrl';
 
 /** Order matches product UX: chat first, then study tools, then roster. */
 const BASE_TABS = [
@@ -66,6 +67,20 @@ function attendanceActionLabel(status) {
   if (status === 'late') return 'Опоздал';
   if (status === 'excused') return 'Уважительная причина';
   return localizeAttendanceStatus(status);
+}
+
+/** Open CRM pages without leaving / disposing the live Jitsi stage. */
+function openCrmInNewTab(path) {
+  if (!path) return;
+  const url = path.startsWith('http') ? path : path;
+  const opened = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!opened) {
+    toast({
+      title: 'Разрешите всплывающие окна',
+      description: 'Каталог откроется в новой вкладке, чтобы видеоурок не прерывался.',
+      variant: 'destructive',
+    });
+  }
 }
 
 function upsertLessonMessage(list, message) {
@@ -126,6 +141,9 @@ export default function LessonVideoSideRail({
   const [chatUnread, setChatUnread] = useState(0);
   const [homework, setHomework] = useState([]);
   const [loadingHw, setLoadingHw] = useState(false);
+  const [materials, setMaterials] = useState([]);
+  const [loadingMaterials, setLoadingMaterials] = useState(false);
+  const [openingMaterialId, setOpeningMaterialId] = useState(null);
   const [statusBusy, setStatusBusy] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
 
@@ -192,6 +210,40 @@ export default function LessonVideoSideRail({
     }
   }, [lessonId, isStudent]);
 
+  const loadMaterials = useCallback(async () => {
+    setLoadingMaterials(true);
+    try {
+      const list = await api.materials.list('-created_date', 40);
+      const rows = Array.isArray(list) ? list : [];
+      setMaterials(rows.filter((row) => row?.status !== 'deleted').slice(0, 30));
+    } catch {
+      setMaterials([]);
+      toast({
+        title: 'Не удалось загрузить материалы',
+        description: 'Попробуйте ещё раз. Видеозвонок продолжается.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingMaterials(false);
+    }
+  }, []);
+
+  const handleOpenMaterial = useCallback(async (material) => {
+    if (!material?.id) return;
+    setOpeningMaterialId(material.id);
+    try {
+      await openMaterial(material);
+    } catch (err) {
+      toast({
+        title: 'Не удалось открыть материал',
+        description: userFacingError(err),
+        variant: 'destructive',
+      });
+    } finally {
+      setOpeningMaterialId(null);
+    }
+  }, []);
+
   const loadChatMessages = useCallback(async (id) => {
     if (!id) return;
     setLoadingChat(true);
@@ -253,12 +305,13 @@ export default function LessonVideoSideRail({
   useEffect(() => {
     if (tab === 'participants' || tab === 'attendance') void loadParticipants();
     if (tab === 'homework') void loadHomework();
+    if (tab === 'materials') void loadMaterials();
     if (tab === 'chat' && chatId) {
       void loadChatMessages(chatId);
       setChatUnread(0);
       void chatsApi.markRead(chatId).catch(() => {});
     }
-  }, [tab, loadParticipants, loadHomework, loadChatMessages, chatId]);
+  }, [tab, loadParticipants, loadHomework, loadMaterials, loadChatMessages, chatId]);
 
   const rosterWithPresence = useMemo(
     () => mergeRosterWithPresence(participants, livePresence),
@@ -407,18 +460,62 @@ export default function LessonVideoSideRail({
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3 text-sm">
         {tab === 'materials' && (
-          <div className="space-y-3">
+          <div className="space-y-3" data-testid="lesson-video-materials">
             <p className={cn('text-xs leading-relaxed', muted)}>
-              Материалы открываются в CRM — видеозвонок остаётся на этой вкладке.
+              Материалы открываются в новой вкладке. Видеозвонок на этой странице не
+              прерывается.
             </p>
-            <Button asChild className="w-full min-h-11">
-              <Link to={materialsPath}>Открыть материалы</Link>
-            </Button>
+            {loadingMaterials ? (
+              <Loader2 className="h-5 w-5 animate-spin text-brand" />
+            ) : materials.length ? (
+              <ul className="space-y-2">
+                {materials.map((mat) => (
+                  <li
+                    key={mat.id}
+                    className={cn('rounded-xl border p-3', panel)}
+                  >
+                    <p className="truncate text-xs font-medium">
+                      {mat.title || 'Материал'}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="mt-2 w-full min-h-11"
+                      disabled={openingMaterialId === mat.id}
+                      onClick={() => void handleOpenMaterial(mat)}
+                    >
+                      {openingMaterialId === mat.id ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Открытие…
+                        </>
+                      ) : (
+                        <>
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          Открыть
+                        </>
+                      )}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className={cn('text-xs', soft)}>Пока нет доступных материалов.</p>
+            )}
             {lesson?.notes ? (
               <div className={cn('rounded-xl border p-3 text-xs whitespace-pre-wrap', panel, muted)}>
                 {lesson.notes}
               </div>
             ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full min-h-11"
+              onClick={() => openCrmInNewTab(materialsPath)}
+            >
+              <ExternalLink className="mr-2 h-4 w-4" />
+              Полный каталог материалов
+            </Button>
           </div>
         )}
 
@@ -442,10 +539,14 @@ export default function LessonVideoSideRail({
             ) : (
               <p className={cn('text-xs', soft)}>Нет ДЗ, привязанных к этому уроку.</p>
             )}
-            <Button asChild variant="outline" className="w-full min-h-11">
-              <Link to={homeworkPath}>
-                {isHost ? 'Назначить / список ДЗ' : 'Мои задания'}
-              </Link>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full min-h-11"
+              onClick={() => openCrmInNewTab(homeworkPath)}
+            >
+              <ExternalLink className="mr-2 h-4 w-4" />
+              {isHost ? 'Назначить / список ДЗ' : 'Мои задания'}
             </Button>
           </div>
         )}
@@ -668,11 +769,23 @@ export default function LessonVideoSideRail({
                 >
                   Отметить урок завершённым
                 </Button>
-                <Button asChild variant="outline" className="w-full min-h-11">
-                  <Link to={homeworkPath}>Назначить домашнее задание</Link>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full min-h-11"
+                  onClick={() => openCrmInNewTab(homeworkPath)}
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Назначить домашнее задание
                 </Button>
-                <Button asChild variant="ghost" className="w-full min-h-11">
-                  <Link to={createPageUrl('TeacherSchedule')}>К расписанию</Link>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full min-h-11"
+                  onClick={() => openCrmInNewTab(createPageUrl('TeacherSchedule'))}
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  К расписанию
                 </Button>
               </div>
             ) : null}

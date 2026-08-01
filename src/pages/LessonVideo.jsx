@@ -102,6 +102,7 @@ export default function LessonVideo() {
   const [livePresence, setLivePresence] = useState([]);
   const [sessionJwt, setSessionJwt] = useState(null);
   const [lessonChatUnread, setLessonChatUnread] = useState(0);
+  const didInitialDeviceCheckRef = useRef(false);
 
   useEffect(() => {
     if (!id) return;
@@ -157,10 +158,13 @@ export default function LessonVideo() {
   }, []);
 
   useEffect(() => {
-    if (!loading && data) {
-      void runDeviceCheck();
-    }
-  }, [loading, data, runDeviceCheck]);
+    // One-shot prejoin probe only — never re-request getUserMedia during an active call
+    // (that can interrupt the Jitsi tracks).
+    if (loading || !data || didInitialDeviceCheckRef.current) return;
+    if (joined || joining) return;
+    didInitialDeviceCheckRef.current = true;
+    void runDeviceCheck();
+  }, [loading, data, runDeviceCheck, joined, joining]);
 
   useEffect(() => {
     if (isDesktop) setSheetOpen(false);
@@ -292,6 +296,7 @@ export default function LessonVideo() {
   }, []);
 
   const openSheetTab = useCallback((tabId) => {
+    // Only swaps SidePanel content — never navigate away or remount Jitsi.
     setRailTab(tabId || 'chat');
     if (isDesktop) {
       setDesktopRailOpen(true);
