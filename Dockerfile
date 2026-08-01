@@ -9,6 +9,8 @@ COPY apps/api/package.json apps/api/package-lock.json ./apps/api/
 RUN npm ci && npm ci --prefix apps/api
 
 COPY . .
+# build:client preserves the previous hashed asset generation so open tabs
+# across deploy do not hit missing dynamic import chunks.
 RUN npm run build
 
 # --- Production stage ---

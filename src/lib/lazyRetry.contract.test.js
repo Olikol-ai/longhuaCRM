@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isChunkLoadError } from './lazyRetry.js';
+import { CHUNK_UPDATE_MESSAGE, isChunkLoadError } from './lazyRetry.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -17,7 +17,7 @@ describe('lazy chunk recovery', () => {
       }),
       true,
     );
-    assert.equal(isChunkLoadError({ message: 'ChunkLoadError' }), true);
+    assert.equal(isChunkLoadError({ message: 'ChunkLoadError', name: 'ChunkLoadError' }), true);
     assert.equal(isChunkLoadError({ message: 'Ordinary render bug' }), false);
   });
 
@@ -25,17 +25,35 @@ describe('lazy chunk recovery', () => {
     const app = readFileSync(join(root, 'App.jsx'), 'utf8');
     assert.match(app, /lazyRetry/);
     assert.match(app, /lazyRetry\(\(\) => import\('\.\/pages\/AdminPanel'\)\)/);
+    assert.match(app, /lazyRetry\(\(\) => import\('\.\/pages\/LowBalanceStudents'\)\)/);
     assert.doesNotMatch(app, /\blazy\(\(\) => import\(/);
   });
 
-  it('error boundary clears caches and hard-reloads on chunk errors', () => {
+  it('error boundary auto-reloads with update message on chunk errors', () => {
     const boundary = readFileSync(
       join(root, 'components/common/AppErrorBoundary.jsx'),
       'utf8',
     );
-    assert.match(boundary, /hardReloadForStaleChunks|clearClientModuleCaches/);
-    assert.match(boundary, /Попробовать снова/);
-    assert.match(boundary, /isChunkLoadError|isChunkError/);
+    assert.match(boundary, /CHUNK_UPDATE_MESSAGE/);
+    assert.match(boundary, /hardReloadForStaleChunks/);
+    assert.match(boundary, /claimChunkAutoReload/);
+    assert.match(boundary, /Попробовать снова|Перезагрузить сейчас/);
+    assert.match(boundary, /setTimeout/);
+    assert.equal(
+      CHUNK_UPDATE_MESSAGE,
+      'Приложение было обновлено. Страница будет автоматически перезагружена.',
+    );
+  });
+
+  it('preserves previous Vite assets across client builds', () => {
+    const pkg = readFileSync(join(root, '../package.json'), 'utf8');
+    const script = readFileSync(
+      join(root, '../scripts/build-client-preserve-assets.mjs'),
+      'utf8',
+    );
+    assert.match(pkg, /build-client-preserve-assets/);
+    assert.match(script, /previousGeneration|asset-generations/);
+    assert.match(script, /restoreMissingFromStash/);
   });
 
   it('service worker does not precache index.html', () => {

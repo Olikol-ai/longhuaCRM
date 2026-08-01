@@ -21,6 +21,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.dist-asset-stash
 *.local
 
 # Editor directories and files
