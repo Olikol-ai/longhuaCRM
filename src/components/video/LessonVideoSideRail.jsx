@@ -28,9 +28,8 @@ import {
 } from '@/lib/chat-socket';
 import { normalizeMessage } from '@/lib/chat-normalize';
 import {
-  findLivePresence,
   formatJoinedAt,
-  participantConnectionLabel,
+  mergeRosterWithPresence,
   shouldSuggestPresent,
 } from '@/lib/lesson-video';
 
@@ -261,35 +260,10 @@ export default function LessonVideoSideRail({
     }
   }, [tab, loadParticipants, loadHomework, loadChatMessages, chatId]);
 
-  const rosterWithPresence = useMemo(() => {
-    const matchedLiveIds = new Set();
-    const rows = participants.map((p) => {
-      const presence = findLivePresence(p.name, livePresence);
-      if (presence?.id) matchedLiveIds.add(presence.id);
-      const online = Boolean(presence?.online);
-      return {
-        ...p,
-        presence,
-        online,
-        joinedAt: presence?.joinedAt || presence?.joined_at || null,
-        connectionStatus: participantConnectionLabel({ online, presence }),
-      };
-    });
-
-    for (const live of livePresence || []) {
-      if (!live?.id || matchedLiveIds.has(live.id)) continue;
-      const online = Boolean(live.online);
-      rows.push({
-        role: 'guest',
-        name: live.displayName || live.display_name || 'Участник',
-        presence: live,
-        online,
-        joinedAt: live.joinedAt || live.joined_at || null,
-        connectionStatus: participantConnectionLabel({ online, presence: live }),
-      });
-    }
-    return rows;
-  }, [participants, livePresence]);
+  const rosterWithPresence = useMemo(
+    () => mergeRosterWithPresence(participants, livePresence),
+    [participants, livePresence],
+  );
 
   const attendanceRows = useMemo(
     () =>

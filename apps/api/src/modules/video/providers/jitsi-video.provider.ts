@@ -106,6 +106,7 @@ export class JitsiVideoProvider implements VideoProvider {
       avatarUrl: input.avatarUrl,
       isModerator: input.isModerator,
       subject: input.subject,
+      role: input.roleLabel,
     });
 
     const subject = input.subject?.trim() || null;

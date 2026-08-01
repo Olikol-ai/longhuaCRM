@@ -244,17 +244,36 @@ export class VideoService {
         : [];
     const byId = new Map(students.map((s) => [s.id, s]));
 
+    const userIds = new Set<string>();
+    if (lesson.teacher?.userId) userIds.add(lesson.teacher.userId);
+    if (lesson.tutor?.userId) userIds.add(lesson.tutor.userId);
+    for (const student of students) {
+      if (student.userId) userIds.add(student.userId);
+    }
+    const users =
+      userIds.size > 0
+        ? await this.users.find({ where: { id: In([...userIds]) } })
+        : [];
+    const userById = new Map(users.map((u) => [u.id, u]));
+
     const participants: Array<{
       role: string;
       name: string;
+      user_id?: string | null;
+      email?: string | null;
       student_id?: string;
       attendance_id?: string;
       attendance_status?: string;
     }> = [];
 
     if (lesson.teacher) {
+      const teacherUser = lesson.teacher.userId
+        ? userById.get(lesson.teacher.userId)
+        : null;
       participants.push({
         role: 'teacher',
+        user_id: lesson.teacher.userId || null,
+        email: teacherUser?.email || lesson.teacher.email || null,
         name:
           lesson.teacher.name?.trim() ||
           composeDisplayName(
@@ -266,8 +285,13 @@ export class VideoService {
     }
 
     if (lesson.tutor) {
+      const tutorUser = lesson.tutor.userId
+        ? userById.get(lesson.tutor.userId)
+        : null;
       participants.push({
         role: 'tutor',
+        user_id: lesson.tutor.userId || null,
+        email: tutorUser?.email || lesson.tutor.email || null,
         name: lesson.tutor.displayName?.trim() || 'Репетитор',
       });
     }
@@ -275,8 +299,13 @@ export class VideoService {
     for (const row of rows) {
       if (!row.studentId) continue;
       const student = byId.get(row.studentId);
+      const studentUser = student?.userId
+        ? userById.get(student.userId)
+        : null;
       participants.push({
         role: 'student',
+        user_id: student?.userId || null,
+        email: studentUser?.email || student?.email || null,
         student_id: row.studentId,
         attendance_id: row.id,
         attendance_status: row.attendanceStatus,
@@ -287,8 +316,13 @@ export class VideoService {
     }
 
     if (rows.length === 0 && lesson.primaryStudent) {
+      const studentUser = lesson.primaryStudent.userId
+        ? userById.get(lesson.primaryStudent.userId)
+        : null;
       participants.push({
         role: 'student',
+        user_id: lesson.primaryStudent.userId || null,
+        email: studentUser?.email || lesson.primaryStudent.email || null,
         student_id: lesson.primaryStudent.id,
         name:
           lesson.primaryStudent.name?.trim() ||

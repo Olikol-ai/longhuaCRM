@@ -3,7 +3,9 @@ import { Loader2 } from 'lucide-react';
 import {
   buildJitsiConfigOverwrite,
   buildJitsiInterfaceConfigOverwrite,
+  coalesceLivePresence,
   loadJitsiExternalApi,
+  normalizeVideoDisplayName,
   parseJitsiDomain,
   resizeJitsiEmbed,
 } from '@/lib/lesson-video';
@@ -24,6 +26,8 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     subject = null,
     externalApiUrl,
     jwt = null,
+    crmUserId = null,
+    crmEmail = null,
     onLeft,
     onJoined,
     onError,
@@ -41,6 +45,8 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
   const bootJwtRef = useRef(jwt);
   const displayNameRef = useRef(displayName);
   const subjectRef = useRef(subject);
+  const crmUserIdRef = useRef(crmUserId);
+  const crmEmailRef = useRef(crmEmail);
   const onLeftRef = useRef(onLeft);
   const onJoinedRef = useRef(onJoined);
   const onErrorRef = useRef(onError);
@@ -57,6 +63,8 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
   useEffect(() => {
     displayNameRef.current = displayName;
     subjectRef.current = subject;
+    crmUserIdRef.current = crmUserId;
+    crmEmailRef.current = crmEmail;
     onLeftRef.current = onLeft;
     onJoinedRef.current = onJoined;
     onErrorRef.current = onError;
@@ -68,6 +76,8 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
   }, [
     displayName,
     subject,
+    crmUserId,
+    crmEmail,
     onLeft,
     onJoined,
     onError,
@@ -160,6 +170,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           jwt: bootJwt,
           userInfo: {
             displayName: displayNameRef.current || 'Участник',
+            ...(crmEmailRef.current ? { email: crmEmailRef.current } : {}),
           },
           configOverwrite: buildJitsiConfigOverwrite({
             subject: subjectRef.current,
@@ -204,7 +215,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
         };
 
         const emitPresence = () => {
-          const list = Array.from(presenceMapRef.current.values()).map((row) => ({
+          const raw = Array.from(presenceMapRef.current.values()).map((row) => ({
             id: row.id,
             displayName: row.displayName,
             online: Boolean(row.online),
@@ -212,22 +223,57 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
             leftAt: row.leftAt || null,
             sessionStart: row.sessionStart || null,
             accumulatedMs: row.accumulatedMs || 0,
+            crmUserId: row.crmUserId || null,
+            email: row.email || null,
           }));
-          onPresenceChangeRef.current?.(list);
+          onPresenceChangeRef.current?.(coalesceLivePresence(raw));
         };
 
-        const markOnline = (id, displayNameValue) => {
+        const findExistingPresenceKey = (id, displayNameValue, extras = {}) => {
+          if (presenceMapRef.current.has(id)) return id;
+          const crmUserId = String(extras.crmUserId || '').trim();
+          const email = String(extras.email || '')
+            .trim()
+            .toLowerCase();
+          const nameKey = normalizeVideoDisplayName(displayNameValue);
+          for (const [pid, row] of presenceMapRef.current.entries()) {
+            if (crmUserId && row.crmUserId && row.crmUserId === crmUserId) {
+              return pid;
+            }
+            if (email && row.email && String(row.email).toLowerCase() === email) {
+              return pid;
+            }
+            if (
+              nameKey &&
+              normalizeVideoDisplayName(row.displayName) === nameKey
+            ) {
+              return pid;
+            }
+          }
+          return null;
+        };
+
+        const markOnline = (id, displayNameValue, extras = {}) => {
           if (!id) return;
           const now = Date.now();
-          const existing = presenceMapRef.current.get(id);
           const label =
             (displayNameValue && String(displayNameValue).trim()) ||
-            existing?.displayName ||
             'Участник';
-          if (existing?.online) {
+          const existingKey = findExistingPresenceKey(id, label, extras);
+          const existing = existingKey
+            ? presenceMapRef.current.get(existingKey)
+            : null;
+
+          if (existingKey && existingKey !== id) {
+            presenceMapRef.current.delete(existingKey);
+          }
+
+          if (existing?.online && existingKey === id) {
             presenceMapRef.current.set(id, {
               ...existing,
               displayName: label,
+              crmUserId: extras.crmUserId || existing.crmUserId || null,
+              email: extras.email || existing.email || null,
             });
           } else {
             presenceMapRef.current.set(id, {
@@ -238,6 +284,8 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
               leftAt: null,
               sessionStart: now,
               accumulatedMs: existing?.accumulatedMs || 0,
+              crmUserId: extras.crmUserId || existing?.crmUserId || null,
+              email: extras.email || existing?.email || null,
             });
           }
           emitPresence();
@@ -312,8 +360,30 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           resizeJitsiEmbed(api, containerRef.current);
           applyIdentity();
           const localId = e?.id || api.getMyUserId?.();
+          const localExtras = {
+            crmUserId: crmUserIdRef.current || null,
+            email: crmEmailRef.current || null,
+          };
           if (localId) {
-            markOnline(localId, displayNameRef.current || 'Участник');
+            markOnline(localId, displayNameRef.current || 'Участник', localExtras);
+            try {
+              if (localExtras.crmUserId) {
+                api.executeCommand(
+                  'setParticipantProperty',
+                  'crmUserId',
+                  String(localExtras.crmUserId),
+                );
+              }
+              if (localExtras.email) {
+                api.executeCommand(
+                  'setParticipantProperty',
+                  'crmEmail',
+                  String(localExtras.email),
+                );
+              }
+            } catch {
+              // older Jitsi builds may not support participant properties
+            }
           }
           syncParticipants();
           onJoinedRef.current?.();
@@ -342,6 +412,28 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
         api.addListener('participantLeft', (e) => {
           markOffline(e?.id);
           syncParticipants();
+        });
+        api.addListener('participantPropertyChanged', (e) => {
+          const pid = e?.id || e?.participantId;
+          if (!pid) return;
+          const key = e?.property || e?.key;
+          const value = e?.newValue ?? e?.value;
+          const existing = presenceMapRef.current.get(pid);
+          if (!existing) return;
+          if (key === 'crmUserId' && value) {
+            presenceMapRef.current.set(pid, {
+              ...existing,
+              crmUserId: String(value),
+            });
+            emitPresence();
+          }
+          if (key === 'crmEmail' && value) {
+            presenceMapRef.current.set(pid, {
+              ...existing,
+              email: String(value).toLowerCase(),
+            });
+            emitPresence();
+          }
         });
         api.addListener('displayNameChange', (e) => {
           const pid = e?.id;

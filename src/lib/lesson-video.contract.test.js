@@ -96,6 +96,76 @@ describe('lesson-video helpers', () => {
       'отключился',
     );
   });
+
+  it('dedupes CRM roster vs Jitsi guest and reconnects by identity', async () => {
+    const {
+      coalesceLivePresence,
+      mergeRosterWithPresence,
+    } = await import('./lesson-video.js');
+
+    const live = coalesceLivePresence([
+      {
+        id: 'old-jid',
+        displayName: 'Бобик Пупка (ученик)',
+        online: false,
+        leftAt: Date.now() - 60_000,
+        accumulatedMs: 120_000,
+      },
+      {
+        id: 'new-jid',
+        displayName: 'Бобик Пупка (ученик)',
+        online: true,
+        sessionStart: Date.now(),
+        accumulatedMs: 0,
+        crmUserId: 'user-student-1',
+      },
+    ]);
+    assert.equal(live.length, 1);
+    assert.equal(live[0].online, true);
+    assert.equal(live[0].id, 'new-jid');
+
+    const merged = mergeRosterWithPresence(
+      [
+        {
+          role: 'teacher',
+          name: 'Янчиленко Мария',
+          user_id: 'user-teacher-1',
+        },
+        {
+          role: 'student',
+          name: 'Бобик Пупка',
+          user_id: 'user-student-1',
+          student_id: 'stu-1',
+        },
+      ],
+      [
+        {
+          id: 't1',
+          displayName: 'Янчиленко Мария (преподаватель)',
+          online: true,
+          crmUserId: 'user-teacher-1',
+        },
+        {
+          id: 's-offline',
+          displayName: 'Бобик Пупка (ученик)',
+          online: false,
+          leftAt: Date.now() - 10_000,
+        },
+        {
+          id: 's-online',
+          displayName: 'Бобик Пупка (ученик)',
+          online: true,
+          crmUserId: 'user-student-1',
+        },
+      ],
+    );
+
+    assert.equal(merged.length, 2);
+    assert.equal(merged.filter((r) => r.role === 'guest').length, 0);
+    const student = merged.find((r) => r.role === 'student');
+    assert.equal(student.online, true);
+    assert.equal(student.presence?.id, 's-online');
+  });
 });
 
 describe('Video lesson UI contract', () => {
@@ -171,11 +241,16 @@ describe('Video lesson UI contract', () => {
     assert.match(page, /DESKTOP_RAIL_WIDTH|lesson-rail-w/);
     assert.match(page, /side="bottom"/);
     assert.match(page, /openSheetTab|lesson-video-dock-chat/);
-    assert.match(controls, /rounded-full/);
+    assert.match(controls, /flex-col|DockRow|min-h-11/);
     assert.match(controls, /Завершить/);
-    assert.match(controls, /h-12|h-14/);
+    assert.match(controls, /Посещаемость|Участники|Настройки|ДЗ/);
+    assert.match(controls, /min-h-11|min-h-12/);
+    assert.doesNotMatch(controls, /overflow-x-auto|max-w-\[calc\(100vw/);
     assert.match(rail, /участник|преподаватель|репетитор|ученик/i);
+    assert.match(rail, /mergeRosterWithPresence/);
     assert.match(rail, /activeTab|onActiveTabChange/);
+    assert.match(page, /crmUserId|crmEmail/);
+    assert.match(embed, /crmUserId|setParticipantProperty|coalesceLivePresence/);
 
     assert.doesNotMatch(page, /\bMeeting\b|\bRoom\b|\bLogin\b|\bJoin\b|\bLeave\b|Video conference/);
     assert.doesNotMatch(prejoin, /\bMeeting\b|\bRoom\b|\bLogin\b|\bJoin\b/);

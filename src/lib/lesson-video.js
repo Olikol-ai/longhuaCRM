@@ -215,20 +215,243 @@ export function normalizeVideoDisplayName(name) {
     .toLowerCase();
 }
 
-/** Find Jitsi presence row matching a CRM roster display name. */
-export function findLivePresence(rosterName, liveList) {
-  const target = normalizeVideoDisplayName(rosterName);
-  if (!target || !Array.isArray(liveList) || liveList.length === 0) return null;
-  const exact = liveList.find(
+function preferOnlinePresence(rows) {
+  if (!rows.length) return null;
+  const online = rows.filter((p) => p.online);
+  if (online.length) return online[online.length - 1];
+  return rows[rows.length - 1];
+}
+
+function rosterLookupFields(rosterOrName) {
+  if (rosterOrName == null) {
+    return { userId: '', email: '', name: '' };
+  }
+  if (typeof rosterOrName === 'string') {
+    return { userId: '', email: '', name: rosterOrName };
+  }
+  return {
+    userId: String(rosterOrName.user_id || rosterOrName.userId || '').trim(),
+    email: String(rosterOrName.email || '')
+      .trim()
+      .toLowerCase(),
+    name: String(rosterOrName.name || '').trim(),
+  };
+}
+
+/**
+ * Collapse reconnect duplicates: same CRM user / email / display name
+ * must stay one presence row (status flips offline → online).
+ */
+export function coalesceLivePresence(liveList) {
+  if (!Array.isArray(liveList) || liveList.length === 0) return [];
+  const byKey = new Map();
+
+  for (const row of liveList) {
+    if (!row?.id) continue;
+    const crmUserId = String(row.crmUserId || row.userId || row.user_id || '').trim();
+    const email = String(row.email || '')
+      .trim()
+      .toLowerCase();
+    const nameKey = normalizeVideoDisplayName(row.displayName || row.display_name);
+    const preferredKey = crmUserId
+      ? `user:${crmUserId}`
+      : email
+        ? `email:${email}`
+        : nameKey
+          ? `name:${nameKey}`
+          : `id:${row.id}`;
+
+    let existingKey = null;
+    let existing = null;
+    for (const [key, value] of byKey.entries()) {
+      if (crmUserId && value.crmUserId && value.crmUserId === crmUserId) {
+        existingKey = key;
+        existing = value;
+        break;
+      }
+      if (email && value.email && value.email === email) {
+        existingKey = key;
+        existing = value;
+        break;
+      }
+      if (
+        nameKey &&
+        normalizeVideoDisplayName(value.displayName || value.display_name) === nameKey
+      ) {
+        existingKey = key;
+        existing = value;
+        break;
+      }
+    }
+
+    if (!existing) {
+      byKey.set(preferredKey, {
+        ...row,
+        crmUserId: crmUserId || null,
+        email: email || null,
+        jitsiIds: [row.id],
+      });
+      continue;
+    }
+
+    const preferIncoming = Boolean(row.online) && !existing.online;
+    const primary = preferIncoming ? row : existing;
+    const secondary = preferIncoming ? existing : row;
+    const joinedCandidates = [existing.joinedAt, row.joinedAt, existing.joined_at, row.joined_at]
+      .map((v) => (v == null ? null : Number(v)))
+      .filter((v) => Number.isFinite(v));
+    const accumulatedMs = Math.max(
+      Number(existing.accumulatedMs || existing.accumulated_ms || 0),
+      Number(row.accumulatedMs || row.accumulated_ms || 0),
+    );
+
+    if (existingKey && existingKey !== preferredKey) {
+      byKey.delete(existingKey);
+    }
+
+    byKey.set(preferredKey, {
+      ...primary,
+      id: primary.online ? primary.id : secondary.online ? secondary.id : primary.id,
+      displayName:
+        primary.displayName ||
+        primary.display_name ||
+        secondary.displayName ||
+        secondary.display_name,
+      online: Boolean(existing.online || row.online),
+      joinedAt: joinedCandidates.length ? Math.min(...joinedCandidates) : primary.joinedAt || null,
+      leftAt: existing.online || row.online ? null : primary.leftAt || secondary.leftAt || null,
+      sessionStart: primary.online
+        ? primary.sessionStart || primary.session_start || null
+        : null,
+      accumulatedMs,
+      crmUserId: existing.crmUserId || crmUserId || null,
+      email: existing.email || email || null,
+      jitsiIds: [...new Set([...(existing.jitsiIds || [existing.id]), row.id])],
+    });
+  }
+
+  return Array.from(byKey.values());
+}
+
+/**
+ * Find Jitsi presence for a CRM roster row.
+ * Prefer userId / email; fall back to normalized display name.
+ * When several rows match (reconnect), prefer the online one.
+ */
+export function findLivePresence(rosterOrName, liveList) {
+  const list = coalesceLivePresence(liveList);
+  if (list.length === 0) return null;
+  const { userId, email, name } = rosterLookupFields(rosterOrName);
+
+  if (userId) {
+    const byUser = list.filter(
+      (p) =>
+        String(p.crmUserId || p.userId || p.user_id || '').trim() === userId,
+    );
+    const hit = preferOnlinePresence(byUser);
+    if (hit) return hit;
+  }
+
+  if (email) {
+    const byEmail = list.filter(
+      (p) => String(p.email || '').trim().toLowerCase() === email,
+    );
+    const hit = preferOnlinePresence(byEmail);
+    if (hit) return hit;
+  }
+
+  const target = normalizeVideoDisplayName(name);
+  if (!target) return null;
+
+  const exact = list.filter(
     (p) => normalizeVideoDisplayName(p.displayName || p.display_name) === target,
   );
-  if (exact) return exact;
-  return (
-    liveList.find((p) => {
-      const live = normalizeVideoDisplayName(p.displayName || p.display_name);
-      return live.includes(target) || target.includes(live);
-    }) || null
-  );
+  const exactHit = preferOnlinePresence(exact);
+  if (exactHit) return exactHit;
+
+  const fuzzy = list.filter((p) => {
+    const live = normalizeVideoDisplayName(p.displayName || p.display_name);
+    return live && (live.includes(target) || target.includes(live));
+  });
+  return preferOnlinePresence(fuzzy);
+}
+
+function rosterIdentityKeys(roster) {
+  const { userId, email, name } = rosterLookupFields(roster);
+  const keys = new Set();
+  if (userId) keys.add(`user:${userId}`);
+  if (email) keys.add(`email:${email}`);
+  const nameKey = normalizeVideoDisplayName(name);
+  if (nameKey) keys.add(`name:${nameKey}`);
+  return keys;
+}
+
+function liveIdentityKeys(live) {
+  const keys = new Set();
+  const crmUserId = String(live.crmUserId || live.userId || live.user_id || '').trim();
+  const email = String(live.email || '')
+    .trim()
+    .toLowerCase();
+  const nameKey = normalizeVideoDisplayName(live.displayName || live.display_name);
+  if (crmUserId) keys.add(`user:${crmUserId}`);
+  if (email) keys.add(`email:${email}`);
+  if (nameKey) keys.add(`name:${nameKey}`);
+  return keys;
+}
+
+/**
+ * Merge CRM roster with live Jitsi presence.
+ * CRM rows win; unmatched live users appear as guests only when they are
+ * not the same person as a roster entry (by userId / email / name).
+ */
+export function mergeRosterWithPresence(participants, livePresence) {
+  const live = coalesceLivePresence(livePresence);
+  const matchedLiveIds = new Set();
+  const rosterKeys = new Set();
+
+  const rows = (Array.isArray(participants) ? participants : []).map((p) => {
+    for (const key of rosterIdentityKeys(p)) rosterKeys.add(key);
+    const presence = findLivePresence(p, live);
+    if (presence?.id) matchedLiveIds.add(presence.id);
+    for (const jid of presence?.jitsiIds || []) matchedLiveIds.add(jid);
+    const online = Boolean(presence?.online);
+    return {
+      ...p,
+      presence,
+      online,
+      joinedAt: presence?.joinedAt || presence?.joined_at || null,
+      connectionStatus: participantConnectionLabel({ online, presence }),
+    };
+  });
+
+  for (const entry of live) {
+    if (!entry?.id || matchedLiveIds.has(entry.id)) continue;
+    if ((entry.jitsiIds || []).some((jid) => matchedLiveIds.has(jid))) continue;
+    const liveKeys = liveIdentityKeys(entry);
+    let overlapsRoster = false;
+    for (const key of liveKeys) {
+      if (rosterKeys.has(key)) {
+        overlapsRoster = true;
+        break;
+      }
+    }
+    if (overlapsRoster) continue;
+
+    const online = Boolean(entry.online);
+    const rawName = String(entry.displayName || entry.display_name || '').trim();
+    const guestName =
+      rawName.replace(/\s*\([^)]*\)\s*$/g, '').replace(/\s+/g, ' ').trim() || 'Гость';
+    rows.push({
+      role: 'guest',
+      name: guestName,
+      presence: entry,
+      online,
+      joinedAt: entry.joinedAt || entry.joined_at || null,
+      connectionStatus: participantConnectionLabel({ online, presence: entry }),
+    });
+  }
+
+  return rows;
 }
 
 export function connectedDurationMs(presence, now = Date.now()) {

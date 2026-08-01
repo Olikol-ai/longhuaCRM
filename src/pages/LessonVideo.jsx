@@ -489,6 +489,8 @@ export default function LessonVideo() {
                   subject={data.conference_subject || lesson.title}
                   externalApiUrl={data.external_api_url}
                   jwt={embedJwt}
+                  crmUserId={user?.id || null}
+                  crmEmail={user?.email || null}
                   onLeft={handleLeft}
                   onJoined={handleJoined}
                   onError={handleEmbedError}
@@ -505,6 +507,9 @@ export default function LessonVideo() {
                 <LessonVideoControls
                   audioMuted={audioMuted}
                   videoMuted={videoMuted}
+                  compact={!isDesktop}
+                  canManageAttendance={canManageAttendance}
+                  chatUnread={lessonChatUnread}
                   onToggleAudio={() => jitsiRef.current?.executeCommand?.('toggleAudio')}
                   onToggleVideo={() => jitsiRef.current?.executeCommand?.('toggleVideo')}
                   onShareScreen={() => jitsiRef.current?.executeCommand?.('toggleShareScreen')}
@@ -518,13 +523,28 @@ export default function LessonVideo() {
                     }
                   }}
                   onHangup={hangup}
-                  showQuickPanels={!isDesktop}
-                  showPanelButton={false}
-                  chatUnread={lessonChatUnread}
                   onOpenChat={() => openSheetTab('chat')}
                   onOpenMaterials={() => openSheetTab('materials')}
+                  onOpenHomework={() => openSheetTab('homework')}
                   onOpenParticipants={() => openSheetTab('participants')}
-                  onOpenPanel={openPanel}
+                  onOpenAttendance={() => openSheetTab('attendance')}
+                  onOpenSettings={async () => {
+                    try {
+                      const result = await checkMediaDevices();
+                      const cam = result.camera.ok ? 'камера ок' : 'камера недоступна';
+                      const mic = result.microphone.ok ? 'микрофон ок' : 'микрофон недоступен';
+                      toast({
+                        title: 'Настройки устройств',
+                        description: `${cam}, ${mic}. Управление устройствами — через разрешения браузера.`,
+                      });
+                    } catch {
+                      toast({
+                        title: 'Настройки',
+                        description: 'Проверьте разрешения камеры и микрофона в браузере.',
+                      });
+                    }
+                    openSheetTab('info');
+                  }}
                 />
               </div>
             </div>

@@ -15,6 +15,8 @@ export type JitsiJwtSignInput = {
   avatarUrl?: string | null;
   isModerator: boolean;
   subject?: string | null;
+  /** CRM role for identity mapping in the client. */
+  role?: string | null;
 };
 
 export type JitsiJwtResult = {
@@ -93,6 +95,7 @@ export class JitsiJwtService {
           avatar: input.avatarUrl || undefined,
           moderator: input.isModerator,
           affiliation: input.isModerator ? 'owner' : 'member',
+          role: input.role || undefined,
         },
         features: {
           livestreaming: false,

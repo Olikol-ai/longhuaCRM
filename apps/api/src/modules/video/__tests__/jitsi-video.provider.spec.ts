@@ -74,13 +74,17 @@ describe('JitsiVideoProvider corporate JWT', () => {
     expect(access.hostRequiresAccount).toBe(false);
     expect(access.domain).toBe('meet.example.test');
     const payload = verify(access.token as string, 'secret-test-key') as {
-      context: { user: { name: string; moderator: boolean } };
+      context: {
+        user: { name: string; moderator: boolean; id?: string; role?: string };
+      };
       room: string;
       jti: string;
     };
     expect(payload.room).toBe('room-1');
     expect(payload.context.user.name).toBe('Иван (преподаватель)');
     expect(payload.context.user.moderator).toBe(true);
+    expect(payload.context.user.id).toBe('user-1');
+    expect(payload.context.user.role).toBe('преподаватель');
     expect(payload.jti).toBeTruthy();
   });
 
