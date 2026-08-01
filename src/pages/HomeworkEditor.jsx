@@ -17,11 +17,14 @@ import {
 
 const ACTIVITY_OPTIONS = [
   { value: 'test', label: 'Тест' },
-  { value: 'reading', label: 'Reading' },
-  { value: 'listening', label: 'Listening' },
-  { value: 'speaking', label: 'Speaking' },
-  { value: 'writing', label: 'Writing (текст)' },
+  { value: 'reading', label: 'Чтение' },
+  { value: 'listening', label: 'Аудирование' },
+  { value: 'speaking', label: 'Говорение' },
+  { value: 'writing', label: 'Письмо' },
 ];
+
+const fieldClass =
+  'w-full min-h-11 h-11 px-3 text-base border rounded-lg bg-background md:min-h-9 md:h-9 md:text-sm';
 
 function emptyTask(kind = 'question') {
   return {
@@ -254,53 +257,55 @@ export default function HomeworkEditor() {
   const readingOptions = libraryReading;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-6" data-testid="homework-editor">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+    <div
+      className="p-3 sm:p-6 lg:p-8 w-full max-w-3xl mx-auto space-y-4 sm:space-y-6 min-w-0 overflow-x-hidden"
+      data-testid="homework-editor"
+    >
+      <div className="min-w-0">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white break-words">
           {id ? 'Редактирование задания' : 'Новое домашнее задание'}
         </h1>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="text-sm text-slate-500 mt-1 break-words">
           Соберите задание из тест-вопросов, аудирования и чтения из вашей библиотеки.
         </p>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 space-y-4">
-        <div>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4 sm:p-5 space-y-4 min-w-0">
+        <div className="min-w-0">
           <label className="block text-xs font-medium text-slate-600 mb-1">Название</label>
-          <input
+          <Input
             value={form.title}
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-            className="w-full px-3 py-2 text-sm border rounded-lg"
             data-testid="homework-title"
           />
         </div>
-        <div>
+        <div className="min-w-0">
           <label className="block text-xs font-medium text-slate-600 mb-1">Описание</label>
-          <textarea
+          <Textarea
             value={form.description}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
             rows={2}
-            className="w-full px-3 py-2 text-sm border rounded-lg"
+            className="min-h-[88px] text-base md:text-sm"
           />
         </div>
-        <div>
+        <div className="min-w-0">
           <label className="block text-xs font-medium text-slate-600 mb-1">Инструкция</label>
-          <textarea
+          <Textarea
             value={form.instructions}
             onChange={(e) => setForm((f) => ({ ...f, instructions: e.target.value }))}
             rows={4}
             placeholder={'Прочитайте текст.\nПрослушайте аудио.\nОтветьте на вопросы.'}
-            className="w-full px-3 py-2 text-sm border rounded-lg"
+            className="min-h-[120px] text-base md:text-sm"
             data-testid="homework-instructions"
           />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
+          <div className="min-w-0">
             <label className="block text-xs font-medium text-slate-600 mb-1">Тип задания</label>
             <select
               value={form.activity_kind}
               onChange={(e) => setForm((f) => ({ ...f, activity_kind: e.target.value }))}
-              className="w-full px-3 py-2 text-sm border rounded-lg"
+              className={fieldClass}
             >
               {ACTIVITY_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -309,33 +314,50 @@ export default function HomeworkEditor() {
               ))}
             </select>
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="block text-xs font-medium text-slate-600 mb-1">Проходной %</label>
-            <input
+            <Input
               type="number"
               min={0}
               max={100}
               value={form.pass_score_percent}
               onChange={(e) => setForm((f) => ({ ...f, pass_score_percent: e.target.value }))}
-              className="w-full px-3 py-2 text-sm border rounded-lg"
             />
           </div>
         </div>
       </div>
 
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="space-y-4 min-w-0">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <h2 className="text-sm font-semibold">Состав ({form.tasks.length})</h2>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => addTask('question')}>
+          <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto"
+              onClick={() => addTask('question')}
+            >
               <Plus className="h-4 w-4 mr-1" />
               Добавить тест
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => addTask('listening')}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto"
+              onClick={() => addTask('listening')}
+            >
               <Plus className="h-4 w-4 mr-1" />
               Аудирование
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => addTask('reading')}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto"
+              onClick={() => addTask('reading')}
+            >
               <Plus className="h-4 w-4 mr-1" />
               Чтение
             </Button>
@@ -345,11 +367,11 @@ export default function HomeworkEditor() {
         {form.tasks.map((task, index) => (
           <div
             key={task.localKey}
-            className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 space-y-3"
+            className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4 sm:p-5 space-y-3 min-w-0"
             data-testid={`homework-question-${index}`}
           >
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-medium break-words min-w-0">
                 {task.task_kind === 'question'
                   ? 'Тест-вопрос'
                   : CONTENT_TASK_TYPE_LABEL[task.task_kind] || task.task_kind}{' '}
@@ -359,7 +381,7 @@ export default function HomeworkEditor() {
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="text-rose-600"
+                className="text-rose-600 self-start sm:self-auto"
                 disabled={form.tasks.length <= 1}
                 onClick={() => removeTask(task.localKey)}
               >
@@ -369,12 +391,12 @@ export default function HomeworkEditor() {
             </div>
 
             {task.task_kind === 'question' ? (
-              <div>
+              <div className="min-w-0">
                 <label className="block text-xs font-medium text-slate-600 mb-1">Вопрос</label>
                 <select
                   value={task.question_id}
                   onChange={(e) => updateTask(task.localKey, { question_id: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border rounded-lg"
+                  className={`${fieldClass} max-w-full`}
                 >
                   <option value="">Выберите…</option>
                   {filteredLibraryQuestions.map((q) => (
@@ -385,7 +407,7 @@ export default function HomeworkEditor() {
                 </select>
               </div>
             ) : (
-              <div>
+              <div className="min-w-0">
                 <label className="block text-xs font-medium text-slate-600 mb-1">
                   {CONTENT_TASK_TYPE_LABEL[task.task_kind]}
                 </label>
@@ -403,7 +425,7 @@ export default function HomeworkEditor() {
                         : { reading_task_id: e.target.value },
                     )
                   }
-                  className="w-full px-3 py-2 text-sm border rounded-lg"
+                  className={`${fieldClass} max-w-full`}
                 >
                   <option value="">Выберите…</option>
                   {(task.task_kind === 'listening' ? listeningOptions : readingOptions).map(
@@ -417,7 +439,7 @@ export default function HomeworkEditor() {
               </div>
             )}
 
-            <div>
+            <div className="min-w-0 sm:max-w-xs">
               <label className="block text-xs font-medium text-slate-600 mb-1">
                 Баллы (необязательно)
               </label>
@@ -433,15 +455,27 @@ export default function HomeworkEditor() {
         ))}
       </div>
 
-      <div className="flex flex-wrap justify-end gap-2">
-        <Button variant="outline" onClick={() => navigate(createPageUrl('HomeworkList'))}>
+      <div className="flex flex-col-reverse sm:flex-row sm:flex-wrap sm:justify-end gap-2 pb-2">
+        <Button
+          variant="outline"
+          className="w-full sm:w-auto"
+          onClick={() => navigate(createPageUrl('HomeworkList'))}
+        >
           Отмена
         </Button>
-        <Button disabled={saving} onClick={() => handleSave(false)} className="gap-2">
+        <Button
+          disabled={saving}
+          onClick={() => handleSave(false)}
+          className="gap-2 w-full sm:w-auto"
+        >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           Сохранить
         </Button>
-        <Button disabled={saving} onClick={() => handleSave(true)} className="gap-2">
+        <Button
+          disabled={saving}
+          onClick={() => handleSave(true)}
+          className="gap-2 w-full sm:w-auto"
+        >
           <CheckCircle2 className="h-4 w-4" />
           Сохранить и опубликовать
         </Button>

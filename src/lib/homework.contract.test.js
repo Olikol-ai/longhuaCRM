@@ -56,6 +56,24 @@ describe('Homework module architecture', () => {
     assert.doesNotMatch(list, /[Ээ]кзамен/);
   });
 
+  it('adapts teacher homework pages for mobile without separate mobile apps', () => {
+    const list = readFileSync(join(root, 'src/pages/HomeworkList.jsx'), 'utf8');
+    const editor = readFileSync(join(root, 'src/pages/HomeworkEditor.jsx'), 'utf8');
+    const assign = readFileSync(join(root, 'src/pages/HomeworkAssignment.jsx'), 'utf8');
+    const results = readFileSync(join(root, 'src/pages/HomeworkResults.jsx'), 'utf8');
+    assert.match(list, /md:hidden/);
+    assert.match(list, /hidden md:block/);
+    assert.match(list, /break-words/);
+    assert.match(list, /overflow-x-hidden/);
+    assert.match(editor, /min-h-11/);
+    assert.match(editor, /w-full sm:w-auto/);
+    assert.match(assign, /sm:grid-cols-2/);
+    assert.match(assign, /min-h-11/);
+    assert.match(results, /md:grid-cols-2/);
+    assert.match(results, /hidden md:block/);
+    assert.match(results, /break-words/);
+  });
+
   it('uses assignment lifecycle statuses assigned/started/submitted/checked/expired/cancelled', () => {
     const enums = readFileSync(
       join(root, 'apps/api/src/modules/homework/enums/homework.enums.ts'),
