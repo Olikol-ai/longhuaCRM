@@ -18,12 +18,17 @@ function initialsFromUser(user) {
 /**
  * Unified profile photo editor: upload / delete + live preview.
  * After changes, refreshes session so Layout/Profile/Settings update without reload.
+ *
+ * @param {boolean} stretchActions — on narrow screens, actions fill the width
+ *   to the right of the avatar (used by Settings mobile layout). From `md`
+ *   upward, actions keep the compact text-link look.
  */
 export default function AvatarEditor({
   user: userProp = null,
   sizeClass = 'h-16 w-16',
   roundedClass = 'rounded-2xl',
   showDelete = true,
+  stretchActions = false,
   className = '',
 }) {
   const { user: sessionUser, checkAppState } = useAuth();
@@ -94,8 +99,33 @@ export default function AvatarEditor({
     }
   };
 
+  const changeBtnClass = stretchActions
+    ? [
+        'inline-flex w-full items-center justify-center gap-2 min-h-11 px-3 py-2.5',
+        'text-sm font-medium rounded-xl border border-border bg-card text-brand',
+        'hover:bg-brand-soft hover:text-brand-active disabled:opacity-50',
+        'break-words text-center',
+        'md:w-auto md:justify-start md:min-h-0 md:px-0 md:py-0 md:border-0 md:bg-transparent md:rounded-none md:text-left',
+        'md:hover:bg-transparent',
+      ].join(' ')
+    : 'inline-flex items-center gap-2 text-sm font-medium text-brand hover:text-brand-active disabled:opacity-50';
+
+  const removeBtnClass = stretchActions
+    ? [
+        'inline-flex w-full items-center justify-center gap-2 min-h-11 px-3 py-2.5',
+        'text-sm font-medium rounded-xl border border-border bg-card text-muted-foreground',
+        'hover:bg-muted hover:text-destructive disabled:opacity-50',
+        'break-words text-center',
+        'md:w-auto md:justify-start md:min-h-0 md:px-0 md:py-0 md:border-0 md:bg-transparent md:rounded-none md:text-left',
+        'md:hover:bg-transparent',
+      ].join(' ')
+    : 'inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-destructive disabled:opacity-50';
+
   return (
-    <div className={`flex items-center gap-4 ${className}`} data-testid="avatar-editor">
+    <div
+      className={`flex items-center gap-3 sm:gap-4 min-w-0 ${stretchActions ? 'w-full' : ''} ${className}`}
+      data-testid="avatar-editor"
+    >
       <Avatar className={`${sizeClass} ${roundedClass} shrink-0`}>
         {src ? (
           <AvatarImage src={src} alt="" className="object-cover" />
@@ -105,27 +135,27 @@ export default function AvatarEditor({
         </AvatarFallback>
       </Avatar>
 
-      <div className="flex flex-col gap-2 min-w-0">
+      <div className={`flex flex-col gap-2 min-w-0 ${stretchActions ? 'flex-1' : ''}`}>
         <button
           type="button"
           disabled={busy}
           onClick={() => fileRef.current?.click()}
-          className="inline-flex items-center gap-2 text-sm font-medium text-brand hover:text-brand-active disabled:opacity-50"
+          className={changeBtnClass}
           data-testid="avatar-change-button"
         >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-          Изменить фотографию
+          {busy ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : <Camera className="h-4 w-4 shrink-0" />}
+          <span className="min-w-0 break-words [overflow-wrap:anywhere]">Изменить фотографию</span>
         </button>
         {showDelete && hasAvatar ? (
           <button
             type="button"
             disabled={busy}
             onClick={onRemove}
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-destructive disabled:opacity-50"
+            className={removeBtnClass}
             data-testid="avatar-remove-button"
           >
-            <Trash2 className="h-4 w-4" />
-            Удалить фотографию
+            <Trash2 className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 break-words [overflow-wrap:anywhere]">Удалить фотографию</span>
           </button>
         ) : null}
         <input

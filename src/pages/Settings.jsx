@@ -116,14 +116,29 @@ export default function Settings() {
       </div>
 
       {user && (
-        <div className="bg-card rounded-2xl border border-border p-4 sm:p-6 space-y-4 min-w-0 max-w-full overflow-hidden">
-          <div className="flex items-start sm:items-center gap-3 sm:gap-4 pb-4 border-b border-border min-w-0">
-            <div className="shrink-0">
-              <AvatarEditor user={user} sizeClass="h-14 w-14" />
-            </div>
-            <div className="min-w-0 flex-1 overflow-hidden">
+        <div
+          className="bg-card rounded-2xl border border-border p-4 sm:p-6 space-y-4 min-w-0 max-w-full overflow-hidden"
+          data-testid="settings-profile-card"
+        >
+          {/*
+            Mobile (< md / 768px): avatar | photo actions on one row,
+            then name / email / role stacked below — no horizontal squeeze.
+            Desktop (md+): keep previous side-by-side identity layout.
+          */}
+          <div
+            className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 pb-4 border-b border-border min-w-0"
+            data-testid="settings-profile-header"
+          >
+            <AvatarEditor
+              user={user}
+              sizeClass="h-16 w-16 md:h-14 md:w-14"
+              roundedClass="rounded-full"
+              stretchActions
+              className="w-full md:w-auto shrink-0"
+            />
+            <div className="min-w-0 flex-1 overflow-hidden space-y-1.5">
               <h3
-                className={`text-base font-semibold text-foreground ${longTextClass}`}
+                className={`text-xl md:text-base font-semibold tracking-tight text-foreground ${longTextClass}`}
                 data-testid="settings-display-name"
               >
                 {displayName}
@@ -135,7 +150,7 @@ export default function Settings() {
                 {user.email}
               </p>
               <span
-                className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full mt-1 inline-block max-w-full ${longTextClass} ${getRoleBadgeClass(user.role)}`}
+                className={`text-xs font-bold uppercase tracking-wide px-2.5 py-1 rounded-full inline-block max-w-full ${longTextClass} ${getRoleBadgeClass(user.role)}`}
                 data-testid="settings-role-badge"
               >
                 {roleLabel}

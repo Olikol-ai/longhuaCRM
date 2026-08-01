@@ -41,4 +41,20 @@ describe('Settings role display', () => {
     assert.match(source, /break-words/);
     assert.doesNotMatch(source, /truncate.*email|email.*truncate/);
   });
+
+  it('Settings profile header stacks identity below avatar actions on mobile', () => {
+    const source = readFileSync(join(__dirname, 'Settings.jsx'), 'utf8');
+    assert.match(source, /settings-profile-header/);
+    assert.match(source, /flex flex-col md:flex-row/);
+    assert.match(source, /stretchActions/);
+    assert.match(source, /rounded-full/);
+    assert.match(source, /text-xl md:text-base/);
+    const editor = readFileSync(
+      join(__dirname, '..', 'components', 'user', 'AvatarEditor.jsx'),
+      'utf8',
+    );
+    assert.match(editor, /stretchActions/);
+    assert.match(editor, /flex-1/);
+    assert.match(editor, /w-full/);
+  });
 });
