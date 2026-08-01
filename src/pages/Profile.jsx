@@ -7,27 +7,11 @@ import { formatBelarusPhone, isValidBelarusPhone, PHONE_PLACEHOLDER } from "@/ut
 import { toast } from "@/components/ui/use-toast";
 import { userFacingError } from "@/lib/userFacingError";
 import AvatarEditor from "@/components/user/AvatarEditor";
-
-function inviteStorageKey(userId) {
-  return `longhua_teacher_invite_url_${userId}`;
-}
-
-function inviteUrlFromResponse(created) {
-  if (!created) return '';
-  if (created.path) {
-    return `${window.location.origin}${created.path}`;
-  }
-  if (created.token) {
-    return `${window.location.origin}/register?ref=${encodeURIComponent(created.token)}`;
-  }
-  return '';
-}
-
-function isActiveInvite(row) {
-  if (!row || row.revoked_at) return false;
-  const expires = row.expires_at ? new Date(row.expires_at).getTime() : 0;
-  return expires > Date.now();
-}
+import {
+  inviteUrlFromResponse,
+  inviteUrlFromRow,
+  isActiveInvite,
+} from "@/lib/invite-links";
 
 function countNameWords(fullName) {
   return String(fullName || '')
@@ -50,6 +34,7 @@ export default function Profile() {
   const [inviteBusy, setInviteBusy] = useState(false);
   const pollRef = useRef(null);
   const refreshedSessionRef = useRef(false);
+  const inviteLoadRef = useRef(null);
 
   // Refresh /auth/me once so admin-renamed FIO appears without re-login.
   useEffect(() => {
@@ -95,43 +80,53 @@ export default function Profile() {
         birthday,
       });
       await loadTelegramStatus();
-
-      if (user.role === "teacher") {
-        try {
-          const cached = sessionStorage.getItem(inviteStorageKey(user.id));
-          if (cached) {
-            setInviteUrl(cached);
-          }
-          const rows = await api.teacherInvites.list();
-          const list = Array.isArray(rows) ? rows : [];
-          const hasActive = list.some(isActiveInvite);
-          if (!hasActive) {
-            const created = await api.teacherInvites.create();
-            const url = inviteUrlFromResponse(created);
-            setInviteUrl(url);
-            if (url) sessionStorage.setItem(inviteStorageKey(user.id), url);
-          }
-        } catch {
-          // Invite block stays empty; teacher can create manually.
-        }
-      }
     })();
   }, [user]);
+
+  // Teacher public link: load once per user id. ensure is idempotent on the server.
+  useEffect(() => {
+    if (!user?.id || user.role !== 'teacher') {
+      setInviteUrl('');
+      return undefined;
+    }
+    if (inviteLoadRef.current === user.id) return undefined;
+    inviteLoadRef.current = user.id;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const rows = await api.teacherInvites.list();
+        const list = Array.isArray(rows) ? rows : [];
+        const active = list.find(isActiveInvite);
+        if (active) {
+          if (!cancelled) setInviteUrl(inviteUrlFromRow(active));
+          return;
+        }
+        const ensured = await api.teacherInvites.create();
+        if (!cancelled) setInviteUrl(inviteUrlFromResponse(ensured));
+      } catch {
+        // Invite block stays empty; copy will retry ensure once.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.role]);
 
   const ensureTeacherInvite = async () => {
     setInviteBusy(true);
     try {
-      const created = await api.teacherInvites.create();
-      const url = inviteUrlFromResponse(created);
+      const ensured = await api.teacherInvites.create();
+      const url = inviteUrlFromResponse(ensured);
       setInviteUrl(url);
-      if (url && user?.id) {
-        sessionStorage.setItem(inviteStorageKey(user.id), url);
+      if (ensured?.created) {
+        toast({ title: "Ссылка для регистрации создана" });
       }
-      toast({ title: "Ссылка для регистрации создана" });
       return url;
     } catch (err) {
       toast({
-        title: "Не удалось создать ссылку",
+        title: "Не удалось получить ссылку",
         description: err?.message,
         variant: "destructive",
       });
@@ -463,7 +458,7 @@ export default function Profile() {
             </p>
           ) : (
             <p className="text-xs text-slate-400">
-              Ссылка ещё не готова. Нажмите «Создать ссылку», затем «Скопировать».
+              Ссылка ещё не готова. Нажмите «Получить ссылку» или «Скопировать ссылку».
             </p>
           )}
           <div className="flex flex-wrap gap-2">
@@ -476,7 +471,7 @@ export default function Profile() {
                 data-testid="teacher-invite-profile-create"
               >
                 {inviteBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
-                Создать ссылку
+                Получить ссылку
               </button>
             )}
             <button
@@ -487,7 +482,7 @@ export default function Profile() {
               data-testid="teacher-invite-profile-copy"
             >
               {inviteBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
-              Скопировать
+              Скопировать ссылку
             </button>
           </div>
         </div>

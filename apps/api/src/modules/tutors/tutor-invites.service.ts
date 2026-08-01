@@ -6,13 +6,23 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash, randomBytes } from 'crypto';
-import { Repository } from 'typeorm';
+import { IsNull, QueryFailedError, Repository } from 'typeorm';
 import { JwtPayload } from '../auth/auth.service';
 import { TutorAccessService } from '../../common/access/tutor-access.service';
 import { normalizeRole } from '../../common/constants/roles';
 import { TutorInviteLinkEntity } from './entities/tutor-invite-link.entity';
 
 const DEFAULT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export type TutorInviteEnsureResult = {
+  id: string;
+  token: string;
+  expiresAt: Date;
+  label: string | null;
+  created: boolean;
+};
 
 @Injectable()
 export class TutorInvitesService {
@@ -22,32 +32,45 @@ export class TutorInvitesService {
     private readonly tutorAccess: TutorAccessService,
   ) {}
 
+  /**
+   * Idempotent public link for a tutor: reuse the single non-revoked row,
+   * create only when none exists.
+   */
+  async ensureMine(
+    actor: JwtPayload,
+    label?: string,
+  ): Promise<TutorInviteEnsureResult> {
+    const tutorId = await this.resolveTutorIdForActor(actor);
+    const existing = await this.findNonRevoked(tutorId);
+    if (existing) {
+      const renewed = await this.renewIfExpired(existing);
+      return this.toEnsureResult(renewed, false);
+    }
+
+    try {
+      return await this.insertNew(tutorId, actor.sub, label);
+    } catch (err) {
+      if (this.isUniqueViolation(err)) {
+        const raced = await this.findNonRevoked(tutorId);
+        if (raced) {
+          return this.toEnsureResult(await this.renewIfExpired(raced), false);
+        }
+      }
+      throw err;
+    }
+  }
+
+  /** @deprecated Prefer ensureMine — alias kept idempotent for old clients. */
   async create(
     actor: JwtPayload,
     label?: string,
   ): Promise<{ id: string; token: string; expiresAt: Date; label: string | null }> {
-    const tutorId = await this.resolveTutorIdForActor(actor);
-    const rawToken = randomBytes(24).toString('base64url');
-    const tokenHash = this.hashToken(rawToken);
-    const expiresAt = new Date(Date.now() + DEFAULT_TTL_MS);
-
-    const row = await this.inviteRepo.save(
-      this.inviteRepo.create({
-        tutorId,
-        tokenHash,
-        label: label?.trim() || null,
-        expiresAt,
-        revokedAt: null,
-        createdByUserId: actor.sub,
-        useCount: 0,
-      }),
-    );
-
+    const ensured = await this.ensureMine(actor, label);
     return {
-      id: row.id,
-      token: rawToken,
-      expiresAt: row.expiresAt,
-      label: row.label,
+      id: ensured.id,
+      token: ensured.token,
+      expiresAt: ensured.expiresAt,
+      label: ensured.label,
     };
   }
 
@@ -80,6 +103,10 @@ export class TutorInvitesService {
     if (!token) {
       return null;
     }
+    if (UUID_RE.test(token)) {
+      const byId = await this.inviteRepo.findOne({ where: { id: token } });
+      if (byId) return byId;
+    }
     return this.inviteRepo.findOne({ where: { tokenHash: this.hashToken(token) } });
   }
 
@@ -109,6 +136,70 @@ export class TutorInvitesService {
   async incrementUseCount(inviteLinkId: string | null | undefined): Promise<void> {
     if (!inviteLinkId) return;
     await this.inviteRepo.increment({ id: inviteLinkId }, 'useCount', 1);
+  }
+
+  private async findNonRevoked(tutorId: string): Promise<TutorInviteLinkEntity | null> {
+    return this.inviteRepo.findOne({
+      where: { tutorId, revokedAt: IsNull() },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  private async renewIfExpired(row: TutorInviteLinkEntity): Promise<TutorInviteLinkEntity> {
+    if (row.expiresAt.getTime() > Date.now()) {
+      return row;
+    }
+    row.expiresAt = new Date(Date.now() + DEFAULT_TTL_MS);
+    return this.inviteRepo.save(row);
+  }
+
+  private async insertNew(
+    tutorId: string,
+    createdByUserId: string,
+    label?: string,
+  ): Promise<TutorInviteEnsureResult> {
+    const rawToken = randomBytes(24).toString('base64url');
+    const tokenHash = this.hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + DEFAULT_TTL_MS);
+    const row = await this.inviteRepo.save(
+      this.inviteRepo.create({
+        tutorId,
+        tokenHash,
+        label: label?.trim() || null,
+        expiresAt,
+        revokedAt: null,
+        createdByUserId,
+        useCount: 0,
+      }),
+    );
+    return this.toEnsureResult(row, true);
+  }
+
+  private toEnsureResult(
+    row: TutorInviteLinkEntity,
+    created: boolean,
+  ): TutorInviteEnsureResult {
+    return {
+      id: row.id,
+      token: row.id,
+      expiresAt: row.expiresAt,
+      label: row.label,
+      created,
+    };
+  }
+
+  private isUniqueViolation(err: unknown): boolean {
+    if (err instanceof QueryFailedError) {
+      const code = (err as QueryFailedError & { driverError?: { code?: string } }).driverError
+        ?.code;
+      if (code === '23505') return true;
+    }
+    return (
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      (err as { code?: string }).code === '23505'
+    );
   }
 
   private async resolveTutorIdForActor(actor: JwtPayload): Promise<string> {

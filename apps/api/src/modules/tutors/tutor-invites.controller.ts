@@ -13,15 +13,20 @@ import { TutorInvitesService } from './tutor-invites.service';
 export class TutorInvitesController {
   constructor(private readonly tutorInvites: TutorInvitesService) {}
 
+  /**
+   * Idempotent: returns the tutor's single active public link,
+   * creating it only when none exists. Never duplicates.
+   */
   @Post()
   async create(@CurrentUser() user: JwtPayload, @Body() dto: CreateTutorInviteDto) {
-    const created = await this.tutorInvites.create(user, dto.label);
+    const ensured = await this.tutorInvites.ensureMine(user, dto.label);
     return {
-      id: created.id,
-      token: created.token,
-      expires_at: created.expiresAt.toISOString(),
-      label: created.label,
-      path: `/register?ref=${encodeURIComponent(created.token)}`,
+      id: ensured.id,
+      token: ensured.token,
+      expires_at: ensured.expiresAt.toISOString(),
+      label: ensured.label,
+      created: ensured.created,
+      path: `/register?ref=${encodeURIComponent(ensured.token)}`,
     };
   }
 

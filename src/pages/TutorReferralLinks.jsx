@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
 import { getGreetingName } from '@/lib/display-name';
+import { inviteUrlFromResponse, inviteUrlFromRow, isActiveInvite } from '@/lib/invite-links';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,10 +22,14 @@ export default function TutorReferralLinks() {
     setError('');
     try {
       const rows = await api.tutorInviteLinks.list();
-      setInvites(Array.isArray(rows) ? rows : []);
+      const list = Array.isArray(rows) ? rows : [];
+      setInvites(list);
+      const active = list.find(isActiveInvite);
+      setLatestInviteUrl(active ? inviteUrlFromRow(active) : '');
     } catch (err) {
       setError(err?.message || 'Не удалось загрузить ссылки');
       setInvites([]);
+      setLatestInviteUrl('');
     } finally {
       setLoading(false);
     }
@@ -35,24 +40,26 @@ export default function TutorReferralLinks() {
   }, []);
 
   const activeInvites = useMemo(
-    () =>
-      invites.filter(
-        (row) => !row.revoked_at && new Date(row.expires_at).getTime() > Date.now(),
-      ),
+    () => invites.filter(isActiveInvite),
     [invites],
   );
 
-  const handleCreateInvite = async () => {
+  /** Idempotent: server returns the single active link (creates only if missing). */
+  const handleEnsureInvite = async () => {
     setInviteBusy(true);
     try {
-      const created = await api.tutorInviteLinks.create();
-      const url = `${window.location.origin}${created.path || `/register?ref=${created.token}`}`;
+      const ensured = await api.tutorInviteLinks.create();
+      const url = inviteUrlFromResponse(ensured);
       setLatestInviteUrl(url);
-      toast({ title: 'Ссылка приглашения создана' });
+      if (ensured?.created) {
+        toast({ title: 'Ссылка приглашения создана' });
+      } else {
+        toast({ title: 'Ссылка уже существует' });
+      }
       await loadData();
     } catch (err) {
       toast({
-        title: 'Не удалось создать ссылку',
+        title: 'Не удалось получить ссылку',
         description: err?.message,
         variant: 'destructive',
       });
@@ -62,12 +69,31 @@ export default function TutorReferralLinks() {
   };
 
   const handleCopyInvite = async () => {
-    if (!latestInviteUrl) return;
+    let url = latestInviteUrl;
+    if (!url) {
+      setInviteBusy(true);
+      try {
+        const ensured = await api.tutorInviteLinks.create();
+        url = inviteUrlFromResponse(ensured);
+        setLatestInviteUrl(url);
+        await loadData();
+      } catch (err) {
+        toast({
+          title: 'Не удалось получить ссылку',
+          description: err?.message,
+          variant: 'destructive',
+        });
+        return;
+      } finally {
+        setInviteBusy(false);
+      }
+    }
+    if (!url) return;
     try {
-      await navigator.clipboard.writeText(latestInviteUrl);
+      await navigator.clipboard.writeText(url);
       toast({ title: 'Ссылка скопирована' });
     } catch {
-      toast({ title: 'Скопируйте ссылку вручную', description: latestInviteUrl });
+      toast({ title: 'Скопируйте ссылку вручную', description: url });
     }
   };
 
@@ -108,8 +134,8 @@ export default function TutorReferralLinks() {
         </h1>
         <p className="text-sm text-slate-500 mt-1">
           {getGreetingName(user)
-            ? `${getGreetingName(user)}, создайте ссылку — после регистрации ученик закрепится за вами как «Ученик репетитора»`
-            : 'Создайте ссылку — после регистрации ученик закрепится за вами как «Ученик репетитора»'}
+            ? `${getGreetingName(user)}, одна постоянная ссылка — после регистрации ученик закрепится за вами как «Ученик репетитора»`
+            : 'Одна постоянная ссылка — после регистрации ученик закрепится за вами как «Ученик репетитора»'}
         </p>
       </div>
 
@@ -117,16 +143,23 @@ export default function TutorReferralLinks() {
 
       <Card className="p-4 space-y-3">
         <div className="flex flex-wrap gap-2">
-          <Button onClick={handleCreateInvite} disabled={inviteBusy} className="gap-2">
-            {inviteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
-            Создать ссылку
-          </Button>
-          {latestInviteUrl && (
-            <Button type="button" variant="outline" onClick={handleCopyInvite} className="gap-2">
-              <Copy className="h-4 w-4" />
-              Копировать
+          {!latestInviteUrl && (
+            <Button onClick={handleEnsureInvite} disabled={inviteBusy} className="gap-2">
+              {inviteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+              Получить ссылку
             </Button>
           )}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleCopyInvite}
+            disabled={inviteBusy}
+            className="gap-2"
+            data-testid="tutor-invite-copy"
+          >
+            <Copy className="h-4 w-4" />
+            Скопировать ссылку
+          </Button>
         </div>
         {latestInviteUrl && (
           <p className="text-xs break-all text-brand" data-testid="tutor-invite-url">
@@ -137,45 +170,33 @@ export default function TutorReferralLinks() {
 
       <div className="space-y-2">
         <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-          Созданные ссылки
+          Активная ссылка
         </h2>
-        {invites.length === 0 ? (
-          <Card className="p-6 text-center text-slate-400">Ссылок пока нет</Card>
+        {activeInvites.length === 0 ? (
+          <Card className="p-6 text-center text-slate-400">Ссылки пока нет</Card>
         ) : (
-          invites.map((row) => {
-            const active = !row.revoked_at && new Date(row.expires_at).getTime() > Date.now();
-            return (
-              <Card key={row.id} className="p-4 flex items-center justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={active ? 'default' : 'secondary'}>
-                      {row.revoked_at ? 'Отозвана' : active ? 'Активна' : 'Истекла'}
-                    </Badge>
-                    {row.label && (
-                      <span className="text-sm text-slate-700 dark:text-slate-200">{row.label}</span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    до {format(new Date(row.expires_at), 'dd.MM.yyyy')} · регистраций:{' '}
-                    {row.use_count ?? 0}
-                  </p>
+          activeInvites.map((row) => (
+            <Card key={row.id} className="p-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <Badge variant="default">Активна</Badge>
+                  {row.label && (
+                    <span className="text-sm text-slate-700 dark:text-slate-200">{row.label}</span>
+                  )}
                 </div>
-                {active && (
-                  <Button type="button" variant="ghost" size="sm" onClick={() => handleRevokeInvite(row.id)}>
-                    Отозвать
-                  </Button>
-                )}
-              </Card>
-            );
-          })
+                <p className="text-xs break-all text-brand mt-1">{inviteUrlFromRow(row)}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  до {format(new Date(row.expires_at || row.expiresAt), 'dd.MM.yyyy')} · регистраций:{' '}
+                  {row.use_count ?? row.useCount ?? 0}
+                </p>
+              </div>
+              <Button type="button" variant="ghost" size="sm" onClick={() => handleRevokeInvite(row.id)}>
+                Отозвать
+              </Button>
+            </Card>
+          ))
         )}
       </div>
-
-      {activeInvites.length > 0 && (
-        <p className="text-xs text-slate-400">
-          Активных ссылок: {activeInvites.length}
-        </p>
-      )}
     </div>
   );
 }

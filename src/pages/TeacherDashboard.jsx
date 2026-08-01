@@ -4,6 +4,7 @@ import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
 import { formatWelcomeGreeting, getGreetingName } from '@/lib/display-name';
 import { resolveLessonStudentLabel } from '@/lib/studentLabels';
+import { inviteUrlFromResponse, inviteUrlFromRow, isActiveInvite } from '@/lib/invite-links';
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { Calendar, CheckCircle2, XCircle, Clock, Loader2, Sun, Moon, DollarSign, Link2, Copy, Video } from "lucide-react";
@@ -26,12 +27,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-function isActiveInvite(row) {
-  if (!row || row.revoked_at) return false;
-  const expires = row.expires_at ? new Date(row.expires_at).getTime() : 0;
-  return expires > Date.now();
-}
 
 export default function TeacherDashboard() {
   const { user } = useAuth();
@@ -82,7 +77,10 @@ export default function TeacherDashboard() {
         setStudents([]);
       }
       setPaymentPeriods(Array.isArray(myPeriods) ? myPeriods : []);
-      setInvites(Array.isArray(myInvites) ? myInvites : []);
+      const inviteRows = Array.isArray(myInvites) ? myInvites : [];
+      setInvites(inviteRows);
+      const active = inviteRows.find(isActiveInvite);
+      setLatestInviteUrl(active ? inviteUrlFromRow(active) : '');
     } catch (err) {
       setLoadError(err?.message || "Не удалось загрузить данные");
     } finally {
@@ -94,17 +92,22 @@ export default function TeacherDashboard() {
     if (user) loadData();
   }, [user]);
 
-  const handleCreateInvite = async () => {
+  /** Idempotent: server returns the single active link (creates only if missing). */
+  const handleEnsureInvite = async () => {
     setInviteBusy(true);
     try {
-      const created = await api.teacherInvites.create();
-      const url = `${window.location.origin}${created.path || `/register?ref=${created.token}`}`;
+      const ensured = await api.teacherInvites.create();
+      const url = inviteUrlFromResponse(ensured);
       setLatestInviteUrl(url);
-      toast({ title: "Ссылка приглашения создана" });
+      if (ensured?.created) {
+        toast({ title: "Ссылка приглашения создана" });
+      } else {
+        toast({ title: "Ссылка уже существует" });
+      }
       await loadData();
     } catch (err) {
       toast({
-        title: "Не удалось создать ссылку",
+        title: "Не удалось получить ссылку",
         description: err?.message,
         variant: "destructive",
       });
@@ -114,12 +117,31 @@ export default function TeacherDashboard() {
   };
 
   const handleCopyInvite = async () => {
-    if (!latestInviteUrl) return;
+    let url = latestInviteUrl;
+    if (!url) {
+      setInviteBusy(true);
+      try {
+        const ensured = await api.teacherInvites.create();
+        url = inviteUrlFromResponse(ensured);
+        setLatestInviteUrl(url);
+        await loadData();
+      } catch (err) {
+        toast({
+          title: "Не удалось получить ссылку",
+          description: err?.message,
+          variant: "destructive",
+        });
+        return;
+      } finally {
+        setInviteBusy(false);
+      }
+    }
+    if (!url) return;
     try {
-      await navigator.clipboard.writeText(latestInviteUrl);
+      await navigator.clipboard.writeText(url);
       toast({ title: "Ссылка скопирована" });
     } catch {
-      toast({ title: "Скопируйте ссылку вручную", description: latestInviteUrl });
+      toast({ title: "Скопируйте ссылку вручную", description: url });
     }
   };
 
@@ -239,24 +261,31 @@ export default function TeacherDashboard() {
       <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Приглашение учеников</h2>
       <Card className="p-4 mb-8 space-y-3">
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Создайте ссылку. После регистрации и подтверждения email ученик автоматически закрепится за вами.
+          Одна постоянная ссылка для учеников. После регистрации и подтверждения email ученик автоматически закрепится за вами.
         </p>
         <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={handleCreateInvite}
-            disabled={inviteBusy}
-            className="bg-primary hover:bg-primary/90 gap-2"
-            data-testid="teacher-invite-create"
-          >
-            {inviteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
-            Создать ссылку
-          </Button>
-          {latestInviteUrl && (
-            <Button type="button" variant="outline" onClick={handleCopyInvite} className="gap-2">
-              <Copy className="h-4 w-4" />
-              Копировать
+          {!latestInviteUrl && (
+            <Button
+              onClick={handleEnsureInvite}
+              disabled={inviteBusy}
+              className="bg-primary hover:bg-primary/90 gap-2"
+              data-testid="teacher-invite-create"
+            >
+              {inviteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+              Получить ссылку
             </Button>
           )}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleCopyInvite}
+            disabled={inviteBusy}
+            className="gap-2"
+            data-testid="teacher-invite-copy"
+          >
+            <Copy className="h-4 w-4" />
+            Скопировать ссылку
+          </Button>
         </div>
         {latestInviteUrl && (
           <p className="text-xs break-all text-brand dark:text-brand" data-testid="teacher-invite-url">

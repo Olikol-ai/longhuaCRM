@@ -70,6 +70,7 @@ import { ChatMemberLastReadAtAndUnreadRepair1744700000000 } from './migrations/1
 import { ChatUnreadTimestampPrecisionRepair1744800000000 } from './migrations/1744800000000-ChatUnreadTimestampPrecisionRepair';
 import { HomeworkAssignmentLifecycle1744900000000 } from './migrations/1744900000000-HomeworkAssignmentLifecycle';
 import { MaterialsListPerformanceIndexes1745000000000 } from './migrations/1745000000000-MaterialsListPerformanceIndexes';
+import { OneActiveInviteLinkPerOwner1745100000000 } from './migrations/1745100000000-OneActiveInviteLinkPerOwner';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -143,6 +144,7 @@ export default new DataSource({
     ChatUnreadTimestampPrecisionRepair1744800000000,
     HomeworkAssignmentLifecycle1744900000000,
     MaterialsListPerformanceIndexes1745000000000,
+    OneActiveInviteLinkPerOwner1745100000000,
   ],
   synchronize: false,
 });
