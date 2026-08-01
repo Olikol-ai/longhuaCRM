@@ -80,6 +80,8 @@ export function normalizeChat(raw) {
   if (!raw) return null;
   return {
     ...raw,
+    id: raw.id,
+    lessonId: pickField(raw, 'lessonId', 'lesson_id') ?? null,
     unreadCount: pickField(raw, 'unreadCount', 'unread_count') ?? 0,
     memberCount: pickField(raw, 'memberCount', 'member_count'),
     onlineCount: pickField(raw, 'onlineCount', 'online_count'),
@@ -90,13 +92,21 @@ export function normalizeChat(raw) {
   };
 }
 
+export function isLessonScopedChat(chat) {
+  return Boolean(chat?.lessonId || chat?.lesson_id);
+}
+
 export function normalizeChatGroups(groups) {
   if (!groups || typeof groups !== 'object') return {};
   return Object.fromEntries(
-    Object.entries(groups).map(([kind, chats]) => [
-      kind,
-      Array.isArray(chats) ? chats.map(normalizeChat).filter(Boolean) : [],
-    ]),
+    Object.entries(groups)
+      .map(([kind, chats]) => [
+        kind,
+        Array.isArray(chats)
+          ? chats.map(normalizeChat).filter((chat) => chat && !isLessonScopedChat(chat))
+          : [],
+      ])
+      .filter(([, chats]) => Array.isArray(chats)),
   );
 }
 

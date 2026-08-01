@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   BookOpen,
@@ -18,6 +18,14 @@ import { userFacingError } from '@/lib/userFacingError';
 import { createPageUrl } from '@/utils';
 import { cn } from '@/lib/utils';
 import { localizeAttendanceStatus } from '@/lib/locale-by';
+import { useAuth } from '@/lib/AuthContext';
+import {
+  connectChatSocket,
+  joinChat,
+  leaveChat,
+  subscribeToChatSocket,
+} from '@/lib/chat-socket';
+import { normalizeMessage } from '@/lib/chat-normalize';
 import {
   findLivePresence,
   formatJoinedAt,
@@ -59,6 +67,16 @@ function attendanceActionLabel(status) {
   return localizeAttendanceStatus(status);
 }
 
+function upsertLessonMessage(list, message) {
+  const rows = Array.isArray(list) ? [...list] : [];
+  const idx = rows.findIndex((row) => row.id === message.id);
+  if (idx >= 0) {
+    rows[idx] = { ...rows[idx], ...message };
+    return rows;
+  }
+  return [...rows, message];
+}
+
 export default function LessonVideoSideRail({
   lessonId,
   lesson,
@@ -74,6 +92,7 @@ export default function LessonVideoSideRail({
   subject = '',
   connectionLabel = '',
 }) {
+  const { user } = useAuth();
   const tabs = useMemo(() => {
     if (!canManageAttendance) return BASE_TABS;
     const next = [...BASE_TABS];
@@ -82,6 +101,7 @@ export default function LessonVideoSideRail({
   }, [canManageAttendance]);
 
   const [tab, setTab] = useState('participants');
+  const tabRef = useRef(tab);
   const [participants, setParticipants] = useState([]);
   const [loadingPeople, setLoadingPeople] = useState(false);
   const [chatId, setChatId] = useState(null);
@@ -89,10 +109,15 @@ export default function LessonVideoSideRail({
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
+  const [chatUnread, setChatUnread] = useState(0);
   const [homework, setHomework] = useState([]);
   const [loadingHw, setLoadingHw] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
+
+  useEffect(() => {
+    tabRef.current = tab;
+  }, [tab]);
 
   useEffect(() => {
     if (!canManageAttendance && tab === 'attendance') {
@@ -143,34 +168,75 @@ export default function LessonVideoSideRail({
     }
   }, [lessonId, isStudent]);
 
-  const ensureChat = useCallback(async () => {
-    if (!lessonId) return null;
+  const loadChatMessages = useCallback(async (id) => {
+    if (!id) return;
     setLoadingChat(true);
     try {
-      const chat = await api.video.ensureLessonChat(lessonId);
-      const id = chat.id || chat.chat_id;
-      setChatId(id);
       const msgs = await chatsApi.messages(id, { limit: 50 });
       const rows = Array.isArray(msgs) ? msgs : msgs?.items || msgs?.messages || [];
       setMessages([...rows].reverse());
-      return id;
     } catch (err) {
       toast({
-        title: 'Чат урока недоступен',
+        title: 'Не удалось загрузить чат урока',
         description: userFacingError(err),
         variant: 'destructive',
       });
-      return null;
     } finally {
       setLoadingChat(false);
     }
+  }, []);
+
+  // Bind lesson chat early so history persists and in-lesson unread works
+  // without putting this chat into the global «Чаты» list.
+  useEffect(() => {
+    if (!lessonId) return undefined;
+    let cancelled = false;
+    connectChatSocket();
+    (async () => {
+      try {
+        const chat = await api.video.ensureLessonChat(lessonId);
+        if (cancelled) return;
+        const id = chat.id || chat.chat_id;
+        setChatId(id);
+      } catch {
+        // Chat tab will surface the error when opened.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [lessonId]);
+
+  useEffect(() => {
+    if (!chatId) return undefined;
+    joinChat(chatId);
+    return () => leaveChat(chatId);
+  }, [chatId]);
+
+  useEffect(() => {
+    if (!chatId) return undefined;
+    return subscribeToChatSocket({
+      'message.created': (raw) => {
+        const next = normalizeMessage(raw);
+        if (!next?.chatId || next.chatId !== chatId) return;
+        setMessages((prev) => upsertLessonMessage(prev, next));
+        const mine = next.senderUserId && next.senderUserId === user?.id;
+        if (!mine && tabRef.current !== 'chat') {
+          setChatUnread((n) => n + 1);
+        }
+      },
+    });
+  }, [chatId, user?.id]);
 
   useEffect(() => {
     if (tab === 'participants' || tab === 'attendance') void loadParticipants();
     if (tab === 'homework') void loadHomework();
-    if (tab === 'chat' && !chatId) void ensureChat();
-  }, [tab, loadParticipants, loadHomework, ensureChat, chatId]);
+    if (tab === 'chat' && chatId) {
+      void loadChatMessages(chatId);
+      setChatUnread(0);
+      void chatsApi.markRead(chatId).catch(() => {});
+    }
+  }, [tab, loadParticipants, loadHomework, loadChatMessages, chatId]);
 
   const rosterWithPresence = useMemo(() => {
     const matchedLiveIds = new Set();
@@ -216,13 +282,24 @@ export default function LessonVideoSideRail({
     setSending(true);
     try {
       let id = chatId;
-      if (!id) id = await ensureChat();
-      if (!id) return;
+      if (!id) {
+        const chat = await api.video.ensureLessonChat(lessonId);
+        id = chat.id || chat.chat_id;
+        setChatId(id);
+      }
+      if (!id) {
+        toast({
+          title: 'Чат урока недоступен',
+          description: 'Не удалось открыть чат этого урока',
+          variant: 'destructive',
+        });
+        return;
+      }
       await chatsApi.sendMessage(id, { body: text });
       setDraft('');
-      const msgs = await chatsApi.messages(id, { limit: 50 });
-      const rows = Array.isArray(msgs) ? msgs : msgs?.items || msgs?.messages || [];
-      setMessages([...rows].reverse());
+      await loadChatMessages(id);
+      setChatUnread(0);
+      void chatsApi.markRead(id).catch(() => {});
     } catch (err) {
       toast({
         title: 'Не удалось отправить',
@@ -304,6 +381,14 @@ export default function LessonVideoSideRail({
           >
             <Icon className="h-4 w-4" />
             {label}
+            {id === 'chat' && chatUnread > 0 ? (
+              <span
+                className="ml-0.5 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-semibold text-white"
+                data-testid="lesson-video-chat-unread"
+              >
+                {chatUnread > 99 ? '99+' : chatUnread}
+              </span>
+            ) : null}
           </button>
         ))}
       </div>

@@ -57,7 +57,9 @@ export class ChatsService {
     });
     const membershipChats = memberships
       .map((row) => row.chat)
-      .filter((chat): chat is ChatEntity => Boolean(chat));
+      .filter((chat): chat is ChatEntity => Boolean(chat))
+      // Lesson video chats live only inside the lesson UI — never in «Чаты».
+      .filter((chat) => !this.isLessonScopedChat(chat));
     // Admins see all non-Direct chats; Direct stays membership-only (E2EE privacy).
     let chats: ChatEntity[];
     if (this.access.isAdmin(actor)) {
@@ -65,6 +67,7 @@ export class ChatsService {
         .createQueryBuilder('chat')
         .leftJoinAndSelect('chat.subject', 'subject')
         .where('chat.kind <> :direct', { direct: ChatKind.Direct })
+        .andWhere('chat.lessonId IS NULL')
         .orderBy('chat.updated_at', 'DESC')
         .getMany();
       const myDirect = membershipChats.filter((chat) => chat.kind === ChatKind.Direct);
@@ -79,6 +82,7 @@ export class ChatsService {
     for (const chat of chats) {
       if (seen.has(chat.id)) continue;
       seen.add(chat.id);
+      if (this.isLessonScopedChat(chat)) continue;
       const membership = membershipByChat.get(chat.id);
       if (!this.access.isAdmin(actor) && membership?.hiddenAt) continue;
       if (chat.kind === ChatKind.Direct && !membership) continue;
@@ -100,9 +104,14 @@ export class ChatsService {
     // Lean path for the nav badge + WS fan-out.
     // Do NOT call listChats(): that runs membership sync, online counts, and
     // sequential per-chat work — and Layout used to stampede this endpoint.
-    const memberships = await this.memberRepo.find({
-      where: { userId: actor.sub, hiddenAt: IsNull() },
-    });
+    // Lesson-scoped chats must not affect the global «Чаты» badge.
+    const memberships = await this.memberRepo
+      .createQueryBuilder('member')
+      .innerJoinAndSelect('member.chat', 'chat')
+      .where('member.userId = :userId', { userId: actor.sub })
+      .andWhere('member.hiddenAt IS NULL')
+      .andWhere('chat.lessonId IS NULL')
+      .getMany();
 
     const counted = await Promise.all(
       memberships.map(async (membership) => ({
@@ -478,5 +487,10 @@ export class ChatsService {
     );
 
     return unread;
+  }
+
+  /** Video-lesson side-panel chats are keyed by lesson_id and stay out of «Чаты». */
+  private isLessonScopedChat(chat: ChatEntity | null | undefined): boolean {
+    return Boolean(chat?.lessonId);
   }
 }

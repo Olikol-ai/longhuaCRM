@@ -323,6 +323,8 @@ export class ChatMessagesService {
     if (!message.senderUserId || message.type === ChatMessageType.System) return;
     try {
       const chat = await this.chatRepo.findOne({ where: { id: message.chatId } });
+      // Lesson video chats notify only inside the lesson UI — no global inbox alerts.
+      if (chat?.lessonId) return;
       const members = await this.memberRepo.find({ where: { chatId: message.chatId } });
       const preview =
         chat?.kind === ChatKind.Direct || message.ciphertext
