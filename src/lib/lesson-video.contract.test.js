@@ -222,7 +222,9 @@ describe('Video lesson UI contract', () => {
     assert.match(prejoin, /Проверка…|Проверено|Ошибка/);
     assert.match(prejoin, /Работает|Не найден|Хорошее|Проблемы/);
     assert.match(prejoin, /min-h-11|min-h-12/);
-    assert.match(prejoin, /useTheme|isDark/);
+    // Prejoin inherits CRM ThemeContext via design tokens — no local theme picker.
+    assert.match(prejoin, /bg-card|text-card-foreground|border-border/);
+    assert.doesNotMatch(prejoin, /useTheme|isDark|prefers-color-scheme|neutral-950/);
     assert.match(page, /Не удалось подключиться к видеоконференции/);
     assert.match(page, /lesson-video-retry|Повторить/);
     assert.match(embed, /joinedOnceRef|conferenceFailed|connectionFailed/);
@@ -234,7 +236,15 @@ describe('Video lesson UI contract', () => {
     assert.match(embed, /onConnectionStatus|connectionInterrupted/);
     // Must not remount conference when jwt / displayName props change.
     assert.match(embed, /Intentionally omit jwt|room identity only/);
+    assert.match(embed, /crmTheme/);
     assert.match(page, /useTheme|data-theme/);
+    assert.match(page, /crmTheme=\{theme/);
+    assert.match(page, /bg-background|bg-card/);
+    assert.doesNotMatch(page, /isDark|neutral-950|prefers-color-scheme/);
+    assert.match(controls, /bg-card\/95|border-border/);
+    assert.doesNotMatch(controls, /neutral-950|bg-black\/|isDark/);
+    assert.match(rail, /bg-card|border-border|text-muted-foreground/);
+    assert.doesNotMatch(rail, /isDark|neutral-950|useTheme/);
     assert.match(page, /sessionJwt|sessionJwtRef/);
     assert.match(page, /jitsiRef\.current\?\.resize/);
     assert.match(layout, /LessonVideo/);
@@ -262,13 +272,27 @@ describe('Video lesson UI contract', () => {
     assert.doesNotMatch(rail, /Link to=\{materialsPath\}|<Link to=\{materialsPath\}/);
     assert.doesNotMatch(rail, /asChild[\s\S]*materialsPath/);
     assert.match(page, /crmUserId|crmEmail/);
-    assert.match(page, /Only swaps SidePanel|never navigate away/);
+    assert.match(page, /Only swaps SidePanel content|never remount Jitsi/);
     assert.match(embed, /crmUserId|setParticipantProperty|coalesceLivePresence/);
 
     assert.doesNotMatch(page, /\bMeeting\b|\bRoom\b|\bLogin\b|\bJoin\b|\bLeave\b|Video conference/);
     assert.doesNotMatch(prejoin, /\bMeeting\b|\bRoom\b|\bLogin\b|\bJoin\b/);
     assert.doesNotMatch(teacher, /Войти на встречу/);
     assert.doesNotMatch(student, /Войти на встречу/);
+  });
+
+  it('inherits CRM theme and never auto-picks OS scheme', () => {
+    const themeCtx = readFileSync(join(root, 'lib/ThemeContext.jsx'), 'utf8');
+    const helpers = readFileSync(join(root, 'lib/lesson-video.js'), 'utf8');
+    assert.match(themeCtx, /localStorage\.getItem\("theme"\)/);
+    assert.match(themeCtx, /return "light"/);
+    assert.doesNotMatch(themeCtx, /prefers-color-scheme|matchMedia/);
+    assert.match(helpers, /colorScheme: crmTheme/);
+    assert.match(helpers, /Never leave as "normal"|never leave as "normal"/i);
+    const configLight = buildJitsiConfigOverwrite({ crmTheme: 'light' });
+    const configDark = buildJitsiConfigOverwrite({ crmTheme: 'dark' });
+    assert.equal(configLight.colorScheme, 'light');
+    assert.equal(configDark.colorScheme, 'dark');
   });
 
   it('keeps VideoProvider abstraction on API', () => {

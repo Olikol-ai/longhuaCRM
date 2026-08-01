@@ -52,6 +52,7 @@ export const JITSI_TOOLBAR_BUTTONS = [];
 
 export function buildJitsiConfigOverwrite(options = {}) {
   const subject = options.subject || null;
+  const crmTheme = options.crmTheme === 'dark' ? 'dark' : 'light';
   const config = {
     defaultLanguage: 'ru',
     disableDeepLinking: true,
@@ -74,6 +75,11 @@ export function buildJitsiConfigOverwrite(options = {}) {
     startWithVideoMuted: false,
     hideConferenceTimer: false,
     disableModeratorIndicator: false,
+    /**
+     * Keep iframe chrome aligned with CRM ThemeContext (not OS preference).
+     * Video tiles stay dark; this only stabilizes surrounding Jitsi UI chrome.
+     */
+    colorScheme: crmTheme,
     remoteVideoMenu: {
       disableKick: true,
       disableGrantModerator: true,
@@ -154,8 +160,10 @@ export const JITSI_IFRAME_ALLOW =
 
 /**
  * Ensure the iframe created by External API has the permissions browsers require.
+ * @param {object} api
+ * @param {{ crmTheme?: 'light' | 'dark' }} [options]
  */
-export function hardenJitsiIframe(api) {
+export function hardenJitsiIframe(api, options = {}) {
   try {
     const iframe = api?.getIFrame?.();
     if (!iframe) return;
@@ -167,14 +175,16 @@ export function hardenJitsiIframe(api) {
     iframe.style.height = '100%';
     iframe.style.display = 'block';
     iframe.style.background = '#000';
+    // Match CRM ThemeContext — never leave as "normal" (OS preference).
+    iframe.style.colorScheme = options.crmTheme === 'dark' ? 'dark' : 'light';
   } catch {
     // ignore — provider may not expose getIFrame yet
   }
 }
 
 /** Ask External API / iframe to reflow after viewport or orientation changes. */
-export function resizeJitsiEmbed(api, container) {
-  hardenJitsiIframe(api);
+export function resizeJitsiEmbed(api, container, options = {}) {
+  hardenJitsiIframe(api, options);
   try {
     const iframe = api?.getIFrame?.();
     if (iframe && container) {

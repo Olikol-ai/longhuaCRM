@@ -2,10 +2,18 @@ import { createContext, useContext, useEffect, useState } from "react";
 
 const ThemeContext = createContext({ theme: "light", toggleTheme: () => {} });
 
+/**
+ * Single source of truth for CRM appearance.
+ * Theme is the user's explicit choice (localStorage).
+ * Never follow the browser OS color preference after first paint — that caused
+ * mixed light/dark chrome on pages like the video lesson.
+ */
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
     if (typeof window === "undefined") return "light";
-    return localStorage.getItem("theme") || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    const saved = localStorage.getItem("theme");
+    if (saved === "dark" || saved === "light") return saved;
+    return "light";
   });
 
   useEffect(() => {
@@ -25,7 +33,7 @@ export function ThemeProvider({ children }) {
     });
   }, [theme]);
 
-  const toggleTheme = () => setTheme(t => t === "dark" ? "light" : "dark");
+  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>

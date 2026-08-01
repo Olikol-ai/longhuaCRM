@@ -36,14 +36,14 @@ function DockButton({
       className={cn(
         'relative inline-flex min-h-11 min-w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 sm:min-h-12 sm:min-w-[4.5rem] sm:px-2.5',
         danger
-          ? 'bg-rose-600 text-white hover:bg-rose-500'
+          ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
           : active
-            ? 'bg-rose-600/90 text-white hover:bg-rose-500'
-            : 'bg-white/10 text-white hover:bg-white/20',
+            ? 'bg-destructive/90 text-destructive-foreground hover:bg-destructive'
+            : 'bg-muted text-foreground hover:bg-accent',
         className,
       )}
     >
-      <span className="relative inline-flex h-5 w-5 items-center justify-center sm:h-5 sm:w-5">
+      <span className="relative inline-flex h-5 w-5 items-center justify-center">
         {children}
         {badge > 0 ? (
           <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[9px] font-semibold text-white">
@@ -52,7 +52,7 @@ function DockButton({
         ) : null}
       </span>
       {showLabel ? (
-        <span className="hidden max-w-[4.75rem] truncate text-[10px] font-medium leading-tight sm:block">
+        <span className="hidden max-w-[4.75rem] truncate text-[10px] font-medium leading-tight text-muted-foreground sm:block">
           {label}
         </span>
       ) : null}
@@ -74,7 +74,8 @@ function DockRow({ children, className }) {
 }
 
 /**
- * Multi-row Meet-style control dock — no horizontal scroll for primary actions.
+ * Multi-row control dock — CRM tokens (inherits ThemeContext).
+ * Sits over the video stage; never uses a separate forced dark palette.
  */
 export default function LessonVideoControls({
   audioMuted,
@@ -98,14 +99,14 @@ export default function LessonVideoControls({
 
   return (
     <div
-      className="pointer-events-auto flex w-full max-w-[min(100%,36rem)] flex-col gap-1.5 rounded-2xl border border-white/10 bg-neutral-950/90 px-2 py-2 shadow-2xl backdrop-blur-md sm:gap-2 sm:px-3 sm:py-2.5"
+      className="pointer-events-auto flex w-full max-w-[min(100%,36rem)] flex-col gap-1.5 rounded-2xl border border-border bg-card/95 px-2 py-2 text-card-foreground shadow-xl backdrop-blur-md sm:gap-2 sm:px-3 sm:py-2.5"
       data-testid="lesson-video-controls"
       role="toolbar"
       aria-label="Управление видеоуроком"
     >
       <DockRow>
         <DockButton
-          label={audioMuted ? 'Микрофон' : 'Микрофон'}
+          label="Микрофон"
           active={audioMuted}
           onClick={onToggleAudio}
           testId="lesson-video-dock-mic"

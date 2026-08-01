@@ -29,32 +29,24 @@ function formatClock(t) {
   return String(t).slice(0, 5);
 }
 
-function ConnectionPill({ status, isDark }) {
+function ConnectionPill({ status }) {
   const meta = videoConnectionMeta(status);
   const tone =
     meta.tone === 'ok'
-      ? isDark
-        ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30'
-        : 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/25'
+      ? 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/25 dark:text-emerald-300 dark:ring-emerald-500/30'
       : meta.tone === 'warn'
-        ? isDark
-          ? 'bg-amber-500/15 text-amber-200 ring-amber-500/30'
-          : 'bg-amber-500/10 text-amber-800 ring-amber-500/25'
+        ? 'bg-amber-500/10 text-amber-800 ring-amber-500/25 dark:text-amber-200 dark:ring-amber-500/30'
         : meta.tone === 'bad'
-          ? isDark
-            ? 'bg-rose-500/15 text-rose-300 ring-rose-500/30'
-            : 'bg-rose-500/10 text-rose-700 ring-rose-500/25'
-          : isDark
-            ? 'bg-white/5 text-slate-400 ring-white/10'
-            : 'bg-muted text-muted-foreground ring-border';
+          ? 'bg-rose-500/10 text-rose-700 ring-rose-500/25 dark:text-rose-300 dark:ring-rose-500/30'
+          : 'bg-muted text-muted-foreground ring-border';
   const dot =
     meta.tone === 'ok'
-      ? 'bg-emerald-400'
+      ? 'bg-emerald-500'
       : meta.tone === 'warn'
-        ? 'bg-amber-400 animate-pulse'
+        ? 'bg-amber-500 animate-pulse'
         : meta.tone === 'bad'
-          ? 'bg-rose-400'
-          : 'bg-slate-500';
+          ? 'bg-rose-500'
+          : 'bg-muted-foreground';
 
   return (
     <span
@@ -75,7 +67,6 @@ export default function LessonVideo() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { theme } = useTheme();
-  const isDark = theme === 'dark';
   const isDesktop = useIsLgUp();
   const jitsiRef = useRef(null);
   const stageRef = useRef(null);
@@ -312,10 +303,7 @@ export default function LessonVideo() {
   if (loading) {
     return (
       <div
-        className={cn(
-          'flex min-h-dvh flex-col items-center justify-center gap-3',
-          isDark ? 'bg-neutral-950 text-slate-100' : 'bg-background text-foreground',
-        )}
+        className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-background text-foreground"
         data-testid="lesson-video-page-loading"
       >
         <Loader2 className="h-8 w-8 animate-spin text-brand" />
@@ -326,13 +314,8 @@ export default function LessonVideo() {
 
   if (!data) {
     return (
-      <div
-        className={cn(
-          'flex min-h-dvh flex-col items-center justify-center gap-4 p-6 text-center',
-          isDark ? 'bg-neutral-950 text-slate-100' : 'bg-background text-foreground',
-        )}
-      >
-        <p className={isDark ? 'text-slate-300' : 'text-muted-foreground'}>Видеоурок недоступен</p>
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background p-6 text-center text-foreground">
+        <p className="text-muted-foreground">Видеоурок недоступен</p>
         <Button variant="outline" className="min-h-11" onClick={() => navigate(backPath)}>
           Назад
         </Button>
@@ -371,46 +354,26 @@ export default function LessonVideo() {
 
   return (
     <div
-      className={cn(
-        'grid h-dvh max-h-dvh w-full grid-rows-[auto_minmax(0,1fr)] overflow-hidden',
-        isDark ? 'bg-neutral-950 text-slate-100' : 'bg-background text-foreground',
-      )}
+      className="grid h-dvh max-h-dvh w-full grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-background text-foreground"
       data-testid="lesson-video-page"
       data-theme={theme}
     >
-      {/* Compact top bar */}
-      <header
-        className={cn(
-          'z-20 grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b px-2 py-1.5 sm:gap-3 sm:px-3 safe-pt',
-          isDark
-            ? 'border-white/10 bg-neutral-950/95'
-            : 'border-border bg-card/95',
-        )}
-      >
+      {/* Compact top bar — CRM chrome tokens */}
+      <header className="z-20 grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-border bg-card/95 px-2 py-1.5 backdrop-blur-sm safe-pt sm:gap-3 sm:px-3">
         <button
           type="button"
           onClick={() => navigate(backPath)}
-          className={cn(
-            'inline-flex h-10 w-10 items-center justify-center rounded-full',
-            isDark
-              ? 'text-slate-400 hover:bg-white/5 hover:text-slate-100'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-          )}
+          className="inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
           aria-label="Назад"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
 
         <div className="min-w-0">
-          <p className={cn('truncate text-sm font-semibold leading-tight', isDark ? 'text-slate-50' : 'text-foreground')}>
+          <p className="truncate text-sm font-semibold leading-tight text-foreground">
             {lesson.title || 'Онлайн-урок'}
           </p>
-          <p
-            className={cn(
-              'mt-0.5 truncate text-[11px] leading-tight sm:text-xs',
-              isDark ? 'text-slate-400' : 'text-muted-foreground',
-            )}
-          >
+          <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground sm:text-xs">
             <span className="text-brand">{subject}</span>
             <span className="mx-1 opacity-40">·</span>
             <span>{lesson.teacher_name || 'Преподаватель'}</span>
@@ -420,17 +383,12 @@ export default function LessonVideo() {
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          {showVideo || joining ? <ConnectionPill status={connectionStatus} isDark={isDark} /> : null}
+          {showVideo || joining ? <ConnectionPill status={connectionStatus} /> : null}
 
           {isDesktop ? (
             <button
               type="button"
-              className={cn(
-                'inline-flex h-10 w-10 items-center justify-center rounded-full transition-colors',
-                isDark
-                  ? 'text-slate-300 hover:bg-white/5'
-                  : 'text-muted-foreground hover:bg-muted',
-              )}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
               onClick={() => setDesktopRailOpen((v) => !v)}
               aria-label={desktopRailOpen ? 'Скрыть панель' : 'Показать панель'}
               aria-pressed={desktopRailOpen}
@@ -445,12 +403,7 @@ export default function LessonVideo() {
           ) : (
             <button
               type="button"
-              className={cn(
-                'inline-flex h-10 items-center gap-1.5 rounded-full px-3 text-xs font-medium',
-                isDark
-                  ? 'bg-white/5 text-slate-200 hover:bg-white/10'
-                  : 'bg-muted text-foreground hover:bg-muted/80',
-              )}
+              className="inline-flex h-10 min-h-10 items-center gap-1.5 rounded-full bg-muted px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
               onClick={() => openSheetTab('chat')}
               data-testid="lesson-video-open-sheet"
             >
@@ -474,14 +427,14 @@ export default function LessonVideo() {
         <section
           className={cn(
             'relative grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)] overflow-hidden',
-            showVideo ? 'bg-neutral-950' : isDark ? 'bg-neutral-950' : 'bg-muted/40',
+            showVideo ? 'bg-black' : 'bg-muted/40',
           )}
         >
           {showVideo ? (
             <div className="relative grid min-h-0 grid-rows-[minmax(0,1fr)]">
               <div
                 ref={stageRef}
-                className="relative min-h-0 min-w-0 overflow-hidden bg-neutral-950"
+                className="relative min-h-0 min-w-0 overflow-hidden bg-black"
                 data-testid="lesson-video-stage"
               >
                 <JitsiLessonEmbed
@@ -496,6 +449,7 @@ export default function LessonVideo() {
                   jwt={embedJwt}
                   crmUserId={user?.id || null}
                   crmEmail={user?.email || null}
+                  crmTheme={theme === 'dark' ? 'dark' : 'light'}
                   onLeft={handleLeft}
                   onJoined={handleJoined}
                   onError={handleEmbedError}
@@ -558,20 +512,13 @@ export default function LessonVideo() {
               <div className="w-full max-w-lg">
                 {joinError ? (
                   <div
-                    className={cn(
-                      'space-y-4 rounded-2xl border p-6 text-center sm:p-8',
-                      isDark
-                        ? 'border-rose-900/50 bg-neutral-900'
-                        : 'border-rose-200 bg-card',
-                    )}
+                    className="space-y-4 rounded-2xl border border-rose-200 bg-card p-6 text-center shadow-sm dark:border-rose-900/50 sm:p-8"
                     data-testid="lesson-video-join-error"
                   >
-                    <p className={cn('font-medium', isDark ? 'text-rose-300' : 'text-rose-700')}>
+                    <p className="font-medium text-rose-700 dark:text-rose-300">
                       Не удалось подключиться к видеоконференции.
                     </p>
-                    <p className={cn('text-sm', isDark ? 'text-slate-400' : 'text-muted-foreground')}>
-                      {joinError}
-                    </p>
+                    <p className="text-sm text-muted-foreground">{joinError}</p>
                     <div className="flex flex-wrap justify-center gap-2">
                       <Button
                         type="button"
@@ -599,14 +546,9 @@ export default function LessonVideo() {
                     </div>
                   </div>
                 ) : sessionEnded ? (
-                  <div
-                    className={cn(
-                      'space-y-4 rounded-2xl border p-6 text-center sm:p-8',
-                      isDark ? 'border-white/10 bg-neutral-900' : 'border-border bg-card',
-                    )}
-                  >
-                    <p className="font-medium">Вы вышли из урока</p>
-                    <p className={cn('text-sm', isDark ? 'text-slate-400' : 'text-muted-foreground')}>
+                  <div className="space-y-4 rounded-2xl border border-border bg-card p-6 text-center shadow-sm sm:p-8">
+                    <p className="font-medium text-foreground">Вы вышли из урока</p>
+                    <p className="text-sm text-muted-foreground">
                       Можно вернуться в видео или открыть чат и материалы в панели урока.
                     </p>
                     <div className="flex flex-wrap justify-center gap-2">
@@ -652,11 +594,7 @@ export default function LessonVideo() {
         <aside
           className={cn(
             'min-h-0 min-w-0 overflow-hidden border-l transition-[border-color] duration-300',
-            desktopRailVisible
-              ? isDark
-                ? 'border-white/10'
-                : 'border-border'
-              : 'border-transparent',
+            desktopRailVisible ? 'border-border' : 'border-transparent',
           )}
           aria-hidden={!desktopRailVisible}
           data-testid="lesson-video-desktop-rail"
@@ -674,24 +612,14 @@ export default function LessonVideo() {
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent
           side="bottom"
-          className={cn(
-            'flex h-[min(85dvh,100%)] max-h-[85dvh] w-full flex-col gap-0 rounded-t-2xl p-0 safe-pb',
-            isDark
-              ? 'border-white/10 bg-neutral-950 text-slate-100'
-              : 'border-border bg-card text-foreground',
-          )}
+          className="flex h-[min(85dvh,100%)] max-h-[85dvh] w-full flex-col gap-0 rounded-t-2xl border-border bg-card p-0 text-card-foreground safe-pb"
         >
           <div
-            className={cn(
-              'mx-auto mt-2 h-1 w-10 shrink-0 rounded-full',
-              isDark ? 'bg-white/20' : 'bg-muted-foreground/30',
-            )}
+            className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-muted-foreground/30"
             aria-hidden
           />
-          <SheetHeader className={cn('shrink-0 border-b px-4 py-3 pr-12', isDark ? 'border-white/10' : 'border-border')}>
-            <SheetTitle className={cn('text-left text-base', isDark ? 'text-slate-100' : 'text-foreground')}>
-              Панель урока
-            </SheetTitle>
+          <SheetHeader className="shrink-0 border-b border-border px-4 py-3 pr-12">
+            <SheetTitle className="text-left text-base text-foreground">Панель урока</SheetTitle>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-hidden">
             <LessonVideoSideRail {...sideRailProps} compact />

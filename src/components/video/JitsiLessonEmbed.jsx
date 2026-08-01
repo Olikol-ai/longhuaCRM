@@ -28,6 +28,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     jwt = null,
     crmUserId = null,
     crmEmail = null,
+    crmTheme = 'light',
     onLeft,
     onJoined,
     onError,
@@ -47,6 +48,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
   const subjectRef = useRef(subject);
   const crmUserIdRef = useRef(crmUserId);
   const crmEmailRef = useRef(crmEmail);
+  const crmThemeRef = useRef(crmTheme === 'dark' ? 'dark' : 'light');
   const onLeftRef = useRef(onLeft);
   const onJoinedRef = useRef(onJoined);
   const onErrorRef = useRef(onError);
@@ -65,6 +67,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     subjectRef.current = subject;
     crmUserIdRef.current = crmUserId;
     crmEmailRef.current = crmEmail;
+    crmThemeRef.current = crmTheme === 'dark' ? 'dark' : 'light';
     onLeftRef.current = onLeft;
     onJoinedRef.current = onJoined;
     onErrorRef.current = onError;
@@ -78,6 +81,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     subject,
     crmUserId,
     crmEmail,
+    crmTheme,
     onLeft,
     onJoined,
     onError,
@@ -117,7 +121,9 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
       apiRef.current = null;
     },
     resize: () => {
-      resizeJitsiEmbed(apiRef.current, containerRef.current);
+      resizeJitsiEmbed(apiRef.current, containerRef.current, {
+        crmTheme: crmThemeRef.current,
+      });
     },
   }));
 
@@ -174,10 +180,13 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           },
           configOverwrite: buildJitsiConfigOverwrite({
             subject: subjectRef.current,
+            crmTheme: crmThemeRef.current,
           }),
           interfaceConfigOverwrite: buildJitsiInterfaceConfigOverwrite(),
           onload: () => {
-            resizeJitsiEmbed(apiRef.current, containerRef.current);
+            resizeJitsiEmbed(apiRef.current, containerRef.current, {
+              crmTheme: crmThemeRef.current,
+            });
           },
         };
 
@@ -191,14 +200,18 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           return;
         }
         apiRef.current = api;
-        resizeJitsiEmbed(api, containerRef.current);
+        resizeJitsiEmbed(api, containerRef.current, {
+          crmTheme: crmThemeRef.current,
+        });
 
         const iframe = api.getIFrame?.();
         if (iframe) {
-          // Isolate color-scheme so CRM html.dark / light does not restyle the iframe chrome.
-          iframe.style.colorScheme = 'normal';
+          iframe.style.colorScheme =
+            crmThemeRef.current === 'dark' ? 'dark' : 'light';
           iframe.addEventListener('load', () => {
-            resizeJitsiEmbed(api, containerRef.current);
+            resizeJitsiEmbed(api, containerRef.current, {
+              crmTheme: crmThemeRef.current,
+            });
             iframe.style.background = '#0a0a0a';
           });
         }
@@ -357,7 +370,9 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           joinedOnceRef.current = true;
           setBooting(false);
           onConnectionStatusRef.current?.('connected');
-          resizeJitsiEmbed(api, containerRef.current);
+          resizeJitsiEmbed(api, containerRef.current, {
+            crmTheme: crmThemeRef.current,
+          });
           applyIdentity();
           const localId = e?.id || api.getMyUserId?.();
           const localExtras = {
@@ -491,7 +506,10 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     const node = containerRef.current;
     if (!node) return undefined;
 
-    const reflow = () => resizeJitsiEmbed(apiRef.current, containerRef.current);
+    const reflow = () =>
+      resizeJitsiEmbed(apiRef.current, containerRef.current, {
+        crmTheme: crmThemeRef.current,
+      });
     const onResize = () => reflow();
     const onOrientation = () => {
       window.setTimeout(reflow, 250);
@@ -516,25 +534,37 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     };
   }, [domain, roomName]);
 
+  // Keep iframe color-scheme in sync with CRM theme without remounting Jitsi.
+  useEffect(() => {
+    const next = crmTheme === 'dark' ? 'dark' : 'light';
+    crmThemeRef.current = next;
+    try {
+      const iframe = apiRef.current?.getIFrame?.();
+      if (iframe) iframe.style.colorScheme = next;
+    } catch {
+      // ignore
+    }
+  }, [crmTheme]);
+
   return (
     <div
-      className="absolute inset-0 h-full w-full bg-neutral-950"
+      className="absolute inset-0 h-full w-full bg-black"
       data-testid="lesson-video-jitsi-wrap"
-      style={{ colorScheme: 'normal' }}
+      style={{ colorScheme: crmTheme === 'dark' ? 'dark' : 'light' }}
     >
       <div
         ref={containerRef}
-        className="absolute inset-0 h-full w-full bg-neutral-950 [&_iframe]:block [&_iframe]:h-full [&_iframe]:w-full [&_iframe]:border-0"
+        className="absolute inset-0 h-full w-full bg-black [&_iframe]:block [&_iframe]:h-full [&_iframe]:w-full [&_iframe]:border-0"
         data-testid="lesson-video-jitsi"
       />
       {booting ? (
         <div
-          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-neutral-950/90 text-slate-100"
+          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/90 text-white"
           data-testid="lesson-video-connecting"
         >
           <Loader2 className="h-8 w-8 animate-spin text-brand" />
           <p className="text-sm font-medium">Подключение к видеоконференции…</p>
-          <p className="text-xs text-slate-400">Подождите, идёт установка защищённого канала</p>
+          <p className="text-xs text-white/60">Подождите, идёт установка защищённого канала</p>
         </div>
       ) : null}
     </div>

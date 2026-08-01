@@ -19,7 +19,6 @@ import { createPageUrl } from '@/utils';
 import { cn } from '@/lib/utils';
 import { localizeAttendanceStatus } from '@/lib/locale-by';
 import { useAuth } from '@/lib/AuthContext';
-import { useTheme } from '@/lib/ThemeContext';
 import {
   connectChatSocket,
   joinChat,
@@ -112,8 +111,6 @@ export default function LessonVideoSideRail({
   onChatUnreadChange,
 }) {
   const { user } = useAuth();
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
 
   const tabs = useMemo(() => {
     if (!canManageAttendance) return BASE_TABS;
@@ -408,30 +405,18 @@ export default function LessonVideoSideRail({
     }
   };
 
-  const muted = isDark ? 'text-slate-400' : 'text-muted-foreground';
-  const soft = isDark ? 'text-slate-500' : 'text-muted-foreground';
-  const panel = isDark
-    ? 'border-white/10 bg-white/[0.03]'
-    : 'border-border bg-muted/40';
-  const inputCls = isDark
-    ? 'border-white/10 bg-neutral-900 text-slate-100 placeholder:text-slate-500'
-    : 'border-border bg-background text-foreground placeholder:text-muted-foreground';
+  const muted = 'text-muted-foreground';
+  const soft = 'text-muted-foreground';
+  const panel = 'border-border bg-muted/40';
+  const inputCls =
+    'border-border bg-background text-foreground placeholder:text-muted-foreground';
 
   return (
     <aside
-      className={cn(
-        'flex h-full min-h-0 flex-col overflow-hidden',
-        compact ? '' : '',
-        isDark ? 'bg-neutral-950 text-slate-100' : 'bg-card text-foreground',
-      )}
+      className="flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground"
       data-testid="lesson-video-side-rail"
     >
-      <div
-        className={cn(
-          'flex shrink-0 gap-1 overflow-x-auto border-b p-2 scrollbar-none',
-          isDark ? 'border-white/10' : 'border-border',
-        )}
-      >
+      <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-border p-2 scrollbar-none">
         {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -441,7 +426,7 @@ export default function LessonVideoSideRail({
               'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-medium transition-colors sm:h-10 sm:px-3 sm:text-xs',
               tab === id
                 ? 'bg-brand/15 text-brand'
-                : muted + (isDark ? ' hover:bg-white/5 hover:text-slate-100' : ' hover:bg-muted hover:text-foreground'),
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >
             <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -458,7 +443,12 @@ export default function LessonVideoSideRail({
         ))}
       </div>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3 text-sm">
+      <div
+        className={cn(
+          'min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain text-sm',
+          compact ? 'p-2.5' : 'p-3',
+        )}
+      >
         {tab === 'materials' && (
           <div className="space-y-3" data-testid="lesson-video-materials">
             <p className={cn('text-xs leading-relaxed', muted)}>
@@ -572,7 +562,7 @@ export default function LessonVideoSideRail({
                       <span
                         className={cn(
                           'mt-1 h-2 w-2 shrink-0 rounded-full',
-                          p.online ? 'bg-emerald-500' : isDark ? 'bg-slate-600' : 'bg-muted-foreground/40',
+                          p.online ? 'bg-emerald-500' : 'bg-muted-foreground/40',
                         )}
                         aria-hidden
                       />
@@ -695,7 +685,7 @@ export default function LessonVideoSideRail({
                         {m.sender_name || m.senderName || m.senderUser?.firstName || 'Участник'}
                         :{' '}
                       </span>
-                      <span className={isDark ? 'text-slate-200' : 'text-foreground'}>
+                      <span className="text-foreground">
                         {messageBody(m)}
                       </span>
                     </div>
@@ -732,7 +722,7 @@ export default function LessonVideoSideRail({
         )}
 
         {tab === 'info' && (
-          <div className={cn('space-y-3 text-xs', isDark ? 'text-slate-300' : 'text-foreground')}>
+          <div className="space-y-3 text-xs text-foreground">
             <div className={cn('space-y-1.5 rounded-xl border p-3', panel)}>
               <p>
                 <span className={soft}>Урок:</span>{' '}
