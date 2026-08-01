@@ -27,6 +27,11 @@ export class AssessmentExamEntity {
   @Column({ type: 'varchar', length: 32, default: ContentLifecycleStatus.Draft })
   status: ContentLifecycleStatus;
 
+  /** Origin of the exam: CRM Assessment vs Exam Academy materialization. */
+  @Index('IDX_ASSESSMENT_EXAMS_SOURCE')
+  @Column({ type: 'varchar', length: 32, default: 'assessment' })
+  source: string;
+
   @Column({ name: 'available_from', type: 'timestamptz', nullable: true })
   availableFrom: Date | null;
 

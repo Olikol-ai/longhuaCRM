@@ -28,7 +28,10 @@ export class AssessmentExamRepository {
   ) {}
 
   findAll(): Promise<AssessmentExamEntity[]> {
-    return this.examRepo.find({ order: { createdAt: 'DESC' } });
+    return this.examRepo.find({
+      where: { source: 'assessment' },
+      order: { createdAt: 'DESC' },
+    });
   }
 
   findById(id: string): Promise<AssessmentExamEntity | null> {
@@ -36,7 +39,10 @@ export class AssessmentExamRepository {
   }
 
   filter(where: FindOptionsWhere<AssessmentExamEntity>): Promise<AssessmentExamEntity[]> {
-    return this.examRepo.find({ where, order: { createdAt: 'DESC' } });
+    return this.examRepo.find({
+      where: { source: 'assessment', ...where },
+      order: { createdAt: 'DESC' },
+    });
   }
 
   filterByStatus(status: ContentLifecycleStatus): Promise<AssessmentExamEntity[]> {

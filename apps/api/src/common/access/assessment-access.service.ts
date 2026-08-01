@@ -147,6 +147,10 @@ export class AssessmentAccessService {
     if (this.isAdmin(actor)) {
       return exam;
     }
+    // Exam Academy materializations are readable by the learner who owns them.
+    if (exam.source === 'exam_academy' && exam.createdByUserId === actor.sub) {
+      return exam;
+    }
     if (this.isTeacher(actor) || this.isTutor(actor)) {
       if (await this.teacherCanAccessExam(actor, exam)) {
         return exam;
@@ -284,11 +288,24 @@ export class AssessmentAccessService {
     examId: string,
     assignmentId?: string | null,
   ): Promise<void> {
+    const exam = await this.requireExam(examId);
+
+    // Exam Academy self-serve / admin QA: no CRM Assessment assignment required.
+    if (exam.source === 'exam_academy') {
+      if (this.isAdmin(actor) || exam.createdByUserId === actor.sub) {
+        return;
+      }
+    }
+
     if (this.isAdmin(actor)) {
       throw new ForbiddenException('Forbidden: admin cannot start Attempt in v1');
     }
 
     await this.assertCanReadExam(actor, examId);
+
+    if (exam.source === 'exam_academy' && exam.createdByUserId === actor.sub) {
+      return;
+    }
 
     if (assignmentId) {
       const assignment = await this.assertCanReadAssignment(actor, assignmentId);

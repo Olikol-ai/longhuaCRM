@@ -49,6 +49,13 @@ const TeacherAssessment = lazyRetry(() => import('./pages/TeacherAssessment'));
 const TeacherAssessmentReview = lazyRetry(() => import('./pages/TeacherAssessmentReview'));
 const TeacherAssessmentReviewDetail = lazyRetry(() => import('./pages/TeacherAssessmentReviewDetail'));
 const TeacherAssessmentResults = lazyRetry(() => import('./pages/TeacherAssessmentResults'));
+const HskAcademyHub = lazyRetry(() => import('./pages/hsk-academy/HskAcademyHub'));
+const HskAcademyPractice = lazyRetry(() => import('./pages/hsk-academy/HskAcademyPractice'));
+const HskAcademyMock = lazyRetry(() => import('./pages/hsk-academy/HskAcademyMock'));
+const HskAcademyPreparation = lazyRetry(() => import('./pages/hsk-academy/HskAcademyPreparation'));
+const HskAcademyTake = lazyRetry(() => import('./pages/hsk-academy/HskAcademyTake'));
+const HskAcademyResult = lazyRetry(() => import('./pages/hsk-academy/HskAcademyResult'));
+const HskAcademyBank = lazyRetry(() => import('./pages/hsk-academy/HskAcademyBank'));
 const TeacherStudents = lazyRetry(() => import('./pages/TeacherStudents'));
 const HomeworkList = lazyRetry(() => import('./pages/HomeworkList'));
 const HomeworkEditor = lazyRetry(() => import('./pages/HomeworkEditor'));
@@ -179,6 +186,13 @@ const AuthenticatedApp = () => {
         <Route path="/StudentCertificates" element={<StudentRoute><LayoutWrapper currentPageName="StudentCertificates"><StudentCertificates /></LayoutWrapper></StudentRoute>} />
         <Route path="/StudentExams" element={<StudentRoute><LayoutWrapper currentPageName="StudentExams"><StudentExams /></LayoutWrapper></StudentRoute>} />
         <Route path="/StudentExamTake" element={<StudentRoute><LayoutWrapper currentPageName="StudentExams"><StudentExamTake /></LayoutWrapper></StudentRoute>} />
+        <Route path="/HskAcademy" element={<PathAccessGuard><LayoutWrapper currentPageName="HskAcademy"><HskAcademyHub /></LayoutWrapper></PathAccessGuard>} />
+        <Route path="/HskAcademyPractice" element={<PathAccessGuard><LayoutWrapper currentPageName="HskAcademy"><HskAcademyPractice /></LayoutWrapper></PathAccessGuard>} />
+        <Route path="/HskAcademyMock" element={<PathAccessGuard><LayoutWrapper currentPageName="HskAcademy"><HskAcademyMock /></LayoutWrapper></PathAccessGuard>} />
+        <Route path="/HskAcademyPreparation" element={<PathAccessGuard><LayoutWrapper currentPageName="HskAcademy"><HskAcademyPreparation /></LayoutWrapper></PathAccessGuard>} />
+        <Route path="/HskAcademyTake" element={<PathAccessGuard><LayoutWrapper currentPageName="HskAcademy"><HskAcademyTake /></LayoutWrapper></PathAccessGuard>} />
+        <Route path="/HskAcademyResult" element={<PathAccessGuard><LayoutWrapper currentPageName="HskAcademy"><HskAcademyResult /></LayoutWrapper></PathAccessGuard>} />
+        <Route path="/HskAcademyBank" element={<PathAccessGuard><LayoutWrapper currentPageName="HskAcademy"><HskAcademyBank /></LayoutWrapper></PathAccessGuard>} />
         <Route path="/HomeworkViewer" element={<StudentRoute allowTutorStudent><LayoutWrapper currentPageName="HomeworkViewer"><HomeworkViewer /></LayoutWrapper></StudentRoute>} />
         <Route
           path="/Chats"

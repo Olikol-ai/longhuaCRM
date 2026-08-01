@@ -46,6 +46,7 @@ import { FunctionsModule } from './modules/functions/functions.module';
 import { SecureFilesModule } from './modules/files/secure-files.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { ChatsModule } from './modules/chats/chats.module';
+import { ExamAcademyModule } from './modules/exam-academy/exam-academy.module';
 
 const serveFrontend = process.env.SERVE_FRONTEND !== 'false';
 
@@ -140,6 +141,7 @@ function resolveEnvFilePaths(): string[] {
     SecureFilesModule,
     JobsModule,
     ChatsModule,
+    ExamAcademyModule,
     HealthModule,
     ...(serveFrontend
       ? [
