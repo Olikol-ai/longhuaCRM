@@ -14,6 +14,7 @@ import { NotificationsService } from '../../notifications/notifications.service'
 import { ChatEntity, ChatMemberEntity, ChatMessageEntity } from '../entities';
 import { ChatKind, ChatMessageType } from '../enums/chat.enums';
 import { ChatGateway } from '../gateway/chat.gateway';
+import { isLessonScopedChat } from '../utils/lesson-chat-scope';
 import { E2EE_ALGORITHM } from './user-crypto.service';
 import { ChatMembershipSyncService } from './chat-membership-sync.service';
 import { ChatPresenceService } from './chat-presence.service';
@@ -324,7 +325,7 @@ export class ChatMessagesService {
     try {
       const chat = await this.chatRepo.findOne({ where: { id: message.chatId } });
       // Lesson video chats notify only inside the lesson UI — no global inbox alerts.
-      if (chat?.lessonId) return;
+      if (isLessonScopedChat(chat)) return;
       const members = await this.memberRepo.find({ where: { chatId: message.chatId } });
       const preview =
         chat?.kind === ChatKind.Direct || message.ciphertext

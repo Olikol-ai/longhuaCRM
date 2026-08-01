@@ -338,7 +338,8 @@ export class VideoService {
   }
 
   /**
-   * Find-or-create a group chat bound to the lesson (relational lesson_id).
+   * Find-or-create an internal lesson chat (kind=lesson, lesson_id set).
+   * Never appears in the global «Чаты» messenger.
    */
   async ensureLessonChat(actor: JwtPayload, lessonId: string): Promise<ChatEntity> {
     await this.lessonAccess.assertCanReadLesson(actor, lessonId);
@@ -349,15 +350,40 @@ export class VideoService {
     if (!lesson) throw new NotFoundException('Урок не найден');
 
     let chat = await this.chats.findOne({ where: { lessonId } });
+    if (!chat) {
+      // Recover legacy rows created before lesson_id was persisted.
+      chat = await this.chats.findOne({
+        where: { description: `Чат урока ${lessonId}` },
+      });
+      if (chat) {
+        await this.chats.update(chat.id, {
+          lessonId,
+          kind: ChatKind.Lesson,
+          title: `Урок: ${this.resolveLessonTitle(lesson)}`,
+        });
+        chat = await this.chats.findOneOrFail({ where: { id: chat.id } });
+      }
+    }
+
     if (chat) {
+      if (chat.kind !== ChatKind.Lesson || chat.lessonId !== lessonId) {
+        await this.chats.update(chat.id, {
+          lessonId,
+          kind: ChatKind.Lesson,
+        });
+        chat = await this.chats.findOneOrFail({ where: { id: chat.id } });
+      }
       await this.ensureChatMember(chat.id, actor.sub, ChatMemberRole.Member);
       return chat;
     }
 
     const title = `Урок: ${this.resolveLessonTitle(lesson)}`;
-    chat = await this.chats.save(
-      this.chats.create({
-        kind: ChatKind.Group,
+    const insertResult = await this.chats
+      .createQueryBuilder()
+      .insert()
+      .into(ChatEntity)
+      .values({
+        kind: ChatKind.Lesson,
         title,
         description: `Чат урока ${lessonId}`,
         status: ChatStatus.Active,
@@ -365,8 +391,28 @@ export class VideoService {
         subjectId: null,
         courseTemplateId: null,
         lessonId,
-      }),
+      })
+      .returning('*')
+      .execute();
+
+    const insertedId = String(
+      insertResult.identifiers?.[0]?.id ||
+        insertResult.generatedMaps?.[0]?.id ||
+        '',
     );
+    chat = insertedId
+      ? await this.chats.findOne({ where: { id: insertedId } })
+      : await this.chats.findOne({ where: { lessonId } });
+    if (!chat) {
+      throw new NotFoundException('Не удалось создать чат урока');
+    }
+    if (!chat.lessonId || chat.kind !== ChatKind.Lesson) {
+      await this.chats.update(chat.id, {
+        lessonId,
+        kind: ChatKind.Lesson,
+      });
+      chat = await this.chats.findOneOrFail({ where: { id: chat.id } });
+    }
 
     const memberUserIds = new Set<string>([actor.sub]);
     if (lesson.teacher?.userId) memberUserIds.add(lesson.teacher.userId);

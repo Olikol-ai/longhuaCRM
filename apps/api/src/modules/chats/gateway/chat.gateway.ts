@@ -17,6 +17,7 @@ import { entityToApiRecord } from '../../../common/utils/api-record.util';
 import { JwtPayload } from '../../auth/auth.service';
 import { UserEntity } from '../../users/entities/user.entity';
 import { ChatMemberEntity, ChatMessageEntity, ChatEntity } from '../entities';
+import { isLessonScopedChat } from '../utils/lesson-chat-scope';
 import { ChatPresenceService } from '../services/chat-presence.service';
 import { ChatsService } from '../services/chats.service';
 
@@ -207,6 +208,19 @@ export class ChatGateway
     const chatId = message.chatId;
     this.server?.to(`chat:${chatId}`).emit('message.created', payload);
 
+    // Lesson video chats stay inside the lesson UI (chat:* room only).
+    // Do not fan out to personal user rooms or bump global «Чаты» unread.
+    const chat = await this.chatRepo.findOne({
+      where: { id: chatId },
+      select: ['id', 'lessonId', 'kind', 'title', 'description'],
+    });
+    if (isLessonScopedChat(chat)) {
+      this.logger.log(
+        `message.created lesson-scoped chatId=${chatId} sender=${message.senderUserId ?? 'system'} (no messenger fan-out)`,
+      );
+      return;
+    }
+
     const members = await this.memberRepo.find({ where: { chatId } });
     const recipientIds = members
       .map((row) => row.userId)
@@ -235,13 +249,6 @@ export class ChatGateway
     }
 
     if (!this.chats || !message.senderUserId) return;
-
-    // Lesson video chats must not bump the global «Чаты» unread badge.
-    const chat = await this.chatRepo.findOne({
-      where: { id: chatId },
-      select: ['id', 'lessonId'],
-    });
-    if (chat?.lessonId) return;
 
     for (const userId of recipientIds) {
       // Viewer already gets live message + local markRead; avoid racing unread=1.

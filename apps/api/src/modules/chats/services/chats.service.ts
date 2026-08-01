@@ -13,6 +13,7 @@ import {
 } from '../entities';
 import { ChatKind, ChatMemberRole } from '../enums/chat.enums';
 import { ChatGateway } from '../gateway/chat.gateway';
+import { isLessonScopedChat } from '../utils/lesson-chat-scope';
 import { ChatMembershipSyncService } from './chat-membership-sync.service';
 import { ChatPresenceService } from './chat-presence.service';
 
@@ -59,15 +60,21 @@ export class ChatsService {
       .map((row) => row.chat)
       .filter((chat): chat is ChatEntity => Boolean(chat))
       // Lesson video chats live only inside the lesson UI — never in «Чаты».
-      .filter((chat) => !this.isLessonScopedChat(chat));
-    // Admins see all non-Direct chats; Direct stays membership-only (E2EE privacy).
+      .filter((chat) => !isLessonScopedChat(chat));
+    // Admins see all non-Direct messenger chats; Direct stays membership-only (E2EE privacy).
     let chats: ChatEntity[];
     if (this.access.isAdmin(actor)) {
       const nonDirect = await this.chatRepo
         .createQueryBuilder('chat')
         .leftJoinAndSelect('chat.subject', 'subject')
         .where('chat.kind <> :direct', { direct: ChatKind.Direct })
+        .andWhere('chat.kind <> :lesson', { lesson: ChatKind.Lesson })
         .andWhere('chat.lessonId IS NULL')
+        .andWhere(`chat.title NOT LIKE :lessonTitle`, { lessonTitle: 'Урок:%' })
+        .andWhere(
+          `(chat.description IS NULL OR chat.description !~* :lessonDesc)`,
+          { lessonDesc: '^Чат урока ' },
+        )
         .orderBy('chat.updated_at', 'DESC')
         .getMany();
       const myDirect = membershipChats.filter((chat) => chat.kind === ChatKind.Direct);
@@ -82,7 +89,7 @@ export class ChatsService {
     for (const chat of chats) {
       if (seen.has(chat.id)) continue;
       seen.add(chat.id);
-      if (this.isLessonScopedChat(chat)) continue;
+      if (isLessonScopedChat(chat)) continue;
       const membership = membershipByChat.get(chat.id);
       if (!this.access.isAdmin(actor) && membership?.hiddenAt) continue;
       if (chat.kind === ChatKind.Direct && !membership) continue;
@@ -111,6 +118,12 @@ export class ChatsService {
       .where('member.userId = :userId', { userId: actor.sub })
       .andWhere('member.hiddenAt IS NULL')
       .andWhere('chat.lessonId IS NULL')
+      .andWhere('chat.kind <> :lesson', { lesson: ChatKind.Lesson })
+      .andWhere(`chat.title NOT LIKE :lessonTitle`, { lessonTitle: 'Урок:%' })
+      .andWhere(
+        `(chat.description IS NULL OR chat.description !~* :lessonDesc)`,
+        { lessonDesc: '^Чат урока ' },
+      )
       .getMany();
 
     const counted = await Promise.all(
@@ -487,10 +500,5 @@ export class ChatsService {
     );
 
     return unread;
-  }
-
-  /** Video-lesson side-panel chats are keyed by lesson_id and stay out of «Чаты». */
-  private isLessonScopedChat(chat: ChatEntity | null | undefined): boolean {
-    return Boolean(chat?.lessonId);
   }
 }

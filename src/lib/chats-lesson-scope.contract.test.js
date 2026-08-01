@@ -15,17 +15,26 @@ describe('Lesson video chats stay out of «Чаты»', () => {
         { id: 'g1', title: 'Группа А' },
         { id: 'lesson-1', title: 'Урок: HSK', lesson_id: 'lesson-uuid' },
         { id: 'lesson-2', title: 'Урок: 2', lessonId: 'other-uuid' },
+        {
+          id: 'orphan',
+          title: 'Урок: Онлайн-урок',
+          description: 'Чат урока 3ffe505a-7d23-454c-94ca-ce13daed166b',
+        },
       ],
+      lesson: [{ id: 'l-kind', title: 'Урок: X', kind: 'lesson' }],
       direct: [{ id: 'dm1', title: 'Личка' }],
     });
     assert.equal(groups.group.length, 1);
     assert.equal(groups.group[0].id, 'g1');
     assert.equal(groups.direct.length, 1);
+    assert.equal(groups.lesson, undefined);
     assert.equal(isLessonScopedChat({ lessonId: 'x' }), true);
-    assert.equal(isLessonScopedChat({ id: 'g1' }), false);
+    assert.equal(isLessonScopedChat({ kind: 'lesson' }), true);
+    assert.equal(isLessonScopedChat({ title: 'Урок: A' }), true);
+    assert.equal(isLessonScopedChat({ id: 'g1', title: 'Группа' }), false);
   });
 
-  it('backend list and unread exclude chats with lesson_id', () => {
+  it('backend list and unread exclude lesson chats architecturally', () => {
     const service = readFileSync(
       join(root, 'apps/api/src/modules/chats/services/chats.service.ts'),
       'utf8',
@@ -42,21 +51,33 @@ describe('Lesson video chats stay out of «Чаты»', () => {
       join(root, 'apps/api/src/modules/video/video.service.ts'),
       'utf8',
     );
-    const rail = readFileSync(
-      join(root, 'src/components/video/LessonVideoSideRail.jsx'),
+    const enums = readFileSync(
+      join(root, 'apps/api/src/modules/chats/enums/chat.enums.ts'),
+      'utf8',
+    );
+    const scope = readFileSync(
+      join(root, 'apps/api/src/modules/chats/utils/lesson-chat-scope.ts'),
+      'utf8',
+    );
+    const migration = readFileSync(
+      join(
+        root,
+        'apps/api/src/database/migrations/1745200000000-LessonChatKindAndBackfill.ts',
+      ),
       'utf8',
     );
 
+    assert.match(enums, /Lesson = 'lesson'/);
+    assert.match(scope, /isLessonScopedChat/);
     assert.match(service, /isLessonScopedChat/);
+    assert.match(service, /ChatKind\.Lesson/);
     assert.match(service, /chat\.lessonId IS NULL/);
-    assert.match(service, /andWhere\('chat\.lessonId IS NULL'\)/);
-    assert.match(gateway, /chat\?\.lessonId/);
-    assert.match(messages, /chat\?\.lessonId\) return/);
-    // Entity stays — only display changes.
-    assert.match(video, /lessonId/);
+    assert.match(gateway, /isLessonScopedChat/);
+    assert.match(messages, /isLessonScopedChat/);
+    assert.match(video, /ChatKind\.Lesson/);
     assert.match(video, /ensureLessonChat/);
-    assert.match(rail, /ensureLessonChat/);
-    assert.match(rail, /lesson-video-chat-unread|chatUnread/);
-    assert.match(rail, /joinChat/);
+    assert.match(video, /returning\('\*'\)|\.update\(chat\.id/);
+    assert.match(migration, /kind = 'lesson'/);
+    assert.match(migration, /Чат урока/);
   });
 });

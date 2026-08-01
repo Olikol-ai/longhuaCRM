@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { CourseTemplateEntity } from '../../courses/entities/course-template.entity';
@@ -365,14 +365,20 @@ export class ChatMembershipSyncService {
     memberUserIds: string[],
     description: string | null = null,
   ): Promise<ChatEntity> {
+    const safeTitle = String(title || '').trim() || 'Группа';
+    // Messenger groups must never be confused with video-lesson chats.
+    if (safeTitle.startsWith('Урок:') || /^Чат урока /i.test(String(description || ''))) {
+      throw new BadRequestException('Lesson chats cannot be created via group chat API');
+    }
     const chat = await this.chatRepo.save({
       kind: ChatKind.Group,
-      title,
+      title: safeTitle,
       description,
       status: ChatStatus.Active,
       createdByUserId: ownerUserId,
       subjectId: null,
       courseTemplateId: null,
+      lessonId: null,
     });
     await this.addMember(chat.id, ownerUserId, ChatMemberRole.Owner);
     await Promise.all(

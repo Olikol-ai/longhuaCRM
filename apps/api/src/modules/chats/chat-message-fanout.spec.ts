@@ -21,7 +21,13 @@ describe('ChatGateway message fan-out contract', () => {
       find: jest.fn().mockResolvedValue(members),
     };
     const chatRepo = {
-      findOne: jest.fn().mockResolvedValue({ id: 'chat-1', lessonId: null }),
+      findOne: jest.fn().mockResolvedValue({
+        id: 'chat-1',
+        lessonId: null,
+        kind: 'group',
+        title: 'Группа',
+        description: null,
+      }),
     };
     const chats = {
       unreadSummary: jest.fn().mockResolvedValue({ total: 2, byChat: { 'chat-1': 2 } }),
@@ -33,6 +39,17 @@ describe('ChatGateway message fan-out contract', () => {
     }) {
       const payload = { id: 'msg-1', chat_id: message.chatId };
       server.to(`chat:${message.chatId}`).emit('message.created', payload);
+
+      const chat = await chatRepo.findOne({
+        where: { id: message.chatId },
+        select: ['id', 'lessonId', 'kind', 'title', 'description'],
+      });
+      const isLessonScoped =
+        Boolean(chat?.lessonId) ||
+        chat?.kind === 'lesson' ||
+        String(chat?.title || '').startsWith('Урок:') ||
+        /^Чат урока /i.test(String(chat?.description || ''));
+      if (isLessonScoped) return;
 
       const rows = (await memberRepo.find({ where: { chatId: message.chatId } })) as Array<{
         userId: string;
@@ -51,12 +68,6 @@ describe('ChatGateway message fan-out contract', () => {
       for (const member of rows) {
         server.to(`user:${member.userId}`).emit('message.created', payload);
       }
-
-      const chat = await chatRepo.findOne({
-        where: { id: message.chatId },
-        select: ['id', 'lessonId'],
-      });
-      if (chat?.lessonId) return;
 
       for (const userId of recipientIds) {
         if (viewingUserIds.has(userId)) continue;
@@ -83,7 +94,7 @@ describe('ChatGateway message fan-out contract', () => {
     expect(unreadEmits).toHaveLength(1);
   });
 
-  it('skips global chat.unread fan-out for lesson-scoped chats', async () => {
+  it('skips messenger fan-out for lesson-scoped chats (chat room only)', async () => {
     const emit = jest.fn();
     const to = jest.fn((_room?: string) => ({ emit }));
     const fetchSockets = jest.fn().mockResolvedValue([]);
@@ -97,7 +108,13 @@ describe('ChatGateway message fan-out contract', () => {
       find: jest.fn().mockResolvedValue([{ userId: 'sender-1' }, { userId: 'away-1' }]),
     };
     const chatRepo = {
-      findOne: jest.fn().mockResolvedValue({ id: 'lesson-chat', lessonId: 'lesson-1' }),
+      findOne: jest.fn().mockResolvedValue({
+        id: 'lesson-chat',
+        lessonId: null,
+        kind: 'lesson',
+        title: 'Урок: Онлайн-урок',
+        description: 'Чат урока deadbeef-0000-0000-0000-000000000001',
+      }),
     };
     const chats = {
       unreadSummary: jest.fn(),
@@ -109,17 +126,24 @@ describe('ChatGateway message fan-out contract', () => {
     }) {
       const payload = { id: 'msg-1', chat_id: message.chatId };
       server.to(`chat:${message.chatId}`).emit('message.created', payload);
+
+      const chat = await chatRepo.findOne({
+        where: { id: message.chatId },
+        select: ['id', 'lessonId', 'kind', 'title', 'description'],
+      });
+      const isLessonScoped =
+        Boolean(chat?.lessonId) ||
+        chat?.kind === 'lesson' ||
+        String(chat?.title || '').startsWith('Урок:') ||
+        /^Чат урока /i.test(String(chat?.description || ''));
+      if (isLessonScoped) return;
+
       const rows = (await memberRepo.find({ where: { chatId: message.chatId } })) as Array<{
         userId: string;
       }>;
       for (const member of rows) {
         server.to(`user:${member.userId}`).emit('message.created', payload);
       }
-      const chat = await chatRepo.findOne({
-        where: { id: message.chatId },
-        select: ['id', 'lessonId'],
-      });
-      if (chat?.lessonId) return;
       for (const row of rows) {
         if (row.userId === message.senderUserId) continue;
         await chats.unreadSummary({ sub: row.userId, email: 'a@t', role: 'student' });
@@ -129,8 +153,10 @@ describe('ChatGateway message fan-out contract', () => {
 
     await emitMessageCreated({ chatId: 'lesson-chat', senderUserId: 'sender-1' });
 
+    expect(memberRepo.find).not.toHaveBeenCalled();
     expect(chats.unreadSummary).not.toHaveBeenCalled();
     expect(emit.mock.calls.filter((call) => call[0] === 'chat.unread')).toHaveLength(0);
-    expect(to).toHaveBeenCalledWith('user:away-1');
+    expect(to).toHaveBeenCalledWith('chat:lesson-chat');
+    expect(to).not.toHaveBeenCalledWith('user:away-1');
   });
 });

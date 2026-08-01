@@ -5,6 +5,8 @@ export enum ChatKind {
   Course = 'course',
   Direct = 'direct',
   Group = 'group',
+  /** Video-lesson side panel only — never listed in global «Чаты». */
+  Lesson = 'lesson',
 }
 
 export enum ChatStatus {

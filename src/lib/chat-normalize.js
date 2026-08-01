@@ -93,13 +93,21 @@ export function normalizeChat(raw) {
 }
 
 export function isLessonScopedChat(chat) {
-  return Boolean(chat?.lessonId || chat?.lesson_id);
+  if (!chat) return false;
+  if (chat.kind === 'lesson') return true;
+  if (chat.lessonId || chat.lesson_id) return true;
+  const title = String(chat.title || '');
+  if (title.startsWith('Урок:')) return true;
+  const description = String(chat.description || '');
+  if (/^Чат урока [0-9a-fA-F-]{36}/i.test(description)) return true;
+  return false;
 }
 
 export function normalizeChatGroups(groups) {
   if (!groups || typeof groups !== 'object') return {};
   return Object.fromEntries(
     Object.entries(groups)
+      .filter(([kind]) => kind !== 'lesson')
       .map(([kind, chats]) => [
         kind,
         Array.isArray(chats)
