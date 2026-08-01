@@ -1,6 +1,6 @@
 /* Longhua Academy — minimal service worker for installability (network-first). */
 /* Bump CACHE when icons / shell assets change so old favicons are dropped. */
-const CACHE = 'longhua-academy-shell-v3-20260727b';
+const CACHE = 'longhua-academy-shell-v4-20260801a';
 const PRECACHE = [
   '/',
   '/manifest.webmanifest',
@@ -11,6 +11,18 @@ const PRECACHE = [
   '/icons/icon-192.png',
   '/icons/icon-512.png',
 ];
+
+function isScriptOrStyleRequest(url) {
+  return (
+    url.pathname.startsWith('/assets/') ||
+    /\.(js|mjs|cjs|css)(\?|$)/i.test(url.pathname)
+  );
+}
+
+function isHtmlContentType(response) {
+  const type = response.headers.get('content-type') || '';
+  return type.includes('text/html');
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -37,6 +49,14 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(request)
       .then((response) => {
+        // Server SPA fallback must never be treated as a JS/CSS module.
+        if (isScriptOrStyleRequest(url) && isHtmlContentType(response)) {
+          return new Response('Not found', {
+            status: 404,
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+          });
+        }
+
         const copy = response.clone();
         if (
           response.ok &&
@@ -49,6 +69,17 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(request).then((cached) => cached || caches.match('/'))),
+      .catch(async () => {
+        const cached = await caches.match(request);
+        if (cached) return cached;
+        // Never serve the HTML shell for JS/CSS — causes MIME type errors.
+        if (isScriptOrStyleRequest(url)) {
+          return new Response('Not found', {
+            status: 404,
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+          });
+        }
+        return caches.match('/');
+      }),
   );
 });

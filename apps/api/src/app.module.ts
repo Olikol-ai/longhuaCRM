@@ -144,7 +144,42 @@ function resolveEnvFilePaths(): string[] {
       ? [
           ServeStaticModule.forRoot({
             rootPath: join(__dirname, '../../../dist'),
-            exclude: ['/api{*path}'],
+            /**
+             * ServeStatic registers GET `{*any}` → index.html for missing files.
+             * That must NOT apply to hashed Vite assets: browsers then fail with
+             * "text/html is not a valid JavaScript MIME type" after deploys.
+             */
+            exclude: [
+              '/api{*path}',
+              '/assets{*path}',
+              '/icons{*path}',
+              '/uploads{*path}',
+              '/socket.io{*path}',
+            ],
+            serveStaticOptions: {
+              /**
+               * Hashed `/assets/*` can be cached forever; `index.html` must always
+               * revalidate so clients pick up new chunk filenames after deploy.
+               */
+              setHeaders: (res, filePath) => {
+                const normalized = String(filePath).replace(/\\/g, '/');
+                if (normalized.includes('/assets/')) {
+                  res.setHeader(
+                    'Cache-Control',
+                    'public, max-age=31536000, immutable',
+                  );
+                  return;
+                }
+                if (normalized.endsWith('/index.html') || normalized.endsWith('index.html')) {
+                  res.setHeader(
+                    'Cache-Control',
+                    'no-cache, no-store, must-revalidate',
+                  );
+                  return;
+                }
+                res.setHeader('Cache-Control', 'public, max-age=3600');
+              },
+            },
           }),
           SpaModule,
         ]
