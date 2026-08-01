@@ -23,7 +23,10 @@ describe('VideoService', () => {
     findOne: jest.fn(),
     save: jest.fn(async (lesson: LessonEntity) => lesson),
   };
-  const teachers = { findOne: jest.fn() };
+  const teachers = {
+    findOne: jest.fn().mockResolvedValue({ id: 'teacher-1', userId: 'teacher-user', name: 'Учитель Тест' }),
+  };
+  const tutors = { findOne: jest.fn().mockResolvedValue(null) };
   const students = { findOne: jest.fn() };
   const users = { findOne: jest.fn() };
   const attendance = { find: jest.fn().mockResolvedValue([]) };
@@ -45,6 +48,7 @@ describe('VideoService', () => {
     provider,
     lessons as never,
     teachers as never,
+    tutors as never,
     students as never,
     users as never,
     attendance as never,
@@ -68,7 +72,10 @@ describe('VideoService', () => {
   });
 
   function onlineLesson(overrides: Partial<LessonEntity> = {}): LessonEntity {
-    const now = new Date();
+    // Match VideoService wall-clock timezone (Europe/Minsk).
+    const now = new Date(
+      new Date().toLocaleString('en-US', { timeZone: 'Europe/Minsk' }),
+    );
     const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const startTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     return {
@@ -78,11 +85,13 @@ describe('VideoService', () => {
       startTime,
       duration: 60,
       status: 'planned',
+      teacherId: 'teacher-1',
+      tutorId: null,
       videoProvider: null,
       videoRoomId: null,
       videoRoomUrl: null,
       meetingLink: null,
-      teacher: { name: 'Учитель Тест', firstName: null, lastName: null, userId: 'teacher-user' },
+      teacher: { id: 'teacher-1', name: 'Учитель Тест', firstName: null, lastName: null, userId: 'teacher-user' },
       primaryStudent: {
         id: 'stu-1',
         name: 'Ученик Тест',

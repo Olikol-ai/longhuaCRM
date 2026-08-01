@@ -50,6 +50,11 @@ export function userFacingError(err, fallback = 'Что-то пошло не т�
   const trimmed = String(raw).trim();
   if (!trimmed) return fallback;
 
+  // Prefer already-localized API messages (e.g. video join window) over generic 403 text.
+  if (/[а-яёА-ЯЁ]/.test(trimmed) && !EXACT[trimmed]) {
+    return trimmed;
+  }
+
   if (EXACT[trimmed]) return EXACT[trimmed];
 
   for (const [re, msg] of PATTERNS) {

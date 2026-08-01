@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { normalizeRole } from '../constants/roles';
 import { filterToEntityWhere } from '../utils/api-record.util';
+import { GroupMemberEntity } from '../../modules/groups/entities/group-member.entity';
 import { AttendanceEntity } from '../../modules/lessons/entities/attendance.entity';
 import { LessonEntity } from '../../modules/lessons/entities/lesson.entity';
 import { NO_ACCESS_UUID } from './access.constants';
@@ -19,6 +20,8 @@ export class LessonAccessService {
     private readonly lessonRepo: Repository<LessonEntity>,
     @InjectRepository(AttendanceEntity)
     private readonly attendanceRepo: Repository<AttendanceEntity>,
+    @InjectRepository(GroupMemberEntity)
+    private readonly groupMemberRepo: Repository<GroupMemberEntity>,
     private readonly studentAccess: StudentAccessService,
     private readonly teacherAccess: TeacherAccessService,
     private readonly tutorAccess: TutorAccessService,
@@ -61,16 +64,7 @@ export class LessonAccessService {
         return { id: NO_ACCESS_UUID };
       }
 
-      const attendance = await this.attendanceRepo.find({ where: { studentId } });
-      const lessonIds = [
-        ...new Set([
-          ...attendance.map((row) => row.lessonId),
-          ...(await this.lessonRepo.find({ where: { primaryStudentId: studentId }, select: ['id'] })).map(
-            (row) => row.id,
-          ),
-        ]),
-      ];
-
+      const lessonIds = await this.resolveStudentLessonIds(studentId);
       if (lessonIds.length === 0) {
         return { id: NO_ACCESS_UUID };
       }
@@ -90,6 +84,11 @@ export class LessonAccessService {
     throw new ForbiddenException('Forbidden');
   }
 
+  /**
+   * Video / lesson read ACL.
+   * Student may join when they are the individual target, have an attendance row,
+   * or are a member of the lesson's group.
+   */
   async assertCanReadLesson(actor: DomainAccessActor, lessonId: string): Promise<LessonEntity> {
     const lesson = await this.lessonRepo.findOne({ where: { id: lessonId } });
     if (!lesson) {
@@ -122,18 +121,10 @@ export class LessonAccessService {
       if (!studentId) {
         throw new ForbiddenException('Forbidden');
       }
-
-      if (lesson.primaryStudentId === studentId) {
+      if (await this.studentIsLessonParticipant(lesson, studentId)) {
         return lesson;
       }
-
-      const attendance = await this.attendanceRepo.findOne({
-        where: { lessonId, studentId },
-      });
-      if (!attendance) {
-        throw new ForbiddenException('Cannot access another student lesson');
-      }
-      return lesson;
+      throw new ForbiddenException('Cannot access another student lesson');
     }
 
     if (role === 'tutor_student') {
@@ -289,6 +280,67 @@ export class LessonAccessService {
     }
 
     throw new ForbiddenException('Forbidden');
+  }
+
+  /**
+   * True when the CRM student is a participant of this lesson
+   * (individual target, attendance / LessonStudent row, or group member).
+   */
+  async studentIsLessonParticipant(
+    lesson: LessonEntity,
+    studentId: string,
+  ): Promise<boolean> {
+    if (!studentId) return false;
+    if (lesson.primaryStudentId === studentId) {
+      return true;
+    }
+
+    const attendance = await this.attendanceRepo.findOne({
+      where: { lessonId: lesson.id, studentId },
+    });
+    if (attendance) {
+      return true;
+    }
+
+    if (lesson.groupId) {
+      const member = await this.groupMemberRepo.findOne({
+        where: { groupId: lesson.groupId, studentId },
+      });
+      if (member) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private async resolveStudentLessonIds(studentId: string): Promise<string[]> {
+    const attendance = await this.attendanceRepo.find({ where: { studentId } });
+    const primary = await this.lessonRepo.find({
+      where: { primaryStudentId: studentId },
+      select: ['id'],
+    });
+
+    const memberships = await this.groupMemberRepo.find({
+      where: { studentId },
+      select: ['groupId'],
+    });
+    const groupIds = [...new Set(memberships.map((row) => row.groupId).filter(Boolean))];
+    const groupLessons =
+      groupIds.length > 0
+        ? await this.lessonRepo.find({
+            where: { groupId: In(groupIds) },
+            select: ['id'],
+          })
+        : [];
+
+    return [
+      ...new Set([
+        ...attendance.map((row) => row.lessonId),
+        ...primary.map((row) => row.id),
+        ...groupLessons.map((row) => row.id),
+      ]),
+    ];
   }
 
   private intersectOwnedLessonIds(

@@ -15,6 +15,7 @@ import { LessonEntity } from '../lessons/entities/lesson.entity';
 import { AttendanceEntity } from '../lessons/entities/attendance.entity';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
+import { TutorEntity } from '../tutors/entities/tutor.entity';
 import { UserEntity } from '../users/entities/user.entity';
 import { composeDisplayName } from '../users/display-name.util';
 import {
@@ -36,6 +37,8 @@ export class VideoService {
     private readonly lessons: Repository<LessonEntity>,
     @InjectRepository(TeacherEntity)
     private readonly teachers: Repository<TeacherEntity>,
+    @InjectRepository(TutorEntity)
+    private readonly tutors: Repository<TutorEntity>,
     @InjectRepository(StudentEntity)
     private readonly students: Repository<StudentEntity>,
     @InjectRepository(UserEntity)
@@ -120,10 +123,7 @@ export class VideoService {
     lesson = await this.syncLessonVideoUrl(lesson);
 
     const viewerRole = this.resolveViewerRole(actor.role);
-    const isHost =
-      viewerRole === 'teacher' ||
-      viewerRole === 'admin' ||
-      viewerRole === 'tutor';
+    const isHost = await this.resolveIsLessonHost(actor, lesson);
     const window = this.resolveLessonWindow(lesson);
     if (!window.can_join && !isHost) {
       throw new ForbiddenException(
@@ -417,6 +417,27 @@ export class VideoService {
     return 'guest';
   }
 
+  /**
+   * Jitsi moderator only for admin or the teacher/tutor who owns THIS lesson.
+   * Assigned students always get participant.
+   */
+  private async resolveIsLessonHost(
+    actor: JwtPayload,
+    lesson: LessonEntity,
+  ): Promise<boolean> {
+    const role = String(actor.role || '').toLowerCase();
+    if (role === 'admin') return true;
+    if (role === 'teacher') {
+      const teacher = await this.teachers.findOne({ where: { userId: actor.sub } });
+      return Boolean(teacher?.id && lesson.teacherId === teacher.id);
+    }
+    if (role === 'tutor') {
+      const tutor = await this.tutors.findOne({ where: { userId: actor.sub } });
+      return Boolean(tutor?.id && lesson.tutorId === tutor.id);
+    }
+    return false;
+  }
+
   private resolveLessonTitle(lesson: LessonEntity): string {
     const groupName = lesson.group?.name?.trim();
     if (groupName) return groupName;
@@ -449,7 +470,7 @@ export class VideoService {
   } {
     const start = this.getLessonStart(lesson);
     const end = new Date(start.getTime() + (lesson.duration || 60) * 60_000);
-    const now = Date.now();
+    const now = this.getTimezoneNow().getTime();
     const joinFrom = start.getTime() - 10 * 60_000;
     const joinUntil = end.getTime() + 30 * 60_000;
     const minutesUntilStart = Math.round((start.getTime() - now) / 60_000);
@@ -467,12 +488,28 @@ export class VideoService {
     };
   }
 
+  /**
+   * Lesson date + start_time are school wall-clock values (Europe/Minsk by default).
+   * Build a Date in the server's local calendar matching that wall clock, then
+   * compare against getTimezoneNow() the same way as lesson schedulers.
+   */
   private getLessonStart(lesson: LessonEntity): Date {
     const [year, month, day] = String(lesson.date || '').split('-').map(Number);
     const [hours, minutes] = String(lesson.startTime || '00:00')
       .split(':')
       .map(Number);
     return new Date(year, month - 1, day, hours, minutes || 0);
+  }
+
+  private getTimezoneNow(): Date {
+    const tz =
+      this.config.get<string>('jobs.reminderTimezone') ||
+      process.env.REMINDER_TIMEZONE ||
+      'Europe/Minsk';
+    const now = new Date();
+    const localized = new Date(now.toLocaleString('en-US', { timeZone: tz }));
+    const offsetMs = localized.getTime() - now.getTime();
+    return new Date(now.getTime() + offsetMs);
   }
 
   private async resolveDisplayName(

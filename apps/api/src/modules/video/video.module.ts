@@ -8,6 +8,7 @@ import { LessonEntity } from '../lessons/entities/lesson.entity';
 import { AttendanceEntity } from '../lessons/entities/attendance.entity';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
+import { TutorEntity } from '../tutors/entities/tutor.entity';
 import { UserEntity } from '../users/entities/user.entity';
 import { JitsiJwtService } from './providers/jitsi-jwt.service';
 import { JitsiVideoProvider } from './providers/jitsi-video.provider';
@@ -22,6 +23,7 @@ import { VideoService } from './video.service';
     TypeOrmModule.forFeature([
       LessonEntity,
       TeacherEntity,
+      TutorEntity,
       StudentEntity,
       UserEntity,
       AttendanceEntity,
