@@ -319,17 +319,35 @@ export default function TeacherDashboard() {
         </Card>
       ) : (
         <div className="space-y-2 mb-8">
-          {paymentPeriods.map((period) => (
-            <Card key={period.key} className="p-4">
-              <p className="text-sm font-medium text-slate-900 dark:text-white">
-                {period.label}
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Начислено:</p>
-              <p className="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mt-1">
-                <DollarSign className="w-4 h-4" /> {formatCurrency(period.amount)}
-              </p>
-            </Card>
-          ))}
+          {paymentPeriods.map((period) => {
+            const payoutDate = period.payoutDate || period.payout_date;
+            let payoutHint = null;
+            if (payoutDate) {
+              try {
+                payoutHint = format(new Date(`${payoutDate}T00:00:00`), "d MMMM yyyy", {
+                  locale: ru,
+                });
+              } catch {
+                payoutHint = payoutDate;
+              }
+            }
+            return (
+              <Card key={period.key || period.month} className="p-4">
+                <p className="text-sm font-medium text-slate-900 dark:text-white">
+                  {period.label}
+                </p>
+                {payoutHint ? (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    К выплате {payoutHint}
+                  </p>
+                ) : null}
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Начислено:</p>
+                <p className="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mt-1">
+                  <DollarSign className="w-4 h-4" /> {formatCurrency(period.amount)}
+                </p>
+              </Card>
+            );
+          })}
         </div>
       )}
 

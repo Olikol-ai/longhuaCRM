@@ -1,11 +1,11 @@
 import { parseMoneyAmount } from './money.js';
 
 /**
- * Longhua Academy teacher payroll periods run from the 15th to the 14th:
- * 15.01 — 14.02, 15.02 — 14.03, …
+ * Teacher payroll period = full calendar month of the lesson date (yyyy-MM).
+ * The 15th of the next month is the operational payout cue, not a period edge.
  *
  * @param {string | Date} input — lesson/accrual date (YYYY-MM-DD or Date)
- * @returns {{ start: string, end: string, key: string, label: string }}
+ * @returns {{ month: string, key: string, start: string, end: string, label: string, payoutDate: string } | null}
  */
 export function getTeacherPayPeriodForDate(input) {
   const date = parseLocalDate(input);
@@ -14,36 +14,29 @@ export function getTeacherPayPeriodForDate(input) {
   }
 
   const year = date.getFullYear();
-  const month = date.getMonth();
-  const day = date.getDate();
+  const monthIndex = date.getMonth();
+  const month = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+  const start = new Date(year, monthIndex, 1);
+  const end = new Date(year, monthIndex + 1, 0);
+  const payout = new Date(year, monthIndex + 1, 15);
 
-  let start;
-  let end;
-  if (day >= 15) {
-    start = new Date(year, month, 15);
-    end = new Date(year, month + 1, 14);
-  } else {
-    start = new Date(year, month - 1, 15);
-    end = new Date(year, month, 14);
-  }
-
-  const startIso = toIsoDate(start);
-  const endIso = toIsoDate(end);
   return {
-    start: startIso,
-    end: endIso,
-    key: `${startIso}_${endIso}`,
-    label: `${formatRuDate(startIso)} — ${formatRuDate(endIso)}`,
+    month,
+    key: month,
+    start: toIsoDate(start),
+    end: toIsoDate(end),
+    label: formatPayPeriodLabel(year, monthIndex),
+    payoutDate: toIsoDate(payout),
   };
 }
 
 /**
- * Aggregate per-lesson teacher payment rows into payroll-period totals.
+ * Aggregate per-lesson teacher payment rows into calendar-month totals.
  * Prefers linked lesson.date; falls back to payment created_at.
  *
  * @param {Array<{ id?: string, amount?: unknown, lesson_id?: string, lessonId?: string, created_at?: string, createdAt?: string }>} payments
  * @param {Array<{ id?: string, date?: string }> | Map<string, { date?: string }>} lessonsOrById
- * @returns {Array<{ key: string, start: string, end: string, label: string, amount: number, paymentCount: number }>}
+ * @returns {Array<{ month: string, key: string, start: string, end: string, label: string, payoutDate: string, amount: number, paymentCount: number }>}
  */
 export function aggregateTeacherPaymentsByPeriod(payments, lessonsOrById = []) {
   const lessonById = toLessonMap(lessonsOrById);
@@ -67,17 +60,19 @@ export function aggregateTeacherPaymentsByPeriod(payments, lessonsOrById = []) {
       existing.paymentCount += 1;
     } else {
       byPeriod.set(period.key, {
+        month: period.month,
         key: period.key,
         start: period.start,
         end: period.end,
         label: period.label,
+        payoutDate: period.payoutDate,
         amount,
         paymentCount: 1,
       });
     }
   }
 
-  return [...byPeriod.values()].sort((a, b) => b.start.localeCompare(a.start));
+  return [...byPeriod.values()].sort((a, b) => b.month.localeCompare(a.month));
 }
 
 function toLessonMap(lessonsOrById) {
@@ -128,7 +123,10 @@ function toIsoDate(date) {
   return `${y}-${m}-${d}`;
 }
 
-function formatRuDate(isoDate) {
-  const [y, m, d] = isoDate.split('-');
-  return `${d}.${m}.${y}`;
+function formatPayPeriodLabel(year, monthIndex) {
+  const formatted = new Intl.DateTimeFormat('ru-RU', {
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(year, monthIndex, 1));
+  return `Выплата за ${formatted}`;
 }

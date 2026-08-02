@@ -17,6 +17,7 @@ import { formatCurrency } from "@/lib/formatters";
 const fieldCls =
   "px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-brand/20";
 
+/** Index 0 = current month (view-only draft), index 1 = previous (default payout month). */
 const MONTHS = Array.from({ length: 12 }, (_, i) => {
   const d = subMonths(new Date(), i);
   return {
@@ -24,6 +25,8 @@ const MONTHS = Array.from({ length: 12 }, (_, i) => {
     label: format(d, "LLLL yyyy", { locale: ru }),
   };
 });
+
+const DEFAULT_MONTH = MONTHS[1]?.value || MONTHS[0].value;
 
 function exportCSV(filename, rows) {
   const blob = new Blob(
@@ -50,7 +53,7 @@ function statusLabel(status) {
  */
 export default function Salary() {
   const [rows, setRows] = useState([]);
-  const [selectedMonth, setSelectedMonth] = useState(MONTHS[0].value);
+  const [selectedMonth, setSelectedMonth] = useState(DEFAULT_MONTH);
   const [loading, setLoading] = useState(true);
   const [expandedTeacherId, setExpandedTeacherId] = useState(null);
   const [detailsByTeacher, setDetailsByTeacher] = useState({});
@@ -82,6 +85,7 @@ export default function Salary() {
 
   const monthLabel =
     MONTHS.find((m) => m.value === selectedMonth)?.label || selectedMonth;
+  const payoutTitle = `Выплата за ${monthLabel}`;
   const totalSalary = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const totalLessons = rows.reduce(
     (sum, row) => sum + Number(row.lessons_count ?? row.lessonsCount ?? 0),
@@ -89,7 +93,9 @@ export default function Salary() {
   );
 
   const handleExport = () => {
-    exportCSV(`salary_${selectedMonth}.csv`, [
+    const safeName = selectedMonth.replace(/[^\d-]/g, "");
+    exportCSV(`salary_${safeName}_${monthLabel.replace(/\s+/g, "_")}.csv`, [
+      [payoutTitle],
       ["Преподаватель", "Количество занятий", "Часов", "Сумма (BYN)", "Статус выплаты"],
       ...rows.map((row) => [
         row.teacher_name ?? row.teacherName ?? "",
@@ -169,7 +175,7 @@ export default function Salary() {
         <div>
           <h2 className="text-xl font-bold text-foreground">Зарплата преподавателей</h2>
           <p className="text-sm text-muted-foreground">
-            Месяц: {monthLabel}
+            {payoutTitle}
           </p>
         </div>
         <div className="flex gap-2">
@@ -199,7 +205,7 @@ export default function Salary() {
         <p className="text-primary-foreground/80 text-sm mb-1">Итого к выплате</p>
         <p className="text-3xl font-bold">{formatCurrency(totalSalary)}</p>
         <p className="text-primary-foreground/80 text-xs mt-1">
-          {rows.length} преподавателей · {totalLessons} занятий · {monthLabel}
+          {rows.length} преподавателей · {totalLessons} занятий · {payoutTitle}
         </p>
       </div>
 

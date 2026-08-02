@@ -77,7 +77,10 @@ export class TeacherPaymentsService {
     return this.repository.filter({ teacherId } as FindOptionsWhere<TeacherPaymentEntity>);
   }
 
-  /** Payroll periods (15th→14th) for the authenticated teacher — display totals. */
+  /**
+   * Calendar-month payroll totals for the authenticated teacher.
+   * Each row: month (yyyy-MM), label, amount, paymentCount, payoutDate, start/end.
+   */
   async findMyPeriods(actor: JwtPayload) {
     const payments = await this.findMyPayments(actor);
     const lessonIds = [

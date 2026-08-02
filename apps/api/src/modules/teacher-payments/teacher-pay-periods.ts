@@ -1,13 +1,21 @@
 /**
- * Teacher payroll periods: 15th → 14th (local calendar dates).
- * Shared business rule for API responses (FE only displays).
+ * Teacher payroll periods = full calendar month of the lesson date (yyyy-MM).
+ * Payout date (15th of the next month) is an operational cue, not a period boundary.
  */
 
 export type TeacherPayPeriod = {
-  start: string;
-  end: string;
+  /** Calendar month key, e.g. 2026-07 */
+  month: string;
+  /** Same as month — stable aggregation key */
   key: string;
+  /** First day of month (yyyy-MM-dd) */
+  start: string;
+  /** Last day of month (yyyy-MM-dd) */
+  end: string;
+  /** Human label, e.g. «Выплата за июль 2026» */
   label: string;
+  /** Operational payout target: 15th of the next month (yyyy-MM-dd) */
+  payoutDate: string;
 };
 
 export type TeacherPayPeriodTotal = TeacherPayPeriod & {
@@ -15,31 +23,26 @@ export type TeacherPayPeriodTotal = TeacherPayPeriod & {
   paymentCount: number;
 };
 
-export function getTeacherPayPeriodForDate(input: string | Date | null | undefined): TeacherPayPeriod | null {
+export function getTeacherPayPeriodForDate(
+  input: string | Date | null | undefined,
+): TeacherPayPeriod | null {
   const date = parseLocalDate(input);
   if (!date) return null;
 
   const year = date.getFullYear();
-  const month = date.getMonth();
-  const day = date.getDate();
+  const monthIndex = date.getMonth();
+  const month = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+  const start = new Date(year, monthIndex, 1);
+  const end = new Date(year, monthIndex + 1, 0);
+  const payout = new Date(year, monthIndex + 1, 15);
 
-  let start: Date;
-  let end: Date;
-  if (day >= 15) {
-    start = new Date(year, month, 15);
-    end = new Date(year, month + 1, 14);
-  } else {
-    start = new Date(year, month - 1, 15);
-    end = new Date(year, month, 14);
-  }
-
-  const startIso = toIsoDate(start);
-  const endIso = toIsoDate(end);
   return {
-    start: startIso,
-    end: endIso,
-    key: `${startIso}_${endIso}`,
-    label: `${formatRuDate(startIso)} — ${formatRuDate(endIso)}`,
+    month,
+    key: month,
+    start: toIsoDate(start),
+    end: toIsoDate(end),
+    label: formatPayPeriodLabel(year, monthIndex),
+    payoutDate: toIsoDate(payout),
   };
 }
 
@@ -79,7 +82,7 @@ export function aggregateTeacherPaymentsByPeriod(
     }
   }
 
-  return [...byPeriod.values()].sort((a, b) => b.start.localeCompare(a.start));
+  return [...byPeriod.values()].sort((a, b) => b.month.localeCompare(a.month));
 }
 
 function parseAmount(value: unknown): number {
@@ -121,7 +124,10 @@ function toIsoDate(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-function formatRuDate(isoDate: string): string {
-  const [y, m, d] = isoDate.split('-');
-  return `${d}.${m}.${y}`;
+function formatPayPeriodLabel(year: number, monthIndex: number): string {
+  const formatted = new Intl.DateTimeFormat('ru-RU', {
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(year, monthIndex, 1));
+  return `Выплата за ${formatted}`;
 }

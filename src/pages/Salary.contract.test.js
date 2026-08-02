@@ -75,4 +75,11 @@ describe('Salary page monthly summary contract', () => {
     assert.match(salarySource, /Подробнее/);
     assert.match(salarySource, /Выплатить/);
   });
+
+  it('defaults to previous calendar month and labels payout as Выплата за …', () => {
+    assert.match(salarySource, /DEFAULT_MONTH/);
+    assert.match(salarySource, /MONTHS\[1\]/);
+    assert.match(salarySource, /Выплата за \$\{monthLabel\}/);
+    assert.equal(salarySource.includes('day >= 15'), false);
+  });
 });
