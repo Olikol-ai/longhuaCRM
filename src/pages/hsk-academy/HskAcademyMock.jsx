@@ -4,11 +4,18 @@ import { api } from '@/api';
 import { createPageUrl } from '@/utils';
 import { userFacingError } from '@/lib/userFacingError';
 import HskAcademyShell from '@/components/hsk-academy/HskAcademyShell';
+import ExamPrepScreen from '@/components/hsk-academy/ExamPrepScreen';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+
+const fieldCls =
+  'w-full h-11 rounded-md border border-input bg-background px-3 text-sm';
 
 export default function HskAcademyMock() {
   const [params] = useSearchParams();
   const mode = params.get('mode') || 'mock_exam';
   const navigate = useNavigate();
+  const [step, setStep] = useState('configure');
   const [versions, setVersions] = useState([]);
   const [levels, setLevels] = useState([]);
   const [blueprints, setBlueprints] = useState([]);
@@ -17,6 +24,10 @@ export default function HskAcademyMock() {
   const [blueprintId, setBlueprintId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    setStep('configure');
+  }, [mode]);
 
   useEffect(() => {
     api.examAcademy.catalog
@@ -53,6 +64,15 @@ export default function HskAcademyMock() {
     () => versions.find((v) => v.code === versionCode)?.id || '',
     [versions, versionCode],
   );
+  const versionTitle = versions.find((v) => v.code === versionCode)?.title || versionCode;
+  const levelTitle = levels.find((l) => l.id === levelId)?.title || '—';
+  const blueprint = blueprints.find((b) => b.id === blueprintId);
+  const durationSec =
+    blueprint?.totalDurationSeconds ??
+    blueprint?.total_duration_seconds ??
+    null;
+
+  const title = mode === 'random_exam' ? 'Случайный экзамен' : 'Пробный экзамен';
 
   const start = async () => {
     setBusy(true);
@@ -77,54 +97,95 @@ export default function HskAcademyMock() {
 
   return (
     <HskAcademyShell active="mock">
-      <section className="hsk-hero">
-        <p className="hsk-kicker">Exam Simulation</p>
-        <h1>{mode === 'random_exam' ? 'Случайный экзамен' : 'Пробный экзамен'}</h1>
-        <p className="hsk-lead">
-          Максимально близко к структуре официального экзамена. Подсказки отключены до завершения.
+      <div>
+        <h2 className="text-xl font-semibold">{title}</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Максимально близко к структуре официального экзамена. Подсказки до завершения отключены.
         </p>
-      </section>
-
-      <div className="hsk-panel">
-        <div className="hsk-form-grid">
-          <label>
-            Версия
-            <select value={versionCode} onChange={(e) => setVersionCode(e.target.value)}>
-              {versions.map((v) => (
-                <option key={v.id} value={v.code}>
-                  {v.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Уровень
-            <select value={levelId} onChange={(e) => setLevelId(e.target.value)}>
-              {levels.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Структура
-            <select value={blueprintId} onChange={(e) => setBlueprintId(e.target.value)}>
-              {blueprints.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        {error ? <p className="hsk-error">{error}</p> : null}
-        <div className="hsk-actions">
-          <button type="button" className="hsk-btn" disabled={busy || !versionId || !levelId} onClick={start}>
-            {busy ? 'Подготовка…' : 'Начать экзамен'}
-          </button>
-        </div>
       </div>
+
+      {step === 'configure' ? (
+        <Card className="p-5 space-y-4 border-border">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm space-y-1">
+              <span className="text-muted-foreground">Версия</span>
+              <select
+                className={fieldCls}
+                value={versionCode}
+                onChange={(e) => setVersionCode(e.target.value)}
+              >
+                {versions.map((v) => (
+                  <option key={v.id} value={v.code}>{v.title}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm space-y-1">
+              <span className="text-muted-foreground">Уровень</span>
+              <select
+                className={fieldCls}
+                value={levelId}
+                onChange={(e) => setLevelId(e.target.value)}
+              >
+                {levels.map((l) => (
+                  <option key={l.id} value={l.id}>{l.title}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm space-y-1 sm:col-span-2">
+              <span className="text-muted-foreground">Структура</span>
+              <select
+                className={fieldCls}
+                value={blueprintId}
+                onChange={(e) => setBlueprintId(e.target.value)}
+              >
+                {blueprints.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <Button
+            type="button"
+            className="min-h-11"
+            disabled={!versionId || !levelId}
+            onClick={() => {
+              setError('');
+              setStep('prep');
+            }}
+          >
+            Далее
+          </Button>
+        </Card>
+      ) : (
+        <ExamPrepScreen
+          title={title}
+          lead="Убедитесь, что у вас достаточно времени. После старта откроется полноэкранный режим экзамена."
+          metaRows={[
+            { label: 'Версия', value: versionTitle },
+            { label: 'Уровень', value: levelTitle },
+            { label: 'Структура', value: blueprint?.name || '—' },
+            {
+              label: 'Длительность',
+              value:
+                durationSec != null
+                  ? `${Math.max(1, Math.ceil(Number(durationSec) / 60))} мин`
+                  : 'По шаблону',
+            },
+            { label: 'Подсказки', value: 'После сдачи' },
+            { label: 'Режим', value: mode === 'random_exam' ? 'Случайный вариант' : 'Пробный' },
+          ]}
+          tips={[
+            'Следите за таймером в шапке — время с сервера.',
+            'Можно пропускать задания и возвращаться через навигацию.',
+            'Не закрывайте вкладку без необходимости — ответы автосохраняются.',
+          ]}
+          busy={busy}
+          error={error}
+          onBack={() => setStep('configure')}
+          onStart={start}
+        />
+      )}
     </HskAcademyShell>
   );
 }

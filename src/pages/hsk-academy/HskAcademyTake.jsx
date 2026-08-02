@@ -3,7 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '@/api';
 import { createPageUrl } from '@/utils';
 import { userFacingError } from '@/lib/userFacingError';
-import HskAcademyShell from '@/components/hsk-academy/HskAcademyShell';
+import { useIsLgUp, useIsMdUp } from '@/lib/responsive';
+import ExamFocusChrome from '@/components/hsk-academy/ExamFocusChrome';
+import { ExamItemRenderer, collectMediaUrls } from '@/components/hsk-academy/items/itemRegistry';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 function pick(obj, ...keys) {
   for (const key of keys) {
@@ -32,6 +37,9 @@ export default function HskAcademyTake() {
   const [params] = useSearchParams();
   const sessionId = params.get('sessionId') || '';
   const navigate = useNavigate();
+  const isLg = useIsLgUp();
+  const isMd = useIsMdUp();
+  const [navOpen, setNavOpen] = useState(() => false);
   const [runtime, setRuntime] = useState(null);
   const [answers, setAnswers] = useState({});
   const [marked, setMarked] = useState(() => {
@@ -64,7 +72,7 @@ export default function HskAcademyTake() {
       const local = JSON.parse(localStorage.getItem(draftKey(sessionId)) || '{}');
       Object.assign(restored, local);
     } catch {
-      // ignore corrupt draft
+      // ignore
     }
     setAnswers(restored);
     const savedIndex = Number(sessionStorage.getItem(`${draftKey(sessionId)}:index`) || 0);
@@ -105,30 +113,14 @@ export default function HskAcademyTake() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!sessionId) return undefined;
-    const onStorage = (event) => {
-      if (event.key !== draftKey(sessionId) || !event.newValue) return;
-      try {
-        setAnswers(JSON.parse(event.newValue));
-      } catch {
-        // ignore
-      }
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, [sessionId]);
-
   const questions = useMemo(() => flattenQuestions(runtime?.sections), [runtime]);
   const current = questions[index];
   const currentId = current?.snapshotId || current?.snapshot_id;
-  const options = current?.answers || [];
-  const attachments = current?.attachments || [];
   const progress = questions.length ? Math.round(((index + 1) / questions.length) * 100) : 0;
-  const shellActive =
-    runtime?.session?.mode === 'mock_exam' || runtime?.session?.mode === 'random_exam'
-      ? 'mock'
-      : 'practice';
+  const nextPrefetch = useMemo(
+    () => collectMediaUrls(questions[index + 1]),
+    [questions, index],
+  );
 
   useEffect(() => {
     const expires = pick(runtime?.attempt, 'expiresAt', 'expires_at');
@@ -145,7 +137,7 @@ export default function HskAcademyTake() {
   const submit = useCallback(async () => {
     if (submitting || autoSubmitted.current) return;
     if (!navigator.onLine) {
-      setError('Нет сети. Завершение экзамена недоступно офлайн — ответы сохранены локально.');
+      setError('Нет сети. Завершение недоступно офлайн — ответы сохранены локально.');
       return;
     }
     setSubmitting(true);
@@ -234,8 +226,12 @@ export default function HskAcademyTake() {
     });
   };
 
+  const skip = () => {
+    setIndex((v) => Math.min(questions.length - 1, v + 1));
+  };
+
   const exit = () => {
-    if (!window.confirm('Выйти из экзамена? Ответы уже сохранены на сервере и в черновике браузера.')) {
+    if (!window.confirm('Выйти из экзамена? Ответы сохранены на сервере и в черновике браузера.')) {
       return;
     }
     navigate(createPageUrl('HskAcademy'));
@@ -244,11 +240,9 @@ export default function HskAcademyTake() {
   useEffect(() => {
     const onKey = (event) => {
       if (event.target?.tagName === 'INPUT' || event.target?.tagName === 'TEXTAREA') return;
-      if (event.key === 'ArrowRight') {
-        setIndex((v) => Math.min(questions.length - 1, v + 1));
-      } else if (event.key === 'ArrowLeft') {
-        setIndex((v) => Math.max(0, v - 1));
-      } else if (event.key === 'm' || event.key === 'M' || event.key === 'ь' || event.key === 'Ь') {
+      if (event.key === 'ArrowRight') skip();
+      else if (event.key === 'ArrowLeft') setIndex((v) => Math.max(0, v - 1));
+      else if (event.key === 'm' || event.key === 'M' || event.key === 'ь' || event.key === 'Ь') {
         toggleMark();
       }
     };
@@ -270,143 +264,166 @@ export default function HskAcademyTake() {
       : saveStatus === 'saved'
         ? 'Сохранено'
         : saveStatus === 'offline'
-          ? 'Офлайн · локальный черновик'
+          ? 'Офлайн · черновик'
           : saveStatus === 'error'
             ? 'Ошибка сохранения'
             : '';
 
+  const meta = [
+    runtime?.version_title,
+    runtime?.level_title,
+    current?.sectionTitle,
+    questions.length ? `№ ${index + 1}/${questions.length}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const railAlways = isLg;
+  /** Desktop: always show rail. Tablet/mobile: toggle via button. */
+  const showSideNav = railAlways || navOpen;
+
+  const navPanel = (
+    <aside
+      className={cn(
+        'rounded-lg border border-border bg-card p-3 space-y-3',
+        railAlways ? 'w-56 shrink-0' : 'w-full',
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          Навигация · {answeredCount}/{questions.length}
+        </p>
+        {!railAlways ? (
+          <Button type="button" size="sm" variant="ghost" onClick={() => setNavOpen(false)}>
+            Скрыть
+          </Button>
+        ) : null}
+      </div>
+      <div className="grid grid-cols-5 sm:grid-cols-6 lg:grid-cols-4 gap-2">
+        {questions.map((q, i) => {
+          const id = q.snapshotId || q.snapshot_id;
+          return (
+            <button
+              key={id}
+              type="button"
+              className={cn(
+                'min-h-11 rounded-md border text-sm font-medium transition-colors',
+                i === index && 'border-brand bg-brand/15',
+                answers[id]?.length && i !== index && 'border-border bg-muted/50',
+                marked.has(id) && 'ring-2 ring-amber-500/60',
+                !answers[id]?.length && i !== index && 'border-border bg-background',
+              )}
+              onClick={() => {
+                setIndex(i);
+                if (!railAlways) setNavOpen(false);
+              }}
+            >
+              {i + 1}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap gap-1 text-[11px] text-muted-foreground">
+        <Badge variant="outline" className="text-[10px]">текущее</Badge>
+        <Badge variant="secondary" className="text-[10px]">ответ</Badge>
+        <span className="inline-flex items-center gap-1">
+          <span className="h-2 w-2 rounded-full bg-amber-500" /> метка
+        </span>
+      </div>
+    </aside>
+  );
+
   return (
-    <HskAcademyShell active={shellActive} fullBleed>
-      {!online ? (
-        <div className="hsk-offline-banner" role="status">
-          Нет интернета. Ответы сохраняются локально и синхронизируются при восстановлении сети.
+    <ExamFocusChrome
+      title={runtime?.session?.title || 'HSK Academy'}
+      meta={meta}
+      timerLabel={`${mm}:${ss}`}
+      saveLabel={saveLabel}
+      progress={progress}
+      online={online}
+      onExit={exit}
+    >
+      {error ? <p className="text-sm text-destructive mb-3">{error}</p> : null}
+
+      {!railAlways ? (
+        <div className="mb-3">
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11"
+            onClick={() => setNavOpen((v) => !v)}
+          >
+            {navOpen ? 'Скрыть задания' : 'Список заданий'}
+          </Button>
         </div>
       ) : null}
 
-      <div className="hsk-take-chrome">
-        <div className="hsk-take-top">
-          <div>
-            <strong>{runtime?.session?.title || 'HSK Academy'}</strong>
-            <div className="hsk-muted hsk-take-meta">
-              {[runtime?.version_title, runtime?.level_title, current?.sectionTitle]
-                .filter(Boolean)
-                .join(' · ')}
-              {' · '}
-              задание {questions.length ? index + 1 : 0}/{questions.length}
-            </div>
-          </div>
-          <div className="hsk-take-top-right">
-            <span className="hsk-timer" aria-live="polite">
-              {mm}:{ss}
-            </span>
-            <span className="hsk-muted hsk-save-status">{saveLabel}</span>
-            <button type="button" className="hsk-btn hsk-btn--ghost hsk-btn--sm" onClick={exit}>
-              Выйти
-            </button>
-          </div>
-        </div>
-        <div className="hsk-progress" aria-hidden>
-          <div className="hsk-progress-bar" style={{ width: `${progress}%` }} />
-        </div>
-      </div>
+      <div
+        className={cn(
+          'flex gap-4',
+          railAlways ? 'flex-row' : 'flex-col',
+          isMd && !railAlways && showSideNav ? 'md:flex-row' : null,
+        )}
+      >
+        {showSideNav ? navPanel : null}
 
-      {error ? <p className="hsk-error" style={{ padding: '0 1rem' }}>{error}</p> : null}
-
-      <div className="hsk-take">
-        <aside className="hsk-take-nav">
-          <p className="hsk-muted" style={{ marginTop: 0 }}>
-            Навигация · {answeredCount}/{questions.length}
-          </p>
-          <div className="hsk-take-nav-grid">
-            {questions.map((q, i) => {
-              const id = q.snapshotId || q.snapshot_id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  className={`${i === index ? 'is-current' : ''} ${answers[id]?.length ? 'is-answered' : ''} ${marked.has(id) ? 'is-marked' : ''}`}
-                  onClick={() => setIndex(i)}
-                >
-                  {i + 1}
-                </button>
-              );
-            })}
-          </div>
-        </aside>
-
-        <section className="hsk-take-stage">
+        <section className="flex-1 min-w-0 rounded-lg border border-border bg-card p-4 sm:p-6 space-y-4">
           {!current ? (
-            <p className="hsk-muted">Загрузка заданий…</p>
+            <p className="text-sm text-muted-foreground">Загрузка заданий…</p>
           ) : (
             <>
-              {current.passageText || current.passage_text ? (
-                <div className="hsk-passage">{current.passageText || current.passage_text}</div>
-              ) : null}
-              {attachments.map((att) => {
-                if (att.kind === 'audio' && att.url) {
-                  return (
-                    <audio key={att.id || att.url} className="hsk-audio" controls preload="metadata" src={att.url}>
-                      Аудио недоступно
-                    </audio>
-                  );
-                }
-                if ((att.kind === 'image' || att.kind === 'img') && att.url) {
-                  return <img key={att.id || att.url} className="hsk-media-img" src={att.url} alt="" />;
-                }
-                return null;
-              })}
-              <div className="hsk-stem">{current.stem}</div>
-              <div className="hsk-options">
-                {options.map((opt) => {
-                  const id = opt.snapshotId || opt.snapshot_id || opt.id;
-                  const selected = answers[currentId]?.includes(id);
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      className={`hsk-option ${selected ? 'is-selected' : ''}`}
-                      onClick={() => selectOption(id)}
-                    >
-                      {opt.text}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="hsk-actions hsk-actions--sticky">
-                <button
+              <ExamItemRenderer
+                question={current}
+                selectedIds={answers[currentId] || []}
+                onSelect={selectOption}
+                prefetchUrls={nextPrefetch}
+              />
+              <div className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 border-t border-border bg-card/95 backdrop-blur flex flex-wrap gap-2">
+                <Button
                   type="button"
-                  className="hsk-btn hsk-btn--ghost"
+                  variant="outline"
+                  className="min-h-11"
                   disabled={index <= 0}
                   onClick={() => setIndex((v) => Math.max(0, v - 1))}
                 >
                   Назад
-                </button>
-                <button type="button" className="hsk-btn hsk-btn--ghost" onClick={toggleMark}>
+                </Button>
+                <Button type="button" variant="outline" className="min-h-11" onClick={toggleMark}>
                   {marked.has(currentId) ? 'Снять метку' : 'Пометить'}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="hsk-btn hsk-btn--ghost"
+                  variant="outline"
+                  className="min-h-11"
+                  disabled={index >= questions.length - 1}
+                  onClick={skip}
+                >
+                  Пропустить
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-11"
                   disabled={index >= questions.length - 1}
                   onClick={() => setIndex((v) => Math.min(questions.length - 1, v + 1))}
                 >
                   Вперёд
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="hsk-btn"
+                  className="min-h-11 ml-auto"
                   disabled={submitting}
                   onClick={() => {
                     if (window.confirm('Завершить экзамен и перейти к результатам?')) void submit();
                   }}
                 >
                   {submitting ? 'Завершение…' : 'Завершить'}
-                </button>
+                </Button>
               </div>
             </>
           )}
         </section>
       </div>
-    </HskAcademyShell>
+    </ExamFocusChrome>
   );
 }

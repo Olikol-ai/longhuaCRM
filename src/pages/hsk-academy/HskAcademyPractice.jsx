@@ -4,11 +4,19 @@ import { api } from '@/api';
 import { createPageUrl } from '@/utils';
 import { userFacingError } from '@/lib/userFacingError';
 import HskAcademyShell from '@/components/hsk-academy/HskAcademyShell';
+import ExamPrepScreen from '@/components/hsk-academy/ExamPrepScreen';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+
+const fieldCls =
+  'w-full h-11 rounded-md border border-input bg-background px-3 text-sm';
 
 export default function HskAcademyPractice() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const mode = params.get('mode') || 'practice';
+  const [step, setStep] = useState('configure');
   const [versions, setVersions] = useState([]);
   const [levels, setLevels] = useState([]);
   const [sections, setSections] = useState([]);
@@ -19,6 +27,10 @@ export default function HskAcademyPractice() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [counts, setCounts] = useState({ favorites: 0, review: 0 });
+
+  useEffect(() => {
+    setStep('configure');
+  }, [mode]);
 
   useEffect(() => {
     api.examAcademy.catalog
@@ -62,6 +74,11 @@ export default function HskAcademyPractice() {
     () => versions.find((v) => v.code === versionCode)?.id || '',
     [versions, versionCode],
   );
+  const versionTitle = versions.find((v) => v.code === versionCode)?.title || versionCode;
+  const levelTitle = levels.find((l) => l.id === levelId)?.title || '—';
+  const sectionTitle =
+    sections.find((s) => (s.sectionKey || s.section_key) === sectionKey)?.title ||
+    (sectionKey ? sectionKey : 'Все разделы');
 
   const emptyHint =
     mode === 'favorites' && counts.favorites === 0
@@ -69,6 +86,13 @@ export default function HskAcademyPractice() {
       : mode === 'error_review' && counts.review === 0
         ? 'Ошибок для повторения нет. Пройдите тренировку — неверные ответы появятся здесь.'
         : '';
+
+  const title =
+    mode === 'error_review'
+      ? 'Тренировка ошибок'
+      : mode === 'favorites'
+        ? 'Избранные вопросы'
+        : 'Тренировка';
 
   const start = async () => {
     if (emptyHint) {
@@ -96,115 +120,165 @@ export default function HskAcademyPractice() {
     }
   };
 
-  const title =
-    mode === 'error_review'
-      ? 'Тренировка ошибок'
-      : mode === 'favorites'
-        ? 'Избранные вопросы'
-        : 'Тренировка';
-
   return (
     <HskAcademyShell active="practice">
-      <section className="hsk-hero">
-        <p className="hsk-kicker">Practice Mode</p>
-        <h1>{title}</h1>
-        <p className="hsk-lead">Настройте параметры и начните подготовку.</p>
-      </section>
-
-      <div className="hsk-panel">
-        <div className="hsk-form-grid">
-          {mode === 'practice' ? (
-            <>
-              <label>
-                Версия
-                <select value={versionCode} onChange={(e) => setVersionCode(e.target.value)}>
-                  {versions.map((v) => (
-                    <option key={v.id} value={v.code}>
-                      {v.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Уровень
-                <select value={levelId} onChange={(e) => setLevelId(e.target.value)}>
-                  {levels.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Раздел
-                <select value={sectionKey} onChange={(e) => setSectionKey(e.target.value)}>
-                  <option value="">Все разделы</option>
-                  {sections.map((s) => (
-                    <option key={s.id} value={s.sectionKey || s.section_key}>
-                      {s.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Количество заданий
-                <input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={questionCount}
-                  onChange={(e) => setQuestionCount(e.target.value)}
-                />
-              </label>
-            </>
-          ) : (
-            <>
-              <p className="hsk-muted hsk-span-2">
-                Сессия будет собрана автоматически из{' '}
-                {mode === 'favorites' ? `избранного (${counts.favorites})` : `ошибок (${counts.review})`}.
-                Версия и уровень используются для статистики.
-              </p>
-              <label>
-                Версия
-                <select value={versionCode} onChange={(e) => setVersionCode(e.target.value)}>
-                  {versions.map((v) => (
-                    <option key={v.id} value={v.code}>
-                      {v.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Уровень
-                <select value={levelId} onChange={(e) => setLevelId(e.target.value)}>
-                  {levels.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </>
-          )}
-        </div>
-        {emptyHint ? <p className="hsk-muted">{emptyHint}</p> : null}
-        {error ? <p className="hsk-error">{error}</p> : null}
-        <div className="hsk-actions">
-          <button
-            type="button"
-            className="hsk-btn"
-            disabled={busy || !versionId || !levelId || Boolean(emptyHint)}
-            onClick={start}
-          >
-            {busy ? 'Запуск…' : 'Начать'}
-          </button>
-          {emptyHint ? (
-            <Link className="hsk-btn hsk-btn--ghost" to={createPageUrl('HskAcademyPractice')}>
-              Обычная тренировка
-            </Link>
-          ) : null}
-        </div>
+      <div>
+        <h2 className="text-xl font-semibold">{title}</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          {step === 'configure'
+            ? 'Настройте параметры, затем откройте экран подготовки.'
+            : 'Проверьте параметры и нажмите «Начать экзамен».'}
+        </p>
       </div>
+
+      {step === 'configure' ? (
+        <Card className="p-5 space-y-4 border-border">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {mode === 'practice' ? (
+              <>
+                <label className="text-sm space-y-1">
+                  <span className="text-muted-foreground">Версия</span>
+                  <select
+                    className={fieldCls}
+                    value={versionCode}
+                    onChange={(e) => setVersionCode(e.target.value)}
+                  >
+                    {versions.map((v) => (
+                      <option key={v.id} value={v.code}>{v.title}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm space-y-1">
+                  <span className="text-muted-foreground">Уровень</span>
+                  <select
+                    className={fieldCls}
+                    value={levelId}
+                    onChange={(e) => setLevelId(e.target.value)}
+                  >
+                    {levels.map((l) => (
+                      <option key={l.id} value={l.id}>{l.title}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm space-y-1">
+                  <span className="text-muted-foreground">Раздел</span>
+                  <select
+                    className={fieldCls}
+                    value={sectionKey}
+                    onChange={(e) => setSectionKey(e.target.value)}
+                  >
+                    <option value="">Все разделы</option>
+                    {sections.map((s) => (
+                      <option key={s.id} value={s.sectionKey || s.section_key}>
+                        {s.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm space-y-1">
+                  <span className="text-muted-foreground">Количество заданий</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={50}
+                    className="h-11"
+                    value={questionCount}
+                    onChange={(e) => setQuestionCount(e.target.value)}
+                  />
+                </label>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground sm:col-span-2">
+                  Сессия будет собрана из{' '}
+                  {mode === 'favorites'
+                    ? `избранного (${counts.favorites})`
+                    : `ошибок (${counts.review})`}
+                  .
+                </p>
+                <label className="text-sm space-y-1">
+                  <span className="text-muted-foreground">Версия</span>
+                  <select
+                    className={fieldCls}
+                    value={versionCode}
+                    onChange={(e) => setVersionCode(e.target.value)}
+                  >
+                    {versions.map((v) => (
+                      <option key={v.id} value={v.code}>{v.title}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm space-y-1">
+                  <span className="text-muted-foreground">Уровень</span>
+                  <select
+                    className={fieldCls}
+                    value={levelId}
+                    onChange={(e) => setLevelId(e.target.value)}
+                  >
+                    {levels.map((l) => (
+                      <option key={l.id} value={l.id}>{l.title}</option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
+          </div>
+          {emptyHint ? <p className="text-sm text-muted-foreground">{emptyHint}</p> : null}
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              className="min-h-11"
+              disabled={!versionId || !levelId || Boolean(emptyHint)}
+              onClick={() => {
+                setError('');
+                setStep('prep');
+              }}
+            >
+              Далее
+            </Button>
+            {emptyHint ? (
+              <Button asChild variant="outline" className="min-h-11">
+                <Link to={createPageUrl('HskAcademyPractice')}>Обычная тренировка</Link>
+              </Button>
+            ) : null}
+          </div>
+        </Card>
+      ) : (
+        <ExamPrepScreen
+          title={title}
+          lead="Проверьте параметры перед стартом. После старта откроется режим экзамена."
+          metaRows={[
+            { label: 'Режим', value: title },
+            { label: 'Версия', value: versionTitle },
+            { label: 'Уровень', value: levelTitle },
+            {
+              label: 'Раздел',
+              value: mode === 'practice' ? sectionTitle : 'Авто',
+            },
+            {
+              label: 'Заданий',
+              value:
+                mode === 'practice'
+                  ? String(questionCount)
+                  : mode === 'favorites'
+                    ? String(counts.favorites)
+                    : String(counts.review),
+            },
+            { label: 'Подсказки', value: mode === 'practice' ? 'После ответа' : 'После сдачи' },
+          ]}
+          tips={[
+            'Можно помечать задания и возвращаться к ним.',
+            'Ответы сохраняются автоматически; при обрыве сети — локальный черновик.',
+            'На мобильном используйте крупные кнопки внизу экрана.',
+          ]}
+          busy={busy}
+          error={error}
+          onBack={() => setStep('configure')}
+          onStart={start}
+          startLabel="Начать экзамен"
+        />
+      )}
     </HskAcademyShell>
   );
 }

@@ -4,6 +4,10 @@ import { api } from '@/api';
 import { createPageUrl } from '@/utils';
 import { userFacingError } from '@/lib/userFacingError';
 import HskAcademyShell from '@/components/hsk-academy/HskAcademyShell';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { toast } from '@/components/ui/use-toast';
 
 const MODE_LABEL = {
   practice: 'Тренировка',
@@ -21,13 +25,21 @@ const STATUS_LABEL = {
   cancelled: 'Отменено',
 };
 
+const TABS = [
+  ['history', 'История'],
+  ['dynamics', 'Динамика'],
+  ['dictionary', 'Словарь'],
+  ['favorites', 'Избранное'],
+  ['review', 'Ошибки'],
+  ['achievements', 'Достижения'],
+];
+
 export default function HskAcademyPreparation() {
   const [data, setData] = useState(null);
   const [words, setWords] = useState([]);
   const [review, setReview] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [error, setError] = useState('');
-  const [msg, setMsg] = useState('');
   const [tab, setTab] = useState('history');
 
   const reload = async () => {
@@ -65,7 +77,7 @@ export default function HskAcademyPreparation() {
     try {
       await api.examAcademy.me.deleteWord(id);
       setWords((rows) => rows.filter((w) => w.id !== id));
-      setMsg('Слово удалено');
+      toast({ title: 'Слово удалено' });
     } catch (err) {
       setError(userFacingError(err));
     }
@@ -75,7 +87,7 @@ export default function HskAcademyPreparation() {
     try {
       await api.examAcademy.me.updateWord(id, { status: 'learned' });
       setWords((rows) => rows.map((w) => (w.id === id ? { ...w, status: 'learned' } : w)));
-      setMsg('Отмечено как выученное');
+      toast({ title: 'Отмечено как выученное' });
     } catch (err) {
       setError(userFacingError(err));
     }
@@ -85,7 +97,7 @@ export default function HskAcademyPreparation() {
     try {
       await api.examAcademy.me.removeFavorite(id);
       setFavorites((rows) => rows.filter((f) => f.id !== id));
-      setMsg('Убрано из избранного');
+      toast({ title: 'Убрано из избранного' });
     } catch (err) {
       setError(userFacingError(err));
     }
@@ -93,32 +105,28 @@ export default function HskAcademyPreparation() {
 
   return (
     <HskAcademyShell active="prep">
-      <section className="hsk-hero">
-        <p className="hsk-kicker">Learner Cabinet</p>
-        <h1>Моя подготовка</h1>
-        <p className="hsk-lead">
-          Центр вашей подготовки: история, динамика, словарь, избранное, ошибки и достижения.
+      <div>
+        <h2 className="text-xl font-semibold">Моя подготовка</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          История, динамика, словарь, избранное, ошибки и достижения.
         </p>
-      </section>
+      </div>
 
-      {error ? <p className="hsk-error">{error}</p> : null}
-      {msg ? <p className="hsk-muted">{msg}</p> : null}
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
-      <div className="hsk-tab-row" role="tablist">
-        {[
-          ['history', 'История'],
-          ['dynamics', 'Динамика'],
-          ['dictionary', 'Словарь'],
-          ['favorites', 'Избранное'],
-          ['review', 'Ошибки'],
-          ['achievements', 'Достижения'],
-        ].map(([id, label]) => (
+      <div className="flex flex-wrap gap-2" role="tablist">
+        {TABS.map(([id, label]) => (
           <button
             key={id}
             type="button"
             role="tab"
             aria-selected={tab === id}
-            className={`hsk-btn hsk-btn--sm ${tab === id ? '' : 'hsk-btn--ghost'}`}
+            className={cn(
+              'rounded-md px-3 py-2 text-sm border min-h-11 transition-colors',
+              tab === id
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-background border-border hover:bg-muted',
+            )}
             onClick={() => setTab(id)}
           >
             {label}
@@ -127,168 +135,200 @@ export default function HskAcademyPreparation() {
       </div>
 
       {tab === 'history' && (
-        <div className="hsk-panel">
-          <h2>История попыток</h2>
+        <Card className="p-4 space-y-3 border-border">
+          <h3 className="font-medium">История попыток</h3>
           {history.length === 0 ? (
-            <p className="hsk-muted">Пока нет сессий. Начните с тренировки.</p>
+            <p className="text-sm text-muted-foreground">Пока нет сессий. Начните с тренировки.</p>
           ) : (
-            <ul className="hsk-list">
+            <ul className="divide-y divide-border">
               {history.map((row) => (
-                <li key={row.id}>
+                <li
+                  key={row.id}
+                  className="py-3 flex flex-wrap items-center justify-between gap-2"
+                >
                   <div>
-                    <strong>{row.title || MODE_LABEL[row.mode] || row.mode}</strong>
-                    <div className="hsk-muted">
+                    <p className="font-medium text-sm">{row.title || MODE_LABEL[row.mode] || row.mode}</p>
+                    <p className="text-xs text-muted-foreground">
                       {MODE_LABEL[row.mode] || row.mode}
                       {row.level?.title ? ` · ${row.level.title}` : ''}
-                    </div>
+                    </p>
                   </div>
-                  <span>
-                    {STATUS_LABEL[row.status] || row.status}
+                  <div className="text-sm flex flex-wrap gap-2 items-center">
+                    <span>{STATUS_LABEL[row.status] || row.status}</span>
                     {row.status === 'completed' ? (
-                      <>
-                        {' · '}
+                      <Button asChild size="sm" variant="outline" className="min-h-11">
                         <Link to={`${createPageUrl('HskAcademyResult')}?sessionId=${row.id}`}>
-                          результат
+                          Результат
                         </Link>
-                      </>
+                      </Button>
                     ) : null}
                     {row.status === 'in_progress' ? (
-                      <>
-                        {' · '}
+                      <Button asChild size="sm" className="min-h-11">
                         <Link to={`${createPageUrl('HskAcademyTake')}?sessionId=${row.id}`}>
-                          продолжить
+                          Продолжить
                         </Link>
-                      </>
+                      </Button>
                     ) : null}
-                  </span>
+                  </div>
                 </li>
               ))}
             </ul>
           )}
-        </div>
+        </Card>
       )}
 
       {tab === 'dynamics' && (
-        <div className="hsk-panel">
-          <h2>Динамика</h2>
+        <Card className="p-4 space-y-3 border-border">
+          <h3 className="font-medium">Динамика</h3>
           {series.length === 0 ? (
-            <p className="hsk-muted">Недостаточно данных для графика.</p>
+            <p className="text-sm text-muted-foreground">Недостаточно данных.</p>
           ) : (
-            <div className="hsk-bars">
-              {series.map((row) => (
-                <div key={row.id} className="hsk-bar-row">
-                  <span className="hsk-muted">{row.day}</span>
-                  <div className="hsk-bar-track">
-                    <div
-                      className="hsk-bar-fill"
-                      style={{ width: `${Math.min(100, Number(row.avgPercent) || 0)}%` }}
-                    />
-                  </div>
-                  <strong>{Number(row.avgPercent) || 0}%</strong>
-                </div>
-              ))}
-            </div>
+            <ul className="space-y-2">
+              {series.map((row) => {
+                const pct = Math.min(100, Number(row.avgPercent) || 0);
+                return (
+                  <li key={row.id} className="grid grid-cols-[5rem_1fr_3rem] gap-2 items-center text-sm">
+                    <span className="text-muted-foreground text-xs">{row.day}</span>
+                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full bg-brand" style={{ width: `${pct}%` }} />
+                    </div>
+                    <strong className="text-right">{pct}%</strong>
+                  </li>
+                );
+              })}
+            </ul>
           )}
-        </div>
+        </Card>
       )}
 
       {tab === 'dictionary' && (
-        <div className="hsk-panel">
-          <h2>Личный словарь</h2>
+        <Card className="p-4 space-y-3 border-border">
+          <h3 className="font-medium">Личный словарь</h3>
           {words.length === 0 ? (
-            <p className="hsk-muted">Словарь пуст. Сохраняйте слова после тренировок.</p>
+            <p className="text-sm text-muted-foreground">Словарь пуст.</p>
           ) : (
-            <ul className="hsk-list">
+            <ul className="space-y-2">
               {words.map((w) => (
-                <li key={w.id}>
+                <li
+                  key={w.id}
+                  className="flex flex-wrap justify-between gap-2 rounded-md border border-border px-3 py-2"
+                >
                   <div>
-                    <strong className="hsk-hanzi">{w.word}</strong>
-                    {w.pinyin ? <span className="hsk-muted"> · {w.pinyin}</span> : null}
-                    {w.translation ? <div className="hsk-muted">{w.translation}</div> : null}
-                    <div className="hsk-muted">{w.status || 'saved'}</div>
-                  </div>
-                  <div className="hsk-inline-actions">
-                    {w.status !== 'learned' ? (
-                      <button type="button" className="hsk-btn hsk-btn--ghost hsk-btn--sm" onClick={() => markLearned(w.id)}>
-                        Выучено
-                      </button>
+                    <strong>{w.word}</strong>
+                    {w.pinyin ? (
+                      <span className="text-muted-foreground text-sm"> · {w.pinyin}</span>
                     ) : null}
-                    <button type="button" className="hsk-btn hsk-btn--ghost hsk-btn--sm" onClick={() => removeWord(w.id)}>
+                    {w.translation ? (
+                      <div className="text-sm text-muted-foreground">{w.translation}</div>
+                    ) : null}
+                    <div className="text-xs text-muted-foreground">{w.status || 'saved'}</div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {w.status !== 'learned' ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="min-h-11"
+                        onClick={() => markLearned(w.id)}
+                      >
+                        Выучено
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="min-h-11"
+                      onClick={() => removeWord(w.id)}
+                    >
                       Удалить
-                    </button>
+                    </Button>
                   </div>
                 </li>
               ))}
             </ul>
           )}
-        </div>
+        </Card>
       )}
 
       {tab === 'favorites' && (
-        <div className="hsk-panel">
-          <h2>Избранное</h2>
-          <p className="hsk-muted">Сохранено: {favorites.length}</p>
+        <Card className="p-4 space-y-3 border-border">
+          <h3 className="font-medium">Избранное ({favorites.length})</h3>
           {favorites.length > 0 ? (
-            <ul className="hsk-list">
+            <ul className="space-y-2">
               {favorites.map((f) => (
-                <li key={f.id}>
-                  <span className="hsk-muted">{f.contentKind || f.content_kind} · {String(f.contentId || f.content_id).slice(0, 8)}…</span>
-                  <button type="button" className="hsk-btn hsk-btn--ghost hsk-btn--sm" onClick={() => removeFavorite(f.id)}>
+                <li
+                  key={f.id}
+                  className="flex flex-wrap justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm"
+                >
+                  <span className="text-muted-foreground">
+                    {f.contentKind || f.content_kind} ·{' '}
+                    {String(f.contentId || f.content_id).slice(0, 8)}…
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="min-h-11"
+                    onClick={() => removeFavorite(f.id)}
+                  >
                     Убрать
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
-          ) : null}
-          <div className="hsk-actions">
-            <Link className="hsk-btn" to={`${createPageUrl('HskAcademyPractice')}?mode=favorites`}>
+          ) : (
+            <p className="text-sm text-muted-foreground">Пока пусто.</p>
+          )}
+          <Button asChild className="min-h-11">
+            <Link to={`${createPageUrl('HskAcademyPractice')}?mode=favorites`}>
               Тренировать избранное
             </Link>
-          </div>
-        </div>
+          </Button>
+        </Card>
       )}
 
       {tab === 'review' && (
-        <div className="hsk-panel">
-          <h2>Нужно повторить</h2>
-          <p className="hsk-muted">Активных ошибок: {review.length}</p>
+        <Card className="p-4 space-y-3 border-border">
+          <h3 className="font-medium">Нужно повторить ({review.length})</h3>
           {review.length > 0 ? (
-            <ul className="hsk-list">
+            <ul className="space-y-2 text-sm">
               {review.slice(0, 20).map((r) => (
-                <li key={r.id}>
-                  <span>
-                    Ошибок: {r.wrongCount || r.wrong_count || 1}
-                    {r.lastWrongAt || r.last_wrong_at
-                      ? ` · ${new Date(r.lastWrongAt || r.last_wrong_at).toLocaleDateString()}`
-                      : ''}
-                  </span>
+                <li key={r.id} className="rounded-md border border-border px-3 py-2">
+                  Ошибок: {r.wrongCount || r.wrong_count || 1}
+                  {r.lastWrongAt || r.last_wrong_at
+                    ? ` · ${new Date(r.lastWrongAt || r.last_wrong_at).toLocaleDateString()}`
+                    : ''}
                 </li>
               ))}
             </ul>
-          ) : null}
-          <div className="hsk-actions">
-            <Link className="hsk-btn" to={`${createPageUrl('HskAcademyPractice')}?mode=error_review`}>
+          ) : (
+            <p className="text-sm text-muted-foreground">Ошибок нет.</p>
+          )}
+          <Button asChild className="min-h-11">
+            <Link to={`${createPageUrl('HskAcademyPractice')}?mode=error_review`}>
               Начать повторение
             </Link>
-          </div>
-        </div>
+          </Button>
+        </Card>
       )}
 
       {tab === 'achievements' && (
-        <div className="hsk-panel">
-          <h2>Достижения</h2>
+        <Card className="p-4 space-y-3 border-border">
+          <h3 className="font-medium">Достижения</h3>
           {achievements.length === 0 ? (
-            <p className="hsk-muted">Пока нет достижений — продолжайте подготовку.</p>
+            <p className="text-sm text-muted-foreground">Пока нет достижений.</p>
           ) : (
-            <ul className="hsk-list">
+            <ul className="space-y-2">
               {achievements.map((row) => (
-                <li key={row.id}>
+                <li key={row.id} className="rounded-md border border-border px-3 py-2 text-sm">
                   <strong>{row.achievement?.title || row.achievementId}</strong>
                 </li>
               ))}
             </ul>
           )}
-        </div>
+        </Card>
       )}
     </HskAcademyShell>
   );
