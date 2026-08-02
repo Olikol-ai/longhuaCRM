@@ -24,6 +24,8 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../../common/guards/roles.guard';
 import { ExamContentTaxonomyService } from '../services/exam-content-taxonomy.service';
 import { ExamContentMediaService } from '../services/exam-content-media.service';
 import { ExamContentItemsService } from '../services/exam-content-items.service';
@@ -169,8 +171,10 @@ class StructureDto {
   @IsArray() @ValidateNested({ each: true }) @Type(() => SectionDto) sections!: SectionDto[];
 }
 
+/** Exam Content Studio — Longhua school staff only (not tutors). */
 @Controller('exam-content')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Roles('admin', 'teacher')
 export class ExamContentController {
   constructor(
     private readonly taxonomy: ExamContentTaxonomyService,
@@ -266,6 +270,22 @@ export class ExamContentController {
       id,
       body.role,
       body.sort_order,
+    );
+  }
+
+  @Post('media/:id/link-group')
+  linkGroupMedia(
+    @Req() req: { user: DomainAccessActor },
+    @Param('id') id: string,
+    @Body() body: { group_id: string; role?: string; sort_order?: number; cascade_items?: boolean },
+  ) {
+    return this.media.linkGroup(
+      this.actor(req),
+      body.group_id,
+      id,
+      body.role,
+      body.sort_order,
+      body.cascade_items !== false,
     );
   }
 
@@ -388,9 +408,10 @@ export class ExamContentController {
     });
   }
 
+  /** @deprecated Review workflow removed — publishes immediately. */
   @Post('items/:id/submit-review')
   submitReview(@Req() req: { user: DomainAccessActor }, @Param('id') id: string) {
-    return this.items.setStatus(this.actor(req), id, 'in_review');
+    return this.items.setStatus(this.actor(req), id, 'published');
   }
 
   @Post('items/:id/publish')
@@ -463,9 +484,10 @@ export class ExamContentController {
     });
   }
 
+  /** @deprecated Review workflow removed — publishes immediately. */
   @Post('groups/:id/submit-review')
   groupReview(@Req() req: { user: DomainAccessActor }, @Param('id') id: string) {
-    return this.groups.setStatus(this.actor(req), id, 'in_review');
+    return this.groups.setStatus(this.actor(req), id, 'published');
   }
 
   @Post('groups/:id/publish')
@@ -553,9 +575,10 @@ export class ExamContentController {
     });
   }
 
+  /** @deprecated Review workflow removed — publishes immediately. */
   @Post('editions/:id/submit-review')
   editionReview(@Req() req: { user: DomainAccessActor }, @Param('id') id: string) {
-    return this.blueprints.setEditionStatus(this.actor(req), id, 'in_review');
+    return this.blueprints.setEditionStatus(this.actor(req), id, 'published');
   }
 
   @Post('editions/:id/publish')

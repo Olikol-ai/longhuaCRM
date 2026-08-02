@@ -74,6 +74,8 @@ import { OneActiveInviteLinkPerOwner1745100000000 } from './migrations/174510000
 import { LessonChatKindAndBackfill1745200000000 } from './migrations/1745200000000-LessonChatKindAndBackfill';
 import { ExamAcademySchema1745300000000 } from './migrations/1745300000000-ExamAcademySchema';
 import { ExamContentPlatformSchema1745400000000 } from './migrations/1745400000000-ExamContentPlatformSchema';
+import { AssessmentQuestionBankScope1745500000000 } from './migrations/1745500000000-AssessmentQuestionBankScope';
+import { DropExamContentInReview1745600000000 } from './migrations/1745600000000-DropExamContentInReview';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -151,6 +153,8 @@ export default new DataSource({
     LessonChatKindAndBackfill1745200000000,
     ExamAcademySchema1745300000000,
     ExamContentPlatformSchema1745400000000,
+    AssessmentQuestionBankScope1745500000000,
+    DropExamContentInReview1745600000000,
   ],
   synchronize: false,
 });

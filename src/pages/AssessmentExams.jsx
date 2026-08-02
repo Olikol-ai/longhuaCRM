@@ -135,8 +135,8 @@ export default function AssessmentExams() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Экзамены</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             {isAdmin
-              ? 'Все экзамены всех авторов: пулы генерации и публикация'
-              : 'Правила генерации из пулов: при старте попытки набор выбирается случайно'}
+              ? 'Все экзамены всех авторов: наборы заданий и публикация'
+              : 'При старте экзамена вопросы подбираются случайно из вашего набора'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -214,7 +214,7 @@ export default function AssessmentExams() {
             Экзаменов пока нет
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Создайте экзамен из пулов вопросов и Listening / Reading задач.
+            Создайте экзамен из вопросов и заданий на аудирование и чтение.
           </p>
           <Button
             className="bg-primary hover:bg-primary/90"
@@ -244,7 +244,7 @@ export default function AssessmentExams() {
                       <LifecycleBadge status={exam.status} />
                     </div>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                      Генерация из пулов при старте попытки
+                      Случайный набор вопросов при старте экзамена
                     </p>
                     <p className="text-xs text-slate-400">
                       Создан: {formatDateTime(exam.created_at)}
@@ -254,7 +254,7 @@ export default function AssessmentExams() {
                   <div className="flex flex-wrap gap-2">
                     <Button variant="outline" size="sm" onClick={() => goDetail(exam.id)}>
                       <Eye className="h-3.5 w-3.5 mr-1" />
-                      {exam.status === 'draft' ? 'Открыть' : 'Просмотр'}
+                      {exam.status === 'archived' ? 'Просмотр' : 'Открыть'}
                     </Button>
                     {exam.status === 'draft' && (
                       <Button

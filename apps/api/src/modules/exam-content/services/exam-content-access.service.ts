@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
+import { canManageHskAcademyContent } from '../../../common/constants/roles';
 import { PUBLISH_CAPABILITY } from '../constants';
 import { ExamContentPermissionEntity } from '../entities';
 
@@ -13,9 +14,10 @@ export class ExamContentAccessService {
   ) {}
 
   assertStaff(actor: DomainAccessActor): void {
-    const role = String(actor.role || '').toLowerCase();
-    if (role === 'admin' || role === 'teacher' || role === 'tutor') return;
-    throw new ForbiddenException('Exam Content Studio доступен преподавателям');
+    if (canManageHskAcademyContent(actor.role)) return;
+    throw new ForbiddenException(
+      'Exam Content Studio доступен только преподавателям школы Longhua',
+    );
   }
 
   isAdmin(actor: DomainAccessActor): boolean {

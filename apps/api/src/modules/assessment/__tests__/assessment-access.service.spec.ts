@@ -224,4 +224,74 @@ describe('AssessmentAccessService ACL', () => {
     await expect(access.assertCanManageExam(admin, 'exam-1')).resolves.toBeDefined();
     await expect(access.assertCanReadResult(admin, 'res-1')).resolves.toBeDefined();
   });
+
+  it('HSK Academy ECP materialization: student can start own exam_content without assignment', async () => {
+    examRepo.findOne.mockResolvedValue({
+      id: 'exam-ecp-1',
+      source: 'exam_content',
+      status: ContentLifecycleStatus.Published,
+      createdByUserId: 'user-s1',
+    });
+
+    await expect(
+      access.assertCanStartAttempt(
+        { sub: 'user-s1', role: 'student', email: 's@t.com' },
+        'exam-ecp-1',
+        null,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it('HSK Academy ECP materialization: teacher/tutor/admin can start own exam_content', async () => {
+    for (const role of ['teacher', 'tutor', 'admin'] as const) {
+      examRepo.findOne.mockResolvedValue({
+        id: `exam-${role}`,
+        source: 'exam_content',
+        status: ContentLifecycleStatus.Published,
+        createdByUserId: `user-${role}`,
+      });
+      await expect(
+        access.assertCanStartAttempt(
+          { sub: `user-${role}`, role, email: `${role}@t.com` },
+          `exam-${role}`,
+          null,
+        ),
+      ).resolves.toBeUndefined();
+    }
+  });
+
+  it('HSK Academy ECP materialization: student can read own exam_content', async () => {
+    examRepo.findOne.mockResolvedValue({
+      id: 'exam-ecp-2',
+      source: 'exam_content',
+      status: ContentLifecycleStatus.Published,
+      createdByUserId: 'user-s1',
+    });
+
+    await expect(
+      access.assertCanReadExam(
+        { sub: 'user-s1', role: 'student', email: 's@t.com' },
+        'exam-ecp-2',
+      ),
+    ).resolves.toMatchObject({ id: 'exam-ecp-2' });
+  });
+
+  it('regular assessment exam still requires assignment for student', async () => {
+    examRepo.findOne.mockResolvedValue({
+      id: 'exam-asg',
+      source: 'assessment',
+      status: ContentLifecycleStatus.Published,
+      createdByUserId: 'user-s1',
+    });
+    assignmentRepo.find.mockResolvedValue([]);
+    assignmentRepo.findOne.mockResolvedValue(null);
+
+    await expect(
+      access.assertCanStartAttempt(
+        { sub: 'user-s1', role: 'student', email: 's@t.com' },
+        'exam-asg',
+        null,
+      ),
+    ).rejects.toThrow(/no Assignment|not assigned|Forbidden/);
+  });
 });

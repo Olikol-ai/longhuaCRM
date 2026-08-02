@@ -15,15 +15,24 @@ export class AssessmentContentGuard {
     return entity;
   }
 
+  /** @deprecated Prefer assertEditable — published content may be edited; snapshots protect attempts. */
   assertDraft(status: ContentLifecycleStatus, label: string): void {
-    if (status !== ContentLifecycleStatus.Draft) {
-      throw new ConflictException(`${label} can only be edited while draft`);
+    this.assertEditable(status, label);
+  }
+
+  /** Draft and published are editable; archived is not. */
+  assertEditable(status: ContentLifecycleStatus, label: string): void {
+    if (status === ContentLifecycleStatus.Archived) {
+      throw new ConflictException(`${label} is archived and cannot be modified`);
     }
   }
 
   assertCanPublish(status: ContentLifecycleStatus, label: string): void {
-    if (status !== ContentLifecycleStatus.Draft) {
-      throw new ConflictException(`${label} can only be published from draft`);
+    if (status === ContentLifecycleStatus.Published) {
+      throw new ConflictException(`${label} is already published`);
+    }
+    if (status === ContentLifecycleStatus.Archived) {
+      throw new ConflictException(`${label} is archived and cannot be published`);
     }
   }
 

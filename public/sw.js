@@ -1,14 +1,18 @@
 /* Longhua Academy — installability SW (network-first). */
 /* Bump CACHE when icons change. Never precache index.html — stale HTML → broken hashed chunks. */
-const CACHE = 'longhua-academy-shell-v5-20260801b';
+const ICON_V = '20260802c';
+const CACHE = `longhua-academy-shell-v7-${ICON_V}`;
 const PRECACHE = [
-  '/manifest.webmanifest',
-  '/favicon.ico',
-  '/icons/favicon-16x16.png',
-  '/icons/favicon-32x32.png',
-  '/icons/apple-touch-icon.png',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
+  `/manifest.webmanifest?v=${ICON_V}`,
+  `/favicon.ico?v=${ICON_V}`,
+  `/icons/favicon-16x16.png?v=${ICON_V}`,
+  `/icons/favicon-32x32.png?v=${ICON_V}`,
+  `/icons/favicon-48.png?v=${ICON_V}`,
+  `/icons/apple-touch-icon.png?v=${ICON_V}`,
+  `/icons/icon-192.png?v=${ICON_V}`,
+  `/icons/icon-512.png?v=${ICON_V}`,
+  `/icons/icon-maskable-192.png?v=${ICON_V}`,
+  `/icons/icon-maskable-512.png?v=${ICON_V}`,
 ];
 
 function isScriptOrStyleRequest(url) {

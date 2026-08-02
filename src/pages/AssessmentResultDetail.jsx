@@ -50,7 +50,7 @@ export default function AssessmentResultDetail() {
     );
   }
 
-  const breakdowns = result.breakdowns || [];
+  const breakdowns = (result.breakdowns || []).filter((b) => b && typeof b === 'object');
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6 pb-16">

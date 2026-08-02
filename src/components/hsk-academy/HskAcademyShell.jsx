@@ -1,53 +1,79 @@
 import { Link } from 'react-router-dom';
-import { Award } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { useAuth } from '@/lib/AuthContext';
+import { canManageHskAcademyContent } from '@/lib/hskAcademyAccess';
 import { cn } from '@/lib/utils';
+import AcademyBackButton from '@/components/hsk-academy/AcademyBackButton';
 
-export default function HskAcademyShell({ active, children }) {
+const TABS = [
+  { id: 'hub', label: 'Обзор', shortLabel: 'Обзор', page: 'HskAcademy' },
+  { id: 'practice', label: 'Тренировка', shortLabel: 'Тренировка', page: 'HskAcademyPractice' },
+  { id: 'mock', label: 'Пробный экзамен', shortLabel: 'Пробный', page: 'HskAcademyMock' },
+  { id: 'prep', label: 'Моя подготовка', shortLabel: 'Подготовка', page: 'HskAcademyPreparation' },
+];
+
+const PAGE_BY_ACTIVE = {
+  hub: 'HskAcademy',
+  practice: 'HskAcademyPractice',
+  mock: 'HskAcademyMock',
+  prep: 'HskAcademyPreparation',
+  bank: 'ExamContentBank',
+};
+
+export default function HskAcademyShell({ active, children, title, description }) {
   const { user } = useAuth();
-  const canBank = ['admin', 'teacher', 'tutor'].includes(user?.role);
-  const tabs = [
-    { id: 'hub', label: 'Обзор', page: 'HskAcademy' },
-    { id: 'practice', label: 'Тренировка', page: 'HskAcademyPractice' },
-    { id: 'mock', label: 'Пробный экзамен', page: 'HskAcademyMock' },
-    { id: 'prep', label: 'Моя подготовка', page: 'HskAcademyPreparation' },
-    ...(canBank ? [{ id: 'bank', label: 'Контент', page: 'ExamContent' }] : []),
-  ];
+  const canBank = canManageHskAcademyContent(user?.role);
+  const tabs = canBank
+    ? [
+        ...TABS,
+        {
+          id: 'bank',
+          label: 'Банк вопросов HSK',
+          shortLabel: 'Банк HSK',
+          page: 'ExamContentBank',
+        },
+      ]
+    : TABS;
+
+  const backPage = PAGE_BY_ACTIVE[active] || 'HskAcademy';
 
   return (
-    <div className="space-y-6 w-full min-w-0">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="h-10 w-10 shrink-0 rounded-lg bg-brand text-primary-foreground grid place-items-center">
-            <Award className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm text-muted-foreground">Longhua CRM</p>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">HSK Academy</h1>
-          </div>
-        </div>
-        <nav
-          className="flex flex-wrap gap-2 max-w-full overflow-x-auto"
-          aria-label="HSK Academy"
-        >
-          {tabs.map((tab) => (
+    <div className="p-3 sm:p-6 lg:p-8 w-full max-w-6xl mx-auto space-y-4 sm:space-y-5 min-w-0 overflow-x-hidden">
+      <div className="min-w-0 space-y-2">
+        <AcademyBackButton page={backPage} />
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">
+          {title || 'HSK Academy'}
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+          {description || 'Подготовка к HSK: тренировки, пробные экзамены и личный прогресс.'}
+        </p>
+      </div>
+
+      <nav
+        className="flex gap-1 sm:gap-2 overflow-x-auto border-b border-border pb-2 -mx-1 px-1"
+        aria-label="HSK Academy"
+      >
+        {tabs.map((tab) => {
+          const isActive = active === tab.id;
+          return (
             <Link
               key={tab.id}
               to={createPageUrl(tab.page)}
               className={cn(
-                'rounded-md px-3 py-2 text-sm border transition-colors min-h-11 inline-flex items-center',
-                active === tab.id
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-background hover:bg-muted border-border text-foreground',
+                'inline-flex shrink-0 items-center justify-center min-h-11 sm:min-h-10 rounded-lg px-2.5 sm:px-3 py-2 text-xs sm:text-sm transition-colors',
+                isActive
+                  ? 'bg-brand/10 text-brand font-medium'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
               )}
             >
-              {tab.label}
+              <span className="sm:hidden">{tab.shortLabel}</span>
+              <span className="hidden sm:inline">{tab.label}</span>
             </Link>
-          ))}
-        </nav>
-      </div>
-      {children}
+          );
+        })}
+      </nav>
+
+      <div className="space-y-4 sm:space-y-5 min-w-0">{children}</div>
     </div>
   );
 }

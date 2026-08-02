@@ -202,6 +202,27 @@ export class AssessmentAttemptRepository {
     return this.attemptAnswerRepo.find({ where: { attemptId } });
   }
 
+  /**
+   * True when the learner saved at least one real answer (choice / text / audio).
+   * Empty attempt_answer shells without content do not count.
+   */
+  async countEngagedAnswers(attemptId: string): Promise<number> {
+    const raw = await this.attemptAnswerRepo
+      .createQueryBuilder('a')
+      .leftJoin('a.selections', 'sel')
+      .where('a.attempt_id = :attemptId', { attemptId })
+      .andWhere(
+        `(
+          (a.text_answer IS NOT NULL AND TRIM(a.text_answer) <> '')
+          OR a.audio_storage_key IS NOT NULL
+          OR sel.id IS NOT NULL
+        )`,
+      )
+      .select('COUNT(DISTINCT a.id)', 'cnt')
+      .getRawOne<{ cnt: string }>();
+    return Number(raw?.cnt) || 0;
+  }
+
   findAttemptAnswerById(id: string): Promise<AssessmentAttemptAnswerEntity | null> {
     return this.attemptAnswerRepo.findOne({ where: { id } });
   }

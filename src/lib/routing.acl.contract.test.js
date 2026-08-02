@@ -45,8 +45,31 @@ describe('SPA route ACL (menu is not security)', () => {
     assert.match(routing, /'\/AdminPanel': \['admin'\]/);
     assert.match(routing, /'\/TutorStats': \['admin', 'tutor'\]/);
     assert.match(routing, /'\/TeacherAssessment': \['admin', 'teacher'\]/);
+    assert.match(routing, /'\/HskAcademy': \['admin', 'teacher', 'student'\]/);
+    assert.match(routing, /'\/ExamContent': \['admin', 'teacher'\]/);
     assert.doesNotMatch(routing, /AssessmentExamBlocks/);
     assert.doesNotMatch(routing, /AssessmentBanks/);
+  });
+
+  it('denies tutors and tutor_students on HSK Academy and Exam Content', () => {
+    for (const path of [
+      'HskAcademy',
+      'HskAcademyPractice',
+      'HskAcademyMock',
+      'HskAcademyPreparation',
+      'HskAcademyTake',
+      'HskAcademyResult',
+      'ExamContent',
+      'ExamContentBank',
+      'ExamContentMedia',
+      'ExamContentExams',
+      'ExamContentOps',
+    ]) {
+      const line = routing.split('\n').find((l) => l.includes(`'/${path}'`));
+      assert.ok(line, `missing allowlist for /${path}`);
+      assert.doesNotMatch(line, /'tutor'/);
+      assert.doesNotMatch(line, /tutor_student/);
+    }
   });
 
   it('denies students and tutor_students on authoring / admin / salary surfaces', () => {

@@ -1125,6 +1125,11 @@ export class HomeworkService {
           where: { id: task.question_id },
         });
         if (!q) throw new BadRequestException(`Question ${task.question_id} not found`);
+        if (q.bankScope && q.bankScope !== 'assessment') {
+          throw new BadRequestException(
+            `Question ${task.question_id} принадлежит банку HSK и нельзя использовать в домашнем задании`,
+          );
+        }
         if (q.createdByUserId && q.createdByUserId !== user.sub && user.role !== 'admin') {
           throw new ForbiddenException('Cannot use another author question');
         }

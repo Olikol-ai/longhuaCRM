@@ -18,8 +18,12 @@ import {
 import { api } from '@/api';
 import ListeningTaskEditor from '@/components/assessment/ListeningTaskEditor';
 import LifecycleBadge from '@/components/assessment/LifecycleBadge';
+import ExamCreateDialog from '@/components/assessment/ExamCreateDialog';
 import QuestionFormDialog from '@/components/assessment/QuestionFormDialog';
+import QuestionPreviewDialog from '@/components/assessment/QuestionPreviewDialog';
 import ReadingTaskEditor from '@/components/assessment/ReadingTaskEditor';
+import { createPageUrl } from '@/utils';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -50,6 +54,7 @@ const TABS = [
 ];
 
 export default function AssessmentQuestions() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const [tab, setTab] = useState('questions');
@@ -79,6 +84,9 @@ export default function AssessmentQuestions() {
   const [busyId, setBusyId] = useState(null);
   const [ownerNames, setOwnerNames] = useState({});
   const [authorFilter, setAuthorFilter] = useState('');
+  const [previewId, setPreviewId] = useState(null);
+  const [examCreateOpen, setExamCreateOpen] = useState(false);
+  const [examPrefillQuestionId, setExamPrefillQuestionId] = useState(null);
 
   const loadSectionTasks = useCallback(async () => {
     if (tab === 'questions') return;
@@ -177,6 +185,7 @@ export default function AssessmentQuestions() {
         } else if (actionType === 'delete') {
           await api.assessment.deleteQuestion(question.id);
           removeQuestion(question.id);
+          setPreviewId((prev) => (prev === question.id ? null : prev));
           toast({ title: 'Вопрос успешно удалён.' });
         }
       } else if (action.task) {
@@ -362,6 +371,18 @@ export default function AssessmentQuestions() {
     }));
   }, [isAdmin, tab, visibleQuestions, filteredTasks, ownerNames]);
 
+  const previewQuestionIds = useMemo(() => {
+    if (isAdmin && ownerTree && tab === 'questions') {
+      return ownerTree.flatMap((g) => g.rows.map((r) => r.id));
+    }
+    return visibleQuestions.map((q) => q.id);
+  }, [isAdmin, ownerTree, tab, visibleQuestions]);
+
+  const previewQuestion = useMemo(
+    () => visibleQuestions.find((q) => q.id === previewId) || null,
+    [visibleQuestions, previewId],
+  );
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -369,8 +390,8 @@ export default function AssessmentQuestions() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Вопросы</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             {isAdmin
-              ? 'Все авторы: тест-вопросы и контейнеры Listening / Reading'
-              : 'Атомарные тест-вопросы и контейнеры Listening / Reading'}
+              ? 'Вопросы всех авторов: тесты, аудирование и чтение'
+              : 'Тестовые вопросы, задания на аудирование и чтение'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -550,6 +571,7 @@ export default function AssessmentQuestions() {
                     q={row.raw}
                     busyId={busyId}
                     canDelete={canDeleteQuestion(row.raw)}
+                    onPreview={setPreviewId}
                     onEdit={openEdit}
                     onConfirm={setConfirmAction}
                     authorName={group.ownerName}
@@ -567,6 +589,7 @@ export default function AssessmentQuestions() {
                 q={q}
                 busyId={busyId}
                 canDelete={canDeleteQuestion(q)}
+                onPreview={setPreviewId}
                 onEdit={openEdit}
                 onConfirm={setConfirmAction}
                 authorName={
@@ -628,12 +651,12 @@ export default function AssessmentQuestions() {
                         setTaskDialogOpen(true);
                       }}
                     >
-                      {task.status === 'draft' ? (
-                        <Pencil className="h-3.5 w-3.5 mr-1" />
-                      ) : (
+                      {task.status === 'archived' ? (
                         <Eye className="h-3.5 w-3.5 mr-1" />
+                      ) : (
+                        <Pencil className="h-3.5 w-3.5 mr-1" />
                       )}
-                      {task.status === 'draft' ? 'Изменить' : 'Просмотр'}
+                      {task.status === 'archived' ? 'Просмотр' : 'Изменить'}
                     </Button>
                     {task.status === 'draft' && (
                       <Button
@@ -674,6 +697,47 @@ export default function AssessmentQuestions() {
         onSaved={() => {
           toast({ title: editing ? 'Вопрос обновлён' : 'Вопрос создан' });
           reload();
+        }}
+      />
+
+      <QuestionPreviewDialog
+        open={Boolean(previewId)}
+        onOpenChange={(open) => {
+          if (!open) setPreviewId(null);
+        }}
+        bank="assessment"
+        questionIds={previewQuestionIds}
+        initialId={previewId}
+        canDelete={previewQuestion ? canDeleteQuestion(previewQuestion) : false}
+        onEdit={(question, mode = 'edit') => {
+          setPreviewId(null);
+          openEdit(question, mode);
+        }}
+        onRequestDelete={(detail) => {
+          setPreviewId(null);
+          setConfirmAction({ type: 'delete', question: detail });
+        }}
+        onCopied={() => {
+          reload();
+        }}
+        onOpenExamCreate={(questionId) => {
+          setExamPrefillQuestionId(questionId);
+          setExamCreateOpen(true);
+        }}
+      />
+
+      <ExamCreateDialog
+        open={examCreateOpen}
+        onOpenChange={(open) => {
+          setExamCreateOpen(open);
+          if (!open) setExamPrefillQuestionId(null);
+        }}
+        prefillQuestionId={examPrefillQuestionId}
+        onCreated={(created) => {
+          toast({ title: 'Экзамен создан' });
+          if (created?.id) {
+            navigate(`${createPageUrl('AssessmentExamDetail')}?id=${created.id}`);
+          }
         }}
       />
 
@@ -728,9 +792,21 @@ export default function AssessmentQuestions() {
   );
 }
 
-function QuestionCardRow({ q, busyId, canDelete, onEdit, onConfirm, authorName, showAuthor }) {
+function QuestionCardRow({ q, busyId, canDelete, onPreview, onEdit, onConfirm, authorName, showAuthor }) {
   return (
-    <article className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/80 p-4 sm:p-5">
+    <article
+      className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/80 p-4 sm:p-5 cursor-pointer transition-colors hover:border-brand/40 hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
+      onClick={() => onPreview?.(q.id)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onPreview?.(q.id);
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      data-testid={`question-row-${q.id}`}
+    >
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-2 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -751,27 +827,37 @@ function QuestionCardRow({ q, busyId, canDelete, onEdit, onConfirm, authorName, 
             {formatDateTime(q.updated_at || q.created_at)}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 shrink-0">
-          {q.status === 'draft' ? (
+        <div
+          className="flex flex-wrap gap-2 shrink-0"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          <Button variant="outline" size="sm" disabled={busyId === q.id} onClick={() => onPreview?.(q.id)}>
+            <Eye className="h-3.5 w-3.5 mr-1" />
+            Просмотр
+          </Button>
+          {q.status !== 'archived' ? (
             <>
               <Button variant="outline" size="sm" disabled={busyId === q.id} onClick={() => onEdit(q, 'edit')}>
                 <Pencil className="h-3.5 w-3.5 mr-1" />
                 Изменить
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busyId === q.id}
-                onClick={() => onConfirm({ type: 'publish', question: q })}
-              >
-                <Send className="h-3.5 w-3.5 mr-1" />
-                Опубликовать
-              </Button>
+              {q.status === 'draft' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={busyId === q.id}
+                  onClick={() => onConfirm({ type: 'publish', question: q })}
+                >
+                  <Send className="h-3.5 w-3.5 mr-1" />
+                  Опубликовать
+                </Button>
+              )}
             </>
           ) : (
             <Button variant="outline" size="sm" onClick={() => onEdit(q, 'edit')}>
               <Eye className="h-3.5 w-3.5 mr-1" />
-              Просмотр
+              Архив
             </Button>
           )}
           {canDelete && (

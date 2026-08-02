@@ -3,10 +3,16 @@ import { api } from '@/api';
 import ExamContentShell from '@/components/exam-content/ExamContentShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Card } from '@/components/ui/card';
 import { userFacingError } from '@/lib/userFacingError';
+import { MEDIA_KIND_LABEL } from '@/lib/examContentLabels';
+
+const fieldCls =
+  'h-11 min-h-11 w-full rounded-md border border-input bg-background px-3 text-base md:h-10 md:min-h-10 md:text-sm';
 
 export default function ExamContentMedia() {
   const [items, setItems] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [kind, setKind] = useState('');
   const [form, setForm] = useState({
     kind: 'audio',
@@ -14,12 +20,18 @@ export default function ExamContentMedia() {
     title: '',
     mime: '',
   });
+  const [linkAssetId, setLinkAssetId] = useState('');
+  const [linkGroupId, setLinkGroupId] = useState('');
   const [error, setError] = useState('');
   const [ok, setOk] = useState('');
 
   const reload = async () => {
-    const rows = await api.examContent.media.list(kind || undefined);
-    setItems(Array.isArray(rows) ? rows : []);
+    const [mediaRows, groupRows] = await Promise.all([
+      api.examContent.media.list(kind || undefined),
+      api.examContent.groups.list({}),
+    ]);
+    setItems(Array.isArray(mediaRows) ? mediaRows : []);
+    setGroups(Array.isArray(groupRows) ? groupRows : []);
   };
 
   useEffect(() => {
@@ -33,34 +45,58 @@ export default function ExamContentMedia() {
     try {
       await api.examContent.media.register(form);
       setForm({ kind: 'audio', storage_key: '', title: '', mime: '' });
-      setOk('Media зарегистрирован в библиотеке');
+      setOk('Файл добавлен в медиатеку');
       await reload();
     } catch (err) {
       setError(userFacingError(err));
     }
   };
 
-  return (
-    <ExamContentShell active="media">
-      <p className="text-sm text-muted-foreground">
-        Сначала загрузите файл через SecureFiles, затем зарегистрируйте storage_key здесь.
-        Один asset можно привязать к нескольким заданиям и группам.
-      </p>
+  const linkAudioToGroup = async () => {
+    setError('');
+    setOk('');
+    if (!linkAssetId || !linkGroupId) {
+      setError('Выберите аудиофайл и группу вопросов');
+      return;
+    }
+    try {
+      await api.examContent.media.linkGroup(linkAssetId, {
+        group_id: linkGroupId,
+        role: 'stimulus',
+        cascade_items: true,
+      });
+      setOk('Аудио прикреплено к группе (и ко всем вопросам в ней)');
+    } catch (err) {
+      setError(userFacingError(err));
+    }
+  };
 
-      <div className="rounded-lg border border-border p-4 space-y-3 bg-card">
-        <h2 className="font-medium">Зарегистрировать asset</h2>
+  const audioItems = items.filter((m) => m.kind === 'audio');
+
+  return (
+    <ExamContentShell
+      active="media"
+      title="Медиатека"
+      description="Аудио и изображения для заданий. Один файл можно использовать в нескольких вопросах и группах."
+    >
+      <Card className="p-4 space-y-3 border-border">
+        <h2 className="font-medium">Добавить файл</h2>
+        <p className="text-sm text-muted-foreground">
+          Сначала загрузите файл через безопасное хранилище, затем укажите его ключ здесь.
+        </p>
         <div className="grid gap-3 md:grid-cols-2">
           <label className="text-sm space-y-1">
             <span className="text-muted-foreground">Тип</span>
             <select
-              className="w-full h-9 rounded-md border border-input bg-background px-2"
+              className={fieldCls}
               value={form.kind}
               onChange={(e) => setForm({ ...form, kind: e.target.value })}
             >
-              <option value="audio">audio</option>
-              <option value="image">image</option>
-              <option value="video">video</option>
-              <option value="pdf">pdf</option>
+              {Object.entries(MEDIA_KIND_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
             </select>
           </label>
           <label className="text-sm space-y-1">
@@ -68,7 +104,7 @@ export default function ExamContentMedia() {
             <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
           </label>
           <label className="text-sm space-y-1 md:col-span-2">
-            <span className="text-muted-foreground">storage_key (SecureFiles)</span>
+            <span className="text-muted-foreground">Ключ файла</span>
             <Input
               value={form.storage_key}
               onChange={(e) => setForm({ ...form, storage_key: e.target.value })}
@@ -76,58 +112,104 @@ export default function ExamContentMedia() {
             />
           </label>
           <label className="text-sm space-y-1">
-            <span className="text-muted-foreground">MIME</span>
+            <span className="text-muted-foreground">Формат файла (необязательно)</span>
             <Input value={form.mime} onChange={(e) => setForm({ ...form, mime: e.target.value })} />
           </label>
         </div>
-        <Button type="button" disabled={!form.storage_key.trim()} onClick={register}>
+        <Button type="button" className="min-h-11" disabled={!form.storage_key.trim()} onClick={register}>
           Добавить в библиотеку
         </Button>
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        {ok ? <p className="text-sm text-muted-foreground">{ok}</p> : null}
-      </div>
+      </Card>
 
-      <div className="rounded-lg border border-border p-4 space-y-3 bg-card">
+      <Card className="p-4 space-y-3 border-border">
+        <h2 className="font-medium">Прикрепить аудио к группе вопросов</h2>
+        <p className="text-sm text-muted-foreground">
+          Один аудиофайл может звучать для нескольких вопросов одной группы.
+        </p>
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="text-sm space-y-1">
+            <span className="text-muted-foreground">Аудио</span>
+            <select
+              className={fieldCls}
+              value={linkAssetId}
+              onChange={(e) => setLinkAssetId(e.target.value)}
+            >
+              <option value="">Выберите…</option>
+              {audioItems.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.title || m.storageKey || m.storage_key || m.id}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm space-y-1">
+            <span className="text-muted-foreground">Группа вопросов</span>
+            <select
+              className={fieldCls}
+              value={linkGroupId}
+              onChange={(e) => setLinkGroupId(e.target.value)}
+            >
+              <option value="">Выберите…</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.title || g.id}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <Button type="button" className="min-h-11" onClick={linkAudioToGroup}>
+          Прикрепить аудио
+        </Button>
+      </Card>
+
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {ok ? <p className="text-sm text-muted-foreground">{ok}</p> : null}
+
+      <Card className="p-4 space-y-3 border-border">
         <div className="flex flex-wrap gap-3 items-end justify-between">
           <h2 className="font-medium">Библиотека ({items.length})</h2>
           <select
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+            className="h-10 rounded-md border border-input bg-background px-2 text-sm"
             value={kind}
             onChange={(e) => setKind(e.target.value)}
           >
             <option value="">Все типы</option>
-            <option value="audio">audio</option>
-            <option value="image">image</option>
-            <option value="video">video</option>
-            <option value="pdf">pdf</option>
+            {Object.entries(MEDIA_KIND_LABEL).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
           </select>
         </div>
         <ul className="divide-y divide-border">
           {items.map((m) => (
             <li key={m.id} className="py-3 flex flex-wrap gap-2 justify-between items-center">
-              <div>
-                <div className="font-medium">{m.title || m.storageKey || m.storage_key}</div>
+              <div className="min-w-0">
+                <div className="font-medium truncate">{m.title || m.storageKey || m.storage_key}</div>
                 <div className="text-xs text-muted-foreground">
-                  {m.kind} · {m.mime || '—'} · {m.storageKey || m.storage_key}
+                  {MEDIA_KIND_LABEL[m.kind] || m.kind}
+                  {m.mime ? ` · ${m.mime}` : ''}
                 </div>
               </div>
               <Button
                 size="sm"
                 variant="ghost"
+                className="min-h-10"
                 onClick={() => {
-                  if (!window.confirm('Архивировать asset (если нет ссылок)?')) return;
+                  if (!window.confirm('Убрать файл из библиотеки?')) return;
                   api.examContent.media
                     .archive(m.id)
                     .then(reload)
                     .catch((e) => setError(userFacingError(e)));
                 }}
               >
-                Архив
+                Убрать
               </Button>
             </li>
           ))}
         </ul>
-      </div>
+      </Card>
     </ExamContentShell>
   );
 }

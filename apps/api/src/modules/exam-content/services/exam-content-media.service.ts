@@ -10,6 +10,7 @@ import {
   ExamContentGroupMediaEntity,
   ExamContentItemMediaEntity,
   ExamContentMediaAssetEntity,
+  ExamContentGroupItemEntity,
 } from '../entities';
 import { ExamContentAccessService } from './exam-content-access.service';
 import { ExamContentChangeLogService } from './exam-content-change-log.service';
@@ -23,6 +24,8 @@ export class ExamContentMediaService {
     private readonly itemMedia: Repository<ExamContentItemMediaEntity>,
     @InjectRepository(ExamContentGroupMediaEntity)
     private readonly groupMedia: Repository<ExamContentGroupMediaEntity>,
+    @InjectRepository(ExamContentGroupItemEntity)
+    private readonly groupItems: Repository<ExamContentGroupItemEntity>,
     private readonly access: ExamContentAccessService,
     private readonly changeLog: ExamContentChangeLogService,
   ) {}
@@ -118,15 +121,41 @@ export class ExamContentMediaService {
     assetId: string,
     role = 'stimulus',
     sortOrder = 0,
+    cascadeToItems = true,
   ) {
     this.access.assertStaff(actor);
     const asset = await this.assets.findOne({ where: { id: assetId, status: 'active' } });
     if (!asset) throw new NotFoundException('Media not found');
-    return this.groupMedia.save({
+    const link = await this.groupMedia.save({
       groupId,
       assetId,
       role,
       sortOrder,
     });
+    // Cascade so Take/runtime (item-level attachments) sees the same audio.
+    if (cascadeToItems) {
+      const members = await this.groupItems.find({ where: { groupId } });
+      for (const member of members) {
+        const existing = await this.itemMedia.findOne({
+          where: { itemId: member.itemId, assetId },
+        });
+        if (!existing) {
+          await this.itemMedia.save({
+            itemId: member.itemId,
+            assetId,
+            role,
+            sortOrder,
+          });
+        }
+      }
+    }
+    await this.changeLog.record({
+      entityType: 'group',
+      entityId: groupId,
+      actorUserId: actor.sub,
+      action: 'update',
+      summary: `Linked media ${asset.kind} to group`,
+    });
+    return link;
   }
 }

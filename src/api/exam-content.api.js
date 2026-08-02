@@ -35,6 +35,11 @@ export const examContent = {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
+    linkGroup: (assetId, payload) =>
+      apiFetch(`/exam-content/media/${encodeURIComponent(assetId)}/link-group`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
   },
   items: {
     list: (filters = {}) => apiFetch(`/exam-content/items${qs(filters)}`),

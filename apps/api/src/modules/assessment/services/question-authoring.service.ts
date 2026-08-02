@@ -11,6 +11,7 @@ import {
   AUTHORING_ATOMIC_QUESTION_TYPES,
   AttachmentKind,
   ContentLifecycleStatus,
+  QuestionBankScope,
   QuestionType,
 } from '../enums';
 import {
@@ -36,6 +37,8 @@ export type CreateQuestionInput = {
   topicIds?: string[];
   answers?: AnswerInput[];
   createdByUserId?: string | null;
+  /** Defaults to Assessment CRM bank. ECP must pass exam_content. */
+  bankScope?: string;
 };
 
 export type UpdateQuestionInput = {
@@ -94,8 +97,8 @@ export class QuestionAuthoringService {
     filter: ListQuestionsFilter = {},
   ): Promise<AssessmentQuestionEntity[]> {
     let items = this.access.isAdmin(actor)
-      ? await this.questions.findAll()
-      : await this.questions.filterByOwner(actor.sub);
+      ? await this.questions.findAll(QuestionBankScope.Assessment)
+      : await this.questions.filterByOwner(actor.sub, QuestionBankScope.Assessment);
 
     if (filter.status) {
       items = items.filter((q) => q.status === filter.status);
@@ -154,6 +157,7 @@ export class QuestionAuthoringService {
       explanation: input.explanation ?? null,
       createdByUserId: input.createdByUserId ?? actor.sub,
       status: ContentLifecycleStatus.Draft,
+      bankScope: input.bankScope || QuestionBankScope.Assessment,
     });
 
     if (input.answers?.length) {
@@ -367,12 +371,7 @@ export class QuestionAuthoringService {
   }
 
   private assertEditable(question: AssessmentQuestionEntity): void {
-    if (question.status === ContentLifecycleStatus.Published) {
-      throw new ConflictException('Question cannot be edited after publish');
-    }
-    if (question.status === ContentLifecycleStatus.Archived) {
-      throw new ConflictException('Question cannot be modified when archived');
-    }
+    this.guard.assertEditable(question.status, 'Question');
   }
 
   private snapshot(question: AssessmentQuestionEntity) {

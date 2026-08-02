@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 const fieldCls =
-  'w-full h-11 rounded-md border border-input bg-background px-3 text-sm';
+  'h-11 min-h-11 w-full rounded-md border border-input bg-background px-3 text-base md:h-10 md:min-h-10 md:text-sm';
 
 export default function HskAcademyPractice() {
   const [params] = useSearchParams();
@@ -112,7 +112,7 @@ export default function HskAcademyPractice() {
         show_correct_answers: mode === 'practice' ? 'after_item' : 'after_submit',
       });
       await api.examAcademy.sessions.start(session.id);
-      navigate(`${createPageUrl('HskAcademyTake')}?sessionId=${session.id}`);
+      navigate(`${createPageUrl('HskAcademyTake')}?sessionId=${session.id}&from=practice`);
     } catch (err) {
       setError(userFacingError(err));
     } finally {
@@ -121,22 +121,21 @@ export default function HskAcademyPractice() {
   };
 
   return (
-    <HskAcademyShell active="practice">
-      <div>
-        <h2 className="text-xl font-semibold">{title}</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          {step === 'configure'
-            ? 'Настройте параметры, затем откройте экран подготовки.'
-            : 'Проверьте параметры и нажмите «Начать экзамен».'}
-        </p>
-      </div>
-
+    <HskAcademyShell
+      active="practice"
+      title={title}
+      description={
+        step === 'configure'
+          ? 'Выберите параметры и перейдите к подготовке.'
+          : 'Проверьте настройки перед стартом.'
+      }
+    >
       {step === 'configure' ? (
-        <Card className="p-5 space-y-4 border-border">
+        <Card className="p-4 sm:p-5 space-y-4 border-border max-w-2xl">
           <div className="grid gap-3 sm:grid-cols-2">
             {mode === 'practice' ? (
               <>
-                <label className="text-sm space-y-1">
+                <label className="text-sm space-y-1.5 block">
                   <span className="text-muted-foreground">Версия</span>
                   <select
                     className={fieldCls}
@@ -148,7 +147,7 @@ export default function HskAcademyPractice() {
                     ))}
                   </select>
                 </label>
-                <label className="text-sm space-y-1">
+                <label className="text-sm space-y-1.5 block">
                   <span className="text-muted-foreground">Уровень</span>
                   <select
                     className={fieldCls}
@@ -160,7 +159,7 @@ export default function HskAcademyPractice() {
                     ))}
                   </select>
                 </label>
-                <label className="text-sm space-y-1">
+                <label className="text-sm space-y-1.5 block">
                   <span className="text-muted-foreground">Раздел</span>
                   <select
                     className={fieldCls}
@@ -175,13 +174,13 @@ export default function HskAcademyPractice() {
                     ))}
                   </select>
                 </label>
-                <label className="text-sm space-y-1">
+                <label className="text-sm space-y-1.5 block">
                   <span className="text-muted-foreground">Количество заданий</span>
                   <Input
                     type="number"
                     min={1}
                     max={50}
-                    className="h-11"
+                    className={fieldCls}
                     value={questionCount}
                     onChange={(e) => setQuestionCount(e.target.value)}
                   />
@@ -190,13 +189,13 @@ export default function HskAcademyPractice() {
             ) : (
               <>
                 <p className="text-sm text-muted-foreground sm:col-span-2">
-                  Сессия будет собрана из{' '}
+                  Сессия из{' '}
                   {mode === 'favorites'
                     ? `избранного (${counts.favorites})`
                     : `ошибок (${counts.review})`}
                   .
                 </p>
-                <label className="text-sm space-y-1">
+                <label className="text-sm space-y-1.5 block">
                   <span className="text-muted-foreground">Версия</span>
                   <select
                     className={fieldCls}
@@ -208,7 +207,7 @@ export default function HskAcademyPractice() {
                     ))}
                   </select>
                 </label>
-                <label className="text-sm space-y-1">
+                <label className="text-sm space-y-1.5 block">
                   <span className="text-muted-foreground">Уровень</span>
                   <select
                     className={fieldCls}
@@ -225,10 +224,10 @@ export default function HskAcademyPractice() {
           </div>
           {emptyHint ? <p className="text-sm text-muted-foreground">{emptyHint}</p> : null}
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col-reverse sm:flex-row gap-2">
             <Button
               type="button"
-              className="min-h-11"
+              className="min-h-11 w-full sm:w-auto"
               disabled={!versionId || !levelId || Boolean(emptyHint)}
               onClick={() => {
                 setError('');
@@ -238,7 +237,7 @@ export default function HskAcademyPractice() {
               Далее
             </Button>
             {emptyHint ? (
-              <Button asChild variant="outline" className="min-h-11">
+              <Button asChild variant="outline" className="min-h-11 w-full sm:w-auto">
                 <Link to={createPageUrl('HskAcademyPractice')}>Обычная тренировка</Link>
               </Button>
             ) : null}
@@ -247,7 +246,7 @@ export default function HskAcademyPractice() {
       ) : (
         <ExamPrepScreen
           title={title}
-          lead="Проверьте параметры перед стартом. После старта откроется режим экзамена."
+          lead="После старта откроется режим экзамена без бокового меню CRM."
           metaRows={[
             { label: 'Режим', value: title },
             { label: 'Версия', value: versionTitle },
@@ -268,9 +267,8 @@ export default function HskAcademyPractice() {
             { label: 'Подсказки', value: mode === 'practice' ? 'После ответа' : 'После сдачи' },
           ]}
           tips={[
-            'Можно помечать задания и возвращаться к ним.',
-            'Ответы сохраняются автоматически; при обрыве сети — локальный черновик.',
-            'На мобильном используйте крупные кнопки внизу экрана.',
+            'Ответы сохраняются автоматически',
+            'Можно помечать задания и возвращаться к ним',
           ]}
           busy={busy}
           error={error}

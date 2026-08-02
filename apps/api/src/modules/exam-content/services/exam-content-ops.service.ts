@@ -227,12 +227,9 @@ export class ExamContentOpsService {
     let affected = 0;
     if (action === 'archive' || action === 'publish' || action === 'submit_review') {
       await this.access.assertCanPublish(actor);
+      // submit_review is legacy — review workflow removed; treat as publish.
       const status =
-        action === 'archive'
-          ? CONTENT_STATUS.Archived
-          : action === 'publish'
-            ? CONTENT_STATUS.Published
-            : CONTENT_STATUS.InReview;
+        action === 'archive' ? CONTENT_STATUS.Archived : CONTENT_STATUS.Published;
       for (const id of input.itemIds) {
         await this.itemsService.setStatus(actor, id, status);
         affected += 1;

@@ -1,9 +1,13 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../../common/guards/roles.guard';
 import { ExamAcademyCatalogService } from '../services/exam-academy-catalog.service';
 
+/** HSK Academy catalog — Longhua school only (not tutors / tutor_students). */
 @Controller('exam-academy/catalog')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Roles('admin', 'teacher', 'student')
 export class ExamAcademyCatalogController {
   constructor(private readonly catalog: ExamAcademyCatalogService) {}
 

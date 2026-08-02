@@ -28,6 +28,7 @@ import { AttemptService } from '../../assessment/services/attempt.service';
 import { ResultService } from '../../assessment/services/result.service';
 import { TeacherEntity } from '../../teachers/entities/teacher.entity';
 import { ExamContentItemEntity } from '../../exam-content/entities';
+import { ExamContentBlueprintsService } from '../../exam-content/services/exam-content-blueprints.service';
 import { ExamContentVariantGeneratorService } from '../../exam-content/services/exam-content-variant-generator.service';
 import {
   ASSESSMENT_EXAM_SOURCE,
@@ -36,6 +37,10 @@ import {
   SESSION_STATUS,
   SHOW_ANSWERS,
 } from '../constants';
+import {
+  resolvePreparationDisplayStatus,
+  shouldAppearInPreparationHistory,
+} from '../utils/preparation-history';
 import {
   ExamAcademyFavoriteEntity,
   ExamAcademyLevelEntity,
@@ -93,6 +98,7 @@ export class ExamAcademySessionService {
     private readonly results: ResultService,
     private readonly access: AssessmentAccessService,
     private readonly variantGenerator: ExamContentVariantGeneratorService,
+    private readonly ecpBlueprints: ExamContentBlueprintsService,
   ) {}
 
   async create(actor: DomainAccessActor, input: CreateSessionInput) {
@@ -146,6 +152,230 @@ export class ExamAcademySessionService {
     });
   }
 
+  /**
+   * True when the learner saved at least one real answer on the latest attempt.
+   */
+  async hasEngagement(sessionId: string): Promise<boolean> {
+    const link = await this.sessionAttempts.findOne({
+      where: { sessionId },
+      order: { attemptNumber: 'DESC' },
+    });
+    if (!link) return false;
+    const count = await this.attemptRepo.countEngagedAnswers(link.assessmentAttemptId);
+    return count > 0;
+  }
+
+  /**
+   * Discard a session that was opened but never answered.
+   * Engaged / completed sessions are left untouched.
+   */
+  async abandonIfEmpty(actor: DomainAccessActor, sessionId: string) {
+    const session = await this.get(actor, sessionId);
+    if (
+      session.status === SESSION_STATUS.Completed ||
+      session.status === SESSION_STATUS.Expired ||
+      session.status === SESSION_STATUS.Cancelled
+    ) {
+      return { session, discarded: false };
+    }
+
+    const engaged = await this.hasEngagement(session.id);
+    if (engaged) {
+      return { session, discarded: false };
+    }
+
+    await this.sessions.update(session.id, {
+      status: SESSION_STATUS.Cancelled,
+      completedAt: null,
+    });
+    session.status = SESSION_STATUS.Cancelled;
+    session.completedAt = null;
+    return { session, discarded: true };
+  }
+
+  /**
+   * Sync Academy session status from the linked Assessment attempt
+   * (timeout submit, empty completed → cancel, etc.).
+   */
+  async syncSessionLifecycle(
+    session: ExamAcademySessionEntity,
+  ): Promise<ExamAcademySessionEntity> {
+    if (
+      session.status === SESSION_STATUS.Cancelled ||
+      session.status === SESSION_STATUS.Draft ||
+      session.status === SESSION_STATUS.Ready
+    ) {
+      return session;
+    }
+
+    const link = await this.sessionAttempts.findOne({
+      where: { sessionId: session.id },
+      order: { attemptNumber: 'DESC' },
+    });
+    if (!link) return session;
+
+    const attempt = await this.attemptRepo.findById(link.assessmentAttemptId);
+    if (!attempt) return session;
+
+    const engaged = (await this.attemptRepo.countEngagedAnswers(attempt.id)) > 0;
+
+    if (attempt.status === AttemptStatus.Submitted) {
+      if (!engaged) {
+        if (session.status !== SESSION_STATUS.Cancelled) {
+          await this.sessions.update(session.id, {
+            status: SESSION_STATUS.Cancelled,
+            completedAt: null,
+          });
+          session.status = SESSION_STATUS.Cancelled;
+          session.completedAt = null;
+        }
+        return session;
+      }
+      const nextStatus =
+        attempt.submitReason === SubmitReason.Timeout
+          ? SESSION_STATUS.Expired
+          : SESSION_STATUS.Completed;
+      if (session.status !== nextStatus) {
+        const completedAt = attempt.submittedAt ?? new Date();
+        await this.sessions.update(session.id, {
+          status: nextStatus,
+          completedAt,
+        });
+        session.status = nextStatus;
+        session.completedAt = completedAt;
+      }
+      return session;
+    }
+
+    // Still live: empty long-running opens are cancelled on preparation sweep;
+    // timer elapsed with answers → mark expired (display) until/unless timeout job submits.
+    if (
+      !engaged &&
+      session.status === SESSION_STATUS.InProgress &&
+      session.startedAt &&
+      Date.now() - new Date(session.startedAt).getTime() > 15 * 60_000
+    ) {
+      await this.sessions.update(session.id, {
+        status: SESSION_STATUS.Cancelled,
+        completedAt: null,
+      });
+      session.status = SESSION_STATUS.Cancelled;
+      session.completedAt = null;
+      return session;
+    }
+
+    if (
+      engaged &&
+      session.status === SESSION_STATUS.InProgress &&
+      attempt.expiresAt &&
+      attempt.expiresAt.getTime() <= Date.now()
+    ) {
+      await this.sessions.update(session.id, {
+        status: SESSION_STATUS.Expired,
+        completedAt: attempt.expiresAt,
+      });
+      session.status = SESSION_STATUS.Expired;
+      session.completedAt = attempt.expiresAt;
+    }
+
+    return session;
+  }
+
+  /**
+   * History for «Моя подготовка»: only engaged in_progress / completed / expired.
+   * Sweeps empty abandoned sessions into cancelled.
+   */
+  async listPreparationHistory(userId: string, limit = 30) {
+    const rows = await this.sessions.find({
+      where: { createdByUserId: userId },
+      order: { createdAt: 'DESC' },
+      take: Math.max(limit * 3, 60),
+      relations: { level: true, programVersion: true },
+    });
+
+    const history: Array<
+      ExamAcademySessionEntity & {
+        display_status: string;
+        has_engagement: boolean;
+        result_percent: number | null;
+        result_score: number | null;
+        result_max_score: number | null;
+        submit_reason: string | null;
+      }
+    > = [];
+
+    for (const row of rows) {
+      const synced = await this.syncSessionLifecycle(row);
+      const engaged = await this.hasEngagement(synced.id);
+
+      if (
+        !engaged &&
+        (synced.status === SESSION_STATUS.InProgress ||
+          synced.status === SESSION_STATUS.Completed ||
+          synced.status === SESSION_STATUS.Expired)
+      ) {
+        await this.sessions.update(synced.id, {
+          status: SESSION_STATUS.Cancelled,
+          completedAt: null,
+        });
+        synced.status = SESSION_STATUS.Cancelled;
+        continue;
+      }
+
+      if (!shouldAppearInPreparationHistory({ status: synced.status, hasEngagement: engaged })) {
+        continue;
+      }
+
+      const link = await this.sessionAttempts.findOne({
+        where: { sessionId: synced.id },
+        order: { attemptNumber: 'DESC' },
+      });
+      let submitReason: string | null = null;
+      let resultPercent: number | null = null;
+      let resultScore: number | null = null;
+      let resultMaxScore: number | null = null;
+      if (link) {
+        const attempt = await this.attemptRepo.findById(link.assessmentAttemptId);
+        submitReason = attempt?.submitReason ?? null;
+        if (
+          synced.status === SESSION_STATUS.Completed ||
+          synced.status === SESSION_STATUS.Expired
+        ) {
+          try {
+            const result = await this.results.findByAttemptId(link.assessmentAttemptId);
+            if (result) {
+              resultPercent = Number(result.percent) || 0;
+              resultScore = Number(result.score) || 0;
+              resultMaxScore = Number(result.maxScore) || 0;
+            }
+          } catch {
+            // result optional for history row
+          }
+        }
+      }
+
+      const display =
+        resolvePreparationDisplayStatus({
+          status: synced.status,
+          submitReason,
+        }) || synced.status;
+
+      history.push({
+        ...synced,
+        display_status: display,
+        has_engagement: true,
+        result_percent: resultPercent,
+        result_score: resultScore,
+        result_max_score: resultMaxScore,
+        submit_reason: submitReason,
+      });
+
+      if (history.length >= limit) break;
+    }
+
+    return history;
+  }
+
   async get(actor: DomainAccessActor, sessionId: string) {
     const session = await this.sessions.findOne({
       where: { id: sessionId },
@@ -162,6 +392,7 @@ export class ExamAcademySessionService {
     const session = await this.get(actor, sessionId);
     if (
       session.status === SESSION_STATUS.Completed ||
+      session.status === SESSION_STATUS.Expired ||
       session.status === SESSION_STATUS.Cancelled
     ) {
       throw new BadRequestException('Session is already finished');
@@ -297,7 +528,11 @@ export class ExamAcademySessionService {
   }
 
   async runtime(actor: DomainAccessActor, sessionId: string) {
-    const session = await this.get(actor, sessionId);
+    let session = await this.get(actor, sessionId);
+    session = await this.syncSessionLifecycle(session);
+    if (session.status === SESSION_STATUS.Cancelled) {
+      throw new BadRequestException('Сессия отменена — попытка не была начата');
+    }
     const link = await this.sessionAttempts.findOne({
       where: { sessionId },
       order: { attemptNumber: 'DESC' },
@@ -307,6 +542,7 @@ export class ExamAcademySessionService {
     const state = await this.attempts.getState(link.assessmentAttemptId, actor);
     const version = await this.versions.findOne({ where: { id: session.programVersionId } });
     const level = await this.levels.findOne({ where: { id: session.levelId } });
+    const sectionTimings = await this.resolveSectionTimings(session, state.sections);
     return {
       session,
       attempt: {
@@ -318,6 +554,7 @@ export class ExamAcademySessionService {
         attemptNumber: state.attemptNumber,
       },
       sections: state.sections,
+      section_timings: sectionTimings,
       show_correct_answers: session.showCorrectAnswers,
       version_title: version?.title ?? null,
       level_title: level?.title ?? null,
@@ -378,8 +615,9 @@ export class ExamAcademySessionService {
   async getResult(actor: DomainAccessActor, sessionId: string) {
     const session = await this.get(actor, sessionId);
     const link = await this.requireLatestAttempt(actor, sessionId);
-    const result = await this.results.getByAttemptForActor(link.assessmentAttemptId, actor);
-    const breakdowns = result.breakdowns ?? [];
+    // ResultService returns plain DTOs (no TypeORM relation cycles).
+    const resultDto = await this.results.getByAttemptForActor(link.assessmentAttemptId, actor);
+    const breakdowns = Array.isArray(resultDto.breakdowns) ? resultDto.breakdowns : [];
     const attemptAnswers = await this.attemptRepo.findAttemptAnswersByAttemptId(
       link.assessmentAttemptId,
     );
@@ -421,18 +659,51 @@ export class ExamAcademySessionService {
       }),
     );
 
+    // Clone breakdown rows for the top-level field so Nest/JSON does not
+    // nullify the second occurrence of the same object references.
+    const breakdownsPlain = breakdowns.map((b) => ({ ...b }));
+
     return {
-      session,
-      result,
-      breakdowns,
+      session: this.toSessionDto(session),
+      result: resultDto,
+      breakdowns: breakdownsPlain,
       items,
       show_correct_answers: session.showCorrectAnswers,
     };
   }
 
+  private toSessionDto(session: ExamAcademySessionEntity) {
+    return {
+      id: session.id,
+      mode: session.mode,
+      program_version_id: session.programVersionId,
+      level_id: session.levelId,
+      section_key: session.sectionKey,
+      question_count: session.questionCount,
+      randomize: session.randomize,
+      show_correct_answers: session.showCorrectAnswers,
+      status: session.status,
+      title: session.title,
+      started_at: session.startedAt,
+      completed_at: session.completedAt,
+      created_at: session.createdAt,
+      level: session.level
+        ? { id: session.level.id, code: session.level.code, title: session.level.title }
+        : null,
+      program_version: session.programVersion
+        ? {
+            id: session.programVersion.id,
+            code: session.programVersion.code,
+            title: session.programVersion.title,
+          }
+        : null,
+    };
+  }
+
   /**
    * Students use student profile; teachers use teacher profile.
-   * Admin/tutor QA: ensure a lightweight teacher row so Assessment attempts can start.
+   * Admin QA: ensure a lightweight teacher row so Assessment attempts can start.
+   * Tutors are blocked at the controller RolesGuard (school module only).
    */
   private async resolveAttemptParticipants(
     actor: DomainAccessActor,
@@ -445,12 +716,12 @@ export class ExamAcademySessionService {
     if (teacherId) {
       return { studentId: null, teacherId };
     }
-    if (this.access.isAdmin(actor) || this.access.isTutor(actor) || this.access.isTeacher(actor)) {
+    if (this.access.isAdmin(actor) || this.access.isTeacher(actor)) {
       teacherId = await this.ensureAcademyTeacherProfile(actor);
       return { studentId: null, teacherId };
     }
     throw new BadRequestException(
-      'Для прохождения HSK Academy нужен профиль ученика или преподавателя',
+      'Для прохождения HSK Academy нужен профиль ученика или преподавателя школы',
     );
   }
 
@@ -492,6 +763,17 @@ export class ExamAcademySessionService {
   }
 
   private async resolveDurationMinutes(session: ExamAcademySessionEntity): Promise<number> {
+    if (session.blueprintEditionId || session.blueprintId) {
+      try {
+        const editionId = session.blueprintEditionId || session.blueprintId!;
+        const { edition } = await this.ecpBlueprints.loadEditionStructure(editionId);
+        if (edition.totalDurationSeconds > 0) {
+          return Math.max(1, Math.ceil(edition.totalDurationSeconds / 60));
+        }
+      } catch {
+        // fall through
+      }
+    }
     if (session.blueprintId) {
       const bp = await this.blueprints.findOne({ where: { id: session.blueprintId } });
       if (bp?.totalDurationSeconds) {
@@ -502,6 +784,36 @@ export class ExamAcademySessionService {
       return 180;
     }
     return 40;
+  }
+
+  /**
+   * Soft section timings for Take UI (display only — no hard lock).
+   * Ordered by edition structure; durationSeconds from section rows.
+   */
+  private async resolveSectionTimings(
+    session: ExamAcademySessionEntity,
+    runtimeSections: Array<{ sectionKey?: string; title?: string }>,
+  ): Promise<Array<{ sectionKey: string; title: string; durationSeconds: number }>> {
+    const editionId = session.blueprintEditionId || session.blueprintId;
+    if (editionId) {
+      try {
+        const { sections } = await this.ecpBlueprints.loadEditionStructure(editionId);
+        if (sections.length) {
+          return sections.map((s) => ({
+            sectionKey: s.sectionKey,
+            title: s.title,
+            durationSeconds: Math.max(0, Number(s.durationSeconds) || 0),
+          }));
+        }
+      } catch {
+        // fall through to runtime sections
+      }
+    }
+    return (runtimeSections || []).map((s) => ({
+      sectionKey: String(s.sectionKey || 'default'),
+      title: s.title || String(s.sectionKey || 'Раздел'),
+      durationSeconds: 0,
+    }));
   }
 
   /** Academy sessions materialize variants only via ECP generator. */

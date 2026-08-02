@@ -147,8 +147,8 @@ export class AssessmentAccessService {
     if (this.isAdmin(actor)) {
       return exam;
     }
-    // Exam Academy materializations are readable by the learner who owns them.
-    if (exam.source === 'exam_academy' && exam.createdByUserId === actor.sub) {
+    // HSK Academy self-serve materializations (legacy exam_academy + ECP exam_content).
+    if (this.isAcademySelfServeExam(exam) && exam.createdByUserId === actor.sub) {
       return exam;
     }
     if (this.isTeacher(actor) || this.isTutor(actor)) {
@@ -290,8 +290,9 @@ export class AssessmentAccessService {
   ): Promise<void> {
     const exam = await this.requireExam(examId);
 
-    // Exam Academy self-serve / admin QA: no CRM Assessment assignment required.
-    if (exam.source === 'exam_academy') {
+    // HSK Academy self-serve / staff QA: no CRM Assessment assignment required.
+    // Covers legacy `exam_academy` and ECP-backed `exam_content` materializations.
+    if (this.isAcademySelfServeExam(exam)) {
       if (this.isAdmin(actor) || exam.createdByUserId === actor.sub) {
         return;
       }
@@ -303,7 +304,7 @@ export class AssessmentAccessService {
 
     await this.assertCanReadExam(actor, examId);
 
-    if (exam.source === 'exam_academy' && exam.createdByUserId === actor.sub) {
+    if (this.isAcademySelfServeExam(exam) && exam.createdByUserId === actor.sub) {
       return;
     }
 
@@ -317,7 +318,7 @@ export class AssessmentAccessService {
       if (!(await this.studentHasAssignmentForExam(actor, examId))) {
         throw new ForbiddenException('Forbidden: no Assignment for this Exam');
       }
-    } else if (this.isTeacher(actor)) {
+    } else if (this.isTeacher(actor) || this.isTutor(actor)) {
       const teacherId = await this.resolveTeacherId(actor);
       if (!teacherId) {
         throw new ForbiddenException('Forbidden: teacher profile required');
@@ -442,6 +443,14 @@ export class AssessmentAccessService {
   }
 
   // ─── Internals ──────────────────────────────────────────────────────────
+
+  /**
+   * Exams materialized by HSK Academy sessions (self-serve practice/mock).
+   * After ECP cutover the source is `exam_content`; older rows use `exam_academy`.
+   */
+  private isAcademySelfServeExam(exam: { source?: string | null }): boolean {
+    return exam.source === 'exam_academy' || exam.source === 'exam_content';
+  }
 
   private async requireExam(examId: string): Promise<AssessmentExamEntity> {
     const exam = await this.examRepo.findOne({ where: { id: examId } });

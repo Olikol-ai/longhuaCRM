@@ -8,6 +8,7 @@ import {
   AssessmentQuestionTopicEntity,
 } from '../entities';
 import { ContentLifecycleStatus } from '../enums';
+import { QuestionBankScope } from '../enums/question-bank-scope';
 
 @Injectable()
 export class AssessmentQuestionRepository {
@@ -22,8 +23,13 @@ export class AssessmentQuestionRepository {
     private readonly attachmentRepo: Repository<AssessmentQuestionAttachmentEntity>,
   ) {}
 
-  findAll(): Promise<AssessmentQuestionEntity[]> {
-    return this.questionRepo.find({ order: { createdAt: 'DESC' } });
+  findAll(
+    bankScope: string = QuestionBankScope.Assessment,
+  ): Promise<AssessmentQuestionEntity[]> {
+    return this.questionRepo.find({
+      where: { bankScope },
+      order: { createdAt: 'DESC' },
+    });
   }
 
   findById(id: string): Promise<AssessmentQuestionEntity | null> {
@@ -58,9 +64,11 @@ export class AssessmentQuestionRepository {
       .getMany();
   }
 
-  findPublished(): Promise<AssessmentQuestionEntity[]> {
+  findPublished(
+    bankScope: string = QuestionBankScope.Assessment,
+  ): Promise<AssessmentQuestionEntity[]> {
     return this.questionRepo.find({
-      where: { status: ContentLifecycleStatus.Published },
+      where: { status: ContentLifecycleStatus.Published, bankScope },
       order: { createdAt: 'ASC' },
     });
   }
@@ -69,12 +77,18 @@ export class AssessmentQuestionRepository {
     return this.questionRepo.find({ where, order: { createdAt: 'DESC' } });
   }
 
-  filterByOwner(createdByUserId: string): Promise<AssessmentQuestionEntity[]> {
-    return this.filter({ createdByUserId });
+  filterByOwner(
+    createdByUserId: string,
+    bankScope: string = QuestionBankScope.Assessment,
+  ): Promise<AssessmentQuestionEntity[]> {
+    return this.filter({ createdByUserId, bankScope });
   }
 
-  filterByStatus(status: ContentLifecycleStatus): Promise<AssessmentQuestionEntity[]> {
-    return this.filter({ status });
+  filterByStatus(
+    status: ContentLifecycleStatus,
+    bankScope: string = QuestionBankScope.Assessment,
+  ): Promise<AssessmentQuestionEntity[]> {
+    return this.filter({ status, bankScope });
   }
 
   save(entity: Partial<AssessmentQuestionEntity>): Promise<AssessmentQuestionEntity> {

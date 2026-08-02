@@ -74,12 +74,17 @@ function AudioAttachment({ attachment }) {
   );
 }
 
-function ImageAttachment({ attachment }) {
-  const src =
+function authMediaSrc(attachment) {
+  return (
     attachment?.url ||
     (attachment?.id
       ? assessment.downloadAttachmentUrl(attachment.id, 'inline')
-      : null);
+      : null)
+  );
+}
+
+function ImageAttachment({ attachment }) {
+  const src = authMediaSrc(attachment);
   if (!src) return null;
   return (
     <img
@@ -99,6 +104,21 @@ function ImageAttachment({ attachment }) {
           .catch(() => {});
       }}
     />
+  );
+}
+
+function VideoAttachment({ attachment }) {
+  const src = authMediaSrc(attachment);
+  if (!src) return null;
+  return (
+    <video
+      className="mt-3 w-full max-w-full max-h-72 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 object-contain"
+      controls
+      preload="metadata"
+      src={src}
+    >
+      Ваш браузер не поддерживает видео.
+    </video>
   );
 }
 
@@ -150,10 +170,14 @@ export default function QuestionCard({
 
       {attachments.map((att) => {
         const key = att.id || att.url;
-        if (att.kind === 'image') {
+        const kind = String(att.kind || '').toLowerCase();
+        if (kind === 'image' || kind === 'img') {
           return <ImageAttachment key={key} attachment={att} />;
         }
-        if (att.kind === 'audio' || !att.kind) {
+        if (kind === 'video') {
+          return <VideoAttachment key={key} attachment={att} />;
+        }
+        if (kind === 'audio' || kind === 'sound' || !kind) {
           return <AudioAttachment key={key} attachment={att} />;
         }
         return (

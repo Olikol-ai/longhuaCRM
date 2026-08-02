@@ -15,7 +15,7 @@ import { createPageUrl } from '@/utils';
 const SECTIONS = [
   {
     title: 'Вопросы',
-    description: 'Все тест-вопросы и контейнеры Listening / Reading всех авторов',
+    description: 'Вопросы всех авторов: тесты, аудирование и чтение',
     icon: FileQuestion,
     page: 'AssessmentQuestions',
   },
@@ -27,7 +27,7 @@ const SECTIONS = [
   },
   {
     title: 'Экзамены',
-    description: 'Все экзамены: пулы генерации, публикация, назначения и результаты',
+    description: 'Все экзамены: наборы заданий, публикация, назначения и результаты',
     icon: BookOpen,
     page: 'AssessmentExams',
   },

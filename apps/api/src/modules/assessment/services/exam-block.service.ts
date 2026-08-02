@@ -11,7 +11,7 @@ import {
   AssessmentExamAssignmentEntity,
   AssessmentExamBlockEntity,
 } from '../entities';
-import { ContentLifecycleStatus } from '../enums';
+import { ContentLifecycleStatus, QuestionBankScope } from '../enums';
 import {
   AssessmentExamBlockRepository,
   AssessmentQuestionRepository,
@@ -114,7 +114,7 @@ export class ExamBlockService {
     input: UpdateExamBlockInput,
   ): Promise<AssessmentExamBlockEntity> {
     const block = await this.getForActor(actor, id);
-    this.guard.assertDraft(block.status, 'ExamBlock');
+    this.guard.assertEditable(block.status, 'ExamBlock');
     const before = this.snapshot(block);
 
     if (input.questionIds) {
@@ -259,6 +259,11 @@ export class ExamBlockService {
     for (const question of found) {
       if (question.status === ContentLifecycleStatus.Archived) {
         throw new BadRequestException(`Question ${question.id} is archived`);
+      }
+      if (question.bankScope && question.bankScope !== QuestionBankScope.Assessment) {
+        throw new BadRequestException(
+          `Question ${question.id} принадлежит банку HSK и нельзя использовать в Assessment`,
+        );
       }
       this.access.assertCanManageCreatedContent(actor, question, 'question');
     }

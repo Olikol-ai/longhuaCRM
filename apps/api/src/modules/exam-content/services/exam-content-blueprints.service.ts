@@ -169,8 +169,8 @@ export class ExamContentBlueprintsService {
     this.access.assertStaff(actor);
     const edition = await this.editions.findOne({ where: { id: editionId } });
     if (!edition) throw new NotFoundException('Edition not found');
-    if (edition.status === CONTENT_STATUS.Published) {
-      throw new BadRequestException('Published edition immutable — clone to draft');
+    if (edition.status === CONTENT_STATUS.Archived) {
+      throw new BadRequestException('Архивную версию теста нельзя изменить');
     }
 
     const existingSections = await this.sections.find({ where: { editionId } });

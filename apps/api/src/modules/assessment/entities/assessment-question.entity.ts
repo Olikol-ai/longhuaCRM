@@ -35,6 +35,11 @@ export class AssessmentQuestionEntity {
   @Column({ type: 'varchar', length: 32, default: ContentLifecycleStatus.Draft })
   status: ContentLifecycleStatus;
 
+  /** Logical bank: CRM Assessment vs HSK Exam Content engine rows. */
+  @Index('IDX_ASSESSMENT_QUESTIONS_BANK_SCOPE')
+  @Column({ name: 'bank_scope', type: 'varchar', length: 32, default: 'assessment' })
+  bankScope: string;
+
   /** Owner: teacher / tutor / admin user id. */
   @Index('IDX_ASSESSMENT_QUESTIONS_CREATED_BY')
   @Column({ name: 'created_by_user_id', type: 'uuid', nullable: true })

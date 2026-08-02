@@ -15,6 +15,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsOptional, IsString, IsUUID } from 'class-validator';
 import { Repository } from 'typeorm';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../../common/guards/roles.guard';
 import {
   PERSONAL_WORD_STATUS,
   REVIEW_ITEM_STATUS,
@@ -24,10 +26,10 @@ import {
   ExamAcademyFavoriteEntity,
   ExamAcademyPersonalWordEntity,
   ExamAcademyReviewItemEntity,
-  ExamAcademySessionEntity,
   ExamAcademyUserAchievementEntity,
   ExamAcademyUserStatsDailyEntity,
 } from '../entities';
+import { ExamAcademySessionService } from '../services/exam-academy-session.service';
 
 class FavoriteDto {
   @IsString()
@@ -68,13 +70,14 @@ class WordDto {
 
 /**
  * «Моя подготовка» — learner cabinet endpoints.
+ * Longhua school only (not tutors / tutor_students).
  */
 @Controller('exam-academy/me')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Roles('admin', 'teacher', 'student')
 export class ExamAcademyMeController {
   constructor(
-    @InjectRepository(ExamAcademySessionEntity)
-    private readonly sessions: Repository<ExamAcademySessionEntity>,
+    private readonly sessionService: ExamAcademySessionService,
     @InjectRepository(ExamAcademyFavoriteEntity)
     private readonly favorites: Repository<ExamAcademyFavoriteEntity>,
     @InjectRepository(ExamAcademyReviewItemEntity)
@@ -91,12 +94,7 @@ export class ExamAcademyMeController {
   async preparation(@Req() req: { user: DomainAccessActor }) {
     const userId = req.user.sub;
     const [history, favorites, review, dictionary, stats, achievements] = await Promise.all([
-      this.sessions.find({
-        where: { createdByUserId: userId },
-        order: { createdAt: 'DESC' },
-        take: 30,
-        relations: { level: true, programVersion: true },
-      }),
+      this.sessionService.listPreparationHistory(userId, 30),
       this.favorites.count({ where: { userId } }),
       this.reviewItems.count({ where: { userId, status: REVIEW_ITEM_STATUS.Active } }),
       this.words.count({ where: { userId } }),
@@ -112,8 +110,16 @@ export class ExamAcademyMeController {
       }),
     ]);
 
-    const completed = history.filter((s) => s.status === SESSION_STATUS.Completed);
-    const practices = completed.filter((s) => s.mode === 'practice' || s.mode === 'error_review' || s.mode === 'favorites');
+    const completed = history.filter(
+      (s) =>
+        s.status === SESSION_STATUS.Completed ||
+        s.display_status === SESSION_STATUS.Completed ||
+        s.status === SESSION_STATUS.Expired ||
+        s.display_status === SESSION_STATUS.Expired,
+    );
+    const practices = completed.filter(
+      (s) => s.mode === 'practice' || s.mode === 'error_review' || s.mode === 'favorites',
+    );
     const mocks = completed.filter((s) => s.mode === 'mock_exam' || s.mode === 'random_exam');
     const avg =
       stats.length > 0

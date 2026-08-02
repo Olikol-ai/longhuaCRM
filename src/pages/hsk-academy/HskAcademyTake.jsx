@@ -1,13 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Bookmark, ChevronLeft, ChevronRight, Grid3X3, SkipForward } from 'lucide-react';
 import { api } from '@/api';
 import { createPageUrl } from '@/utils';
 import { userFacingError } from '@/lib/userFacingError';
-import { useIsLgUp, useIsMdUp } from '@/lib/responsive';
+import { useIsMdUp } from '@/lib/responsive';
+import { parentHref } from '@/lib/hskAcademyNav';
 import ExamFocusChrome from '@/components/hsk-academy/ExamFocusChrome';
 import { ExamItemRenderer, collectMediaUrls } from '@/components/hsk-academy/items/itemRegistry';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 
 function pick(obj, ...keys) {
@@ -33,13 +40,43 @@ function flattenQuestions(sections) {
 
 const draftKey = (sessionId) => `hsk-academy-draft:${sessionId}`;
 
+function QuestionGrid({ questions, answers, marked, index, onPick, className }) {
+  return (
+    <div className={cn('grid grid-cols-5 gap-1.5', className)}>
+      {questions.map((q, i) => {
+        const id = q.snapshotId || q.snapshot_id;
+        const answered = Boolean(answers[id]?.length);
+        const isCurrent = i === index;
+        return (
+          <button
+            key={id}
+            type="button"
+            aria-label={`Задание ${i + 1}${answered ? ', отвечено' : ''}${marked.has(id) ? ', помечено' : ''}`}
+            aria-current={isCurrent ? 'true' : undefined}
+            className={cn(
+              'min-h-10 rounded-md border text-xs font-medium tabular-nums transition-colors',
+              isCurrent && 'border-brand bg-brand text-primary-foreground',
+              !isCurrent && answered && 'border-border bg-muted text-foreground',
+              !isCurrent && !answered && 'border-border bg-background text-muted-foreground hover:bg-muted/60',
+              marked.has(id) && !isCurrent && 'ring-2 ring-amber-500/70 ring-offset-1 ring-offset-background',
+            )}
+            onClick={() => onPick(i)}
+          >
+            {i + 1}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function HskAcademyTake() {
   const [params] = useSearchParams();
   const sessionId = params.get('sessionId') || '';
+  const from = params.get('from') || '';
   const navigate = useNavigate();
-  const isLg = useIsLgUp();
   const isMd = useIsMdUp();
-  const [navOpen, setNavOpen] = useState(() => false);
+  const [navOpen, setNavOpen] = useState(false);
   const [runtime, setRuntime] = useState(null);
   const [answers, setAnswers] = useState({});
   const [marked, setMarked] = useState(() => {
@@ -55,8 +92,10 @@ export default function HskAcademyTake() {
   const [saveStatus, setSaveStatus] = useState('idle');
   const [submitting, setSubmitting] = useState(false);
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
+  const [sectionTick, setSectionTick] = useState(0);
   const autoSubmitted = useRef(false);
   const pendingSave = useRef(null);
+  const stageRef = useRef(null);
 
   const load = useCallback(async () => {
     const data = await api.examAcademy.sessions.runtime(sessionId);
@@ -123,11 +162,16 @@ export default function HskAcademyTake() {
   );
 
   useEffect(() => {
+    stageRef.current?.scrollTo?.({ top: 0 });
+  }, [index]);
+
+  useEffect(() => {
     const expires = pick(runtime?.attempt, 'expiresAt', 'expires_at');
     if (!expires) return undefined;
     const tick = () => {
       const ms = new Date(expires).getTime() - Date.now();
       setRemaining(Math.max(0, Math.floor(ms / 1000)));
+      setSectionTick((n) => n + 1);
     };
     tick();
     const id = setInterval(tick, 1000);
@@ -146,7 +190,11 @@ export default function HskAcademyTake() {
       localStorage.removeItem(draftKey(sessionId));
       sessionStorage.removeItem(`${draftKey(sessionId)}:index`);
       sessionStorage.removeItem(`${draftKey(sessionId)}:marked`);
-      navigate(`${createPageUrl('HskAcademyResult')}?sessionId=${sessionId}`);
+      navigate(
+        `${createPageUrl('HskAcademyResult')}?sessionId=${sessionId}${
+          from ? `&from=${encodeURIComponent(from)}` : ''
+        }`,
+      );
     } catch (err) {
       setError(userFacingError(err));
       setSubmitting(false);
@@ -226,22 +274,32 @@ export default function HskAcademyTake() {
     });
   };
 
-  const skip = () => {
-    setIndex((v) => Math.min(questions.length - 1, v + 1));
+  const go = (nextIndex) => {
+    setIndex(Math.max(0, Math.min(questions.length - 1, nextIndex)));
   };
 
-  const exit = () => {
+  const skip = () => go(index + 1);
+
+  const exit = async () => {
     if (!window.confirm('Выйти из экзамена? Ответы сохранены на сервере и в черновике браузера.')) {
       return;
     }
-    navigate(createPageUrl('HskAcademy'));
+    const answered = Object.values(answers).some((ids) => Array.isArray(ids) && ids.length > 0);
+    if (!answered && sessionId) {
+      try {
+        await api.examAcademy.sessions.abandonIfEmpty(sessionId);
+      } catch {
+        // best-effort discard of empty attempt
+      }
+    }
+    navigate(parentHref('HskAcademyTake', params) || createPageUrl('HskAcademy'));
   };
 
   useEffect(() => {
     const onKey = (event) => {
       if (event.target?.tagName === 'INPUT' || event.target?.tagName === 'TEXTAREA') return;
       if (event.key === 'ArrowRight') skip();
-      else if (event.key === 'ArrowLeft') setIndex((v) => Math.max(0, v - 1));
+      else if (event.key === 'ArrowLeft') go(index - 1);
       else if (event.key === 'm' || event.key === 'M' || event.key === 'ь' || event.key === 'Ь') {
         toggleMark();
       }
@@ -249,10 +307,40 @@ export default function HskAcademyTake() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [questions.length, currentId]);
+  }, [questions.length, currentId, index]);
 
   const mm = remaining == null ? '—' : String(Math.floor(remaining / 60)).padStart(2, '0');
   const ss = remaining == null ? '--' : String(remaining % 60).padStart(2, '0');
+
+  const sectionTimings = runtime?.section_timings || runtime?.sectionTimings || [];
+  const currentSectionKey = current?.sectionKey || current?.section_key;
+  const softSectionRemaining = (() => {
+    void sectionTick;
+    if (!sectionTimings.length || !currentSectionKey) return null;
+    const startedAt = pick(runtime?.attempt, 'startedAt', 'started_at');
+    if (!startedAt) return null;
+    const startMs = new Date(startedAt).getTime();
+    let offset = 0;
+    for (const row of sectionTimings) {
+      const key = row.sectionKey || row.section_key;
+      const dur = Number(row.durationSeconds ?? row.duration_seconds) || 0;
+      if (key === currentSectionKey) {
+        const deadline = startMs + (offset + dur) * 1000;
+        return Math.max(0, Math.floor((deadline - Date.now()) / 1000));
+      }
+      offset += dur;
+    }
+    return null;
+  })();
+  const sectionMm =
+    softSectionRemaining == null
+      ? null
+      : String(Math.floor(softSectionRemaining / 60)).padStart(2, '0');
+  const sectionSs =
+    softSectionRemaining == null
+      ? null
+      : String(softSectionRemaining % 60).padStart(2, '0');
+
   const answeredCount = questions.filter((q) => {
     const id = q.snapshotId || q.snapshot_id;
     return answers[id]?.length;
@@ -264,166 +352,229 @@ export default function HskAcademyTake() {
       : saveStatus === 'saved'
         ? 'Сохранено'
         : saveStatus === 'offline'
-          ? 'Офлайн · черновик'
+          ? 'Офлайн'
           : saveStatus === 'error'
             ? 'Ошибка сохранения'
             : '';
 
-  const meta = [
-    runtime?.version_title,
-    runtime?.level_title,
-    current?.sectionTitle,
-    questions.length ? `№ ${index + 1}/${questions.length}` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const pickQuestion = (i) => {
+    go(i);
+    setNavOpen(false);
+  };
 
-  const railAlways = isLg;
-  /** Desktop: always show rail. Tablet/mobile: toggle via button. */
-  const showSideNav = railAlways || navOpen;
-
-  const navPanel = (
-    <aside
-      className={cn(
-        'rounded-lg border border-border bg-card p-3 space-y-3',
-        railAlways ? 'w-56 shrink-0' : 'w-full',
-      )}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
-          Навигация · {answeredCount}/{questions.length}
+  const rail = (
+    <aside className="hidden md:flex md:flex-col w-[9.5rem] lg:w-44 shrink-0 border-r border-border bg-card/40 min-h-0">
+      <div className="px-2.5 py-2 border-b border-border shrink-0">
+        <p className="text-[11px] text-muted-foreground">
+          Отвечено {answeredCount}/{questions.length || 0}
         </p>
-        {!railAlways ? (
-          <Button type="button" size="sm" variant="ghost" onClick={() => setNavOpen(false)}>
-            Скрыть
-          </Button>
-        ) : null}
       </div>
-      <div className="grid grid-cols-5 sm:grid-cols-6 lg:grid-cols-4 gap-2">
-        {questions.map((q, i) => {
-          const id = q.snapshotId || q.snapshot_id;
-          return (
-            <button
-              key={id}
-              type="button"
-              className={cn(
-                'min-h-11 rounded-md border text-sm font-medium transition-colors',
-                i === index && 'border-brand bg-brand/15',
-                answers[id]?.length && i !== index && 'border-border bg-muted/50',
-                marked.has(id) && 'ring-2 ring-amber-500/60',
-                !answers[id]?.length && i !== index && 'border-border bg-background',
-              )}
-              onClick={() => {
-                setIndex(i);
-                if (!railAlways) setNavOpen(false);
-              }}
-            >
-              {i + 1}
-            </button>
-          );
-        })}
-      </div>
-      <div className="flex flex-wrap gap-1 text-[11px] text-muted-foreground">
-        <Badge variant="outline" className="text-[10px]">текущее</Badge>
-        <Badge variant="secondary" className="text-[10px]">ответ</Badge>
-        <span className="inline-flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-amber-500" /> метка
-        </span>
+      <div className="flex-1 min-h-0 overflow-y-auto p-2">
+        <QuestionGrid
+          questions={questions}
+          answers={answers}
+          marked={marked}
+          index={index}
+          onPick={pickQuestion}
+          className="lg:grid-cols-4"
+        />
       </div>
     </aside>
+  );
+
+  const footer = (
+    <div className="px-3 sm:px-4 py-2.5 sm:py-3">
+      {/* Mobile: primary pager */}
+      <div className="flex md:hidden items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-12 w-12 shrink-0"
+          disabled={index <= 0}
+          onClick={() => go(index - 1)}
+          aria-label="Назад"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-12 flex-1 min-w-0 gap-1.5"
+          onClick={() => setNavOpen(true)}
+        >
+          <Grid3X3 className="h-4 w-4 shrink-0" />
+          <span className="tabular-nums">
+            {questions.length ? `${index + 1} / ${questions.length}` : '—'}
+          </span>
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          className="h-12 w-12 shrink-0"
+          disabled={index >= questions.length - 1}
+          onClick={() => go(index + 1)}
+          aria-label="Вперёд"
+        >
+          <ChevronRight className="h-5 w-5" />
+        </Button>
+      </div>
+      <div className="flex md:hidden gap-2 mt-2">
+        <Button
+          type="button"
+          variant={marked.has(currentId) ? 'secondary' : 'outline'}
+          className="min-h-11 flex-1 gap-1.5"
+          onClick={toggleMark}
+        >
+          <Bookmark className="h-4 w-4" />
+          {marked.has(currentId) ? 'Метка' : 'Пометить'}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="min-h-11 flex-1 gap-1.5"
+          disabled={index >= questions.length - 1}
+          onClick={skip}
+        >
+          <SkipForward className="h-4 w-4" />
+          Пропустить
+        </Button>
+        <Button
+          type="button"
+          className="min-h-11 flex-1"
+          disabled={submitting}
+          onClick={() => {
+            if (window.confirm('Завершить экзамен и перейти к результатам?')) void submit();
+          }}
+        >
+          {submitting ? '…' : 'Завершить'}
+        </Button>
+      </div>
+
+      {/* Tablet / desktop actions */}
+      <div className="hidden md:flex items-center gap-2 flex-wrap">
+        <Button
+          type="button"
+          variant="outline"
+          className="min-h-11 gap-1"
+          disabled={index <= 0}
+          onClick={() => go(index - 1)}
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Назад
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="min-h-11 gap-1"
+          disabled={index >= questions.length - 1}
+          onClick={() => go(index + 1)}
+        >
+          Вперёд
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          variant={marked.has(currentId) ? 'secondary' : 'outline'}
+          className="min-h-11 gap-1.5"
+          onClick={toggleMark}
+        >
+          <Bookmark className="h-4 w-4" />
+          {marked.has(currentId) ? 'Снять метку' : 'Пометить'}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className="min-h-11 gap-1.5"
+          disabled={index >= questions.length - 1}
+          onClick={skip}
+        >
+          <SkipForward className="h-4 w-4" />
+          Пропустить
+        </Button>
+        <div className="flex-1" />
+        <p className="text-xs text-muted-foreground tabular-nums hidden lg:block mr-2">
+          {answeredCount}/{questions.length} ответов
+        </p>
+        <Button
+          type="button"
+          className="min-h-11 min-w-[8.5rem]"
+          disabled={submitting}
+          onClick={() => {
+            if (window.confirm('Завершить экзамен и перейти к результатам?')) void submit();
+          }}
+        >
+          {submitting ? 'Завершение…' : 'Завершить'}
+        </Button>
+      </div>
+    </div>
   );
 
   return (
     <ExamFocusChrome
       title={runtime?.session?.title || 'HSK Academy'}
-      meta={meta}
+      sectionLabel={current?.sectionTitle}
+      counterLabel={
+        questions.length ? `№ ${index + 1} из ${questions.length}` : null
+      }
       timerLabel={`${mm}:${ss}`}
+      sectionTimerLabel={
+        sectionMm != null && sectionSs != null ? `${sectionMm}:${sectionSs}` : null
+      }
       saveLabel={saveLabel}
       progress={progress}
       online={online}
       onExit={exit}
+      footer={footer}
     >
-      {error ? <p className="text-sm text-destructive mb-3">{error}</p> : null}
-
-      {!railAlways ? (
-        <div className="mb-3">
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-11"
-            onClick={() => setNavOpen((v) => !v)}
-          >
-            {navOpen ? 'Скрыть задания' : 'Список заданий'}
-          </Button>
+      {error ? (
+        <div className="shrink-0 px-3 sm:px-4 py-2 text-sm text-destructive border-b border-border bg-destructive/5">
+          {error}
         </div>
       ) : null}
 
-      <div
-        className={cn(
-          'flex gap-4',
-          railAlways ? 'flex-row' : 'flex-col',
-          isMd && !railAlways && showSideNav ? 'md:flex-row' : null,
-        )}
-      >
-        {showSideNav ? navPanel : null}
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        {isMd ? rail : null}
 
-        <section className="flex-1 min-w-0 rounded-lg border border-border bg-card p-4 sm:p-6 space-y-4">
-          {!current ? (
-            <p className="text-sm text-muted-foreground">Загрузка заданий…</p>
-          ) : (
-            <>
+        <section
+          ref={stageRef}
+          className="flex-1 min-w-0 overflow-y-auto overscroll-contain"
+        >
+          <div className="mx-auto w-full max-w-3xl xl:max-w-4xl px-3 sm:px-5 py-4 sm:py-5 pb-6">
+            {!current ? (
+              <p className="text-sm text-muted-foreground">Загрузка заданий…</p>
+            ) : (
               <ExamItemRenderer
                 question={current}
                 selectedIds={answers[currentId] || []}
                 onSelect={selectOption}
                 prefetchUrls={nextPrefetch}
               />
-              <div className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 border-t border-border bg-card/95 backdrop-blur flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="min-h-11"
-                  disabled={index <= 0}
-                  onClick={() => setIndex((v) => Math.max(0, v - 1))}
-                >
-                  Назад
-                </Button>
-                <Button type="button" variant="outline" className="min-h-11" onClick={toggleMark}>
-                  {marked.has(currentId) ? 'Снять метку' : 'Пометить'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="min-h-11"
-                  disabled={index >= questions.length - 1}
-                  onClick={skip}
-                >
-                  Пропустить
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="min-h-11"
-                  disabled={index >= questions.length - 1}
-                  onClick={() => setIndex((v) => Math.min(questions.length - 1, v + 1))}
-                >
-                  Вперёд
-                </Button>
-                <Button
-                  type="button"
-                  className="min-h-11 ml-auto"
-                  disabled={submitting}
-                  onClick={() => {
-                    if (window.confirm('Завершить экзамен и перейти к результатам?')) void submit();
-                  }}
-                >
-                  {submitting ? 'Завершение…' : 'Завершить'}
-                </Button>
-              </div>
-            </>
-          )}
+            )}
+          </div>
         </section>
       </div>
+
+      <Sheet open={navOpen} onOpenChange={setNavOpen}>
+        <SheetContent side="bottom" className="max-h-[75dvh] rounded-t-xl px-4 pb-6">
+          <SheetHeader className="text-left mb-3">
+            <SheetTitle className="text-base">
+              Задания · {answeredCount}/{questions.length}
+            </SheetTitle>
+          </SheetHeader>
+          <QuestionGrid
+            questions={questions}
+            answers={answers}
+            marked={marked}
+            index={index}
+            onPick={pickQuestion}
+            className="grid-cols-6 sm:grid-cols-8"
+          />
+          <p className="mt-3 text-[11px] text-muted-foreground">
+            Текущее — цвет бренда · отвеченное — серое · метка — жёлтое кольцо
+          </p>
+        </SheetContent>
+      </Sheet>
     </ExamFocusChrome>
   );
 }

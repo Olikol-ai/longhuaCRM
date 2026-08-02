@@ -7,6 +7,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
 import { QuestionType } from '../../assessment/enums';
+import { QuestionBankScope } from '../../assessment/enums/question-bank-scope';
+
 import { QuestionAuthoringService } from '../../assessment/services/question-authoring.service';
 import { CONTENT_STATUS } from '../constants';
 import {
@@ -152,7 +154,7 @@ export class ExamContentItemsService {
     this.access.assertStaff(actor);
     const item = await this.items.findOne({
       where: { id },
-      relations: { vocabulary: true, grammar: true, media: true, level: true },
+      relations: { vocabulary: true, grammar: true, media: { asset: true }, level: true },
     });
     if (!item) throw new NotFoundException('Item not found');
     const question =
@@ -197,6 +199,7 @@ export class ExamContentItemsService {
         sortOrder: idx,
       })),
       createdByUserId: actor.sub,
+      bankScope: QuestionBankScope.ExamContent,
     });
 
     const item = await this.items.save({
@@ -288,10 +291,8 @@ export class ExamContentItemsService {
     this.access.assertStaff(actor);
     const item = await this.items.findOne({ where: { id } });
     if (!item) throw new NotFoundException('Item not found');
-    if (item.status === CONTENT_STATUS.Published || item.status === CONTENT_STATUS.Archived) {
-      throw new BadRequestException(
-        'Published/archived item нельзя править на месте. Создайте новую ревизию (rollback/clone).',
-      );
+    if (item.status === CONTENT_STATUS.Archived) {
+      throw new BadRequestException('Архивное задание нельзя изменить. Снимите с архива или создайте новое.');
     }
 
     if (input.stem != null || input.explanation !== undefined || input.options || input.difficulty != null) {
@@ -387,9 +388,6 @@ export class ExamContentItemsService {
         await this.questions.publish(actor, item.engineContentId);
       }
       item.publishedAt = new Date();
-    } else if (status === CONTENT_STATUS.InReview) {
-      item.reviewedByUserId = null;
-      item.reviewedAt = null;
     } else if (status === CONTENT_STATUS.Archived) {
       await this.access.assertCanPublish(actor);
     }
@@ -495,7 +493,7 @@ export class ExamContentItemsService {
       entityId: newItem.id,
       actorUserId: actor.sub,
       action: 'rollback',
-      summary: `Cloned from ${source.id} as new revision`,
+      summary: 'Created editable draft copy from published item',
       beforeRevision: source.revision,
       afterRevision: 1,
     });

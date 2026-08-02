@@ -3,6 +3,7 @@ import { api } from '@/api';
 import ExamContentShell from '@/components/exam-content/ExamContentShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Card } from '@/components/ui/card';
 import { userFacingError } from '@/lib/userFacingError';
 
 export default function ExamContentOps() {
@@ -46,42 +47,46 @@ export default function ExamContentOps() {
   };
 
   return (
-    <ExamContentShell active="ops">
-      <div className="rounded-lg border border-border p-4 space-y-3 bg-card">
-        <h2 className="font-medium">Импорт JSON</h2>
+    <ExamContentShell
+      active="ops"
+      title="Дополнительно"
+      description="Массовые операции для опытных пользователей. Обычное создание вопросов и тестов — в разделах «Банк» и «Тесты»."
+    >
+      <Card className="p-4 space-y-3 border-border">
+        <h2 className="font-medium">Импорт из JSON</h2>
         <p className="text-sm text-muted-foreground">
-          Массив объектов с полями version_id, level_id, section_key, stem, options, external_id…
+          Вставьте массив заданий. После импорта они появятся в банке как черновики.
         </p>
         <textarea
           className="w-full min-h-[160px] rounded-md border border-input bg-background px-3 py-2 font-mono text-xs"
           value={jsonText}
           onChange={(e) => setJsonText(e.target.value)}
         />
-        <Button type="button" onClick={runImport}>
-          Запустить импорт
+        <Button type="button" className="min-h-11" onClick={runImport}>
+          Импортировать
         </Button>
-      </div>
+      </Card>
 
-      <div className="rounded-lg border border-border p-4 space-y-3 bg-card">
+      <Card className="p-4 space-y-3 border-border">
         <h2 className="font-medium">Экспорт</h2>
         <label className="text-sm space-y-1 block max-w-md">
-          <span className="text-muted-foreground">level_id</span>
+          <span className="text-muted-foreground">Уровень (необязательно)</span>
           <Input value={levelId} onChange={(e) => setLevelId(e.target.value)} />
         </label>
-        <Button type="button" variant="outline" onClick={runExport}>
-          Экспорт JSON + media manifest
+        <Button type="button" variant="outline" className="min-h-11" onClick={runExport}>
+          Экспортировать JSON
         </Button>
-      </div>
+      </Card>
 
-      <div className="rounded-lg border border-border p-4 space-y-3 bg-card">
-        <h2 className="font-medium">Статистика</h2>
+      <Card className="p-4 space-y-3 border-border">
+        <h2 className="font-medium">Статистика заданий</h2>
         <p className="text-sm text-muted-foreground">
-          Пересчитать difficulty_index / discrimination_index (admin).
+          Пересчитать показатели сложности по результатам учеников (только для администратора).
         </p>
-        <Button type="button" variant="secondary" onClick={recompute}>
-          Recompute stats
+        <Button type="button" variant="secondary" className="min-h-11" onClick={recompute}>
+          Пересчитать
         </Button>
-      </div>
+      </Card>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       {result ? (

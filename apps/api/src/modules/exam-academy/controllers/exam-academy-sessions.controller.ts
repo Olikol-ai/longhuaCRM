@@ -12,6 +12,8 @@ import { AuthGuard } from '@nestjs/passport';
 import { IsArray, IsBoolean, IsInt, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../../common/guards/roles.guard';
 import { ExamAcademySessionService } from '../services/exam-academy-session.service';
 
 class CreateSessionDto {
@@ -71,8 +73,10 @@ class SaveAnswersDto {
   answers!: AnswerRowDto[];
 }
 
+/** HSK Academy sessions — Longhua school only (not tutors / tutor_students). */
 @Controller('exam-academy/sessions')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Roles('admin', 'teacher', 'student')
 export class ExamAcademySessionsController {
   constructor(private readonly sessions: ExamAcademySessionService) {}
 
@@ -133,6 +137,11 @@ export class ExamAcademySessionsController {
   @Post(':id/submit')
   submit(@Req() req: { user: DomainAccessActor }, @Param('id') id: string) {
     return this.sessions.submit(req.user, id);
+  }
+
+  @Post(':id/abandon-if-empty')
+  abandonIfEmpty(@Req() req: { user: DomainAccessActor }, @Param('id') id: string) {
+    return this.sessions.abandonIfEmpty(req.user, id);
   }
 
   @Get(':id/result')

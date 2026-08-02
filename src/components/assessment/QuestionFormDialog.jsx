@@ -33,7 +33,7 @@ export default function QuestionFormDialog({
   onSaved,
 }) {
   const editing = mode === 'edit';
-  const readOnly = editing && question?.status !== 'draft';
+  const readOnly = editing && question?.status === 'archived';
 
   const [type, setType] = useState('single_choice');
   const [stem, setStem] = useState('');

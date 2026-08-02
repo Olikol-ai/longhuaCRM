@@ -28,6 +28,10 @@ export const examAcademy = {
       }),
     submit: (id) =>
       apiFetch(`/exam-academy/sessions/${encodeURIComponent(id)}/submit`, { method: 'POST' }),
+    abandonIfEmpty: (id) =>
+      apiFetch(`/exam-academy/sessions/${encodeURIComponent(id)}/abandon-if-empty`, {
+        method: 'POST',
+      }),
     result: (id) => apiFetch(`/exam-academy/sessions/${encodeURIComponent(id)}/result`),
   },
   me: {

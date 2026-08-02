@@ -26,8 +26,17 @@ export const SESSION_STATUS = {
   Ready: 'ready',
   InProgress: 'in_progress',
   Completed: 'completed',
+  /** Attempt timer elapsed (with engagement); shown as «Просрочен». */
+  Expired: 'expired',
   Cancelled: 'cancelled',
 } as const;
+
+/** Statuses visible in «Моя подготовка» history (only with engagement). */
+export const PREPARATION_HISTORY_STATUSES = [
+  SESSION_STATUS.InProgress,
+  SESSION_STATUS.Completed,
+  SESSION_STATUS.Expired,
+] as const;
 
 export const SHOW_ANSWERS = {
   AfterItem: 'after_item',

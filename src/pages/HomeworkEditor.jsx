@@ -41,6 +41,7 @@ export default function HomeworkEditor() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const id = params.get('id');
+  const prefillQuestionId = params.get('questionId');
   const [loading, setLoading] = useState(Boolean(id));
   const [saving, setSaving] = useState(false);
   const [libraryQuestions, setLibraryQuestions] = useState([]);
@@ -52,7 +53,11 @@ export default function HomeworkEditor() {
     instructions: '',
     activity_kind: 'test',
     pass_score_percent: 60,
-    tasks: [emptyTask('question')],
+    tasks: [
+      prefillQuestionId && !id
+        ? { ...emptyTask('question'), question_id: prefillQuestionId }
+        : emptyTask('question'),
+    ],
   });
 
   useEffect(() => {
@@ -187,7 +192,7 @@ export default function HomeworkEditor() {
       if (task.task_kind === 'question' && !task.question_id) {
         toast({
           title: `Задача ${index + 1}`,
-          description: 'Выберите тест-вопрос',
+          description: 'Выберите вопрос',
           variant: 'destructive',
         });
         return;
@@ -266,7 +271,7 @@ export default function HomeworkEditor() {
           {id ? 'Редактирование задания' : 'Новое домашнее задание'}
         </h1>
         <p className="text-sm text-slate-500 mt-1 break-words">
-          Соберите задание из тест-вопросов, аудирования и чтения из вашей библиотеки.
+          Соберите задание из вопросов, аудирования и чтения из вашей библиотеки.
         </p>
       </div>
 

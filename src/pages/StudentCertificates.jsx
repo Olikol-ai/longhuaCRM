@@ -182,7 +182,7 @@ export default function StudentCertificates() {
               <div className="absolute inset-4 border border-amber-300/50 dark:border-amber-700/40 rounded-2xl pointer-events-none" />
               <div className="relative flex flex-col items-center text-center gap-4">
                 <img
-                  src="/icon-master.png"
+                  src="/icons/icon-192.png?v=20260802c"
                   alt="Longhua Academy"
                   className="h-16 w-16 sm:h-20 sm:w-20 object-contain drop-shadow-sm"
                 />

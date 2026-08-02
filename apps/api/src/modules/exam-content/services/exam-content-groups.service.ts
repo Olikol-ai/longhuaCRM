@@ -148,8 +148,8 @@ export class ExamContentGroupsService {
     this.access.assertStaff(actor);
     const group = await this.groups.findOne({ where: { id } });
     if (!group) throw new NotFoundException('Group not found');
-    if (group.status === CONTENT_STATUS.Published) {
-      throw new BadRequestException('Published group immutable — clone/new revision');
+    if (group.status === CONTENT_STATUS.Archived) {
+      throw new BadRequestException('Архивную группу нельзя изменить');
     }
     if (input.title != null) group.title = input.title.trim();
     if (input.passageText !== undefined) group.passageText = input.passageText;

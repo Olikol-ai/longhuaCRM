@@ -10,3 +10,5 @@ export { RetakePolicy } from './retake-policy.enum';
 export { ShowCorrectAnswers } from './show-correct-answers.enum';
 export { PassingMode } from './passing-mode.enum';
 export { AttachmentKind } from './attachment-kind.enum';
+export { QuestionBankScope } from './question-bank-scope';
+export type { QuestionBankScope as QuestionBankScopeType } from './question-bank-scope';

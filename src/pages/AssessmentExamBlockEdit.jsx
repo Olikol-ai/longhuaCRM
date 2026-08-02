@@ -35,7 +35,7 @@ export default function AssessmentExamBlockEdit() {
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const readOnly = block && block.status !== 'draft';
+  const readOnly = block && block.status === 'archived';
 
   useEffect(() => {
     if (!block) return;

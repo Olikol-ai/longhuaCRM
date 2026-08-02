@@ -37,7 +37,12 @@ function emptyPart(kind = 'test') {
 /**
  * Create exam from generation rules (pools + select_count).
  */
-export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
+export default function ExamCreateDialog({
+  open,
+  onOpenChange,
+  onCreated,
+  prefillQuestionId = null,
+}) {
   const [name, setName] = useState('');
   const [duration, setDuration] = useState(String(DEFAULT_EXAM_RULE.duration_minutes));
   const [passPercent, setPassPercent] = useState(
@@ -56,7 +61,12 @@ export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
     if (!open) return;
     setName('');
     setError(null);
-    setParts([emptyPart('test')]);
+    const seedPart = emptyPart('test');
+    if (prefillQuestionId) {
+      seedPart.pool_ids = [prefillQuestionId];
+      seedPart.select_count = 1;
+    }
+    setParts([seedPart]);
     setDuration(String(DEFAULT_EXAM_RULE.duration_minutes));
     setPassPercent(String(DEFAULT_EXAM_RULE.pass_score_percent));
     setMaxAttempts(String(DEFAULT_EXAM_RULE.max_attempts));
@@ -75,7 +85,7 @@ export default function ExamCreateDialog({ open, onOpenChange, onCreated }) {
       })
       .catch((err) => setError(err?.message || 'Не удалось загрузить пулы'))
       .finally(() => setLoadingMeta(false));
-  }, [open]);
+  }, [open, prefillQuestionId]);
 
   const poolOptions = useMemo(() => {
     return {

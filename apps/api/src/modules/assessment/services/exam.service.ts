@@ -270,7 +270,7 @@ export class ExamService {
   ): Promise<AssessmentExamEntity> {
     await this.access.assertCanManageExam(actor, id);
     const exam = this.guard.requireFound(await this.exams.findById(id), 'Exam');
-    this.guard.assertDraft(exam.status, 'Exam');
+    this.guard.assertEditable(exam.status, 'Exam');
     const before = this.snapshot(exam);
 
     await this.exams.update(id, {
@@ -305,11 +305,11 @@ export class ExamService {
     return updated;
   }
 
-  /** Rebuild question pool from source ExamBlocks — draft only. */
+  /** Rebuild question pool from source ExamBlocks — draft or published (not archived). */
   async rebuild(id: string, actor: DomainAccessActor): Promise<AssessmentExamEntity> {
     await this.access.assertCanManageExam(actor, id);
     const exam = this.guard.requireFound(await this.exams.findWithStructure(id), 'Exam');
-    this.guard.assertDraft(exam.status, 'Exam');
+    this.guard.assertEditable(exam.status, 'Exam');
 
     const orderedIds = (exam.sections ?? [])
       .slice()

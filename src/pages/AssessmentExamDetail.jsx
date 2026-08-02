@@ -65,7 +65,7 @@ export default function AssessmentExamDetail() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
 
-  const readOnly = exam?.status !== 'draft';
+  const readOnly = exam?.status === 'archived';
 
   useEffect(() => {
     if (!exam) return;
@@ -90,7 +90,7 @@ export default function AssessmentExamDetail() {
               item.question?.stem ||
               item.reading_task?.title ||
               item.listening_task?.title ||
-              'Элемент пула',
+              'Задание',
             type: item.question?.type || part.part_kind,
           })),
         }));
@@ -270,7 +270,7 @@ export default function AssessmentExamDetail() {
             <Eye className="h-4 w-4 mr-1" />
             Предпросмотр
           </Button>
-          {exam.status === 'draft' && (
+          {exam.status !== 'archived' && (
             <>
               <Button variant="outline" size="sm" disabled={saving} onClick={handleSave}>
                 {saving ? (
@@ -280,29 +280,20 @@ export default function AssessmentExamDetail() {
                 )}
                 Сохранить
               </Button>
-              <Button
-                className="bg-primary hover:bg-primary/90"
-                size="sm"
-                disabled={saving}
-                onClick={handlePublish}
-              >
-                <Send className="h-4 w-4 mr-1" />
-                Опубликовать
-              </Button>
+              {exam.status === 'draft' && (
+                <Button
+                  className="bg-primary hover:bg-primary/90"
+                  size="sm"
+                  disabled={saving}
+                  onClick={handlePublish}
+                >
+                  <Send className="h-4 w-4 mr-1" />
+                  Опубликовать
+                </Button>
+              )}
             </>
           )}
-          {exam.status === 'published' && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={saving}
-              onClick={() => setConfirmArchive(true)}
-            >
-              <Archive className="h-4 w-4 mr-1" />
-              В архив
-            </Button>
-          )}
-          {exam.status !== 'archived' && exam.status !== 'published' && (
+          {exam.status !== 'archived' && (
             <Button
               variant="outline"
               size="sm"

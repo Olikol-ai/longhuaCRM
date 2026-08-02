@@ -25,6 +25,7 @@ import {
   AssessmentResultRepository,
 } from '../repositories';
 import { AssessmentContentGuard } from './assessment-content.guard';
+import { toResultDto } from './result-dto';
 import { AssessmentScoringService } from './assessment-scoring.service';
 
 export type CreateResultInput = {
@@ -86,8 +87,11 @@ export class ResultService {
   async getForActor(
     id: string,
     actor: DomainAccessActor,
-  ): Promise<AssessmentResultEntity> {
-    return this.access.assertCanReadResult(actor, id);
+  ): Promise<ReturnType<typeof toResultDto>> {
+    const result = await this.access.assertCanReadResult(actor, id);
+    const withBreakdowns =
+      (await this.results.findByAttemptId(result.attemptId)) ?? result;
+    return toResultDto(withBreakdowns);
   }
 
   findByAttemptId(attemptId: string): Promise<AssessmentResultEntity | null> {
@@ -97,12 +101,13 @@ export class ResultService {
   async getByAttemptForActor(
     attemptId: string,
     actor: DomainAccessActor,
-  ): Promise<AssessmentResultEntity> {
+  ): Promise<ReturnType<typeof toResultDto>> {
     await this.access.assertCanViewResults(actor, attemptId);
-    return this.guard.requireFound(
+    const result = this.guard.requireFound(
       await this.results.findByAttemptId(attemptId),
       'Result',
     );
+    return toResultDto(result);
   }
 
   async listFiltered(

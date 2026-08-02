@@ -5,24 +5,36 @@ import { ContentLifecycleStatus } from '../enums';
 describe('AssessmentContentGuard', () => {
   const guard = new AssessmentContentGuard();
 
-  it('published entity cannot be edited', () => {
+  it('allows editing draft and published content', () => {
     expect(() =>
-      guard.assertDraft(ContentLifecycleStatus.Published, 'Bank'),
-    ).toThrow(ConflictException);
+      guard.assertEditable(ContentLifecycleStatus.Draft, 'Question'),
+    ).not.toThrow();
     expect(() =>
-      guard.assertDraft(ContentLifecycleStatus.Published, 'Bank'),
-    ).toThrow(/only be edited while draft/);
+      guard.assertEditable(ContentLifecycleStatus.Published, 'Exam'),
+    ).not.toThrow();
+    expect(() =>
+      guard.assertDraft(ContentLifecycleStatus.Published, 'Exam'),
+    ).not.toThrow();
   });
 
-  it('archived entity cannot be edited', () => {
+  it('blocks editing archived content', () => {
+    expect(() =>
+      guard.assertEditable(ContentLifecycleStatus.Archived, 'Question'),
+    ).toThrow(ConflictException);
     expect(() =>
       guard.assertDraft(ContentLifecycleStatus.Archived, 'Question'),
-    ).toThrow(ConflictException);
+    ).toThrow(/archived/);
   });
 
-  it('draft entity can be edited', () => {
+  it('publish only from draft (not published or archived)', () => {
     expect(() =>
-      guard.assertDraft(ContentLifecycleStatus.Draft, 'Bank'),
+      guard.assertCanPublish(ContentLifecycleStatus.Draft, 'Exam'),
     ).not.toThrow();
+    expect(() =>
+      guard.assertCanPublish(ContentLifecycleStatus.Published, 'Exam'),
+    ).toThrow(/already published/);
+    expect(() =>
+      guard.assertCanPublish(ContentLifecycleStatus.Archived, 'Exam'),
+    ).toThrow(/archived/);
   });
 });

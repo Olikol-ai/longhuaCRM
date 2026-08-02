@@ -91,6 +91,8 @@ Unknown authenticated paths return an empty allowlist → **denied** (forces exp
 | TutorStats / Tutor* | ✓ | ✗ | ✓ | ✗ | ✗ |
 | Assessment Questions / Blocks / Exams | ✓ | ✓ | ✓ | ✗ | ✗ |
 | Materials / Homework (manage) | ✓ | ✓ | ✓ | ✗ | ✗ |
+| HSK Academy (learner) | ✓ | ✓ | ✗ | ✓ | ✗ |
+| Exam Content / HSK bank (staff) | ✓ | ✓ | ✗ | ✗ | ✗ |
 | HomeworkViewer | ✗ | ✗ | ✗ | ✓ | ✓ |
 | StudentDashboard | ✗ | ✗ | ✗ | ✓ | ✗ |
 

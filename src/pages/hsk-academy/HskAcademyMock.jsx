@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
 const fieldCls =
-  'w-full h-11 rounded-md border border-input bg-background px-3 text-sm';
+  'h-11 min-h-11 w-full rounded-md border border-input bg-background px-3 text-base md:h-10 md:min-h-10 md:text-sm';
 
 export default function HskAcademyMock() {
   const [params] = useSearchParams();
@@ -87,7 +87,7 @@ export default function HskAcademyMock() {
         show_correct_answers: 'after_submit',
       });
       await api.examAcademy.sessions.start(session.id);
-      navigate(`${createPageUrl('HskAcademyTake')}?sessionId=${session.id}`);
+      navigate(`${createPageUrl('HskAcademyTake')}?sessionId=${session.id}&from=mock`);
     } catch (err) {
       setError(userFacingError(err));
     } finally {
@@ -96,18 +96,15 @@ export default function HskAcademyMock() {
   };
 
   return (
-    <HskAcademyShell active="mock">
-      <div>
-        <h2 className="text-xl font-semibold">{title}</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Максимально близко к структуре официального экзамена. Подсказки до завершения отключены.
-        </p>
-      </div>
-
+    <HskAcademyShell
+      active="mock"
+      title={title}
+      description="Структура и таймер как на официальном экзамене. Подсказки до завершения отключены."
+    >
       {step === 'configure' ? (
-        <Card className="p-5 space-y-4 border-border">
+        <Card className="p-4 sm:p-5 space-y-4 border-border max-w-2xl">
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm space-y-1">
+            <label className="text-sm space-y-1.5 block">
               <span className="text-muted-foreground">Версия</span>
               <select
                 className={fieldCls}
@@ -119,7 +116,7 @@ export default function HskAcademyMock() {
                 ))}
               </select>
             </label>
-            <label className="text-sm space-y-1">
+            <label className="text-sm space-y-1.5 block">
               <span className="text-muted-foreground">Уровень</span>
               <select
                 className={fieldCls}
@@ -131,7 +128,7 @@ export default function HskAcademyMock() {
                 ))}
               </select>
             </label>
-            <label className="text-sm space-y-1 sm:col-span-2">
+            <label className="text-sm space-y-1.5 block sm:col-span-2">
               <span className="text-muted-foreground">Структура</span>
               <select
                 className={fieldCls}
@@ -147,7 +144,7 @@ export default function HskAcademyMock() {
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
           <Button
             type="button"
-            className="min-h-11"
+            className="min-h-11 w-full sm:w-auto"
             disabled={!versionId || !levelId}
             onClick={() => {
               setError('');
@@ -160,7 +157,7 @@ export default function HskAcademyMock() {
       ) : (
         <ExamPrepScreen
           title={title}
-          lead="Убедитесь, что у вас достаточно времени. После старта откроется полноэкранный режим экзамена."
+          lead="Убедитесь, что у вас достаточно времени без перерывов."
           metaRows={[
             { label: 'Версия', value: versionTitle },
             { label: 'Уровень', value: levelTitle },
@@ -176,9 +173,8 @@ export default function HskAcademyMock() {
             { label: 'Режим', value: mode === 'random_exam' ? 'Случайный вариант' : 'Пробный' },
           ]}
           tips={[
-            'Следите за таймером в шапке — время с сервера.',
-            'Можно пропускать задания и возвращаться через навигацию.',
-            'Не закрывайте вкладку без необходимости — ответы автосохраняются.',
+            'Таймер синхронизирован с сервером',
+            'Можно пропускать задания и возвращаться через навигацию',
           ]}
           busy={busy}
           error={error}

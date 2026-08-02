@@ -199,7 +199,7 @@ export class ExamContentVariantGeneratorService {
 
   private isStaffPreview(actor: DomainAccessActor): boolean {
     const role = String(actor.role || '').toLowerCase();
-    return role === 'admin' || role === 'teacher' || role === 'tutor';
+    return role === 'admin' || role === 'teacher';
   }
 
   private async resolveSlot(

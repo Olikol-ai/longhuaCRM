@@ -36,4 +36,20 @@ describe('spa-cache-headers', () => {
     expect(res.headers['Cache-Control']).toMatch(/no-store/);
     expect(res.headers['CDN-Cache-Control']).toBe('no-store');
   });
+
+  it('marks favicon, icons and manifest as must-revalidate', () => {
+    for (const filePath of [
+      '/opt/longhuaCRM/dist/favicon.ico',
+      '/opt/longhuaCRM/dist/icons/icon-192.png',
+      '/opt/longhuaCRM/dist/icons/apple-touch-icon.png',
+      '/opt/longhuaCRM/dist/icons/icon-maskable-512.png',
+      '/opt/longhuaCRM/dist/manifest.webmanifest',
+      '/opt/longhuaCRM/dist/icon-master.png',
+    ]) {
+      const res = mockRes();
+      applySpaStaticFileHeaders(res, filePath);
+      expect(res.headers['Cache-Control']).toBe('public, max-age=0, must-revalidate');
+      expect(res.headers['CDN-Cache-Control']).toBe('no-cache');
+    }
+  });
 });
