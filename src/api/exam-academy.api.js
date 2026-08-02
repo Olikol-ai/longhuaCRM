@@ -30,28 +30,6 @@ export const examAcademy = {
       apiFetch(`/exam-academy/sessions/${encodeURIComponent(id)}/submit`, { method: 'POST' }),
     result: (id) => apiFetch(`/exam-academy/sessions/${encodeURIComponent(id)}/result`),
   },
-  bank: {
-    list: (filters = {}) => {
-      const q = new URLSearchParams();
-      Object.entries(filters).forEach(([k, v]) => {
-        if (v != null && v !== '') q.set(k, String(v));
-      });
-      const qs = q.toString();
-      return apiFetch(`/exam-academy/bank/items${qs ? `?${qs}` : ''}`);
-    },
-    get: (id) => apiFetch(`/exam-academy/bank/items/${encodeURIComponent(id)}`),
-    create: (payload) =>
-      apiFetch('/exam-academy/bank/items', { method: 'POST', body: JSON.stringify(payload) }),
-    publish: (id) =>
-      apiFetch(`/exam-academy/bank/items/${encodeURIComponent(id)}/publish`, { method: 'POST' }),
-    archive: (id) =>
-      apiFetch(`/exam-academy/bank/items/${encodeURIComponent(id)}/archive`, { method: 'POST' }),
-    update: (id, payload) =>
-      apiFetch(`/exam-academy/bank/items/${encodeURIComponent(id)}`, {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-      }),
-  },
   me: {
     preparation: () => apiFetch('/exam-academy/me/preparation'),
     favorites: () => apiFetch('/exam-academy/me/favorites'),

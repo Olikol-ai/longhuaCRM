@@ -89,6 +89,7 @@ export const PERSONAL_WORD_STATUS = {
 export const ASSESSMENT_EXAM_SOURCE = {
   Assessment: 'assessment',
   ExamAcademy: 'exam_academy',
+  ExamContent: 'exam_content',
 } as const;
 
 export type ContentStatus = (typeof CONTENT_STATUS)[keyof typeof CONTENT_STATUS];

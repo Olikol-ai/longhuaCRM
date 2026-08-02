@@ -93,6 +93,11 @@ const EXACT_ROUTE_ACCESS = {
   '/HskAcademyTake': ['admin', 'teacher', 'tutor', 'student'],
   '/HskAcademyResult': ['admin', 'teacher', 'tutor', 'student'],
   '/HskAcademyBank': ['admin', 'teacher', 'tutor'],
+  '/ExamContent': ['admin', 'teacher', 'tutor'],
+  '/ExamContentBank': ['admin', 'teacher', 'tutor'],
+  '/ExamContentMedia': ['admin', 'teacher', 'tutor'],
+  '/ExamContentExams': ['admin', 'teacher', 'tutor'],
+  '/ExamContentOps': ['admin', 'teacher', 'tutor'],
 
   '/admin': ['admin'],
   '/teacher': ['teacher'],

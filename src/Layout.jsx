@@ -50,6 +50,7 @@ const adminNav = [
   { name: "Платежи", icon: CreditCard, page: "Payments" },
   { name: "Материалы", icon: BookOpen, page: "MaterialsHub" },
   { name: "HSK Academy", icon: Award, page: "HskAcademy" },
+  { name: "Exam Content", icon: BookOpen, page: "ExamContent" },
   { name: "Проверочные работы", icon: ClipboardList, page: "AdminAssessment" },
   { name: "Настройки", icon: Settings, page: "Settings" },
 ];
@@ -60,6 +61,7 @@ const teacherNav = [
   { name: "Моё расписание", icon: Calendar, page: "TeacherSchedule" },
   { name: "Ученики", icon: Users, page: "TeacherStudents" },
   { name: "HSK Academy", icon: Award, page: "HskAcademy" },
+  { name: "Exam Content", icon: BookOpen, page: "ExamContent" },
   { name: "Экзамены", icon: ClipboardList, page: "TeacherAssessment" },
   { name: "Мои вопросы", icon: BookOpen, page: "AssessmentQuestions" },
   { name: "Мои экзамены", icon: ClipboardList, page: "AssessmentExams" },
@@ -75,6 +77,7 @@ const tutorNav = [
   { name: "Расписание", icon: Calendar, page: "TutorSchedule" },
   { name: "Ученики", icon: Users, page: "TutorStudents" },
   { name: "HSK Academy", icon: Award, page: "HskAcademy" },
+  { name: "Exam Content", icon: BookOpen, page: "ExamContent" },
   { name: "Мои вопросы", icon: BookOpen, page: "AssessmentQuestions" },
   { name: "Мои экзамены", icon: ClipboardList, page: "AssessmentExams" },
   { name: "Домашние задания", icon: NotebookPen, page: "HomeworkList" },

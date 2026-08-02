@@ -73,6 +73,7 @@ import { MaterialsListPerformanceIndexes1745000000000 } from './migrations/17450
 import { OneActiveInviteLinkPerOwner1745100000000 } from './migrations/1745100000000-OneActiveInviteLinkPerOwner';
 import { LessonChatKindAndBackfill1745200000000 } from './migrations/1745200000000-LessonChatKindAndBackfill';
 import { ExamAcademySchema1745300000000 } from './migrations/1745300000000-ExamAcademySchema';
+import { ExamContentPlatformSchema1745400000000 } from './migrations/1745400000000-ExamContentPlatformSchema';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -149,6 +150,7 @@ export default new DataSource({
     OneActiveInviteLinkPerOwner1745100000000,
     LessonChatKindAndBackfill1745200000000,
     ExamAcademySchema1745300000000,
+    ExamContentPlatformSchema1745400000000,
   ],
   synchronize: false,
 });

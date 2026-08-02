@@ -1,6 +1,7 @@
 import { alfabank } from './alfabank';
 import { assessment } from './assessment.api';
 import { examAcademy } from './exam-academy.api';
+import { examContent } from './exam-content.api';
 import { homework } from './homework.api';
 import { video } from './video.api';
 import { auth } from './auth';
@@ -31,6 +32,7 @@ export { getToken, setToken, apiFetch, TOKEN_KEY, onTokenChange } from './http';
 export { alfabank } from './alfabank';
 export { assessment } from './assessment.api';
 export { examAcademy } from './exam-academy.api';
+export { examContent } from './exam-content.api';
 export { homework } from './homework.api';
 export { video } from './video.api';
 export { auth } from './auth';
@@ -62,6 +64,7 @@ export const api = {
   alfabank,
   assessment,
   examAcademy,
+  examContent,
   homework,
   video,
   students,

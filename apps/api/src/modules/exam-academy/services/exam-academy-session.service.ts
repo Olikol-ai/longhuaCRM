@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { AssessmentAccessService } from '../../../common/access/assessment-access.service';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
 import {
@@ -27,16 +27,16 @@ import {
 import { AttemptService } from '../../assessment/services/attempt.service';
 import { ResultService } from '../../assessment/services/result.service';
 import { TeacherEntity } from '../../teachers/entities/teacher.entity';
+import { ExamContentItemEntity } from '../../exam-content/entities';
+import { ExamContentVariantGeneratorService } from '../../exam-content/services/exam-content-variant-generator.service';
 import {
   ASSESSMENT_EXAM_SOURCE,
   CONTENT_KIND,
-  CONTENT_STATUS,
   SESSION_MODE,
   SESSION_STATUS,
   SHOW_ANSWERS,
 } from '../constants';
 import {
-  ExamAcademyContentItemEntity,
   ExamAcademyFavoriteEntity,
   ExamAcademyLevelEntity,
   ExamAcademyMockBlueprintEntity,
@@ -56,6 +56,7 @@ export type CreateSessionInput = {
   randomize?: boolean;
   showCorrectAnswers?: string;
   blueprintId?: string | null;
+  blueprintEditionId?: string | null;
   title?: string;
 };
 
@@ -66,8 +67,8 @@ export class ExamAcademySessionService {
     private readonly sessions: Repository<ExamAcademySessionEntity>,
     @InjectRepository(ExamAcademySessionAttemptEntity)
     private readonly sessionAttempts: Repository<ExamAcademySessionAttemptEntity>,
-    @InjectRepository(ExamAcademyContentItemEntity)
-    private readonly contentItems: Repository<ExamAcademyContentItemEntity>,
+    @InjectRepository(ExamContentItemEntity)
+    private readonly contentItems: Repository<ExamContentItemEntity>,
     @InjectRepository(ExamAcademyLevelEntity)
     private readonly levels: Repository<ExamAcademyLevelEntity>,
     @InjectRepository(ExamAcademyProgramVersionEntity)
@@ -91,6 +92,7 @@ export class ExamAcademySessionService {
     private readonly attemptRepo: AssessmentAttemptRepository,
     private readonly results: ResultService,
     private readonly access: AssessmentAccessService,
+    private readonly variantGenerator: ExamContentVariantGeneratorService,
   ) {}
 
   async create(actor: DomainAccessActor, input: CreateSessionInput) {
@@ -125,6 +127,7 @@ export class ExamAcademySessionService {
       assessmentAssignmentId: null,
       scoringProfileId: null,
       blueprintId: input.blueprintId ?? null,
+      blueprintEditionId: input.blueprintEditionId ?? input.blueprintId ?? null,
       status: SESSION_STATUS.Draft,
       title: input.title || `${level.title} · ${mode}`,
       startedAt: null,
@@ -178,8 +181,10 @@ export class ExamAcademySessionService {
       }
     }
 
-    const poolPlan = await this.resolvePool(actor, session);
-    if (poolPlan.length === 0) {
+    let generated;
+    try {
+      generated = await this.resolvePoolViaEcp(actor, session);
+    } catch (e) {
       if (session.mode === SESSION_MODE.Favorites) {
         throw new BadRequestException(
           'В избранном пока нет заданий. Отметьте вопросы на экране результата.',
@@ -190,17 +195,24 @@ export class ExamAcademySessionService {
           'Очередь ошибок пуста. Пройдите тренировку — неверные ответы появятся здесь.',
         );
       }
+      throw e;
+    }
+    const poolPlan = generated.parts;
+    if (poolPlan.length === 0) {
       throw new BadRequestException(
-        'Банк заданий пуст для выбранного уровня/раздела. Добавьте задания в HSK Academy.',
+        'Банк заданий пуст для выбранного уровня/раздела. Добавьте задания в Exam Content Studio.',
       );
     }
 
-    const durationMinutes = await this.resolveDurationMinutes(session);
+    const durationMinutes =
+      generated.totalDurationSeconds > 0
+        ? Math.max(1, Math.ceil(generated.totalDurationSeconds / 60))
+        : await this.resolveDurationMinutes(session);
     const exam = await this.exams.save({
       name: `[Academy] ${session.title}`,
       status: ContentLifecycleStatus.Draft,
       createdByUserId: actor.sub,
-      source: ASSESSMENT_EXAM_SOURCE.ExamAcademy,
+      source: ASSESSMENT_EXAM_SOURCE.ExamContent,
       availableFrom: null,
       availableTo: null,
     });
@@ -272,10 +284,12 @@ export class ExamAcademySessionService {
     // Use update() — sessions loaded with `attempts` relation would orphan rows on save().
     await this.sessions.update(session.id, {
       assessmentExamId: exam.id,
+      blueprintEditionId: generated.blueprintEditionId ?? session.blueprintEditionId,
       status: SESSION_STATUS.InProgress,
       startedAt,
     });
     session.assessmentExamId = exam.id;
+    session.blueprintEditionId = generated.blueprintEditionId ?? session.blueprintEditionId;
     session.status = SESSION_STATUS.InProgress;
     session.startedAt = startedAt;
 
@@ -490,142 +504,40 @@ export class ExamAcademySessionService {
     return 40;
   }
 
-  private async resolvePool(
-    actor: DomainAccessActor,
-    session: ExamAcademySessionEntity,
-  ): Promise<
-    Array<{
-      partKind: 'test' | 'listening' | 'reading';
-      title: string;
-      selectCount: number;
-      pool: Array<{
-        questionId: string | null;
-        readingTaskId: string | null;
-        listeningTaskId: string | null;
-      }>;
-    }>
-  > {
-    let items: ExamAcademyContentItemEntity[] = [];
-
+  /** Academy sessions materialize variants only via ECP generator. */
+  private async resolvePoolViaEcp(actor: DomainAccessActor, session: ExamAcademySessionEntity) {
     if (session.mode === SESSION_MODE.Favorites) {
       const favs = await this.favorites.find({ where: { userId: actor.sub } });
-      if (favs.length === 0) return [];
-      items = await this.contentItems.find({
-        where: {
-          status: CONTENT_STATUS.Published,
-          contentId: In(favs.map((f) => f.contentId)),
-        },
+      if (favs.length === 0) {
+        return { parts: [], totalDurationSeconds: 0, blueprintEditionId: null, blueprintId: null, selectedItemIds: [] };
+      }
+      return this.variantGenerator.generate(actor, {
+        engineContentIds: favs.map((f) => f.contentId),
+        sessionId: session.id,
       });
-    } else if (session.mode === SESSION_MODE.ErrorReview) {
+    }
+    if (session.mode === SESSION_MODE.ErrorReview) {
       const review = await this.reviewItems.find({
         where: { userId: actor.sub, status: 'active' },
       });
-      if (review.length === 0) return [];
-      items = await this.contentItems.find({
-        where: {
-          status: CONTENT_STATUS.Published,
-          contentId: In(review.map((r) => r.contentId)),
-        },
-      });
-    } else {
-      const where: Record<string, unknown> = {
-        levelId: session.levelId,
-        status: CONTENT_STATUS.Published,
-      };
-      if (session.sectionKey) where.sectionKey = session.sectionKey;
-      items = await this.contentItems.find({ where });
-    }
-
-    if (session.randomize) {
-      items = [...items].sort(() => Math.random() - 0.5);
-    }
-
-    const count = session.questionCount && session.questionCount > 0
-      ? session.questionCount
-      : items.length;
-    items = items.slice(0, Math.max(1, count));
-
-    if (session.blueprintId) {
-      const bp = await this.blueprints.findOne({
-        where: { id: session.blueprintId },
-        relations: { sections: { sectionTemplate: true } },
-      });
-      if (bp?.sections?.length) {
-        const parts: Array<{
-          partKind: 'test' | 'listening' | 'reading';
-          title: string;
-          selectCount: number;
-          pool: Array<{
-            questionId: string | null;
-            readingTaskId: string | null;
-            listeningTaskId: string | null;
-          }>;
-        }> = [];
-        for (const section of [...bp.sections].sort((a, b) => a.sortOrder - b.sortOrder)) {
-          const key = section.sectionTemplate?.sectionKey;
-          const sectionItems = items.filter((i) => i.sectionKey === key);
-          const picked = sectionItems.slice(0, section.selectCount);
-          if (picked.length === 0) continue;
-          parts.push(this.groupAsPart(picked, section.sectionTemplate?.title || key || 'Part'));
-        }
-        if (parts.length) return parts;
+      if (review.length === 0) {
+        return { parts: [], totalDurationSeconds: 0, blueprintEditionId: null, blueprintId: null, selectedItemIds: [] };
       }
+      return this.variantGenerator.generate(actor, {
+        engineContentIds: review.map((r) => r.contentId),
+        sessionId: session.id,
+      });
     }
 
-    return items.length ? [this.groupAsPart(items, session.sectionKey || 'Практика')] : [];
-  }
-
-  private groupAsPart(
-    items: ExamAcademyContentItemEntity[],
-    title: string,
-  ): {
-    partKind: 'test' | 'listening' | 'reading';
-    title: string;
-    selectCount: number;
-    pool: Array<{
-      questionId: string | null;
-      readingTaskId: string | null;
-      listeningTaskId: string | null;
-    }>;
-  } {
-    const listening = items.filter((i) => i.contentKind === CONTENT_KIND.ListeningTask);
-    const reading = items.filter((i) => i.contentKind === CONTENT_KIND.ReadingTask);
-    const questions = items.filter((i) => i.contentKind === CONTENT_KIND.Question);
-
-    if (listening.length && !reading.length && !questions.length) {
-      return {
-        partKind: 'listening',
-        title,
-        selectCount: listening.length,
-        pool: listening.map((i) => ({
-          questionId: null,
-          readingTaskId: null,
-          listeningTaskId: i.contentId,
-        })),
-      };
-    }
-    if (reading.length && !listening.length && !questions.length) {
-      return {
-        partKind: 'reading',
-        title,
-        selectCount: reading.length,
-        pool: reading.map((i) => ({
-          questionId: null,
-          readingTaskId: i.contentId,
-          listeningTaskId: null,
-        })),
-      };
-    }
-    return {
-      partKind: 'test',
-      title,
-      selectCount: questions.length || items.length,
-      pool: (questions.length ? questions : items).map((i) => ({
-        questionId: i.contentKind === CONTENT_KIND.Question ? i.contentId : null,
-        readingTaskId: i.contentKind === CONTENT_KIND.ReadingTask ? i.contentId : null,
-        listeningTaskId: i.contentKind === CONTENT_KIND.ListeningTask ? i.contentId : null,
-      })),
-    };
+    const editionId = session.blueprintEditionId || session.blueprintId;
+    return this.variantGenerator.generate(actor, {
+      blueprintEditionId: editionId,
+      levelId: session.levelId,
+      sectionKey: session.sectionKey,
+      questionCount: session.questionCount,
+      sessionId: session.id,
+      seed: session.randomize ? undefined : 42,
+    });
   }
 
   private async afterSubmitHooks(
@@ -685,7 +597,7 @@ export class ExamAcademySessionService {
           if (!contentId) continue;
           const contentItem = await this.contentItems.findOne({
             where: {
-              contentId,
+              engineContentId: contentId,
               contentKind: CONTENT_KIND.Question,
             },
           });

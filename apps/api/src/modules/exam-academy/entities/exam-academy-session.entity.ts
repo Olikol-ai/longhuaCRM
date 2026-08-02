@@ -80,6 +80,10 @@ export class ExamAcademySessionEntity {
   @JoinColumn({ name: 'blueprint_id' })
   blueprint?: ExamAcademyMockBlueprintEntity | null;
 
+  /** Pinned ECP blueprint edition for this session variant. */
+  @Column({ name: 'blueprint_edition_id', type: 'uuid', nullable: true })
+  blueprintEditionId: string | null;
+
   @Index('IDX_EA_SESSIONS_STATUS')
   @Column({ type: 'varchar', length: 32, default: 'draft' })
   status: string;

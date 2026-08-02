@@ -47,6 +47,7 @@ import { ASSESSMENT_ENTITIES } from '../modules/assessment/entities';
 import { HOMEWORK_ENTITIES } from '../modules/homework/entities';
 import { CHAT_ENTITIES } from '../modules/chats/entities';
 import { EXAM_ACADEMY_ENTITIES } from '../modules/exam-academy/entities';
+import { EXAM_CONTENT_ENTITIES } from '../modules/exam-content/entities';
 
 /** All v2 domain entities for TypeORM registration. */
 export const ALL_V2_ENTITIES = [
@@ -99,4 +100,5 @@ export const ALL_V2_ENTITIES = [
   ...HOMEWORK_ENTITIES,
   ...CHAT_ENTITIES,
   ...EXAM_ACADEMY_ENTITIES,
+  ...EXAM_CONTENT_ENTITIES,
 ];
