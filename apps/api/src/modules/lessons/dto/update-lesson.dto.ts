@@ -1,13 +1,17 @@
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
+  IsDateString,
   IsEnum,
   IsInt,
   IsOptional,
   IsString,
   IsUUID,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { LessonFormat, LessonStatus, LessonType } from '../entities/lesson.entity';
+import { LessonRecurrenceApplyScope } from './lesson-recurrence.dto';
 
 function pickUuid(...candidates: unknown[]): string | undefined {
   for (const value of candidates) {
@@ -56,6 +60,24 @@ export class UpdateLessonDto {
   @IsOptional()
   @IsUUID()
   studentId?: string;
+
+  @IsOptional()
+  @Transform(({ value, obj }) => {
+    const record = obj as Record<string, unknown>;
+    return pickUuid(
+      value,
+      record.primaryTutorStudentId,
+      record.tutorStudentId,
+      record.tutor_student_id,
+      record.primary_tutor_student_id,
+    );
+  })
+  @IsUUID()
+  primaryTutorStudentId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  tutorStudentId?: string;
 
   @IsOptional()
   @Transform(({ value, obj }) => {
@@ -133,4 +155,41 @@ export class UpdateLessonDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  /** Enable / disable weekly recurrence when updating a lesson. */
+  @IsOptional()
+  @Transform(({ value, obj }) => {
+    const raw =
+      value ??
+      (obj as Record<string, unknown>).recurrence_weekly ??
+      (obj as Record<string, unknown>).recurrenceWeekly;
+    if (raw === undefined || raw === null || raw === '') return undefined;
+    return Boolean(raw);
+  })
+  @IsBoolean()
+  recurrenceWeekly?: boolean;
+
+  @IsOptional()
+  @Transform(({ value, obj }) => {
+    const raw =
+      value ??
+      (obj as Record<string, unknown>).recurrence_until ??
+      (obj as Record<string, unknown>).recurrenceUntil;
+    if (raw === '' || raw === null) return null;
+    return raw;
+  })
+  @ValidateIf((_, v) => v != null && v !== '')
+  @IsDateString()
+  recurrenceUntil?: string | null;
+
+  @IsOptional()
+  @Transform(({ value, obj }) => {
+    return (
+      value ??
+      (obj as Record<string, unknown>).apply_scope ??
+      (obj as Record<string, unknown>).applyScope
+    );
+  })
+  @IsEnum(['this', 'following', 'all'])
+  applyScope?: LessonRecurrenceApplyScope;
 }

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createReadStream } from 'fs';
+import { buildContentDisposition } from '../../../common/http/content-disposition';
 import { Repository } from 'typeorm';
 import { AssessmentAccessService } from '../../../common/access/assessment-access.service';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
@@ -140,7 +141,10 @@ export class ListeningTaskService {
     if (!path) throw new NotFoundException('Audio file missing on disk');
     return new StreamableFile(createReadStream(path), {
       type: task.audioMime ?? 'audio/mpeg',
-      disposition: `inline; filename="${task.audioOriginalFilename ?? task.audioStorageKey}"`,
+      disposition: buildContentDisposition(
+        'inline',
+        task.audioOriginalFilename ?? task.audioStorageKey,
+      ),
     });
   }
 
@@ -155,7 +159,10 @@ export class ListeningTaskService {
     if (!path) throw new NotFoundException('Audio file missing on disk');
     return new StreamableFile(createReadStream(path), {
       type: task.audioMime ?? 'audio/mpeg',
-      disposition: `inline; filename="${task.audioOriginalFilename ?? task.audioStorageKey}"`,
+      disposition: buildContentDisposition(
+        'inline',
+        task.audioOriginalFilename ?? task.audioStorageKey,
+      ),
     });
   }
 
@@ -256,6 +263,7 @@ export class ListeningTaskService {
     const questions = [...(row.questions ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
     return {
       id: row.id,
+      task_type: 'listening',
       title: row.title,
       instructions: row.instructions,
       level_label: row.levelLabel,

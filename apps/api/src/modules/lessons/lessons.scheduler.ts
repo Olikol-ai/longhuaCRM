@@ -5,6 +5,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JobGuard } from '../../common/concurrency/job-guard';
 import { LessonEntity } from './entities/lesson.entity';
+import { LessonRecurrenceService } from './lesson-recurrence.service';
 import { LessonsService } from './lessons.service';
 
 export type ProcessCompletedLessonsResult = {
@@ -17,16 +18,17 @@ export type ProcessCompletedLessonsResult = {
 
 /**
  * Auto-finalizes lessons whose wall-clock end time has passed.
- * Completion side effects always go through LessonsService.completeExpiredBySystem
- * → finalizeLessonCompletion (balance, TeacherPayment, attendance).
+ * Also extends rolling weekly recurrence horizons.
  */
 @Injectable()
 export class LessonsScheduler {
   private readonly logger = new Logger(LessonsScheduler.name);
-  private readonly guard = new JobGuard(this.logger, 'processCompletedLessons');
+  private readonly completeGuard = new JobGuard(this.logger, 'processCompletedLessons');
+  private readonly recurrenceGuard = new JobGuard(this.logger, 'extendRecurringLessons');
 
   constructor(
     private readonly lessonsService: LessonsService,
+    private readonly recurrence: LessonRecurrenceService,
     private readonly config: ConfigService,
     @InjectRepository(LessonEntity)
     private readonly lessonRepo: Repository<LessonEntity>,
@@ -37,11 +39,27 @@ export class LessonsScheduler {
     if (!this.config.get<boolean>('jobs.enabled')) {
       return;
     }
-    await this.guard.run(async () => {
+    await this.completeGuard.run(async () => {
       const result = await this.processCompletedLessons();
       if (result.count > 0 || result.errors > 0) {
         this.logger.log(
           `Auto-completed lessons: completed=${result.count} skipped=${result.skipped} errors=${result.errors}`,
+        );
+      }
+    });
+  }
+
+  /** Keep ~12 weeks of planned weekly occurrences ahead. */
+  @Cron('20 * * * *')
+  async runExtendRecurrenceCron(): Promise<void> {
+    if (!this.config.get<boolean>('jobs.enabled')) {
+      return;
+    }
+    await this.recurrenceGuard.run(async () => {
+      const result = await this.recurrence.extendAllActiveSeries();
+      if (result.lessonsCreated > 0) {
+        this.logger.log(
+          `Extended weekly recurrence: series=${result.series} lessonsCreated=${result.lessonsCreated}`,
         );
       }
     });

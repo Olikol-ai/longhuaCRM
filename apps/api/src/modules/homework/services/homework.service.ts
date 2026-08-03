@@ -9,6 +9,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { createReadStream } from 'fs';
 import { In, IsNull, Repository } from 'typeorm';
+import { buildContentDisposition } from '../../../common/http/content-disposition';
 import { JwtPayload } from '../../auth/auth.service';
 import { EvaluationType, QuestionType, isManualReviewQuestionType } from '../../assessment/enums';
 import { AssessmentScoringService } from '../../assessment/services/assessment-scoring.service';
@@ -744,7 +745,7 @@ export class HomeworkService {
           (source.attachments ?? []).map((att) => ({
             id: att.id,
             kind: att.kind,
-            url: null,
+            url: `/api/assessment/attachments/${att.id}/download?disposition=inline`,
           })),
         );
       }
@@ -2174,7 +2175,10 @@ export class HomeworkService {
     }
     return new StreamableFile(createReadStream(path), {
       type: answer.audioMime ?? 'audio/mpeg',
-      disposition: `inline; filename="${answer.audioOriginalFilename ?? answer.audioStorageKey}"`,
+      disposition: buildContentDisposition(
+        'inline',
+        answer.audioOriginalFilename ?? answer.audioStorageKey,
+      ),
     });
   }
 

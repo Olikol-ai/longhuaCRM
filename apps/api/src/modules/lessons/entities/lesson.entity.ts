@@ -15,6 +15,7 @@ import { TeacherEntity } from '../../teachers/entities/teacher.entity';
 import { TutorEntity } from '../../tutors/entities/tutor.entity';
 import { TutorStudentEntity } from '../../tutors/entities/tutor-student.entity';
 import { TeacherStudentContactEntity } from '../../teacher-student-contacts/entities/teacher-student-contact.entity';
+import { LessonRecurrenceSeriesEntity } from './lesson-recurrence-series.entity';
 
 export const LESSON_STATUSES = [
   'planned',
@@ -76,6 +77,17 @@ export class LessonEntity {
   @ManyToOne(() => LessonSeriesEntity, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'series_id' })
   series?: LessonSeriesEntity | null;
+
+  @Index('IDX_LESSON_RECURRENCE_SERIES_ID')
+  @Column({ name: 'recurrence_series_id', type: 'uuid', nullable: true })
+  recurrenceSeriesId: string | null;
+
+  @ManyToOne(() => LessonRecurrenceSeriesEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'recurrence_series_id' })
+  recurrenceSeries?: LessonRecurrenceSeriesEntity | null;
+
+  @Column({ name: 'is_recurring', type: 'boolean', default: false })
+  isRecurring: boolean;
 
   @Index('IDX_LESSON_GROUP_ID')
   @Column({ name: 'group_id', type: 'uuid', nullable: true })

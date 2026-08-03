@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Loader2 } from 'lucide-react';
-import { api, getToken } from '@/api';
+import { api } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { toast } from '@/components/ui/use-toast';
 import { createPageUrl } from '@/utils';
 import { QUESTION_TYPE_LABEL, displayPersonName, formatDateTime } from '@/lib/assessment-admin';
 import { unwrapItems } from '@/lib/assessment-ui';
+import AuthenticatedAudio from '@/components/media/AuthenticatedAudio';
 
 const REVIEW_STATUS_LABEL = {
   not_reviewed: 'Не проверено',
@@ -28,45 +29,8 @@ function reviewStatusClass(status) {
 }
 
 function ReviewAudioPlayer({ url }) {
-  const [src, setSrc] = useState(null);
-
-  useEffect(() => {
-    let objectUrl = null;
-    let cancelled = false;
-    if (!url) {
-      setSrc(null);
-      return undefined;
-    }
-    (async () => {
-      try {
-        const token = getToken();
-        const res = await fetch(url, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!res.ok) throw new Error('audio');
-        const blob = await res.blob();
-        if (cancelled) return;
-        objectUrl = URL.createObjectURL(blob);
-        setSrc(objectUrl);
-      } catch {
-        if (!cancelled) setSrc(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [url]);
-
   if (!url) return null;
-  if (!src) {
-    return <p className="text-xs text-slate-500">Загрузка аудио…</p>;
-  }
-  return (
-    <audio controls className="w-full" preload="metadata" src={src}>
-      Ваш браузер не поддерживает аудио.
-    </audio>
-  );
+  return <AuthenticatedAudio src={url} />;
 }
 
 export default function TeacherAssessmentReviewDetail() {

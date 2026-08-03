@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -72,9 +73,9 @@ export default function ReadingTaskEditor({ open, onOpenChange, editing = null, 
             explanation: q.explanation || '',
             answers: (q.answers || []).length
               ? q.answers.map((a, ai) => ({
-                  text: a.text || '',
-                  is_correct: Boolean(a.is_correct),
-                  sort_order: a.sort_order ?? ai,
+                  text: a.text || a.body || '',
+                  is_correct: Boolean(a.is_correct ?? a.isCorrect),
+                  sort_order: a.sort_order ?? a.sortOrder ?? ai,
                 }))
               : [emptyAnswer(0), emptyAnswer(1)],
           }));
@@ -174,6 +175,9 @@ export default function ReadingTaskEditor({ open, onOpenChange, editing = null, 
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editing ? 'Редактировать чтение' : 'Создать чтение'}</DialogTitle>
+          <DialogDescription className="sr-only">
+            Форма задания на чтение: текст, вопросы и ответы
+          </DialogDescription>
         </DialogHeader>
 
         {loadingMeta ? (
@@ -322,6 +326,15 @@ function NestedQuestionBlock({ index, question, canRemove, onChange, onRemove })
           rows={2}
           value={question.stem}
           onChange={(e) => onChange({ stem: e.target.value })}
+        />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Пояснение (необяз.)</Label>
+        <Textarea
+          rows={2}
+          value={question.explanation || ''}
+          onChange={(e) => onChange({ explanation: e.target.value })}
+          placeholder="Показывается после ответа"
         />
       </div>
       {showAnswers && (

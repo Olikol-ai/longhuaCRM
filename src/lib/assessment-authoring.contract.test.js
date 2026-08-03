@@ -59,6 +59,25 @@ describe('Assessment authoring access', () => {
     assert.doesNotMatch(questions, /AssessmentBanks/);
   });
 
+  it('wires Edit button to QuestionFormDialog without card-level click conflicts', () => {
+    const questions = readFileSync(join(root, 'src/pages/AssessmentQuestions.jsx'), 'utf8');
+    const form = readFileSync(
+      join(root, 'src/components/assessment/QuestionFormDialog.jsx'),
+      'utf8',
+    );
+    assert.match(questions, /data-testid=\{`question-edit-\$\{q\.id\}`\}/);
+    assert.match(questions, /onEdit\(q, 'edit'\)/);
+    assert.match(questions, /QuestionFormDialog/);
+    assert.match(questions, /const openEdit/);
+    assert.doesNotMatch(
+      questions,
+      /role="button"[\s\S]{0,240}onPreview\?\.\(q\.id\)/,
+    );
+    assert.match(form, /api\.assessment\.getQuestion\(questionId\)/);
+    assert.match(form, /api\.assessment\.updateQuestion\(questionId/);
+    assert.match(form, /Редактировать вопрос/);
+  });
+
   it('Reading/Listening editors create nested questions without bank listQuestions', () => {
     const reading = readFileSync(
       join(root, 'src/components/assessment/ReadingTaskEditor.jsx'),
@@ -79,6 +98,29 @@ describe('Assessment authoring access', () => {
     assert.match(listening, /аудиодорожк/);
     assert.doesNotMatch(reading, /api\.assessment\.listQuestions/);
     assert.doesNotMatch(listening, /api\.assessment\.listQuestions/);
+  });
+
+  it('opens Reading/Listening edit dialog using tab or task_type (API may omit task_type)', () => {
+    const questions = readFileSync(join(root, 'src/pages/AssessmentQuestions.jsx'), 'utf8');
+    const readingDto = readFileSync(
+      join(root, 'apps/api/src/modules/assessment/services/reading-task.service.ts'),
+      'utf8',
+    );
+    const listeningDto = readFileSync(
+      join(root, 'apps/api/src/modules/assessment/services/listening-task.service.ts'),
+      'utf8',
+    );
+    assert.match(questions, /const openEditTask/);
+    assert.match(questions, /data-testid=\{`task-edit-\$\{task\.id\}`\}/);
+    assert.match(questions, /task_type: tab === 'reading' \? 'reading' : 'listening'/);
+    assert.match(questions, /taskDialogType === 'reading'/);
+    assert.match(questions, /taskDialogType === 'listening'/);
+    assert.doesNotMatch(
+      questions,
+      /setTaskDialogType\(task\.task_type\);/,
+    );
+    assert.match(readingDto, /task_type: 'reading'/);
+    assert.match(listeningDto, /task_type: 'listening'/);
   });
 
   it('backend module drops ContentTask and keeps Reading/Listening controllers', () => {

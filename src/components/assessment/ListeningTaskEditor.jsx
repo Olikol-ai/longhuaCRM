@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/api';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -17,6 +18,7 @@ import {
   QUESTION_TYPES,
   needsAnswerOptions,
 } from '@/lib/assessment-admin';
+import AuthenticatedAudio from '@/components/media/AuthenticatedAudio';
 import TaskVocabularyEditor, {
   mapVocabularyFromApi,
   mapVocabularyToApi,
@@ -74,9 +76,9 @@ export default function ListeningTaskEditor({ open, onOpenChange, editing = null
             explanation: q.explanation || '',
             answers: (q.answers || []).length
               ? q.answers.map((a, ai) => ({
-                  text: a.text || '',
-                  is_correct: Boolean(a.is_correct),
-                  sort_order: a.sort_order ?? ai,
+                  text: a.text || a.body || '',
+                  is_correct: Boolean(a.is_correct ?? a.isCorrect),
+                  sort_order: a.sort_order ?? a.sortOrder ?? ai,
                 }))
               : [emptyAnswer(0), emptyAnswer(1)],
           }));
@@ -97,6 +99,17 @@ export default function ListeningTaskEditor({ open, onOpenChange, editing = null
     };
     void load();
   }, [open, editing?.id]);
+
+  const pendingAudioUrl = useMemo(() => {
+    if (!audioFile) return null;
+    return URL.createObjectURL(audioFile);
+  }, [audioFile]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingAudioUrl) URL.revokeObjectURL(pendingAudioUrl);
+    };
+  }, [pendingAudioUrl]);
 
   const updateQuestion = (localKey, patch) => {
     setQuestions((prev) =>
@@ -180,6 +193,9 @@ export default function ListeningTaskEditor({ open, onOpenChange, editing = null
           <DialogTitle>
             {editing ? 'Редактировать аудирование' : 'Создать аудирование'}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Форма задания на аудирование: аудио, вопросы и ответы
+          </DialogDescription>
         </DialogHeader>
 
         {loadingMeta ? (
@@ -207,9 +223,15 @@ export default function ListeningTaskEditor({ open, onOpenChange, editing = null
                 mp3, wav, ogg, m4a, aac. Для .mov / .mp4 будет использована аудиодорожка файла
                 (видео ученику не показывается).
               </p>
-              {hasAudio && !audioFile ? (
+              {hasAudio && !audioFile && editing?.id ? (
+                <AuthenticatedAudio
+                  src={`/api/assessment/listening-tasks/${editing.id}/audio`}
+                />
+              ) : null}
+              {hasAudio && !audioFile && !editing?.id ? (
                 <p className="text-xs text-slate-500">Аудио уже загружено</p>
               ) : null}
+              {pendingAudioUrl ? <AuthenticatedAudio src={pendingAudioUrl} /> : null}
               {audioFile && /\.(mov|mp4|m4v|3gp)$/i.test(audioFile.name) ? (
                 <p className="text-xs text-sky-700 dark:text-sky-300">
                   Будет использована аудиодорожка файла
@@ -339,6 +361,15 @@ function NestedQuestionBlock({ index, question, canRemove, onChange, onRemove })
           rows={2}
           value={question.stem}
           onChange={(e) => onChange({ stem: e.target.value })}
+        />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Пояснение (необяз.)</Label>
+        <Textarea
+          rows={2}
+          value={question.explanation || ''}
+          onChange={(e) => onChange({ explanation: e.target.value })}
+          placeholder="Показывается после ответа"
         />
       </div>
       {showAnswers && (

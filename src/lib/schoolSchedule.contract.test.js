@@ -23,6 +23,16 @@ describe('schoolSchedule filter', () => {
     assert.ok(filtered.every((r) => isSchoolTeacherLesson(r)));
     assert.ok(!filtered.some((r) => r.id === '2' || r.id === '4'));
   });
+
+  it('schedule list tab filters to relevant lessons for admin and teacher calendar', () => {
+    const calendar = readFileSync(
+      join(__dirname, '..', 'components', 'schedule', 'SchoolScheduleCalendar.jsx'),
+      'utf8',
+    );
+    assert.match(calendar, /filterScheduleListLessons/);
+    assert.match(calendar, /Показать завершённые занятия/);
+    assert.match(calendar, /showCompletedInList/);
+  });
 });
 
 describe('tutor workspace routes source', () => {

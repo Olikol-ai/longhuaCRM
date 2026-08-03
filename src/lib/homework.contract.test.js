@@ -47,6 +47,7 @@ describe('Homework module architecture', () => {
     const viewer = readFileSync(join(root, 'src/pages/HomeworkViewer.jsx'), 'utf8');
     const list = readFileSync(join(root, 'src/pages/HomeworkList.jsx'), 'utf8');
     assert.match(viewer, /Домашние задания/);
+    assert.match(viewer, /LearnerQuestionBlocks/);
     assert.match(list, /Домашние задания/);
     assert.match(list, /Созданные мной/);
     assert.match(list, /Назначенные ученикам/);
@@ -54,6 +55,24 @@ describe('Homework module architecture', () => {
     assert.match(list, /История/);
     assert.doesNotMatch(viewer, /[Ээ]кзамен/);
     assert.doesNotMatch(list, /[Ээ]кзамен/);
+  });
+
+  it('groups shared listening audio once for the student homework attempt UI', () => {
+    const blocks = readFileSync(
+      join(root, 'src/components/assessment/LearnerQuestionBlocks.jsx'),
+      'utf8',
+    );
+    const panel = readFileSync(
+      join(root, 'src/components/assessment/ListeningAudioPanel.jsx'),
+      'utf8',
+    );
+    const helper = readFileSync(join(root, 'src/lib/listening-display.js'), 'utf8');
+    assert.match(blocks, /listening-question-block/);
+    assert.match(blocks, /hideAudioKey/);
+    assert.match(panel, /AuthenticatedAudio/);
+    assert.match(panel, /Аудиозапись/);
+    assert.match(helper, /groupQuestionsForLearnerDisplay/);
+    assert.match(helper, /listening-task:/);
   });
 
   it('adapts teacher homework pages for mobile without separate mobile apps', () => {

@@ -11,6 +11,7 @@ import { createReadStream } from 'fs';
 import { Repository } from 'typeorm';
 import { AssessmentAccessService } from '../../../common/access/assessment-access.service';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
+import { buildContentDisposition } from '../../../common/http/content-disposition';
 import {
   deleteSpeakingAudio,
   resolveSpeakingAudioPath,
@@ -260,7 +261,7 @@ export class AttemptService {
         attachments = atts.map((a) => ({
           id: a.id,
           kind: a.kind,
-          url: null,
+          url: `/api/assessment/attachments/${a.id}/download?disposition=inline`,
         }));
         if (attachments.length === 0 && qSnap.sectionKey === 'listening') {
           const lq = await this.listeningQuestions.findOne({
@@ -704,7 +705,10 @@ export class AttemptService {
     }
     return new StreamableFile(createReadStream(path), {
       type: answer.audioMime ?? 'audio/mpeg',
-      disposition: `inline; filename="${answer.audioOriginalFilename ?? answer.audioStorageKey}"`,
+      disposition: buildContentDisposition(
+        'inline',
+        answer.audioOriginalFilename ?? answer.audioStorageKey,
+      ),
     });
   }
 

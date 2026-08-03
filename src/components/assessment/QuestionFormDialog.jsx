@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -20,9 +21,17 @@ import {
   needsAnswerOptions,
   validateQuestionForm,
 } from '@/lib/assessment-admin';
+import AuthenticatedAudio from '@/components/media/AuthenticatedAudio';
+import { resolveAttachmentMediaUrl } from '@/lib/auth-media-url';
 
 function emptyAnswer(sortOrder = 0) {
   return { text: '', is_correct: false, sort_order: sortOrder };
+}
+
+function resolveQuestionId(question) {
+  if (!question) return null;
+  if (typeof question === 'string') return question;
+  return question.id || null;
 }
 
 export default function QuestionFormDialog({
@@ -33,7 +42,7 @@ export default function QuestionFormDialog({
   onSaved,
 }) {
   const editing = mode === 'edit';
-  const readOnly = editing && question?.status === 'archived';
+  const questionId = resolveQuestionId(question);
 
   const [type, setType] = useState('single_choice');
   const [stem, setStem] = useState('');
@@ -48,21 +57,28 @@ export default function QuestionFormDialog({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [loadedStatus, setLoadedStatus] = useState(question?.status || null);
+
+  const isArchived =
+    (loadedStatus || question?.status) === 'archived';
+  const readOnly = editing && isArchived;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     let cancelled = false;
 
     const hydrate = async () => {
       setError(null);
       setSaving(false);
       setPendingFile(null);
+      setLoadedStatus(question?.status || null);
 
-      if (editing && question?.id) {
+      if (editing && questionId) {
         setLoadingDetail(true);
         try {
-          const detail = await api.assessment.getQuestion(question.id);
+          const detail = await api.assessment.getQuestion(questionId);
           if (cancelled) return;
+          setLoadedStatus(detail.status || null);
           setType(detail.type || 'single_choice');
           setStem(detail.stem || '');
           setPoints(String(detail.points ?? '1'));
@@ -73,16 +89,24 @@ export default function QuestionFormDialog({
             .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
             .map((a, i) => ({
               text: a.text || '',
-              is_correct: Boolean(a.is_correct),
+              is_correct: Boolean(a.is_correct ?? a.isCorrect),
               sort_order: a.sort_order ?? i,
             }));
           setAnswers(opts.length >= 2 ? opts : [emptyAnswer(0), emptyAnswer(1)]);
           setAttachments(Array.isArray(detail.attachments) ? detail.attachments : []);
         } catch (err) {
-          if (!cancelled) setError(err?.message || 'Не удалось загрузить вопрос');
+          if (!cancelled) {
+            setError(err?.message || 'Не удалось загрузить вопрос');
+          }
         } finally {
           if (!cancelled) setLoadingDetail(false);
         }
+        return;
+      }
+
+      if (editing && !questionId) {
+        setError('Не найден идентификатор вопроса');
+        setLoadingDetail(false);
         return;
       }
 
@@ -93,14 +117,15 @@ export default function QuestionFormDialog({
       setExplanation('');
       setAnswers([emptyAnswer(0), emptyAnswer(1)]);
       setAttachments([]);
+      setLoadedStatus(null);
       setLoadingDetail(false);
     };
 
-    hydrate();
+    void hydrate();
     return () => {
       cancelled = true;
     };
-  }, [open, editing, question]);
+  }, [open, editing, questionId, question?.status]);
 
   const showAnswers = needsAnswerOptions(type);
 
@@ -166,7 +191,12 @@ export default function QuestionFormDialog({
 
       let saved;
       if (editing) {
-        saved = await api.assessment.updateQuestion(question.id, body);
+        if (!questionId) {
+          setError('Не найден идентификатор вопроса');
+          setSaving(false);
+          return;
+        }
+        saved = await api.assessment.updateQuestion(questionId, body);
       } else {
         saved = await api.assessment.createQuestion(body);
       }
@@ -199,11 +229,11 @@ export default function QuestionFormDialog({
   };
 
   const handleUploadExisting = async () => {
-    if (!editing || !question?.id || !pendingFile || readOnly) return;
+    if (!editing || !questionId || !pendingFile || readOnly) return;
     setUploading(true);
     setError(null);
     try {
-      const att = await api.assessment.uploadQuestionAttachment(question.id, {
+      const att = await api.assessment.uploadQuestionAttachment(questionId, {
         file: pendingFile,
         kind: pendingKind || guessAttachmentKind(pendingFile),
       });
@@ -217,10 +247,10 @@ export default function QuestionFormDialog({
   };
 
   const handleDeleteAttachment = async (attachmentId) => {
-    if (!question?.id || readOnly) return;
+    if (!questionId || readOnly) return;
     setUploading(true);
     try {
-      await api.assessment.deleteQuestionAttachment(question.id, attachmentId);
+      await api.assessment.deleteQuestionAttachment(questionId, attachmentId);
       setAttachments((prev) => prev.filter((a) => a.id !== attachmentId));
     } catch (err) {
       setError(err?.message || 'Не удалось удалить вложение');
@@ -240,6 +270,11 @@ export default function QuestionFormDialog({
                 : 'Редактировать вопрос'
               : 'Новый вопрос'}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {editing
+              ? 'Форма редактирования существующего вопроса банка'
+              : 'Форма создания нового вопроса банка'}
+          </DialogDescription>
         </DialogHeader>
 
         {loadingDetail ? (
@@ -386,27 +421,39 @@ export default function QuestionFormDialog({
             <div className="space-y-2 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 p-3">
               <Label>Медиа-вложение</Label>
               {attachments.length > 0 && (
-                <ul className="space-y-1.5">
-                  {attachments.map((att) => (
-                    <li
-                      key={att.id}
-                      className="flex items-center justify-between text-sm rounded-lg bg-slate-50 dark:bg-slate-800/60 px-2.5 py-1.5"
-                    >
-                      <span>
-                        {ATTACHMENT_KIND_LABEL[att.kind] || att.kind}
-                        {att.original_filename ? ` — ${att.original_filename}` : ''}
-                      </span>
-                      {!readOnly && editing && (
-                        <button
-                          type="button"
-                          className="text-rose-500 hover:text-rose-600"
-                          onClick={() => handleDeleteAttachment(att.id)}
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
-                    </li>
-                  ))}
+                <ul className="space-y-2">
+                  {attachments.map((att) => {
+                    const kind = String(att.kind || '').toLowerCase();
+                    const isAudio = kind === 'audio' || kind === 'sound';
+                    const src = isAudio
+                      ? resolveAttachmentMediaUrl(att, (id) =>
+                          api.assessment.downloadAttachmentUrl(id, 'inline'),
+                        ) || att.url
+                      : null;
+                    return (
+                      <li
+                        key={att.id}
+                        className="rounded-lg bg-slate-50 dark:bg-slate-800/60 px-2.5 py-2 space-y-2"
+                      >
+                        <div className="flex items-center justify-between text-sm gap-2">
+                          <span>
+                            {ATTACHMENT_KIND_LABEL[att.kind] || att.kind}
+                            {att.original_filename ? ` — ${att.original_filename}` : ''}
+                          </span>
+                          {!readOnly && editing && (
+                            <button
+                              type="button"
+                              className="text-rose-500 hover:text-rose-600 shrink-0"
+                              onClick={() => handleDeleteAttachment(att.id)}
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                        {isAudio ? <AuthenticatedAudio src={src} /> : null}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
               {!readOnly && (

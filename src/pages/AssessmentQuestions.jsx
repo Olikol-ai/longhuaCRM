@@ -97,7 +97,14 @@ export default function AssessmentQuestions() {
         tab === 'reading'
           ? await api.assessment.listReadingTasks()
           : await api.assessment.listListeningTasks();
-      setSectionTasks(Array.isArray(rows) ? rows : unwrapItems(rows));
+      const list = Array.isArray(rows) ? rows : unwrapItems(rows);
+      // API DTO does not include task_type; stamp it from the active tab so Edit opens the right editor.
+      setSectionTasks(
+        list.map((row) => ({
+          ...row,
+          task_type: tab === 'reading' ? 'reading' : 'listening',
+        })),
+      );
     } catch (err) {
       setTasksError(err);
       setSectionTasks([]);
@@ -149,21 +156,88 @@ export default function AssessmentQuestions() {
       task.created_by_user_id === user.id);
 
   const openCreate = () => {
+    setPreviewId(null);
     setEditing(null);
     setDialogMode('create');
     setDialogOpen(true);
   };
 
-  const openEdit = (question, mode = 'edit') => {
-    setEditing(question);
-    setDialogMode(mode);
-    setDialogOpen(true);
+  /**
+   * Accept a question object or raw id (preview / copy flows may pass either).
+   * Always close preview first so Radix does not leave body pointer-events:none.
+   */
+  const openEdit = (questionOrId, mode = 'edit') => {
+    const normalized =
+      typeof questionOrId === 'string'
+        ? { id: questionOrId }
+        : questionOrId && typeof questionOrId === 'object'
+          ? questionOrId
+          : null;
+    if (!normalized?.id) {
+      toast({
+        title: 'Не удалось открыть вопрос',
+        description: 'Не найден идентификатор вопроса для редактирования.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const startEdit = () => {
+      setEditing(normalized);
+      setDialogMode(mode === 'create' ? 'create' : 'edit');
+      setDialogOpen(true);
+    };
+
+    if (previewId) {
+      setPreviewId(null);
+      // Let the preview dialog fully unmount before opening the editor.
+      window.setTimeout(startEdit, 50);
+      return;
+    }
+    startEdit();
   };
 
   const openCreateTask = (kind) => {
     setTaskDialogType(kind);
     setEditingTask(null);
     setTaskDialogOpen(true);
+  };
+
+  /**
+   * Open Reading/Listening editor for an existing task.
+   * Prefer explicit task_type; fall back to the active tab (list DTOs historically omit task_type).
+   */
+  const openEditTask = (task) => {
+    if (!task?.id) {
+      toast({
+        title: 'Не удалось открыть задание',
+        description: 'Не найден идентификатор задания для редактирования.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const kind =
+      task.task_type === 'reading' || task.task_type === 'listening'
+        ? task.task_type
+        : tab === 'reading' || tab === 'listening'
+          ? tab
+          : null;
+    if (!kind) {
+      toast({
+        title: 'Не удалось открыть задание',
+        description: 'Неизвестный тип задания (чтение / аудирование).',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setEditingTask({ ...task, task_type: kind });
+    setTaskDialogType(kind);
+    setTaskDialogOpen(true);
+  };
+
+  const closeTaskDialog = () => {
+    setTaskDialogOpen(false);
+    setEditingTask(null);
   };
 
   const runLifecycle = async (event) => {
@@ -643,13 +717,11 @@ export default function AssessmentQuestions() {
                   </div>
                   <div className="flex flex-wrap gap-2 shrink-0">
                     <Button
+                      type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        setEditingTask(task);
-                        setTaskDialogType(task.task_type);
-                        setTaskDialogOpen(true);
-                      }}
+                      data-testid={`task-edit-${task.id}`}
+                      onClick={() => openEditTask(task)}
                     >
                       {task.status === 'archived' ? (
                         <Eye className="h-3.5 w-3.5 mr-1" />
@@ -691,17 +763,23 @@ export default function AssessmentQuestions() {
 
       <QuestionFormDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) {
+            setEditing(null);
+            setDialogMode('create');
+          }
+        }}
         mode={dialogMode}
         question={editing}
         onSaved={() => {
-          toast({ title: editing ? 'Вопрос обновлён' : 'Вопрос создан' });
+          toast({ title: dialogMode === 'edit' ? 'Вопрос обновлён' : 'Вопрос создан' });
           reload();
         }}
       />
 
       <QuestionPreviewDialog
-        open={Boolean(previewId)}
+        open={Boolean(previewId) && !dialogOpen}
         onOpenChange={(open) => {
           if (!open) setPreviewId(null);
         }}
@@ -710,7 +788,6 @@ export default function AssessmentQuestions() {
         initialId={previewId}
         canDelete={previewQuestion ? canDeleteQuestion(previewQuestion) : false}
         onEdit={(question, mode = 'edit') => {
-          setPreviewId(null);
           openEdit(question, mode);
         }}
         onRequestDelete={(detail) => {
@@ -744,7 +821,7 @@ export default function AssessmentQuestions() {
       <ReadingTaskEditor
         open={taskDialogOpen && taskDialogType === 'reading'}
         onOpenChange={(open) => {
-          if (!open) setTaskDialogOpen(false);
+          if (!open) closeTaskDialog();
         }}
         editing={editingTask}
         onSaved={() => {
@@ -756,7 +833,7 @@ export default function AssessmentQuestions() {
       <ListeningTaskEditor
         open={taskDialogOpen && taskDialogType === 'listening'}
         onOpenChange={(open) => {
-          if (!open) setTaskDialogOpen(false);
+          if (!open) closeTaskDialog();
         }}
         editing={editingTask}
         onSaved={() => {
@@ -795,16 +872,7 @@ export default function AssessmentQuestions() {
 function QuestionCardRow({ q, busyId, canDelete, onPreview, onEdit, onConfirm, authorName, showAuthor }) {
   return (
     <article
-      className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/80 p-4 sm:p-5 cursor-pointer transition-colors hover:border-brand/40 hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
-      onClick={() => onPreview?.(q.id)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onPreview?.(q.id);
-        }
-      }}
-      role="button"
-      tabIndex={0}
+      className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/80 p-4 sm:p-5"
       data-testid={`question-row-${q.id}`}
     >
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -827,23 +895,33 @@ function QuestionCardRow({ q, busyId, canDelete, onPreview, onEdit, onConfirm, a
             {formatDateTime(q.updated_at || q.created_at)}
           </p>
         </div>
-        <div
-          className="flex flex-wrap gap-2 shrink-0"
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-        >
-          <Button variant="outline" size="sm" disabled={busyId === q.id} onClick={() => onPreview?.(q.id)}>
+        <div className="flex flex-wrap gap-2 shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busyId === q.id}
+            onClick={() => onPreview?.(q.id)}
+          >
             <Eye className="h-3.5 w-3.5 mr-1" />
             Просмотр
           </Button>
           {q.status !== 'archived' ? (
             <>
-              <Button variant="outline" size="sm" disabled={busyId === q.id} onClick={() => onEdit(q, 'edit')}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busyId === q.id}
+                data-testid={`question-edit-${q.id}`}
+                onClick={() => onEdit(q, 'edit')}
+              >
                 <Pencil className="h-3.5 w-3.5 mr-1" />
                 Изменить
               </Button>
               {q.status === 'draft' && (
                 <Button
+                  type="button"
                   variant="outline"
                   size="sm"
                   disabled={busyId === q.id}
@@ -855,13 +933,14 @@ function QuestionCardRow({ q, busyId, canDelete, onPreview, onEdit, onConfirm, a
               )}
             </>
           ) : (
-            <Button variant="outline" size="sm" onClick={() => onEdit(q, 'edit')}>
+            <Button type="button" variant="outline" size="sm" onClick={() => onEdit(q, 'edit')}>
               <Eye className="h-3.5 w-3.5 mr-1" />
               Архив
             </Button>
           )}
           {canDelete && (
             <Button
+              type="button"
               variant="outline"
               size="sm"
               className="text-rose-600"
@@ -874,6 +953,7 @@ function QuestionCardRow({ q, busyId, canDelete, onPreview, onEdit, onConfirm, a
           )}
           {q.status !== 'archived' && (
             <Button
+              type="button"
               variant="outline"
               size="sm"
               disabled={busyId === q.id}

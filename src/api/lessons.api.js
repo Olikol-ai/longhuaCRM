@@ -44,6 +44,13 @@ export const lessons = {
       body: JSON.stringify(toLessonWritePayload(data)),
     });
   },
+  /** Weekly rolling series: creates template + ~12 weeks of planned lessons. */
+  createRecurring(data) {
+    return apiFetch('/lessons/recurring', {
+      method: 'POST',
+      body: JSON.stringify(toLessonWritePayload(data)),
+    });
+  },
   update(id, data) {
     return apiFetch(`/lessons/${id}`, {
       method: 'PATCH',

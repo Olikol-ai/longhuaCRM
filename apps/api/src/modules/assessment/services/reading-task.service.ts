@@ -219,6 +219,7 @@ export class ReadingTaskService {
     const questions = [...(row.questions ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
     return {
       id: row.id,
+      task_type: 'reading',
       title: row.title,
       text_content: row.textContent,
       instructions: row.instructions,

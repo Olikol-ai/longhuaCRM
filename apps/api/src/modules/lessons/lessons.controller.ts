@@ -15,16 +15,21 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { JwtPayload } from '../auth/auth.service';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
+import { CreateRecurringLessonDto } from './dto/lesson-recurrence.dto';
 import { FilterQueryDto } from './dto/filter-query.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { UpdateLessonStudentsDto } from './dto/update-lesson-students.dto';
+import { LessonRecurrenceService } from './lesson-recurrence.service';
 import { LessonsService } from './lessons.service';
 
 @Controller('lessons')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class LessonsController {
-  constructor(private readonly lessonsService: LessonsService) {}
+  constructor(
+    private readonly lessonsService: LessonsService,
+    private readonly recurrence: LessonRecurrenceService,
+  ) {}
 
   @Get()
   findAll(@CurrentUser() user: JwtPayload) {
@@ -128,6 +133,15 @@ export class LessonsController {
     return this.lessonsService.listStudentChanges(user, id);
   }
 
+  @Post('recurring')
+  @Roles('admin', 'teacher', 'tutor')
+  createRecurring(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreateRecurringLessonDto,
+  ) {
+    return this.recurrence.createWeeklySeries(user, dto);
+  }
+
   @Get(':id')
   findById(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.lessonsService.findById(user, id);
@@ -146,7 +160,29 @@ export class LessonsController {
     @Param('id') id: string,
     @Body() dto: UpdateLessonDto,
   ) {
-    return this.lessonsService.update(user, id, dto);
+    const {
+      recurrenceWeekly,
+      recurrenceUntil,
+      applyScope,
+      ...lessonPatch
+    } = dto;
+    if (
+      recurrenceWeekly !== undefined ||
+      recurrenceUntil !== undefined ||
+      applyScope !== undefined
+    ) {
+      return this.recurrence.applyLessonUpdateWithRecurrence(
+        user,
+        id,
+        lessonPatch,
+        {
+          weekly: recurrenceWeekly,
+          untilDate: recurrenceUntil,
+          applyScope,
+        },
+      );
+    }
+    return this.lessonsService.update(user, id, lessonPatch);
   }
 
   @Delete(':id')

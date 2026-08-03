@@ -21,6 +21,7 @@ export class LessonsRepository {
         'primaryTutorStudent',
         'primaryTeacherStudentContact',
         'group',
+        'recurrenceSeries',
       ],
     });
   }
@@ -34,6 +35,7 @@ export class LessonsRepository {
         'primaryTutorStudent',
         'primaryTeacherStudentContact',
         'group',
+        'recurrenceSeries',
       ],
     });
   }
@@ -60,6 +62,7 @@ export class LessonsRepository {
         'primaryTutorStudent',
         'primaryTeacherStudentContact',
         'group',
+        'recurrenceSeries',
       ],
     });
   }

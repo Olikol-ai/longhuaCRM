@@ -39,7 +39,8 @@ describe('responsive foundation', () => {
     assert.match(read('pages/Chats.jsx'), /mobilePane/);
     assert.match(read('pages/Chats.jsx'), /backToChatList/);
     assert.match(read('components/chats/ChatMessagePane.jsx'), /ArrowLeft/);
-    assert.match(read('pages/Schedule.jsx'), /md:hidden/);
+    assert.match(read('components/schedule/SchoolScheduleCalendar.jsx'), /md:hidden/);
+    assert.match(read('pages/Schedule.jsx'), /SchoolScheduleCalendar/);
     assert.match(read('pages/LessonVideo.jsx'), /useIsMdUp/);
     assert.match(read('pages/LessonVideo.jsx'), /useIsLgUp/);
     assert.match(read('pages/LessonVideo.jsx'), /side=\{isMdUp \? 'right' : 'bottom'\}/);

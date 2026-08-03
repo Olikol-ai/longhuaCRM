@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Bookmark, ChevronLeft, ChevronRight, Grid3X3, SkipForward } from 'lucide-react';
+import { Bookmark, Grid3X3, SkipForward } from 'lucide-react';
 import { api } from '@/api';
 import { createPageUrl } from '@/utils';
 import { userFacingError } from '@/lib/userFacingError';
@@ -8,6 +8,9 @@ import { useIsMdUp } from '@/lib/responsive';
 import { parentHref } from '@/lib/hskAcademyNav';
 import ExamFocusChrome from '@/components/hsk-academy/ExamFocusChrome';
 import { ExamItemRenderer, collectMediaUrls } from '@/components/hsk-academy/items/itemRegistry';
+import ListeningAudioPanel from '@/components/assessment/ListeningAudioPanel';
+import AttemptFinishDialog from '@/components/assessment/AttemptFinishDialog';
+import AttemptNavBar from '@/components/assessment/AttemptNavBar';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -16,6 +19,11 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
+import {
+  findDisplayBlockForIndex,
+  groupQuestionsForLearnerDisplay,
+} from '@/lib/listening-display';
+import { stopAllLearningAudio } from '@/lib/learning-audio-runtime';
 
 function pick(obj, ...keys) {
   for (const key of keys) {
@@ -93,6 +101,8 @@ export default function HskAcademyTake() {
   const [submitting, setSubmitting] = useState(false);
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
   const [sectionTick, setSectionTick] = useState(0);
+  const [confirmFinish, setConfirmFinish] = useState(false);
+  const [confirmEarly, setConfirmEarly] = useState(false);
   const autoSubmitted = useRef(false);
   const pendingSave = useRef(null);
   const stageRef = useRef(null);
@@ -153,17 +163,36 @@ export default function HskAcademyTake() {
   }, []);
 
   const questions = useMemo(() => flattenQuestions(runtime?.sections), [runtime]);
+  const displayBlocks = useMemo(
+    () => groupQuestionsForLearnerDisplay(questions),
+    [questions],
+  );
+  const currentBlock = useMemo(
+    () => findDisplayBlockForIndex(displayBlocks, index),
+    [displayBlocks, index],
+  );
   const current = questions[index];
   const currentId = current?.snapshotId || current?.snapshot_id;
   const progress = questions.length ? Math.round(((index + 1) / questions.length) * 100) : 0;
-  const nextPrefetch = useMemo(
-    () => collectMediaUrls(questions[index + 1]),
-    [questions, index],
-  );
+  const nextPrefetch = useMemo(() => {
+    if (currentBlock?.type === 'listening') {
+      const nextIndex = currentBlock.startIndex + currentBlock.questions.length;
+      return collectMediaUrls(questions[nextIndex]);
+    }
+    return collectMediaUrls(questions[index + 1]);
+  }, [questions, index, currentBlock]);
 
   useEffect(() => {
+    if (currentBlock?.type === 'listening') {
+      requestAnimationFrame(() => {
+        document
+          .getElementById(`hsk-question-${index}`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+      return;
+    }
     stageRef.current?.scrollTo?.({ top: 0 });
-  }, [index]);
+  }, [index, currentBlock]);
 
   useEffect(() => {
     const expires = pick(runtime?.attempt, 'expiresAt', 'expires_at');
@@ -238,13 +267,14 @@ export default function HskAcademyTake() {
     if (online) void flushPending();
   }, [online, flushPending]);
 
-  const selectOption = async (optionId) => {
-    if (!currentId) return;
-    const next = { ...answers, [currentId]: [optionId] };
+  const selectOption = async (questionId, optionId) => {
+    const targetId = questionId || currentId;
+    if (!targetId) return;
+    const next = { ...answers, [targetId]: [optionId] };
     setAnswers(next);
     const payload = [
       {
-        question_snapshot_id: currentId,
+        question_snapshot_id: targetId,
         selected_answer_snapshot_ids: [optionId],
       },
     ];
@@ -275,10 +305,44 @@ export default function HskAcademyTake() {
   };
 
   const go = (nextIndex) => {
-    setIndex(Math.max(0, Math.min(questions.length - 1, nextIndex)));
+    const clamped = Math.max(0, Math.min(questions.length - 1, nextIndex));
+    const nextBlock = findDisplayBlockForIndex(displayBlocks, clamped);
+    const sameListeningBlock =
+      nextBlock?.type === 'listening' &&
+      currentBlock?.type === 'listening' &&
+      nextBlock.audioKey === currentBlock.audioKey &&
+      nextBlock.startIndex === currentBlock.startIndex;
+
+    if (!sameListeningBlock) {
+      stopAllLearningAudio();
+    }
+
+    setIndex(clamped);
+    requestAnimationFrame(() => {
+      if (sameListeningBlock) {
+        document
+          .getElementById(`hsk-question-${clamped}`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+      if (stageRef.current) {
+        stageRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
   };
 
   const skip = () => go(index + 1);
+
+  const requestFinish = (early) => {
+    if (early) setConfirmEarly(true);
+    else setConfirmFinish(true);
+  };
+
+  const confirmAndSubmit = async () => {
+    setConfirmFinish(false);
+    setConfirmEarly(false);
+    await submit();
+  };
 
   const exit = async () => {
     if (!window.confirm('Выйти из экзамена? Ответы сохранены на сервере и в черновике браузера.')) {
@@ -383,47 +447,13 @@ export default function HskAcademyTake() {
   );
 
   const footer = (
-    <div className="px-3 sm:px-4 py-2.5 sm:py-3">
-      {/* Mobile: primary pager */}
-      <div className="flex md:hidden items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className="h-12 w-12 shrink-0"
-          disabled={index <= 0}
-          onClick={() => go(index - 1)}
-          aria-label="Назад"
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          className="h-12 flex-1 min-w-0 gap-1.5"
-          onClick={() => setNavOpen(true)}
-        >
-          <Grid3X3 className="h-4 w-4 shrink-0" />
-          <span className="tabular-nums">
-            {questions.length ? `${index + 1} / ${questions.length}` : '—'}
-          </span>
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          className="h-12 w-12 shrink-0"
-          disabled={index >= questions.length - 1}
-          onClick={() => go(index + 1)}
-          aria-label="Вперёд"
-        >
-          <ChevronRight className="h-5 w-5" />
-        </Button>
-      </div>
-      <div className="flex md:hidden gap-2 mt-2">
+    <div className="px-3 sm:px-4 py-2.5 sm:py-3 space-y-2">
+      <div className="flex md:hidden items-center justify-between gap-2">
         <Button
           type="button"
           variant={marked.has(currentId) ? 'secondary' : 'outline'}
-          className="min-h-11 flex-1 gap-1.5"
+          size="sm"
+          className="min-h-10 gap-1.5"
           onClick={toggleMark}
         >
           <Bookmark className="h-4 w-4" />
@@ -431,8 +461,9 @@ export default function HskAcademyTake() {
         </Button>
         <Button
           type="button"
-          variant="outline"
-          className="min-h-11 flex-1 gap-1.5"
+          variant="ghost"
+          size="sm"
+          className="min-h-10 gap-1.5 text-muted-foreground"
           disabled={index >= questions.length - 1}
           onClick={skip}
         >
@@ -441,72 +472,52 @@ export default function HskAcademyTake() {
         </Button>
         <Button
           type="button"
-          className="min-h-11 flex-1"
-          disabled={submitting}
-          onClick={() => {
-            if (window.confirm('Завершить экзамен и перейти к результатам?')) void submit();
-          }}
+          variant="outline"
+          size="sm"
+          className="min-h-10"
+          onClick={() => setNavOpen(true)}
         >
-          {submitting ? '…' : 'Завершить'}
+          <Grid3X3 className="h-4 w-4" />
         </Button>
       </div>
 
-      {/* Tablet / desktop actions */}
-      <div className="hidden md:flex items-center gap-2 flex-wrap">
-        <Button
-          type="button"
-          variant="outline"
-          className="min-h-11 gap-1"
-          disabled={index <= 0}
-          onClick={() => go(index - 1)}
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Назад
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          className="min-h-11 gap-1"
-          disabled={index >= questions.length - 1}
-          onClick={() => go(index + 1)}
-        >
-          Вперёд
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-        <Button
-          type="button"
-          variant={marked.has(currentId) ? 'secondary' : 'outline'}
-          className="min-h-11 gap-1.5"
-          onClick={toggleMark}
-        >
-          <Bookmark className="h-4 w-4" />
-          {marked.has(currentId) ? 'Снять метку' : 'Пометить'}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          className="min-h-11 gap-1.5"
-          disabled={index >= questions.length - 1}
-          onClick={skip}
-        >
-          <SkipForward className="h-4 w-4" />
-          Пропустить
-        </Button>
-        <div className="flex-1" />
-        <p className="text-xs text-muted-foreground tabular-nums hidden lg:block mr-2">
-          {answeredCount}/{questions.length} ответов
-        </p>
-        <Button
-          type="button"
-          className="min-h-11 min-w-[8.5rem]"
-          disabled={submitting}
-          onClick={() => {
-            if (window.confirm('Завершить экзамен и перейти к результатам?')) void submit();
-          }}
-        >
-          {submitting ? 'Завершение…' : 'Завершить'}
-        </Button>
-      </div>
+      <AttemptNavBar
+        index={index}
+        total={questions.length}
+        submitting={submitting}
+        finishLabel="Завершить экзамен"
+        earlyFinishLabel="Завершить"
+        onPrev={() => go(index - 1)}
+        onNext={() => go(index + 1)}
+        onFinish={() => requestFinish(false)}
+        onRequestEarlyFinish={() => requestFinish(true)}
+        extraActions={
+          <div className="hidden md:flex items-center gap-2">
+            <Button
+              type="button"
+              variant={marked.has(currentId) ? 'secondary' : 'outline'}
+              className="min-h-11 gap-1.5"
+              onClick={toggleMark}
+            >
+              <Bookmark className="h-4 w-4" />
+              {marked.has(currentId) ? 'Снять метку' : 'Пометить'}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="min-h-11 gap-1.5 text-muted-foreground"
+              disabled={index >= questions.length - 1}
+              onClick={skip}
+            >
+              <SkipForward className="h-4 w-4" />
+              Пропустить
+            </Button>
+            <p className="text-xs text-muted-foreground tabular-nums hidden lg:block ml-1">
+              {answeredCount}/{questions.length} ответов
+            </p>
+          </div>
+        }
+      />
     </div>
   );
 
@@ -540,14 +551,51 @@ export default function HskAcademyTake() {
           ref={stageRef}
           className="flex-1 min-w-0 overflow-y-auto overscroll-contain"
         >
-          <div className="mx-auto w-full max-w-3xl xl:max-w-4xl px-3 sm:px-5 py-4 sm:py-5 pb-6">
+          <div className="mx-auto w-full max-w-3xl xl:max-w-4xl px-3 sm:px-5 py-4 sm:py-5 pb-6 learner-content">
             {!current ? (
-              <p className="text-sm text-muted-foreground">Загрузка заданий…</p>
+              <p className="learner-meta text-muted-foreground">Загрузка заданий…</p>
+            ) : currentBlock?.type === 'listening' ? (
+              <div className="space-y-4 sm:space-y-5" data-testid="hsk-listening-block">
+                <ListeningAudioPanel
+                  attachment={currentBlock.attachment}
+                  instructions={
+                    currentBlock.questions[0]?.task_instructions ||
+                    currentBlock.questions[0]?.taskInstructions ||
+                    null
+                  }
+                />
+                {currentBlock.questions.map((question, offset) => {
+                  const absoluteIndex = currentBlock.startIndex + offset;
+                  const qid = question.snapshotId || question.snapshot_id;
+                  const isCurrent = absoluteIndex === index;
+                  return (
+                    <div
+                      key={qid}
+                      id={`hsk-question-${absoluteIndex}`}
+                      className={cn(
+                        'rounded-xl border border-border bg-card p-3.5 sm:p-4 space-y-3',
+                        isCurrent && 'ring-2 ring-brand/40',
+                      )}
+                    >
+                      <p className="learner-meta text-muted-foreground">
+                        Вопрос {absoluteIndex + 1}
+                      </p>
+                      <ExamItemRenderer
+                        question={question}
+                        selectedIds={answers[qid] || []}
+                        onSelect={(optionId) => selectOption(qid, optionId)}
+                        prefetchUrls={absoluteIndex === index ? nextPrefetch : []}
+                        hideAudioKey={currentBlock.audioKey}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             ) : (
               <ExamItemRenderer
                 question={current}
                 selectedIds={answers[currentId] || []}
-                onSelect={selectOption}
+                onSelect={(optionId) => selectOption(currentId, optionId)}
                 prefetchUrls={nextPrefetch}
               />
             )}
@@ -575,6 +623,20 @@ export default function HskAcademyTake() {
           </p>
         </SheetContent>
       </Sheet>
+
+      <AttemptFinishDialog
+        open={confirmFinish || confirmEarly}
+        answeredCount={answeredCount}
+        total={questions.length}
+        submitting={submitting}
+        title="Завершить экзамен?"
+        isEarly={confirmEarly}
+        onContinue={() => {
+          setConfirmFinish(false);
+          setConfirmEarly(false);
+        }}
+        onConfirm={() => void confirmAndSubmit()}
+      />
     </ExamFocusChrome>
   );
 }

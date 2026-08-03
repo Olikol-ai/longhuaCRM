@@ -16,6 +16,10 @@ import StatCard from "@/components/dashboard/StatCard";
 import { toast } from "@/components/ui/use-toast";
 import { formatCurrency } from "@/lib/formatters";
 import { filterLessonsWithinNext48Hours } from "@/lib/teacherUpcomingLessons";
+import {
+  computeCompletedLessonsMonthStats,
+  formatCompletedMonthComparison,
+} from "@/lib/completedLessonsMonthStats";
 import { isOnlineLesson, lessonVideoPath } from "@/lib/lesson-video";
 import {
   AlertDialog,
@@ -232,7 +236,9 @@ export default function TeacherDashboard() {
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const todayLessons = lessons.filter((l) => l.date === todayStr && l.status !== "cancelled");
   const upcomingLessons = filterLessonsWithinNext48Hours(lessons);
-  const completedCount = lessons.filter((l) => l.status === "completed").length;
+  const completedMonth = formatCompletedMonthComparison(
+    computeCompletedLessonsMonthStats(lessons),
+  );
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto dark:bg-slate-950 min-h-screen">
@@ -255,7 +261,15 @@ export default function TeacherDashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <StatCard title="Уроков сегодня" value={todayLessons.length} icon={Calendar} color="brand" />
         <StatCard title="Предстоящие" value={upcomingLessons.length} icon={Clock} color="muted" />
-        <StatCard title="Завершено" value={completedCount} icon={CheckCircle2} color="emerald" />
+        <StatCard
+          title={completedMonth.label}
+          value={completedMonth.value}
+          icon={CheckCircle2}
+          color="emerald"
+          previousLine={completedMonth.previousLine}
+          trendLine={completedMonth.trendLine}
+          trendTone={completedMonth.trendTone}
+        />
       </div>
 
       <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Приглашение учеников</h2>

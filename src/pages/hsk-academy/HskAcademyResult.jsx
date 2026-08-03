@@ -218,13 +218,13 @@ export default function HskAcademyResult() {
       {items.length > 0 ? (
         <div className="space-y-3">
           <h3 className="text-sm font-medium px-0.5">Разбор заданий</h3>
-          <div className="space-y-2">
+          <div className="space-y-2 learner-content">
             {items.map((item, idx) => (
               <article
                 key={item.snapshot_id}
                 className="rounded-lg border border-border bg-card p-3 sm:p-4 space-y-2.5"
               >
-                <header className="flex justify-between gap-2 text-sm">
+                <header className="flex justify-between gap-2 learner-meta">
                   <span className="text-muted-foreground">№{idx + 1}</span>
                   <strong
                     className={cn(
@@ -239,13 +239,13 @@ export default function HskAcademyResult() {
                         : '—'}
                   </strong>
                 </header>
-                <p className="text-sm whitespace-pre-wrap leading-snug">{item.stem}</p>
-                <ul className="space-y-1.5">
+                <p className="learner-stem text-foreground">{item.stem}</p>
+                <ul className="learner-options">
                   {(item.answers || []).map((a) => (
                     <li
                       key={a.id}
                       className={cn(
-                        'text-sm rounded-md border px-3 py-2',
+                        'learner-option learner-option-row rounded-md border',
                         a.is_correct && 'border-emerald-500/40 bg-emerald-500/10',
                         a.selected && !a.is_correct && 'border-destructive/40 bg-destructive/10',
                         !a.selected && !a.is_correct && 'border-border/80',
@@ -256,7 +256,7 @@ export default function HskAcademyResult() {
                   ))}
                 </ul>
                 {item.explanation ? (
-                  <p className="text-sm text-muted-foreground leading-snug">{item.explanation}</p>
+                  <p className="learner-body text-muted-foreground">{item.explanation}</p>
                 ) : null}
                 <Button
                   type="button"

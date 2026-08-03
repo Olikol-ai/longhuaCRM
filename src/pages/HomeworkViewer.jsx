@@ -4,8 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { api } from '@/api';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
-import QuestionCard from '@/components/assessment/QuestionCard';
-import TaskMaterialHeader from '@/components/assessment/TaskMaterialHeader';
+import LearnerQuestionBlocks from '@/components/assessment/LearnerQuestionBlocks';
 import { userFacingError } from '@/lib/userFacingError';
 
 const STATUS_LABEL = {
@@ -195,17 +194,20 @@ export default function HomeworkViewer() {
   if (attempt) {
     const submitted = attempt.status === 'submitted';
     return (
-      <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-6" data-testid="homework-viewer-attempt">
+      <div
+        className="learner-content p-4 sm:p-6 max-w-3xl mx-auto space-y-6"
+        data-testid="homework-viewer-attempt"
+      >
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold">{attempt.title || 'Домашнее задание'}</h1>
             {attempt.owner_name && (
-              <p className="text-sm text-slate-500 mt-1">
+              <p className="learner-meta text-slate-500 mt-1">
                 {attempt.owner_type === 'tutor' ? 'Репетитор' : 'Преподаватель'}: {attempt.owner_name}
               </p>
             )}
             {attempt.instructions && (
-              <div className="mt-3 text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap rounded-xl bg-slate-50 dark:bg-slate-800/60 p-4">
+              <div className="learner-body mt-3 text-slate-700 dark:text-slate-300 rounded-xl bg-slate-50 dark:bg-slate-800/60 p-4">
                 {attempt.instructions}
               </div>
             )}
@@ -215,46 +217,27 @@ export default function HomeworkViewer() {
           </Button>
         </div>
 
-        {(attempt.questions || []).map((q, index) => {
-          const prev = index > 0 ? attempt.questions[index - 1] : null;
-          const showPrelude =
-            !prev ||
-            prev.passage_text !== q.passage_text ||
-            prev.task_instructions !== q.task_instructions ||
-            JSON.stringify(prev.vocabulary || []) !== JSON.stringify(q.vocabulary || []);
-          return (
-          <div key={q.id}>
-            {showPrelude ? (
-              <TaskMaterialHeader
-                instructions={q.task_instructions}
-                vocabulary={q.vocabulary}
-                passageText={q.passage_text}
-              />
-            ) : null}
-            <QuestionCard
-              question={q}
-              index={index}
-              localAnswer={localAnswers[q.id]}
-              readOnly={submitted}
-              onSingleChoice={(_qid, id) =>
-                !submitted && setAnswer(q.id, { selected_answer_snapshot_ids: [id] })
-              }
-              onToggleMultiple={(_qid, id) => {
-                if (submitted) return;
-                const cur = localAnswers[q.id]?.selected_answer_snapshot_ids || [];
-                const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
-                setAnswer(q.id, { selected_answer_snapshot_ids: next });
-              }}
-              onTextChange={(_qid, text) => !submitted && setAnswer(q.id, { text })}
-              onSpeakingUpload={
-                submitted
-                  ? undefined
-                  : (qid, file, durationMs) => handleSpeakingUpload(qid, file, durationMs)
-              }
-            />
-          </div>
-          );
-        })}
+        <LearnerQuestionBlocks
+          questions={attempt.questions || []}
+          answers={localAnswers}
+          mode="list"
+          readOnly={submitted}
+          onSingleChoice={(qid, id) =>
+            !submitted && setAnswer(qid, { selected_answer_snapshot_ids: [id] })
+          }
+          onToggleMultiple={(qid, id) => {
+            if (submitted) return;
+            const cur = localAnswers[qid]?.selected_answer_snapshot_ids || [];
+            const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+            setAnswer(qid, { selected_answer_snapshot_ids: next });
+          }}
+          onTextChange={(qid, text) => !submitted && setAnswer(qid, { text })}
+          onSpeakingUpload={
+            submitted
+              ? undefined
+              : (qid, file, durationMs) => handleSpeakingUpload(qid, file, durationMs)
+          }
+        />
 
         {submitted && attempt.result && (
           <div className="rounded-2xl border p-4 bg-emerald-50/50 dark:bg-emerald-950/20">

@@ -10,8 +10,10 @@ import { TelegramModule } from '../telegram/telegram.module';
 import { UserEntity } from '../users/entities/user.entity';
 import { AttendanceEntity } from './entities/attendance.entity';
 import { LessonEntity } from './entities/lesson.entity';
+import { LessonRecurrenceSeriesEntity } from './entities/lesson-recurrence-series.entity';
 import { LessonStudentChangeHistoryEntity } from './entities/lesson-student-change-history.entity';
 import { StudentBalanceService } from '../students/student-balance.service';
+import { LessonRecurrenceService } from './lesson-recurrence.service';
 import { LessonRescheduledNotifier } from './lesson-rescheduled.notifier';
 import { LessonUpdatedNotifier } from './lesson-updated.notifier';
 import { LessonsController } from './lessons.controller';
@@ -25,6 +27,7 @@ import { TeacherStudentContactsModule } from '../teacher-student-contacts/teache
   imports: [
     TypeOrmModule.forFeature([
       LessonEntity,
+      LessonRecurrenceSeriesEntity,
       AttendanceEntity,
       LessonStudentChangeHistoryEntity,
       StudentEntity,
@@ -43,11 +46,18 @@ import { TeacherStudentContactsModule } from '../teacher-student-contacts/teache
   providers: [
     LessonsRepository,
     LessonsService,
+    LessonRecurrenceService,
     LessonsScheduler,
     StudentBalanceService,
     LessonRescheduledNotifier,
     LessonUpdatedNotifier,
   ],
-  exports: [LessonsRepository, LessonsService, LessonsScheduler, TypeOrmModule],
+  exports: [
+    LessonsRepository,
+    LessonsService,
+    LessonRecurrenceService,
+    LessonsScheduler,
+    TypeOrmModule,
+  ],
 })
 export class LessonsModule {}

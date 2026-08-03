@@ -15,6 +15,7 @@ import { StorageService } from '../../common/storage/storage.service';
 import { MaterialEntity } from '../materials/entities/material.entity';
 import { SignedFileUrlService } from './signed-file-url.service';
 import { UploadedFilePayload } from './uploaded-file.types';
+import { buildContentDisposition } from '../../common/http/content-disposition';
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = new Set([
@@ -133,7 +134,7 @@ export class SecureFilesService implements OnModuleInit {
     );
     return new StreamableFile(resolved.stream, {
       type: this.guessContentType(material.fileUrl),
-      disposition: `inline; filename="${resolved.filename.replace(/["\r\n]/g, '_')}"`,
+      disposition: buildContentDisposition('inline', resolved.filename),
       length: resolved.size,
     });
   }
@@ -148,10 +149,10 @@ export class SecureFilesService implements OnModuleInit {
   ): StreamableFile {
     const resolved = this.storage.openReadStream(storageKey, 'streamByStorageKey');
     const disposition = options?.disposition ?? 'inline';
-    const filename = (options?.filename?.trim() || resolved.filename).replace(/["\r\n]/g, '_');
+    const filename = options?.filename?.trim() || resolved.filename;
     return new StreamableFile(resolved.stream, {
       type: options?.mime?.trim() || this.guessContentType(storageKey),
-      disposition: `${disposition}; filename="${filename}"`,
+      disposition: buildContentDisposition(disposition, filename),
       length: resolved.size,
     });
   }

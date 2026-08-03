@@ -191,6 +191,98 @@
       min-height: 2.25rem;
     }
   }
+
+  /*
+   * Student study content typography (~+2pt vs CRM chrome).
+   * Scope with .learner-content so nav/buttons/tables stay unchanged.
+   * Tuned for Chinese characters: larger size + generous line-height.
+   */
+  .learner-content {
+    --learner-stem: 1.1875rem; /* 19px */
+    --learner-body: 1.125rem; /* 18px */
+    --learner-option: 1.125rem;
+    --learner-passage: 1.125rem;
+    --learner-meta: 0.9375rem; /* 15px */
+    --learner-label: 0.8125rem; /* 13px */
+    --learner-leading: 1.7;
+    --learner-leading-cjk: 1.85;
+    font-family: "Noto Sans SC", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  }
+
+  @media (min-width: 640px) {
+    .learner-content {
+      --learner-stem: 1.3125rem; /* 21px */
+      --learner-body: 1.1875rem; /* 19px */
+      --learner-option: 1.1875rem;
+      --learner-passage: 1.1875rem;
+    }
+  }
+
+  .learner-stem {
+    font-size: var(--learner-stem, 1.1875rem);
+    line-height: var(--learner-leading-cjk, 1.85);
+    font-weight: 500;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .learner-option {
+    font-size: var(--learner-option, 1.125rem);
+    line-height: var(--learner-leading-cjk, 1.85);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .learner-body {
+    font-size: var(--learner-body, 1.125rem);
+    line-height: var(--learner-leading, 1.7);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .learner-passage {
+    font-size: var(--learner-passage, 1.125rem);
+    line-height: var(--learner-leading-cjk, 1.85);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .learner-vocab {
+    font-size: var(--learner-body, 1.125rem);
+    line-height: var(--learner-leading-cjk, 1.85);
+  }
+
+  .learner-meta {
+    font-size: var(--learner-meta, 0.9375rem);
+    line-height: 1.5;
+  }
+
+  .learner-label {
+    font-size: var(--learner-label, 0.8125rem);
+    line-height: 1.4;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .learner-options {
+    display: grid;
+    gap: 0.625rem;
+  }
+
+  @media (min-width: 640px) {
+    .learner-options {
+      gap: 0.75rem;
+    }
+  }
+
+  .learner-option-row {
+    min-height: var(--touch-min);
+    padding: 0.875rem 1rem;
+  }
 }
 
 /* iOS PWA / Dynamic Island — requires viewport-fit=cover */
@@ -240,5 +332,27 @@
   .max-h-app {
     max-height: 100vh;
     max-height: 100dvh;
+  }
+
+  /* Unified CRM learning audio player (HTML5 controls, seek + volume). */
+  .crm-audio-player {
+    min-width: 0;
+  }
+
+  .crm-audio-player__element {
+    min-width: 0;
+    vertical-align: middle;
+    /* Comfortable tap target on phones / tablets */
+    min-height: 2.75rem;
+  }
+
+  @media (min-width: 640px) {
+    .crm-audio-player__element {
+      min-height: 3rem;
+    }
+  }
+
+  .crm-audio-player__element::-webkit-media-controls-panel {
+    background-color: transparent;
   }
 }

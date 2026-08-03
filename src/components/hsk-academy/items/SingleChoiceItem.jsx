@@ -8,26 +8,31 @@ export default function SingleChoiceItem({
   selectedIds = [],
   onSelect,
   prefetchUrls = [],
+  hideAudioKey = null,
+  hideAllAudio = false,
 }) {
   const options = question?.answers || [];
   const attachments = question?.attachments || [];
   const passage = question?.passageText || question?.passage_text;
 
   return (
-    <div className="space-y-3 sm:space-y-4 min-w-0">
+    <div className="learner-content space-y-3.5 sm:space-y-5 min-w-0">
       {passage ? (
-        <div className="rounded-md border border-border bg-muted/40 px-3 py-2.5 sm:px-4 sm:py-3 text-sm leading-relaxed whitespace-pre-wrap max-h-[28vh] overflow-y-auto">
-          {passage}
+        <div className="rounded-md border border-border bg-muted/40 px-3 py-3 sm:px-4 sm:py-3.5 max-h-[32vh] overflow-y-auto">
+          <div className="learner-passage text-foreground">{passage}</div>
         </div>
       ) : null}
 
-      <MediaStem attachments={attachments} prefetchUrls={prefetchUrls} />
+      <MediaStem
+        attachments={attachments}
+        prefetchUrls={prefetchUrls}
+        hideAudioKey={hideAudioKey}
+        hideAllAudio={hideAllAudio}
+      />
 
-      <div className="text-[15px] sm:text-base md:text-lg font-medium leading-snug sm:leading-relaxed whitespace-pre-wrap text-foreground">
-        {question?.stem}
-      </div>
+      <div className="learner-stem text-foreground">{question?.stem}</div>
 
-      <div className="grid gap-2" role="listbox" aria-label="Варианты ответа">
+      <div className="learner-options" role="listbox" aria-label="Варианты ответа">
         {options.map((opt, idx) => {
           const id = opt.snapshotId || opt.snapshot_id || opt.id;
           const selected = selectedIds.includes(id);
@@ -39,7 +44,7 @@ export default function SingleChoiceItem({
               role="option"
               aria-selected={selected}
               className={cn(
-                'min-h-12 sm:min-h-11 w-full text-left rounded-lg border px-3 py-2.5 sm:px-4 sm:py-3 text-sm transition-colors',
+                'learner-option-row w-full text-left rounded-lg border transition-colors',
                 'flex items-start gap-3',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 selected
@@ -50,7 +55,7 @@ export default function SingleChoiceItem({
             >
               <span
                 className={cn(
-                  'mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-semibold',
+                  'mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-sm font-semibold',
                   selected
                     ? 'bg-brand text-primary-foreground'
                     : 'bg-muted text-muted-foreground',
@@ -58,7 +63,7 @@ export default function SingleChoiceItem({
               >
                 {letter}
               </span>
-              <span className="min-w-0 flex-1 leading-snug">{opt.text}</span>
+              <span className="learner-option min-w-0 flex-1">{opt.text}</span>
             </button>
           );
         })}

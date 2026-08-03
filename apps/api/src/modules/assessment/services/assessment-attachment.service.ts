@@ -53,7 +53,7 @@ export class AssessmentAttachmentService {
     questionId: string,
   ): Promise<void> {
     const role = normalizeRole(user.role);
-    if (role === 'admin' || role === 'teacher') {
+    if (role === 'admin' || role === 'teacher' || role === 'tutor') {
       return;
     }
     if (role !== 'student') {

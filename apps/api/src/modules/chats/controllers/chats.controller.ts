@@ -18,6 +18,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { SkipThrottle } from '@nestjs/throttler';
 import { memoryStorage } from 'multer';
 import { createReadStream } from 'fs';
+import { buildContentDisposition } from '../../../common/http/content-disposition';
 import { Request, Response } from 'express';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
@@ -166,10 +167,7 @@ export class ChatsController {
       attachment.kind,
       attachment.originalFilename,
     );
-    const filename = (attachment.originalFilename || attachment.storageKey || 'file').replace(
-      /["\r\n]/g,
-      '_',
-    );
+    const filename = attachment.originalFilename || attachment.storageKey || 'file';
     const forceDownload = dispositionQuery === 'attachment';
     const disposition = forceDownload ? 'attachment' : 'inline';
 
@@ -181,10 +179,7 @@ export class ChatsController {
     response.setHeader('Content-Type', mime);
     response.setHeader('Accept-Ranges', 'bytes');
     response.setHeader('Cache-Control', 'private, no-store');
-    response.setHeader(
-      'Content-Disposition',
-      `${disposition}; filename="${filename}"`,
-    );
+    response.setHeader('Content-Disposition', buildContentDisposition(disposition, filename));
 
     const range = request.headers.range;
     if (range && /^bytes=/.test(range)) {

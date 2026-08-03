@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Loader2, Plus, Save, CheckCircle2, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Save, CheckCircle2, Trash2, Send } from 'lucide-react';
 import { api } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,16 +37,28 @@ function emptyTask(kind = 'question') {
   };
 }
 
+function mergeById(primary, extra) {
+  const map = new Map();
+  for (const row of [...extra, ...primary]) {
+    if (row?.id) map.set(row.id, row);
+  }
+  return [...map.values()];
+}
+
 export default function HomeworkEditor() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const id = params.get('id');
   const prefillQuestionId = params.get('questionId');
   const [loading, setLoading] = useState(Boolean(id));
+  const [loadError, setLoadError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [libraryQuestions, setLibraryQuestions] = useState([]);
   const [libraryReading, setLibraryReading] = useState([]);
   const [libraryListening, setLibraryListening] = useState([]);
+  const [linkedQuestions, setLinkedQuestions] = useState([]);
+  const [linkedReading, setLinkedReading] = useState([]);
+  const [linkedListening, setLinkedListening] = useState([]);
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -70,8 +82,8 @@ export default function HomeworkEditor() {
         setLibraryQuestions(unwrapItems(qs));
         const r = Array.isArray(reading) ? reading : unwrapItems(reading);
         const l = Array.isArray(listening) ? listening : unwrapItems(listening);
-        setLibraryReading(r.filter((t) => t.status === 'published'));
-        setLibraryListening(l.filter((t) => t.status === 'published'));
+        setLibraryReading(r.filter((t) => t.status === 'published' || t.status === 'draft'));
+        setLibraryListening(l.filter((t) => t.status === 'published' || t.status === 'draft'));
       })
       .catch(() => {
         setLibraryQuestions([]);
@@ -83,11 +95,16 @@ export default function HomeworkEditor() {
   useEffect(() => {
     if (!id) {
       setLoading(false);
+      setLoadError(null);
       return;
     }
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
     (async () => {
       try {
         const hw = await api.homework.get(id);
+        if (cancelled) return;
         const tasks = (hw.tasks || []).map((task, idx) => ({
           localKey: task.id || `existing-${idx}`,
           task_kind: task.task_kind,
@@ -104,28 +121,84 @@ export default function HomeworkEditor() {
           pass_score_percent: hw.pass_score_percent ?? 60,
           tasks: tasks.length > 0 ? tasks : [emptyTask('question')],
         });
+        // Ensure currently linked items appear in selects even if filtered out of library
+        // (other author, archived, activity filter mismatch).
+        setLinkedQuestions(
+          (hw.tasks || [])
+            .filter((t) => t.task_kind === 'question' && t.question)
+            .map((t) => ({
+              id: t.question.id,
+              type: t.question.type,
+              stem: t.question.stem,
+              status: 'published',
+            })),
+        );
+        setLinkedReading(
+          (hw.tasks || [])
+            .filter((t) => t.task_kind === 'reading' && t.reading_task)
+            .map((t) => ({
+              id: t.reading_task.id,
+              title: t.reading_task.title,
+              status: t.reading_task.status || 'published',
+              questions: [],
+            })),
+        );
+        setLinkedListening(
+          (hw.tasks || [])
+            .filter((t) => t.task_kind === 'listening' && t.listening_task)
+            .map((t) => ({
+              id: t.listening_task.id,
+              title: t.listening_task.title,
+              status: t.listening_task.status || 'published',
+              questions: [],
+            })),
+        );
       } catch (err) {
+        if (cancelled) return;
+        const message = userFacingError(err);
+        setLoadError(message);
         toast({
-          title: 'Ошибка загрузки',
-          description: userFacingError(err),
+          title: 'Не удалось открыть задание',
+          description: message,
           variant: 'destructive',
         });
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
-  const filteredLibraryQuestions = libraryQuestions.filter((q) => {
-    if (form.activity_kind === 'speaking') return q.type === 'speaking';
-    if (form.activity_kind === 'writing') {
-      return q.type === 'short_text' || q.type === 'translation';
-    }
-    if (form.activity_kind === 'test') {
-      return !isManualReviewQuestionType(q.type) || q.type === 'short_text' || q.type === 'translation' || q.type === 'speaking';
-    }
-    return true;
-  });
+  const questionOptions = useMemo(() => {
+    const merged = mergeById(libraryQuestions, linkedQuestions);
+    return merged.filter((q) => {
+      if (form.activity_kind === 'speaking') return q.type === 'speaking';
+      if (form.activity_kind === 'writing') {
+        return q.type === 'short_text' || q.type === 'translation';
+      }
+      if (form.activity_kind === 'test') {
+        return (
+          !isManualReviewQuestionType(q.type) ||
+          q.type === 'short_text' ||
+          q.type === 'translation' ||
+          q.type === 'speaking'
+        );
+      }
+      return true;
+    });
+  }, [libraryQuestions, linkedQuestions, form.activity_kind]);
+
+  const readingOptions = useMemo(
+    () => mergeById(libraryReading.filter((t) => t.status === 'published'), linkedReading),
+    [libraryReading, linkedReading],
+  );
+
+  const listeningOptions = useMemo(
+    () => mergeById(libraryListening.filter((t) => t.status === 'published'), linkedListening),
+    [libraryListening, linkedListening],
+  );
 
   const updateTask = (localKey, patch) => {
     setForm((prev) => ({
@@ -238,7 +311,11 @@ export default function HomeworkEditor() {
       } else {
         toast({ title: 'Сохранено' });
       }
-      navigate(createPageUrl('HomeworkList'));
+      if (!id && hwId) {
+        navigate(`${createPageUrl('HomeworkEditor')}?id=${encodeURIComponent(hwId)}`, {
+          replace: true,
+        });
+      }
     } catch (err) {
       toast({
         title: 'Не удалось сохранить',
@@ -258,21 +335,46 @@ export default function HomeworkEditor() {
     );
   }
 
-  const listeningOptions = libraryListening;
-  const readingOptions = libraryReading;
+  if (id && loadError) {
+    return (
+      <div className="p-6 max-w-lg mx-auto space-y-4 text-center">
+        <p className="text-slate-700 dark:text-slate-200 font-medium">Не удалось открыть задание</p>
+        <p className="text-sm text-slate-500">{loadError}</p>
+        <Button variant="outline" onClick={() => navigate(createPageUrl('HomeworkList'))}>
+          К списку заданий
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div
       className="p-3 sm:p-6 lg:p-8 w-full max-w-3xl mx-auto space-y-4 sm:space-y-6 min-w-0 overflow-x-hidden"
       data-testid="homework-editor"
     >
-      <div className="min-w-0">
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white break-words">
-          {id ? 'Редактирование задания' : 'Новое домашнее задание'}
-        </h1>
-        <p className="text-sm text-slate-500 mt-1 break-words">
-          Соберите задание из вопросов, аудирования и чтения из вашей библиотеки.
-        </p>
+      <div className="min-w-0 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white break-words">
+            {id ? 'Изменить домашнее задание' : 'Новое домашнее задание'}
+          </h1>
+          <p className="text-sm text-slate-500 mt-1 break-words">
+            Название, описание, состав вопросов и настройки. Учеников и срок сдачи настройте при
+            назначении.
+          </p>
+        </div>
+        {id ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full sm:w-auto shrink-0 gap-1.5"
+            onClick={() =>
+              navigate(`${createPageUrl('HomeworkAssignment')}?homeworkId=${encodeURIComponent(id)}`)
+            }
+          >
+            <Send className="h-4 w-4" />
+            Ученики и срок
+          </Button>
+        ) : null}
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4 sm:p-5 space-y-4 min-w-0">
@@ -404,9 +506,9 @@ export default function HomeworkEditor() {
                   className={`${fieldClass} max-w-full`}
                 >
                   <option value="">Выберите…</option>
-                  {filteredLibraryQuestions.map((q) => (
+                  {questionOptions.map((q) => (
                     <option key={q.id} value={q.id}>
-                      [{QUESTION_TYPE_LABEL[q.type] || q.type}] {q.stem.slice(0, 80)}
+                      [{QUESTION_TYPE_LABEL[q.type] || q.type}] {(q.stem || '').slice(0, 80)}
                     </option>
                   ))}
                 </select>
@@ -466,12 +568,13 @@ export default function HomeworkEditor() {
           className="w-full sm:w-auto"
           onClick={() => navigate(createPageUrl('HomeworkList'))}
         >
-          Отмена
+          К списку
         </Button>
         <Button
           disabled={saving}
           onClick={() => handleSave(false)}
           className="gap-2 w-full sm:w-auto"
+          data-testid="homework-save"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           Сохранить

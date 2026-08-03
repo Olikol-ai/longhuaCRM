@@ -8,6 +8,10 @@ import { formatWelcomeGreeting } from "@/lib/display-name";
 import { Card } from "@/components/ui/card";
 import { resolveLessonStudentLabel } from "@/lib/studentLabels";
 import { filterLessonsWithinNext48Hours } from "@/lib/teacherUpcomingLessons";
+import {
+  computeCompletedLessonsMonthStats,
+  formatCompletedMonthComparison,
+} from "@/lib/completedLessonsMonthStats";
 import { isOnlineLesson, lessonVideoPath } from "@/lib/lesson-video";
 
 const STATUS_LABELS = {
@@ -57,7 +61,9 @@ export default function TeacherRoleDashboard({ user }) {
 
   const upcomingLessons = filterLessonsWithinNext48Hours(lessons);
 
-  const completedThisMonth = lessons.filter(l => l.status === "completed").length;
+  const completedMonth = formatCompletedMonthComparison(
+    computeCompletedLessonsMonthStats(lessons),
+  );
 
   if (loading) return (
     <div className="p-6 space-y-4">
@@ -77,7 +83,15 @@ export default function TeacherRoleDashboard({ user }) {
       <div className="grid grid-cols-3 gap-4">
         <StatCard label="Уроков сегодня" value={todayLessons.length} icon={CalendarDays} color="brand" />
         <StatCard label="Предстоящие" value={upcomingLessons.length} icon={Clock} color="muted" />
-        <StatCard label="Завершено" value={completedThisMonth} icon={CheckCircle2} color="emerald" />
+        <StatCard
+          label={completedMonth.label}
+          value={completedMonth.value}
+          icon={CheckCircle2}
+          color="emerald"
+          previousLine={completedMonth.previousLine}
+          trendLine={completedMonth.trendLine}
+          trendTone={completedMonth.trendTone}
+        />
       </div>
 
       <Card className="overflow-hidden">

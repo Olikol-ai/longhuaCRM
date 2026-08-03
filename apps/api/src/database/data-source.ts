@@ -76,6 +76,7 @@ import { ExamAcademySchema1745300000000 } from './migrations/1745300000000-ExamA
 import { ExamContentPlatformSchema1745400000000 } from './migrations/1745400000000-ExamContentPlatformSchema';
 import { AssessmentQuestionBankScope1745500000000 } from './migrations/1745500000000-AssessmentQuestionBankScope';
 import { DropExamContentInReview1745600000000 } from './migrations/1745600000000-DropExamContentInReview';
+import { LessonRecurrenceSeries1745700000000 } from './migrations/1745700000000-LessonRecurrenceSeries';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -155,6 +156,7 @@ export default new DataSource({
     ExamContentPlatformSchema1745400000000,
     AssessmentQuestionBankScope1745500000000,
     DropExamContentInReview1745600000000,
+    LessonRecurrenceSeries1745700000000,
   ],
   synchronize: false,
 });

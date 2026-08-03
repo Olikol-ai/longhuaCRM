@@ -34,6 +34,8 @@ const LESSON_STRIP_KEYS = new Set([
   'studentLastName',
   'isRecurring',
   'recurringGroupId',
+  'recurrenceSeriesId',
+  'recurrenceSeries',
   'studentTargetType',
   'student_target_type',
 ]);

@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { addDays, format, parseISO } from "date-fns";
 import { X, RefreshCw, Loader2 } from "lucide-react";
 import { api } from "@/api";
 import { useAuth } from "@/lib/AuthContext";
@@ -54,6 +53,7 @@ export default function LessonModal({
     notes: "",
   });
   const [recurring, setRecurring] = useState(false);
+  const [recurrenceUntil, setRecurrenceUntil] = useState("");
   const [saving, setSaving] = useState(false);
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [teacherSchedule, setTeacherSchedule] = useState({ hasSchedule: false, slots: [] });
@@ -232,12 +232,8 @@ export default function LessonModal({
     }
 
     const duration = +form.duration;
-    const datesToCheck = recurring
-      ? [
-          form.date,
-          format(addDays(parseISO(form.date), 7), "yyyy-MM-dd"),
-        ]
-      : [form.date];
+    // Backend creates a rolling horizon; frontend only needs the first slot free.
+    const datesToCheck = [form.date];
 
     setSaving(true);
     try {
@@ -261,6 +257,9 @@ export default function LessonModal({
           : form.student_target_type === "contact"
             ? { teacher_student_contact_id: form.teacher_student_contact_id }
             : { primary_student_id: form.primary_student_id }),
+        ...(recurring && recurrenceUntil
+          ? { recurrence_until: recurrenceUntil }
+          : {}),
       };
 
       await onSave(payload, recurring);
@@ -536,13 +535,31 @@ export default function LessonModal({
               >
                 <RefreshCw className={`w-4 h-4 ${recurring ? "text-brand" : "text-slate-400 dark:text-slate-500"}`} />
                 <div>
-                  <p className={`text-xs font-semibold ${recurring ? "text-brand dark:text-brand" : "text-slate-600 dark:text-slate-300"}`}>Еженедельный повтор</p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500">Создаёт урок на выбранную дату и ещё один через неделю</p>
+                  <p className={`text-xs font-semibold ${recurring ? "text-brand dark:text-brand" : "text-slate-600 dark:text-slate-300"}`}>Повторять каждую неделю</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500">Автоматически создаёт уроки на 12 недель вперёд и продлевает серию</p>
                 </div>
                 <div className={`ml-auto w-4 h-4 rounded border-2 flex items-center justify-center ${recurring ? "border-brand bg-brand" : "border-slate-300 dark:border-slate-600"}`}>
                   {recurring && <span className="text-white text-[8px] font-bold">✓</span>}
                 </div>
               </div>
+
+              {recurring ? (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    Дата окончания серии (необязательно)
+                  </label>
+                  <input
+                    type="date"
+                    value={recurrenceUntil}
+                    min={form.date || undefined}
+                    onChange={(e) => setRecurrenceUntil(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
+                  />
+                  <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+                    Оставьте пустым, чтобы серия продолжалась без даты окончания
+                  </p>
+                </div>
+              ) : null}
 
               {/* Mobile: panel under the form */}
               <div className="md:hidden">
@@ -566,7 +583,7 @@ export default function LessonModal({
           <button type="button" onClick={handleSave}
             disabled={!canSubmit || saving}
             className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-40">
-            {saving ? "Создание..." : recurring ? "Создать 2 урока" : "Создать урок"}
+            {saving ? "Создание..." : recurring ? "Создать серию" : "Создать урок"}
           </button>
         </div>
       </div>

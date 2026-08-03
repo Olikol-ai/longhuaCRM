@@ -275,7 +275,7 @@ export default function HomeworkList() {
                         className="w-full"
                         onClick={() => navigate(`${createPageUrl('HomeworkEditor')}?id=${hw.id}`)}
                       >
-                        Редактировать
+                        Изменить
                       </Button>
                       <Button
                         variant="outline"
@@ -357,7 +357,7 @@ export default function HomeworkList() {
                                   navigate(`${createPageUrl('HomeworkEditor')}?id=${hw.id}`)
                                 }
                               >
-                                Редактировать
+                                Изменить
                               </Button>
                               <Button
                                 variant="outline"

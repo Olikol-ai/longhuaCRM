@@ -77,19 +77,22 @@ describe('toLessonWritePayload', () => {
     assert.equal(payload.lessonType, 'individual');
   });
 
-  it('maps contact for tutor-owned lessons', () => {
+  it('keeps recurrence edit fields for Nest UpdateLessonDto', () => {
     const payload = toLessonWritePayload({
-      tutor_id: '55555555-5555-4555-8555-555555555555',
-      teacher_student_contact_id: '88888888-8888-4888-8888-888888888888',
+      teacher_id: '11111111-1111-4111-8111-111111111111',
+      primary_student_id: '22222222-2222-4222-8222-222222222222',
       date: '2026-08-01',
-      start_time: '10:00',
+      start_time: '18:00',
+      recurrence_weekly: true,
+      recurrence_until: '2026-12-01',
+      apply_scope: 'following',
+      is_recurring: true,
+      recurrence_series_id: '99999999-9999-4999-8999-999999999999',
     });
-    assert.equal(payload.tutorId, '55555555-5555-4555-8555-555555555555');
-    assert.equal(
-      payload.primaryTeacherStudentContactId,
-      '88888888-8888-4888-8888-888888888888',
-    );
-    assert.equal(payload.primaryTutorStudentId, undefined);
-    assert.equal(payload.lessonType, 'individual');
+    assert.equal(payload.recurrenceWeekly, true);
+    assert.equal(payload.recurrenceUntil, '2026-12-01');
+    assert.equal(payload.applyScope, 'following');
+    assert.equal(payload.isRecurring, undefined);
+    assert.equal(payload.recurrenceSeriesId, undefined);
   });
 });

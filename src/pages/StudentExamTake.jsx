@@ -1,19 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { api } from '@/api';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { createPageUrl } from '@/utils';
 import AutosaveStatus from '@/components/assessment/AutosaveStatus';
+import AttemptFinishDialog from '@/components/assessment/AttemptFinishDialog';
+import AttemptNavBar from '@/components/assessment/AttemptNavBar';
 import ExamCompletionScreen from '@/components/assessment/ExamCompletionScreen';
 import ExamProgress from '@/components/assessment/ExamProgress';
 import ExamTimer from '@/components/assessment/ExamTimer';
-import QuestionCard from '@/components/assessment/QuestionCard';
-import TaskMaterialHeader from '@/components/assessment/TaskMaterialHeader';
+import LearnerQuestionBlocks from '@/components/assessment/LearnerQuestionBlocks';
 import QuestionNavigator from '@/components/assessment/QuestionNavigator';
 import { useAttemptSession } from '@/hooks/useAttemptSession';
 import { userFacingError } from '@/lib/userFacingError';
+import {
+  findDisplayBlockForIndex,
+  groupQuestionsForLearnerDisplay,
+} from '@/lib/listening-display';
+import { stopAllLearningAudio } from '@/lib/learning-audio-runtime';
 
 export default function StudentExamTake() {
   const [params] = useSearchParams();
@@ -21,8 +27,10 @@ export default function StudentExamTake() {
   const navigate = useNavigate();
   const [examTitle, setExamTitle] = useState('');
   const [confirmSubmit, setConfirmSubmit] = useState(false);
+  const [confirmEarly, setConfirmEarly] = useState(false);
   const [remainingSeconds, setRemainingSeconds] = useState(null);
   const autoSubmitted = useRef(false);
+  const stageTopRef = useRef(null);
 
   const session = useAttemptSession(attemptId);
   const {
@@ -96,15 +104,54 @@ export default function StudentExamTake() {
     }
   }, [remainingSeconds, state?.status, handleTimeoutSubmit]);
 
-  const currentQuestion = questions[currentIndex] || null;
+  const displayBlocks = useMemo(
+    () => groupQuestionsForLearnerDisplay(questions),
+    [questions],
+  );
+  const currentBlock = useMemo(
+    () => findDisplayBlockForIndex(displayBlocks, currentIndex),
+    [displayBlocks, currentIndex],
+  );
 
   const resultEntity = useMemo(() => {
     if (!completedPayload) return null;
     return completedPayload.result || completedPayload;
   }, [completedPayload]);
 
+  const goToQuestion = (nextIndex) => {
+    const nextBlock = findDisplayBlockForIndex(displayBlocks, nextIndex);
+    const sameListeningBlock =
+      nextBlock?.type === 'listening' &&
+      currentBlock?.type === 'listening' &&
+      nextBlock.audioKey === currentBlock.audioKey &&
+      nextBlock.startIndex === currentBlock.startIndex;
+
+    if (!sameListeningBlock) {
+      stopAllLearningAudio();
+    }
+
+    setCurrentIndex(nextIndex);
+    requestAnimationFrame(() => {
+      if (sameListeningBlock) {
+        document
+          .getElementById(`learner-question-${nextIndex}`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+
+      stageTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      requestAnimationFrame(() => {
+        document
+          .getElementById(`learner-question-${nextIndex}`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+    });
+  };
+
   const handleManualSubmit = async () => {
     setConfirmSubmit(false);
+    setConfirmEarly(false);
     try {
       await submit();
     } catch (err) {
@@ -176,6 +223,7 @@ export default function StudentExamTake() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-slate-50/80 dark:bg-slate-950/40">
+      <div ref={stageTopRef} className="h-0 w-0 overflow-hidden" aria-hidden />
       <div className="sticky top-0 z-20 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:supports-[backdrop-filter]:bg-slate-900/80">
         <div className="max-w-4xl mx-auto px-3 sm:px-6 py-3 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -208,25 +256,22 @@ export default function StudentExamTake() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 pb-28 sm:pb-8">
+      <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 pb-28 sm:pb-8 learner-content">
         <div className="hidden sm:block">
           <QuestionNavigator
             questions={questions}
             answers={answers}
             currentIndex={currentIndex}
-            onSelect={setCurrentIndex}
+            onSelect={goToQuestion}
           />
         </div>
 
-        <TaskMaterialHeader
-          instructions={currentQuestion?.task_instructions}
-          vocabulary={currentQuestion?.vocabulary}
-          passageText={currentQuestion?.passage_text}
-        />
-        <QuestionCard
-          question={currentQuestion}
-          index={currentIndex}
-          localAnswer={answers[currentQuestion?.snapshot_id]}
+        <LearnerQuestionBlocks
+          questions={questions}
+          answers={answers}
+          currentIndex={currentIndex}
+          mode="focus"
+          highlightCurrent
           onSingleChoice={setSingleChoice}
           onToggleMultiple={toggleMultipleChoice}
           onTextChange={setTextAnswer}
@@ -238,80 +283,36 @@ export default function StudentExamTake() {
             questions={questions}
             answers={answers}
             currentIndex={currentIndex}
-            onSelect={setCurrentIndex}
+            onSelect={goToQuestion}
           />
         </div>
 
-        <div className="flex flex-col-reverse sm:flex-row gap-2 sm:items-center sm:justify-between">
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              disabled={currentIndex <= 0}
-              onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
-              className="flex-1 sm:flex-none"
-            >
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              Назад
-            </Button>
-            <Button
-              variant="outline"
-              disabled={currentIndex >= questions.length - 1}
-              onClick={() =>
-                setCurrentIndex((i) => Math.min(questions.length - 1, i + 1))
-              }
-              className="flex-1 sm:flex-none"
-            >
-              Далее
-              <ChevronRight className="h-4 w-4 ml-1" />
-            </Button>
-          </div>
-
-          <Button
-            className="bg-primary hover:bg-primary/90 w-full sm:w-auto"
-            disabled={submitting}
-            onClick={() => setConfirmSubmit(true)}
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Отправка…
-              </>
-            ) : (
-              'Завершить экзамен'
-            )}
-          </Button>
-        </div>
+        <AttemptNavBar
+          index={currentIndex}
+          total={questions.length}
+          submitting={submitting}
+          finishLabel="Завершить экзамен"
+          earlyFinishLabel="Завершить"
+          onPrev={() => goToQuestion(Math.max(0, currentIndex - 1))}
+          onNext={() => goToQuestion(Math.min(questions.length - 1, currentIndex + 1))}
+          onFinish={() => setConfirmSubmit(true)}
+          onRequestEarlyFinish={() => setConfirmEarly(true)}
+        />
       </div>
 
-      {confirmSubmit && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl bg-white dark:bg-slate-900 p-5 sm:p-6 space-y-4 shadow-xl safe-pb sm:pb-6">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-              Завершить экзамен?
-            </h2>
-            <p className="text-sm text-slate-600 dark:text-slate-300">
-              Отвечено {answeredCount} из {questions.length}. После отправки изменить ответы будет
-              нельзя.
-            </p>
-            <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
-              <Button variant="outline" onClick={() => setConfirmSubmit(false)}>
-                Отмена
-              </Button>
-              <Button
-                className="bg-primary hover:bg-primary/90"
-                disabled={submitting}
-                onClick={handleManualSubmit}
-              >
-                Подтвердить
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AttemptFinishDialog
+        open={confirmSubmit || confirmEarly}
+        answeredCount={answeredCount}
+        total={questions.length}
+        submitting={submitting}
+        title="Завершить экзамен?"
+        isEarly={confirmEarly}
+        onContinue={() => {
+          setConfirmSubmit(false);
+          setConfirmEarly(false);
+        }}
+        onConfirm={handleManualSubmit}
+      />
     </div>
   );
 }

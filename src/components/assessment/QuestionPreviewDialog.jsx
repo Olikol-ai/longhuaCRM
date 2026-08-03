@@ -25,6 +25,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/use-toast';
+import { stopAllLearningAudio } from '@/lib/learning-audio-runtime';
 import {
   LIFECYCLE_STATUS_LABEL,
   QUESTION_TYPE_LABEL,
@@ -303,7 +304,10 @@ export default function QuestionPreviewDialog({
   );
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      stopAllLearningAudio();
+      return;
+    }
     setShowCorrect(false);
     setTrySelect([]);
     setCurrentId(initialId);
@@ -313,6 +317,7 @@ export default function QuestionPreviewDialog({
     if (!open || !currentId) return;
     setShowCorrect(false);
     setTrySelect([]);
+    stopAllLearningAudio();
     void loadDetail(currentId);
   }, [open, currentId, loadDetail]);
 
@@ -475,31 +480,33 @@ export default function QuestionPreviewDialog({
             </div>
           ) : detail ? (
             <>
-              {bank === 'assessment' ? (
-                <QuestionCard question={detail} index={Math.max(0, index)} readOnly />
-              ) : (
-                <div className="space-y-3">
-                  {(detail.vocabulary || []).length ? (
-                    <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm">
-                      <p className="text-xs font-medium text-muted-foreground mb-1">Новые слова</p>
-                      <p>
-                        {(detail.vocabulary || [])
-                          .map((v) =>
-                            [v.word, v.pinyin ? `(${v.pinyin})` : null, v.translation]
-                              .filter(Boolean)
-                              .join(' '),
-                          )
-                          .join(' · ')}
-                      </p>
-                    </div>
-                  ) : null}
-                  <ExamItemRenderer
-                    question={detail}
-                    selectedIds={trySelect}
-                    onSelect={(oid) => setTrySelect([oid])}
-                  />
-                </div>
-              )}
+              <div className="learner-content space-y-4">
+                {bank === 'assessment' ? (
+                  <QuestionCard question={detail} index={Math.max(0, index)} readOnly />
+                ) : (
+                  <div className="space-y-3">
+                    {(detail.vocabulary || []).length ? (
+                      <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+                        <p className="learner-label text-muted-foreground mb-1.5">Новые слова</p>
+                        <p className="learner-vocab">
+                          {(detail.vocabulary || [])
+                            .map((v) =>
+                              [v.word, v.pinyin ? `(${v.pinyin})` : null, v.translation]
+                                .filter(Boolean)
+                                .join(' '),
+                            )
+                            .join(' · ')}
+                        </p>
+                      </div>
+                    ) : null}
+                    <ExamItemRenderer
+                      question={detail}
+                      selectedIds={trySelect}
+                      onSelect={(oid) => setTrySelect([oid])}
+                    />
+                  </div>
+                )}
+              </div>
 
               <div className="pt-1">
                 <Button
@@ -543,7 +550,7 @@ export default function QuestionPreviewDialog({
               disabled={!detail || busyAction}
               onClick={() => {
                 onOpenChange(false);
-                if (bank === 'assessment') onEdit?.(detail, 'edit');
+                if (bank === 'assessment') onEdit?.(detail || { id: currentId }, 'edit');
                 else onEdit?.(detail?.id || currentId);
               }}
             >

@@ -6,7 +6,11 @@ import { formatHelloGreeting } from '@/lib/display-name';
 import StatCard from '@/components/dashboard/StatCard';
 import { resolveLessonStudentLabel } from '@/lib/studentLabels';
 import { filterLessonsWithinNext48Hours } from '@/lib/teacherUpcomingLessons';
-import { BookOpen, Calendar, CheckCircle2, Clock, Loader2, Users } from 'lucide-react';
+import {
+  computeCompletedLessonsMonthStats,
+  formatCompletedMonthComparison,
+} from '@/lib/completedLessonsMonthStats';
+import { BookOpen, CheckCircle2, Clock, Loader2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { createPageUrl } from '@/utils';
 import { toast } from '@/components/ui/use-toast';
@@ -82,6 +86,10 @@ export default function TutorDashboard() {
   const hours = stats?.teaching_hours ?? stats?.teachingHours
     ?? ((stats?.teaching_minutes ?? stats?.teachingMinutes ?? 0) / 60).toFixed(1);
 
+  const completedMonth = formatCompletedMonthComparison(
+    computeCompletedLessonsMonthStats(lessons),
+  );
+
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-5xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
@@ -114,7 +122,15 @@ export default function TutorDashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Ученики" value={stats?.students_count ?? stats?.studentsCount ?? students.length} icon={Users} color="brand" />
         <StatCard label="Активные" value={stats?.active_students_count ?? stats?.activeStudentsCount ?? 0} icon={BookOpen} color="emerald" />
-        <StatCard label="Проведено" value={stats?.completed_lessons_count ?? stats?.completedLessonsCount ?? 0} icon={Calendar} color="muted" />
+        <StatCard
+          label={completedMonth.label}
+          value={completedMonth.value}
+          icon={CheckCircle2}
+          color="muted"
+          previousLine={completedMonth.previousLine}
+          trendLine={completedMonth.trendLine}
+          trendTone={completedMonth.trendTone}
+        />
         <StatCard label="Часы" value={hours} icon={Clock} color="amber" />
       </div>
 

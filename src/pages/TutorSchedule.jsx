@@ -18,6 +18,7 @@ import TutorLessonModal from '@/components/tutors/TutorLessonModal';
 import LessonDetailModal from '@/components/schedule/LessonDetailModal';
 import { toast } from '@/components/ui/use-toast';
 import { isOnlineLesson, lessonVideoPath } from '@/lib/lesson-video';
+import { filterScheduleListLessons } from '@/lib/scheduleListLessons';
 
 const STATUS_BG = {
   planned: 'bg-brand',
@@ -93,6 +94,7 @@ export default function TutorSchedule() {
   const [updating, setUpdating] = useState(null);
   const [selectedDay, setSelectedDay] = useState(null);
   const [viewingLesson, setViewingLesson] = useState(null);
+  const [showCompletedInList, setShowCompletedInList] = useState(false);
 
   const loadData = async () => {
     setLoadError(null);
@@ -134,6 +136,14 @@ export default function TutorSchedule() {
     const end = endOfWeek(currentDate, { weekStartsOn: 1 });
     return eachDayOfInterval({ start, end });
   }, [currentDate]);
+
+  const listLessons = useMemo(
+    () =>
+      filterScheduleListLessons(lessons, {
+        includeFinal: showCompletedInList,
+      }),
+    [lessons, showCompletedInList],
+  );
 
   const markLesson = async (lesson, status, completionAttendance = 'attended') => {
     if (status === 'completed') {
@@ -218,20 +228,39 @@ export default function TutorSchedule() {
       </div>
 
       {viewMode === 'list' ? (
-        <div className="space-y-2">
-          {lessons.length === 0 ? (
-            <p className="text-sm text-slate-400 py-10 text-center">Занятий пока нет</p>
-          ) : lessons.map((lesson) => (
-            <TutorLessonCard
-              key={lesson.id}
-              lesson={lesson}
-              students={students}
-              busy={updating === lesson.id}
-              onOpen={() => setViewingLesson(lesson)}
-              onComplete={(l) => markLesson(l, 'completed')}
-              onCancel={(l) => markLesson(l, 'cancelled')}
-            />
-          ))}
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Показаны актуальные занятия. Завершённые скрыты по умолчанию.
+            </p>
+            <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-brand rounded border-slate-300"
+                checked={showCompletedInList}
+                onChange={(e) => setShowCompletedInList(e.target.checked)}
+                data-testid="tutor-schedule-list-show-completed"
+              />
+              Показать завершённые занятия
+            </label>
+          </div>
+          {listLessons.length === 0 ? (
+            <p className="text-sm text-slate-400 py-10 text-center">
+              {showCompletedInList ? 'Занятий пока нет' : 'Нет актуальных занятий'}
+            </p>
+          ) : (
+            listLessons.map((lesson) => (
+              <TutorLessonCard
+                key={lesson.id}
+                lesson={lesson}
+                students={students}
+                busy={updating === lesson.id}
+                onOpen={() => setViewingLesson(lesson)}
+                onComplete={(l) => markLesson(l, 'completed')}
+                onCancel={(l) => markLesson(l, 'cancelled')}
+              />
+            ))
+          )}
         </div>
       ) : (
         <>

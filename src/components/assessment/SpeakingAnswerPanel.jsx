@@ -3,6 +3,7 @@ import { Loader2, Mic, Square, Upload } from 'lucide-react';
 import { getToken } from '@/api';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
+import AuthenticatedAudio from '@/components/media/AuthenticatedAudio';
 
 const ACCEPT = 'audio/ogg,audio/opus,audio/mpeg,audio/wav,audio/webm,audio/mp4,.ogg,.opus,.mp3,.wav,.webm,.m4a';
 
@@ -146,9 +147,7 @@ export default function SpeakingAnswerPanel({
       </p>
 
       {playSrc ? (
-        <audio controls className="w-full" preload="metadata" src={playSrc}>
-          Ваш браузер не поддерживает аудио.
-        </audio>
+        <AuthenticatedAudio src={playSrc} />
       ) : hasAudio ? (
         <p className="text-sm text-slate-500">Аудио загружено. Можно перезаписать.</p>
       ) : null}

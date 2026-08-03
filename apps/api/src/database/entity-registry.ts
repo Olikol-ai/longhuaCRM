@@ -9,6 +9,7 @@ import { GroupEntity } from '../modules/groups/entities/group.entity';
 import { GroupMemberEntity } from '../modules/groups/entities/group-member.entity';
 import { AttendanceEntity } from '../modules/lessons/entities/attendance.entity';
 import { LessonEntity } from '../modules/lessons/entities/lesson.entity';
+import { LessonRecurrenceSeriesEntity } from '../modules/lessons/entities/lesson-recurrence-series.entity';
 import { LessonStudentChangeHistoryEntity } from '../modules/lessons/entities/lesson-student-change-history.entity';
 import { MaterialAccessEntity } from '../modules/materials/entities/material-access.entity';
 import { MaterialCourseGrantEntity } from '../modules/materials/entities/material-course-grant.entity';
@@ -72,6 +73,7 @@ export const ALL_V2_ENTITIES = [
   GroupEntity,
   GroupMemberEntity,
   LessonEntity,
+  LessonRecurrenceSeriesEntity,
   AttendanceEntity,
   LessonStudentChangeHistoryEntity,
   LessonConfirmationEntity,

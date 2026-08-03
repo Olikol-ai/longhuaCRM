@@ -182,6 +182,10 @@ describe('Video lesson UI contract', () => {
     const controls = readFileSync(join(root, 'components/video/LessonVideoControls.jsx'), 'utf8');
     const rail = readFileSync(join(root, 'components/video/LessonVideoSideRail.jsx'), 'utf8');
     const teacher = readFileSync(join(root, 'pages/TeacherSchedule.jsx'), 'utf8');
+    const teacherCalendar = readFileSync(
+      join(root, 'components/schedule/SchoolScheduleCalendar.jsx'),
+      'utf8',
+    );
     const student = readFileSync(join(root, 'pages/StudentLessons.jsx'), 'utf8');
     const layout = readFileSync(join(root, 'Layout.jsx'), 'utf8');
 
@@ -249,7 +253,8 @@ describe('Video lesson UI contract', () => {
     assert.match(page, /jitsiRef\.current\?\.resize/);
     assert.match(layout, /LessonVideo/);
     assert.doesNotMatch(layout, /LessonVideo[\s\S]*bg-slate-950/);
-    assert.match(teacher, /Начать видеоурок/);
+    assert.match(teacher, /SchoolScheduleCalendar/);
+    assert.match(teacherCalendar, /Начать видеоурок/);
     assert.match(student, /Войти в видеоурок/);
 
     assert.match(page, /videoConnectionMeta|lesson-video-connection/);
