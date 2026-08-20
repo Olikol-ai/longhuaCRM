@@ -72,14 +72,14 @@ export default function AssessmentAssignments() {
         <div>
           <Link
             to={createPageUrl('AdminAssessment')}
-            className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
+            className="text-xs text-muted-foreground hover:text-brand dark:hover:text-brand"
           >
             ← Проверочные работы
           </Link>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+          <h1 className="text-2xl font-bold text-foreground mt-1">
             Назначения экзаменов
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Выдача экзаменов ученикам, группам и курсам
           </p>
         </div>
@@ -128,11 +128,11 @@ export default function AssessmentAssignments() {
         </div>
       ) : assignments.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-10 text-center space-y-3">
-          <Target className="h-10 w-10 mx-auto text-slate-400" />
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+          <Target className="h-10 w-10 mx-auto text-muted-foreground" />
+          <h2 className="text-lg font-semibold text-foreground">
             Назначений пока нет
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-muted-foreground">
             Назначьте опубликованный экзамен ученику или группе.
           </p>
           <Button
@@ -148,21 +148,21 @@ export default function AssessmentAssignments() {
           {assignments.map((row) => (
             <article
               key={row.id}
-              className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/80 p-4 sm:p-5"
+              className="rounded-2xl border border-border bg-card/80 p-4 sm:p-5"
             >
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0 space-y-1.5">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-base font-semibold text-slate-900 dark:text-white truncate">
+                    <h2 className="text-base font-semibold text-foreground truncate">
                       {row.exam_name}
                     </h2>
                     <AssignmentStatusBadge status={row.status} />
                   </div>
-                  <p className="text-sm text-slate-600 dark:text-slate-300">
+                  <p className="text-sm text-muted-foreground dark:text-slate-300">
                     {ASSIGNMENT_TARGET_LABEL[row.target_type] || row.target_type}:{' '}
                     {row.target_label}
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-muted-foreground">
                     С {formatDateTime(row.valid_from)} · до{' '}
                     {formatDateTime(row.valid_to)}
                   </p>

@@ -3,9 +3,11 @@ import { api } from '@/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { parseISO, format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { ru } from "date-fns/locale";
-import { TrendingUp, Users, BookOpen, Download, GraduationCap, CreditCard } from "lucide-react";
+import { Download } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { formatCurrency, sumPaymentAmounts } from "@/lib/formatters";
+import { formatBYN, sumPaymentAmounts } from "@/lib/formatters";
+import { getLessonBalance } from "@/lib/lessonBalance";
+import LessonBalanceDisplay from "@/components/students/LessonBalanceDisplay";
 
 function StatBox({ label, value, color = "brand" }) {
   const colors = {
@@ -78,7 +80,9 @@ export default function Analytics() {
   const monthRevenue = sumPaymentAmounts(monthPayments);
   const activeStudents = students.filter(s => s.status === "active").length;
   const completedLessons = lessons.filter(l => l.status === "completed").length;
-  const lowBalanceStudents = students.filter(s => (s.lesson_balance || 0) <= 1 && s.status === "active").length;
+  const lowBalanceStudents = students.filter(
+    (s) => getLessonBalance(s) <= 1 && s.status === "active",
+  ).length;
 
   const teacherStats = teachers.map(t => ({
     ...t,
@@ -128,8 +132,8 @@ export default function Analytics() {
 
       {/* KPI */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatBox label="Общая выручка" value={formatCurrency(totalRevenue)} color="emerald" />
-        <StatBox label="Выручка за месяц" value={formatCurrency(monthRevenue)} color="brand" />
+        <StatBox label="Общая выручка" value={formatBYN(totalRevenue)} color="emerald" />
+        <StatBox label="Выручка за месяц" value={formatBYN(monthRevenue)} color="brand" />
         <StatBox label="Активных учеников" value={activeStudents} color="muted" />
         <StatBox label="Уроков проведено" value={completedLessons} color="muted" />
         <StatBox label="Мало уроков (≤1)" value={lowBalanceStudents} color="amber" />
@@ -143,7 +147,7 @@ export default function Analytics() {
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" stroke="hsl(var(--border))" />
             <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
             <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-            <Tooltip formatter={(v) => [formatCurrency(v), "Выручка"]} />
+            <Tooltip formatter={(v) => [formatBYN(v), "Выручка"]} />
             <Bar dataKey="revenue" fill="#8B1A1A" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
@@ -197,15 +201,22 @@ export default function Analytics() {
         </Card>
       </div>
 
-      {students.filter(s => (s.lesson_balance || 0) <= 1 && s.status === "active").length > 0 && (
+      {students.filter((s) => getLessonBalance(s) <= 1 && s.status === "active").length > 0 && (
         <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-3">⚠️ Ученики с малым балансом</h3>
+          <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-3">
+            Ученики с малым балансом / задолженностью
+          </h3>
           <div className="flex flex-wrap gap-2">
-            {students.filter(s => (s.lesson_balance || 0) <= 1 && s.status === "active").map(s => (
-              <span key={s.id} className="text-xs bg-card border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 px-3 py-1.5 rounded-full">
-                {s.name} — {s.lesson_balance || 0} ур.
-              </span>
-            ))}
+            {students
+              .filter((s) => getLessonBalance(s) <= 1 && s.status === "active")
+              .map((s) => (
+                <span
+                  key={s.id}
+                  className="text-xs bg-card border border-border px-3 py-1.5 rounded-full inline-flex items-center gap-1.5"
+                >
+                  {s.name} — <LessonBalanceDisplay row={s} suffix=" ур." />
+                </span>
+              ))}
           </div>
         </div>
       )}

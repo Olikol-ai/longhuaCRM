@@ -145,7 +145,20 @@ export class CreateRecurringLessonDto {
   untilDate?: string | null;
 }
 
-export type LessonRecurrenceApplyScope = 'this' | 'following' | 'all';
+/** `series` is an alias of `all` (full series) used by status-scope UX. */
+export type LessonRecurrenceApplyScope =
+  | 'this'
+  | 'following'
+  | 'all'
+  | 'series';
+
+export function normalizeLessonRecurrenceApplyScope(
+  scope?: LessonRecurrenceApplyScope | string | null,
+): 'this' | 'following' | 'all' {
+  if (scope === 'series' || scope === 'all') return 'all';
+  if (scope === 'following') return 'following';
+  return 'this';
+}
 
 export class UpdateLessonRecurrenceDto {
   @IsOptional()
@@ -159,6 +172,6 @@ export class UpdateLessonRecurrenceDto {
 
   /** Required when the lesson already belongs to a series (or when stopping one). */
   @IsOptional()
-  @IsEnum(['this', 'following', 'all'])
+  @IsEnum(['this', 'following', 'all', 'series'])
   applyScope?: LessonRecurrenceApplyScope;
 }

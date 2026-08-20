@@ -86,8 +86,9 @@ export class HomeworkController {
   finalizeReview(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SaveHomeworkReviewDto,
   ) {
-    return this.homework.finalizeReview(user, id);
+    return this.homework.finalizeReview(user, id, dto);
   }
 
   @Post('assignments/:id/start')

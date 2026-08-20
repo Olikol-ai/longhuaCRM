@@ -19,7 +19,7 @@ export default function AssessmentSectionCard({
         <div
           className={`h-10 w-10 rounded-xl flex items-center justify-center ring-1 ${
             soon
-              ? 'bg-slate-100 dark:bg-slate-800 ring-slate-200 dark:ring-slate-700'
+              ? 'bg-muted ring-slate-200 dark:ring-slate-700'
               : 'bg-brand-soft dark:bg-brand-soft/40 ring-brand/20 dark:ring-brand/30'
           }`}
         >
@@ -27,31 +27,31 @@ export default function AssessmentSectionCard({
             <Icon
               className={`h-5 w-5 ${
                 soon
-                  ? 'text-slate-400'
+                  ? 'text-muted-foreground'
                   : 'text-brand dark:text-brand'
               }`}
             />
           ) : null}
         </div>
         {soon ? (
-          <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide font-semibold text-slate-400">
+          <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">
             <Lock className="h-3 w-3" />
             Скоро
           </span>
         ) : (
-          <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-brand transition-colors" />
+          <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-brand transition-colors" />
         )}
       </div>
       <div className="mt-3 space-y-1">
-        <h3 className="font-semibold text-slate-900 dark:text-white">{title}</h3>
-        <p className="text-sm text-slate-500 dark:text-slate-400 leading-snug">
+        <h3 className="font-semibold text-foreground">{title}</h3>
+        <p className="text-sm text-muted-foreground leading-snug">
           {description}
         </p>
       </div>
     </>
   );
 
-  const className = `group rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/80 p-4 sm:p-5 text-left transition-shadow ${
+  const className = `group rounded-2xl border border-border bg-card/80 p-4 sm:p-5 text-left transition-shadow ${
     soon
       ? 'opacity-70 cursor-not-allowed'
       : 'hover:shadow-md hover:border-brand/40 dark:hover:border-brand/40'

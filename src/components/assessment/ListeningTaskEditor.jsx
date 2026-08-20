@@ -229,7 +229,7 @@ export default function ListeningTaskEditor({ open, onOpenChange, editing = null
                 />
               ) : null}
               {hasAudio && !audioFile && !editing?.id ? (
-                <p className="text-xs text-slate-500">Аудио уже загружено</p>
+                <p className="text-xs text-muted-foreground">Аудио уже загружено</p>
               ) : null}
               {pendingAudioUrl ? <AuthenticatedAudio src={pendingAudioUrl} /> : null}
               {audioFile && /\.(mov|mp4|m4v|3gp)$/i.test(audioFile.name) ? (

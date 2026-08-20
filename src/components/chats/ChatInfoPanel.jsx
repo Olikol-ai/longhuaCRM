@@ -1,9 +1,23 @@
-import { Pin, Users } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Archive, BookOpen, ClipboardCheck, Info, Pin, Users, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Button, EmptyState, IconButton, StatusPill } from '@/design-system';
+import { iconSize } from '@/design-system/tokens/icon';
+import { chatAttachmentDownloadSrc } from '@/lib/chat-attachment-url';
 import { displayUserName, pickField } from '@/lib/chat-normalize';
+import { attachmentName, fileKindLabel } from '@/lib/chat/file-kind';
+import { resolveChatPeerUser, resolveChatTitle } from '@/lib/chat/titles';
+import { formatChatPresence, formatGroupPresence, roleLabel } from '@/lib/chat/presence-line';
 import { usePresence } from '@/lib/PresenceContext';
-import { formatDirectPresence } from '@/lib/presence-format';
+import ChatAvatar from './ChatAvatar';
+
+const TABS = [
+  { id: 'info', label: 'Информация', icon: Info },
+  { id: 'members', label: 'Участники', icon: Users },
+  { id: 'files', label: 'Файлы', icon: Archive },
+  { id: 'materials', label: 'Материалы', icon: BookOpen },
+  { id: 'homework', label: 'Задания', icon: ClipboardCheck },
+  { id: 'pins', label: 'Закрепления', icon: Pin },
+];
 
 function memberName(member) {
   const user = pickField(member, 'user') || {};
@@ -14,13 +28,57 @@ export default function ChatInfoPanel({
   chat,
   members = [],
   pins = [],
+  messages = [],
   currentUserId,
+  onClose,
   onUnpin,
   onHide,
+  onJumpMessage,
 }) {
   const { isUserOnline, countOnlineAmong } = usePresence();
+  const [tab, setTab] = useState('info');
 
-  if (!chat) return <div className="p-4 text-sm text-muted-foreground">Выберите чат.</div>;
+  useEffect(() => {
+    setTab('info');
+  }, [chat?.id]);
+
+  const files = useMemo(
+    () =>
+      (messages || []).flatMap((message) =>
+        (message.attachments || []).map((attachment) => ({
+          ...attachment,
+          messageId: message.id,
+        })),
+      ),
+    [messages],
+  );
+  const materials = useMemo(
+    () => (messages || []).filter((message) => message.type === 'material' || message.type === 'exam'),
+    [messages],
+  );
+  const homework = useMemo(
+    () => (messages || []).filter((message) => message.type === 'homework' || message.type === 'lesson'),
+    [messages],
+  );
+
+  if (!chat) {
+    return (
+      <div className="flex h-full min-h-0 flex-col bg-card/95">
+        {onClose ? (
+          <div className="flex justify-end px-2 pt-2">
+            <IconButton label="Закрыть" onClick={onClose}>
+              <X />
+            </IconButton>
+          </div>
+        ) : null}
+        <EmptyState
+          preset="messages"
+          title="Выберите чат"
+          description="Справа появится информация, файлы и участники."
+        />
+      </div>
+    );
+  }
 
   const memberCount = pickField(chat, 'memberCount', 'member_count') ?? members.length;
   const memberUserIds =
@@ -31,7 +89,6 @@ export default function ChatInfoPanel({
           .filter(Boolean);
   const onlineCount = countOnlineAmong(memberUserIds);
   const isDirect = chat.kind === 'direct';
-
   const peer = isDirect
     ? members
         .map((m) => pickField(m, 'user') || {})
@@ -39,93 +96,183 @@ export default function ChatInfoPanel({
     : null;
   const peerOnline = peer?.id ? isUserOnline(peer.id) : false;
   const peerLastSeen = pickField(peer, 'lastSeenAt', 'last_seen_at');
-  const directStatus = isDirect ? formatDirectPresence(peerLastSeen, peerOnline) : null;
+  const title = resolveChatTitle(chat, { currentUserId, members });
+  const peerUser = resolveChatPeerUser(chat, { currentUserId, members }) || peer;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-card">
-      <div className="border-b border-border p-4 space-y-2">
-        <h2 className="text-sm font-semibold">{chat.title || 'Чат'}</h2>
-        {chat.kind === 'subject' ? (
-          <p className="text-xs text-muted-foreground">
-            Предметный системный чат
-            {pickField(chat, 'subject')?.name
-              ? ` · ${pickField(chat, 'subject').name}`
-              : ''}
-          </p>
-        ) : null}
-        {isDirect ? (
-          <p className="text-xs text-muted-foreground">{directStatus}</p>
-        ) : (
-          <>
-            {chat.description ? (
-              <p className="mt-1 text-xs text-muted-foreground">{chat.description}</p>
-            ) : null}
-            <p className="text-xs text-muted-foreground">
-              Участников: {memberCount ?? members.length} · Онлайн: {onlineCount}
-            </p>
-          </>
-        )}
-        {onHide ? (
-          <Button variant="outline" size="sm" className="w-full" onClick={onHide}>
-            Удалить у себя
-          </Button>
+    <div className="flex h-full min-h-0 flex-col bg-card/95">
+      <div className="flex min-w-0 items-start gap-1 border-b border-border/60 px-2 py-2">
+        <div
+          className="lh-chat-info-tabs"
+          role="tablist"
+          aria-label="Информация о чате"
+        >
+          {TABS.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Button
+                key={item.id}
+                type="button"
+                size="sm"
+                intent={tab === item.id ? 'primary' : 'ghost'}
+                className="lh-chat-info-tabs__btn"
+                onClick={() => setTab(item.id)}
+                aria-label={item.label}
+                aria-selected={tab === item.id}
+                role="tab"
+                title={item.label}
+              >
+                <Icon className={iconSize.sm} aria-hidden />
+                <span>{item.label}</span>
+              </Button>
+            );
+          })}
+        </div>
+        {onClose ? (
+          <IconButton label="Закрыть" className="mt-0.5 shrink-0" onClick={onClose}>
+            <X />
+          </IconButton>
         ) : null}
       </div>
-      <ScrollArea className="min-h-0 flex-1 p-4">
-        <section>
-          <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            <Users className="h-4 w-4" /> Участники · {members.length}
-          </h3>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-2">
+        {tab === 'info' ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <ChatAvatar title={title} kind={chat.kind} user={peerUser} size="lg" online={peerOnline} />
+              <div className="min-w-0">
+                <h2 className="truncate text-base font-semibold">{title}</h2>
+                <p className="text-xs text-muted-foreground">
+                  {isDirect
+                    ? formatChatPresence(peerLastSeen, peerOnline)
+                    : formatGroupPresence(memberCount, onlineCount)}
+                </p>
+              </div>
+            </div>
+            {chat.kind === 'subject' ? (
+              <p className="text-xs text-muted-foreground">
+                Предметный чат
+                {pickField(chat, 'subject')?.name ? ` · ${pickField(chat, 'subject').name}` : ''}
+              </p>
+            ) : null}
+            {chat.description ? <p className="text-sm text-muted-foreground">{chat.description}</p> : null}
+            {onHide ? (
+              <Button intent="outline" size="sm" className="w-full" onClick={onHide}>
+                Удалить у себя
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {tab === 'members' ? (
           <div className="space-y-2">
             {members.map((member) => {
               const user = pickField(member, 'user') || {};
               const userId = user.id || pickField(member, 'userId', 'user_id');
               const online = userId ? isUserOnline(userId) : false;
               return (
-                <p key={member.id} className="flex items-center gap-2 text-sm">
-                  <span
-                    className={`h-2 w-2 rounded-full ${online ? 'bg-emerald-500' : 'bg-muted-foreground/40'}`}
-                    aria-hidden
-                  />
-                  {memberName(member)}
-                </p>
+                <div key={member.id || userId} className="flex items-center gap-3 rounded-xl px-1 py-2">
+                  <ChatAvatar user={user} online={online} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{memberName(member)}</p>
+                    <p className="text-[11px] text-muted-foreground">{roleLabel(user.role)}</p>
+                  </div>
+                  <StatusPill status={online ? 'online' : 'offline'}>
+                    {online ? 'На платформе' : 'Не в сети'}
+                  </StatusPill>
+                </div>
               );
             })}
           </div>
-        </section>
-        <section className="mt-6">
-          <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            <Pin className="h-4 w-4" /> Закреплённые
-          </h3>
-          <div className="space-y-2">
-            {pins.length ? (
-              pins.map((pin) => {
+        ) : null}
+
+        {tab === 'files' ? (
+          files.length ? (
+            <div className="space-y-2">
+              {files.map((attachment) => (
+                <a
+                  key={attachment.id}
+                  href={chatAttachmentDownloadSrc(attachment.id)}
+                  className="flex min-h-touch items-center justify-between gap-2 rounded-xl border border-border px-3 py-2 text-sm hover:bg-muted"
+                  download={attachmentName(attachment)}
+                >
+                  <span className="truncate">{attachmentName(attachment)}</span>
+                  <span className="text-[11px] text-muted-foreground">{fileKindLabel(attachment)}</span>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <EmptyState preset="generic" title="Нет файлов" description="Вложения из переписки появятся здесь." />
+          )
+        ) : null}
+
+        {tab === 'materials' ? (
+          materials.length ? (
+            <div className="space-y-2">
+              {materials.map((message) => (
+                <button
+                  key={message.id}
+                  type="button"
+                  className="w-full rounded-xl border border-border px-3 py-2 text-left text-sm hover:bg-muted"
+                  onClick={() => onJumpMessage?.(message.id)}
+                >
+                  {message.body || 'Материал курса'}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <EmptyState preset="materials" />
+          )
+        ) : null}
+
+        {tab === 'homework' ? (
+          homework.length ? (
+            <div className="space-y-2">
+              {homework.map((message) => (
+                <button
+                  key={message.id}
+                  type="button"
+                  className="w-full rounded-xl border border-border px-3 py-2 text-left text-sm hover:bg-muted"
+                  onClick={() => onJumpMessage?.(message.id)}
+                >
+                  {message.body || (message.type === 'lesson' ? 'Урок' : 'Домашнее задание')}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <EmptyState preset="homework" />
+          )
+        ) : null}
+
+        {tab === 'pins' ? (
+          pins.length ? (
+            <div className="space-y-2">
+              {pins.map((pin) => {
                 const messageId = pickField(pin, 'messageId', 'message_id');
                 const body = pickField(pin.message, 'body');
                 const ciphertext = pickField(pin.message, 'ciphertext');
-                const preview = body
-                  || (ciphertext ? 'Зашифрованное сообщение' : null)
-                  || 'Вложение или CRM-карточка';
+                const preview =
+                  body || (ciphertext ? 'Зашифрованное сообщение' : null) || 'Вложение или карточка';
                 return (
-                  <div key={pin.id || messageId} className="rounded-md border border-border p-2">
-                    <p className="line-clamp-3 text-sm">{preview}</p>
-                    <Button
-                      variant="link"
-                      size="sm"
-                      className="mt-1 h-auto px-0"
-                      onClick={() => onUnpin(messageId)}
+                  <div key={pin.id || messageId} className="rounded-xl border border-border p-3">
+                    <button
+                      type="button"
+                      className="line-clamp-3 w-full text-left text-sm"
+                      onClick={() => onJumpMessage?.(messageId)}
                     >
+                      {preview}
+                    </button>
+                    <Button intent="link" size="sm" className="mt-1 h-auto px-0" onClick={() => onUnpin(messageId)}>
                       Открепить
                     </Button>
                   </div>
                 );
-              })
-            ) : (
-              <p className="text-xs text-muted-foreground">Нет закреплённых сообщений</p>
-            )}
-          </div>
-        </section>
-      </ScrollArea>
+              })}
+            </div>
+          ) : (
+            <EmptyState preset="generic" title="Нет закреплённых" description="Закрепите важное сообщение из переписки." />
+          )
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -84,7 +84,7 @@ export default function TestWizard({
         }
       })
       .catch((err) => setError(userFacingError(err)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [programCode]);
 
   useEffect(() => {
@@ -176,7 +176,7 @@ export default function TestWizard({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [editionId]);
 
   useEffect(() => {

@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
 import { api } from '@/api';
-import { Button } from '@/components/ui/button';
+import { Button, Card, CardContent, Caption, Spinner } from '@/design-system';
 import { toast } from '@/components/ui/use-toast';
 import LearnerQuestionBlocks from '@/components/assessment/LearnerQuestionBlocks';
 import { userFacingError } from '@/lib/userFacingError';
+import { buildHomeworkItemReviews } from '@/lib/homework-item-review';
+import { useAuth } from '@/lib/AuthContext';
+import { OfflineSnapshotBanner } from '@/components/pwa/OfflineSnapshotBanner';
+import { OFFLINE_RESOURCES, readWithOfflineFallback } from '@/lib/offline';
 
 const STATUS_LABEL = {
   assigned: 'Назначено',
@@ -22,18 +25,38 @@ const STATUS_LABEL = {
 
 export default function HomeworkViewer() {
   const [params] = useSearchParams();
+  const { user } = useAuth();
   const focusAssignmentId = params.get('assignmentId');
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [attempt, setAttempt] = useState(null);
   const [localAnswers, setLocalAnswers] = useState({});
   const [busy, setBusy] = useState(false);
+  const [offlineMeta, setOfflineMeta] = useState({ fromCache: false, updatedAt: null, missing: false });
 
   const load = async () => {
     setLoading(true);
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
     try {
-      const data = await api.homework.myAssignments();
-      setCards(Array.isArray(data) ? data : []);
+      const result = await readWithOfflineFallback({
+        userId: user.id,
+        role: user.role || 'student',
+        resource: OFFLINE_RESOURCES.HOMEWORK,
+        resourceKey: 'my_assignments',
+        fetcher: async () => {
+          const data = await api.homework.myAssignments();
+          return { cards: Array.isArray(data) ? data : [] };
+        },
+      });
+      setOfflineMeta({
+        fromCache: result.fromCache,
+        updatedAt: result.updatedAt,
+        missing: result.missing,
+      });
+      setCards(result.data?.cards || []);
     } catch (err) {
       toast({
         title: 'Не удалось загрузить',
@@ -46,8 +69,8 @@ export default function HomeworkViewer() {
   };
 
   useEffect(() => {
-    void load();
-  }, []);
+    if (user?.id) void load();
+  }, [user?.id]);
 
   useEffect(() => {
     if (!focusAssignmentId || !cards.length) return;
@@ -186,40 +209,85 @@ export default function HomeworkViewer() {
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-brand" />
+        <Spinner />
       </div>
     );
   }
 
   if (attempt) {
     const submitted = attempt.status === 'submitted';
+    const reviewed =
+      attempt.result?.status === 'checked' || attempt.result?.status === 'reviewed';
+    const teacherComment =
+      attempt.student_feedback ||
+      attempt.owner_comment ||
+      attempt.result?.student_feedback ||
+      attempt.result?.owner_comment ||
+      '';
+    const itemReviews = reviewed
+      ? buildHomeworkItemReviews(attempt.questions || [], attempt.answers || [])
+      : null;
     return (
       <div
-        className="learner-content p-4 sm:p-6 max-w-3xl mx-auto space-y-6"
+        className="learner-content p-4 sm:p-6 max-w-3xl mx-auto space-y-6 min-w-0 overflow-x-hidden"
         data-testid="homework-viewer-attempt"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold">{attempt.title || 'Домашнее задание'}</h1>
             {attempt.owner_name && (
-              <p className="learner-meta text-slate-500 mt-1">
+              <p className="learner-meta text-muted-foreground mt-1">
                 {attempt.owner_type === 'tutor' ? 'Репетитор' : 'Преподаватель'}: {attempt.owner_name}
               </p>
             )}
             {attempt.instructions && (
-              <div className="learner-body mt-3 text-slate-700 dark:text-slate-300 rounded-xl bg-slate-50 dark:bg-slate-800/60 p-4">
+              <div className="learner-body mt-3 text-foreground rounded-xl bg-muted p-4">
                 {attempt.instructions}
               </div>
             )}
           </div>
-          <Button variant="outline" size="sm" onClick={() => setAttempt(null)}>
+          <Button intent="outline" size="sm" className="min-h-11 shrink-0" onClick={() => setAttempt(null)}>
             К списку
           </Button>
         </div>
 
+        {submitted && attempt.result && (
+          <Card data-testid="homework-student-result">
+            <CardContent className="space-y-3 pt-6">
+              <p className="font-semibold">
+                {attempt.result.status === 'pending_review'
+                  ? 'Ожидает проверки преподавателем'
+                  : 'Результат'}
+              </p>
+              {reviewed && (
+                <p className="text-lg" data-testid="homework-student-percent">
+                  {attempt.result.percent}%
+                </p>
+              )}
+              {reviewed && (attempt.result.score != null || attempt.result.max_score != null) && (
+                <Caption>
+                  Баллы: {attempt.result.score} / {attempt.result.max_score}
+                </Caption>
+              )}
+              {reviewed && teacherComment ? (
+                <div data-testid="homework-student-feedback">
+                  <p className="text-sm font-medium">Комментарий преподавателя</p>
+                  <p className="text-sm whitespace-pre-wrap break-words mt-1">{teacherComment}</p>
+                </div>
+              ) : null}
+              {attempt.result.status === 'pending_review' && (
+                <Caption>
+                  Автоматическая часть оценена. Текстовые и Speaking-ответы проверяет преподаватель.
+                </Caption>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         <LearnerQuestionBlocks
           questions={attempt.questions || []}
           answers={localAnswers}
+          itemReviews={itemReviews}
           mode="list"
           readOnly={submitted}
           onSingleChoice={(qid, id) =>
@@ -239,30 +307,16 @@ export default function HomeworkViewer() {
           }
         />
 
-        {submitted && attempt.result && (
-          <div className="rounded-2xl border p-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-            <p className="font-semibold">
-              {attempt.result.status === 'pending_review'
-                ? 'Ожидает проверки преподавателем'
-                : 'Результат'}
-            </p>
-            {attempt.result.status !== 'pending_review' && (
-              <p className="text-sm mt-1">
-                {attempt.result.score} / {attempt.result.max_score} ({attempt.result.percent}%)
-              </p>
-            )}
-            {attempt.result.status === 'pending_review' && (
-              <p className="text-sm mt-1 text-slate-600 dark:text-slate-300">
-                Автоматическая часть оценена. Текстовые и Speaking-ответы проверяет преподаватель.
-              </p>
-            )}
-          </div>
-        )}
-
         {!submitted && (
           <div className="flex justify-end">
-            <Button disabled={busy} onClick={handleSubmit} data-testid="homework-submit">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Отправить'}
+            <Button
+              disabled={busy}
+              onClick={handleSubmit}
+              data-testid="homework-submit"
+              className="min-h-11"
+              loading={busy}
+            >
+              Отправить
             </Button>
           </div>
         )}
@@ -281,23 +335,29 @@ export default function HomeworkViewer() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-6" data-testid="homework-viewer">
+      <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-6 min-w-0 overflow-x-hidden" data-testid="homework-viewer">
+      <OfflineSnapshotBanner
+        fromCache={offlineMeta.fromCache}
+        updatedAt={offlineMeta.updatedAt}
+        missing={offlineMeta.missing}
+        emptyLabel="Домашние задания пока недоступны без подключения"
+      />
       <div>
         <h1 className="text-2xl font-bold">Домашние задания</h1>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           Новые задания и история: когда назначено, кто выдал, статус выполнения
         </p>
       </div>
 
       {sections.map(([key, label]) => (
         <div key={key} className="space-y-2">
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">{label}</h2>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{label}</h2>
           {(grouped[key] || []).length === 0 ? (
-            <p className="text-xs text-slate-400">Нет</p>
+            <p className="text-xs text-muted-foreground">Нет</p>
           ) : (
             groupByOwner(grouped[key] || []).map((ownerGroup) => (
               <div key={`${key}:${ownerGroup.ownerType}:${ownerGroup.ownerName}`} className="space-y-2">
-                <p className="text-xs font-medium text-slate-500">
+                <p className="text-xs font-medium text-muted-foreground">
                   {ownerGroup.ownerType === 'tutor' ? 'Репетитор' : 'Преподаватель'}: {ownerGroup.ownerName}
                 </p>
                 {ownerGroup.items.map((card) => (
@@ -306,10 +366,10 @@ export default function HomeworkViewer() {
                     type="button"
                     disabled={busy}
                     onClick={() => handleOpen(card)}
-                    className="w-full text-left bg-white dark:bg-slate-900 border rounded-xl p-4 hover:border-brand/40"
+                    className="w-full text-left bg-card border rounded-xl p-4 min-h-11 hover:border-brand/40 min-w-0"
                   >
                     <div className="font-medium">{card.title}</div>
-                    <div className="text-xs text-slate-500 mt-1">
+                    <div className="text-xs text-muted-foreground mt-1">
                       {STATUS_LABEL[card.status] || card.status}
                       {card.assigned_at
                         ? ` · назначено ${new Date(card.assigned_at).toLocaleString('ru-RU')}`
@@ -318,7 +378,7 @@ export default function HomeworkViewer() {
                       {card.result?.percent != null ? ` · ${card.result.percent}%` : ''}
                     </div>
                     {card.activity_kind ? (
-                      <div className="text-xs text-slate-400 mt-1">Тип: {card.activity_kind}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Тип: {card.activity_kind}</div>
                     ) : null}
                   </button>
                 ))}

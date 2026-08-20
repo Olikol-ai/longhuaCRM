@@ -60,6 +60,7 @@ export default function AssessmentExamDetail() {
   const { exam, preview, loading, error, reload } = useAssessmentExamDetail(examId);
 
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [rule, setRule] = useState(DEFAULT_EXAM_RULE);
   const [saving, setSaving] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -70,6 +71,7 @@ export default function AssessmentExamDetail() {
   useEffect(() => {
     if (!exam) return;
     setName(exam.name || '');
+    setDescription(exam.description || '');
     setRule(ruleFromExam(exam));
   }, [exam]);
 
@@ -147,6 +149,7 @@ export default function AssessmentExamDetail() {
     try {
       await api.assessment.updateExam(examId, {
         name: name.trim(),
+        description: description.trim() || null,
         rule: {
           ...rule,
           duration_minutes: Math.max(1, Number(rule.duration_minutes) || 60),
@@ -173,6 +176,7 @@ export default function AssessmentExamDetail() {
       if (!readOnly) {
         await api.assessment.updateExam(examId, {
           name: name.trim(),
+          description: description.trim() || null,
           rule: {
             ...rule,
             duration_minutes: Math.max(1, Number(rule.duration_minutes) || 60),
@@ -251,17 +255,17 @@ export default function AssessmentExamDetail() {
         <div>
           <Link
             to={createPageUrl('AssessmentExams')}
-            className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
+            className="text-xs text-muted-foreground hover:text-brand dark:hover:text-brand"
           >
             ← Экзамены
           </Link>
           <div className="flex flex-wrap items-center gap-2 mt-1">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+            <h1 className="text-2xl font-bold text-foreground">
               {exam.name}
             </h1>
             <LifecycleBadge status={exam.status} />
           </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Вопросов: {totalQuestions} · Создан: {formatDateTime(exam.created_at)}
           </p>
         </div>
@@ -308,7 +312,7 @@ export default function AssessmentExamDetail() {
       </div>
 
       <Card className="p-4 sm:p-5 space-y-4">
-        <h2 className="font-semibold text-slate-900 dark:text-white">Основные данные</h2>
+        <h2 className="font-semibold text-foreground">Основные данные</h2>
         <div className="space-y-1.5">
           <Label>Название</Label>
           <Input
@@ -317,10 +321,22 @@ export default function AssessmentExamDetail() {
             disabled={readOnly}
           />
         </div>
+        <div className="space-y-1.5">
+          <Label>Описание</Label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            disabled={readOnly}
+            rows={4}
+            placeholder="Текст, который увидит ученик перед стартом"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y min-h-[5rem] disabled:opacity-60"
+            data-testid="exam-detail-description"
+          />
+        </div>
       </Card>
 
       <Card className="p-4 sm:p-5 space-y-4">
-        <h2 className="font-semibold text-slate-900 dark:text-white">
+        <h2 className="font-semibold text-foreground">
           Правило прохождения
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -393,7 +409,7 @@ export default function AssessmentExamDetail() {
             ['show_result_after_submit', 'Показать результат после сдачи'],
             ['allow_retake', 'Разрешить пересдачу'],
           ].map(([key, label]) => (
-            <label key={key} className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
+            <label key={key} className="flex items-center gap-2 text-foreground dark:text-slate-200">
               <input
                 type="checkbox"
                 className="accent-brand"
@@ -410,21 +426,21 @@ export default function AssessmentExamDetail() {
       </Card>
 
       <div className="space-y-3">
-        <h2 className="font-semibold text-slate-900 dark:text-white">
+        <h2 className="font-semibold text-foreground">
           Блоки и вопросы ({totalQuestions})
         </h2>
         {sections.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-8 text-center text-sm text-slate-500">
+          <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-8 text-center text-sm text-muted-foreground">
             Блоки ещё не загружены
           </div>
         ) : (
           sections.map((section) => (
             <Card key={section.section_key} className="p-4 sm:p-5 space-y-3">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-medium text-slate-900 dark:text-white">
+                <h3 className="font-medium text-foreground">
                   {section.title || section.section_key}
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-muted-foreground">
                   {section.questions?.length || 0} вопр.
                   {section.weight != null ? ` · вес ${section.weight}%` : ''}
                   {section.level_label || section.levelLabel
@@ -436,16 +452,16 @@ export default function AssessmentExamDetail() {
                 {(section.questions || []).map((q, idx) => (
                   <li
                     key={q.id || q.snapshot_id || idx}
-                    className="rounded-xl bg-slate-50 dark:bg-slate-800/50 px-3 py-2 text-sm"
+                    className="rounded-xl bg-muted/50 px-3 py-2 text-sm"
                   >
                     <span className="text-xs text-brand dark:text-brand mr-2">
                       {idx + 1}.
                     </span>
-                    <span className="text-slate-800 dark:text-slate-100">
+                    <span className="text-foreground">
                       {q.stem || 'Вопрос'}
                     </span>
                     {q.type ? (
-                      <span className="ml-2 text-xs text-slate-400">
+                      <span className="ml-2 text-xs text-muted-foreground">
                         {QUESTION_TYPE_LABEL[q.type] || q.type}
                       </span>
                     ) : null}
@@ -463,19 +479,19 @@ export default function AssessmentExamDetail() {
             <DialogTitle>Предпросмотр экзамена</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 text-sm">
-            <p className="text-slate-500">
+            <p className="text-muted-foreground">
               {exam.name} · {rule.duration_minutes} мин · проходной{' '}
               {rule.pass_score_percent}%
             </p>
             {sections.map((section) => (
               <div
                 key={section.section_key}
-                className="rounded-xl border border-slate-200 dark:border-slate-700 p-3"
+                className="rounded-xl border border-border p-3"
               >
                 <p className="font-medium">
                   {section.title} ({section.questions?.length || 0})
                 </p>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   Вес: {section.weight ?? '—'}%
                 </p>
               </div>

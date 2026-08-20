@@ -1,11 +1,11 @@
-import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { NotificationChannel, NotificationStatus } from '../entities/notification.entity';
 
 export class CreateNotificationDto {
   @IsUUID()
   userId!: string;
 
-  @IsEnum(['telegram', 'email', 'in_app'])
+  @IsEnum(['telegram', 'email', 'in_app', 'web_push'])
   channel!: NotificationChannel;
 
   @IsString()
@@ -28,4 +28,13 @@ export class CreateNotificationDto {
   @IsOptional()
   @IsString()
   referenceId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  eventId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  deepLink?: string;
 }

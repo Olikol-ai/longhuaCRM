@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { api } from '@/api';
 import { Plus, Pencil, Trash2, Save, X, Package, GraduationCap } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { formatCurrency } from "@/lib/formatters";
+import { formatBYN } from "@/lib/formatters";
 
 const fieldCls = "w-full px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-brand/20";
 
@@ -116,21 +116,21 @@ export default function ShopSettingsAdmin() {
                 </div>
                 <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                   <span>{item.lessons} уроков</span>
-                  {item.price > 0 && <span>{formatCurrency(item.price)}</span>}
+                  {item.price > 0 && <span className="tabular-nums whitespace-nowrap">{formatBYN(item.price)}</span>}
                   {item.description && <span className="truncate max-w-xs">{item.description}</span>}
                 </div>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
                 <button onClick={() => toggleActive(item)}
-                  className={`px-2 py-1 text-xs rounded-lg border transition-colors ${item.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800" : "bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-800/60 dark:text-slate-400 dark:border-slate-700"}`}>
+                  className={`px-2 py-1 text-xs rounded-lg border transition-colors ${item.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800" : "bg-slate-50 text-muted-foreground border-slate-200 dark:bg-slate-800/60 dark:text-muted-foreground dark:border-slate-700"}`}>
                   {item.is_active ? "Вкл" : "Выкл"}
                 </button>
                 <button onClick={() => setEditing({ ...item })}
-                  className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-brand dark:hover:text-brand hover:bg-brand-soft dark:hover:bg-brand-soft/50 rounded-lg">
+                  className="p-1.5 text-muted-foreground hover:text-brand dark:hover:text-brand hover:bg-brand-soft dark:hover:bg-brand-soft/50 rounded-lg">
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
                 <button onClick={() => handleDelete(item.id)}
-                  className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg">
+                  className="p-1.5 text-muted-foreground hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>

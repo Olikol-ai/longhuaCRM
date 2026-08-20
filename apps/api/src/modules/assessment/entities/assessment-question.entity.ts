@@ -25,6 +25,7 @@ export class AssessmentQuestionEntity {
   @Column({ type: 'numeric', precision: 10, scale: 2, default: 1 })
   points: string;
 
+  /** Bank metadata, typically 1–5. Not a homework grading multiplier. */
   @Column({ type: 'int', default: 1 })
   difficulty: number;
 

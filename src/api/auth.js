@@ -98,4 +98,14 @@ export const auth = {
       }),
     });
   },
+  async changePassword(currentPassword, newPassword, confirmPassword) {
+    return apiFetch('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword,
+        confirm_password: confirmPassword,
+      }),
+    });
+  },
 };

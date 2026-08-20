@@ -64,14 +64,14 @@ export default function AssessmentResults() {
         <div>
           <Link
             to={createPageUrl('AdminAssessment')}
-            className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
+            className="text-xs text-muted-foreground hover:text-brand dark:hover:text-brand"
           >
             ← Проверочные работы
           </Link>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+          <h1 className="text-2xl font-bold text-foreground mt-1">
             Результаты
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Итоги попыток: баллы, процент, статус
           </p>
         </div>
@@ -149,11 +149,11 @@ export default function AssessmentResults() {
         </div>
       ) : results.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-10 text-center space-y-3">
-          <Trophy className="h-10 w-10 mx-auto text-slate-400" />
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+          <Trophy className="h-10 w-10 mx-auto text-muted-foreground" />
+          <h2 className="text-lg font-semibold text-foreground">
             Результатов нет
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-muted-foreground">
             Измените фильтры или дождитесь сдачи экзаменов.
           </p>
         </div>

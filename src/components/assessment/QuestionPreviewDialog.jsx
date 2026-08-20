@@ -172,7 +172,7 @@ function CorrectAnswerPanel({ bank, detail }) {
             <p className="text-xs font-medium text-emerald-800 dark:text-emerald-200 mb-1">
               Объяснение
             </p>
-            <p className="text-sm whitespace-pre-wrap text-slate-800 dark:text-slate-100">
+            <p className="text-sm whitespace-pre-wrap text-foreground">
               {detail.explanation}
             </p>
           </div>

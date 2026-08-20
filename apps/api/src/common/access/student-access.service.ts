@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Not, Repository } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
 import { normalizeRole } from '../constants/roles';
 import { filterToEntityWhere } from '../utils/api-record.util';
 import { StudentEntity } from '../../modules/students/entities/student.entity';
@@ -119,6 +119,10 @@ export class StudentAccessService {
     throw new ForbiddenException('Forbidden');
   }
 
+  /**
+   * Payment access follows access to the student (role + assignment),
+   * never who created the student card (no createdBy / owner of the row).
+   */
   async scopePaymentFilter(
     actor: DomainAccessActor,
     where: Record<string, unknown>,
@@ -127,7 +131,9 @@ export class StudentAccessService {
       return filterToEntityWhere(where);
     }
 
-    if (normalizeRole(actor.role) === 'student') {
+    const role = normalizeRole(actor.role);
+
+    if (role === 'student') {
       const studentId = await this.resolveStudentId(actor);
       if (!studentId) {
         return { studentId: NO_ACCESS_UUID };
@@ -135,30 +141,104 @@ export class StudentAccessService {
       return filterToEntityWhere({ ...where, student_id: studentId });
     }
 
+    if (role === 'teacher') {
+      const allowedIds = await this.resolveTeacherAssignedStudentIds(actor);
+      if (allowedIds.length === 0) {
+        return { studentId: NO_ACCESS_UUID };
+      }
+
+      const scoped = filterToEntityWhere(where);
+      const requested = scoped.studentId;
+      if (typeof requested === 'string') {
+        if (!allowedIds.includes(requested)) {
+          return { studentId: NO_ACCESS_UUID };
+        }
+        return scoped;
+      }
+      return { ...scoped, studentId: In(allowedIds) };
+    }
+
+    // Tutors use private notebook balance (/teacher-student-contacts), not school payments.
     throw new ForbiddenException('Forbidden');
   }
 
-  async assertCanReadPayment(actor: DomainAccessActor, studentId: string | null): Promise<void> {
-    if (!studentId) {
-      if (this.isAdmin(actor)) {
-        return;
+  /**
+   * Students selectable when creating/editing a school payment.
+   * Admin: every school student. Teacher: assigned students only.
+   * Explicitly ignores authorship of the student row.
+   */
+  async listStudentsForPayments(actor: DomainAccessActor): Promise<StudentEntity[]> {
+    if (this.isAdmin(actor)) {
+      return this.studentRepo.find({
+        order: { name: 'ASC' },
+      });
+    }
+
+    if (normalizeRole(actor.role) === 'teacher') {
+      const teacher = await this.teacherRepo.findOne({ where: { userId: actor.sub } });
+      if (!teacher) {
+        return [];
       }
-      throw new ForbiddenException('Forbidden');
+      return this.studentRepo.find({
+        where: {
+          assignedTeacherId: teacher.id,
+          status: Not('inactive'),
+        },
+        order: { name: 'ASC' },
+      });
+    }
+
+    throw new ForbiddenException('Forbidden');
+  }
+
+  async assertCanReadPayment(
+    actor: DomainAccessActor,
+    studentId: string | null,
+  ): Promise<void> {
+    // Same gate as reading the student: admin / assigned teacher / self.
+    await this.assertCanReadStudent(actor, studentId);
+  }
+
+  /**
+   * Create / update school payments. Admin: any student. Teacher: assigned students only.
+   * Students and tutors cannot mutate school payments.
+   */
+  async assertCanWritePayment(
+    actor: DomainAccessActor,
+    studentId: string | null,
+  ): Promise<void> {
+    if (!studentId) {
+      throw new ForbiddenException('Payment must be linked to a student');
     }
 
     if (this.isAdmin(actor)) {
+      const student = await this.studentRepo.findOne({ where: { id: studentId } });
+      if (!student) {
+        throw new NotFoundException('Student not found');
+      }
       return;
     }
 
-    if (normalizeRole(actor.role) === 'student') {
-      const ownId = await this.resolveStudentId(actor);
-      if (!ownId || ownId !== studentId) {
-        throw new ForbiddenException('Cannot access another student payments');
-      }
+    if (normalizeRole(actor.role) === 'teacher') {
+      await this.assertCanReadStudent(actor, studentId);
       return;
     }
 
     throw new ForbiddenException('Forbidden');
+  }
+
+  private async resolveTeacherAssignedStudentIds(
+    actor: DomainAccessActor,
+  ): Promise<string[]> {
+    const teacher = await this.teacherRepo.findOne({ where: { userId: actor.sub } });
+    if (!teacher) {
+      return [];
+    }
+    const rows = await this.studentRepo.find({
+      where: { assignedTeacherId: teacher.id },
+      select: ['id'],
+    });
+    return rows.map((row) => row.id);
   }
 
   private pickFields<T extends Record<string, unknown>>(

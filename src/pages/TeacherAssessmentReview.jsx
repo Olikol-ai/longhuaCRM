@@ -22,14 +22,14 @@ export default function TeacherAssessmentReview() {
         <div>
           <Link
             to={createPageUrl('TeacherAssessment')}
-            className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
+            className="text-xs text-muted-foreground hover:text-brand dark:hover:text-brand"
           >
             ← Мои экзамены
           </Link>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+          <h1 className="text-2xl font-bold text-foreground mt-1">
             Работы на проверку
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Работы учеников, которые нужно проверить преподавателю
           </p>
         </div>
@@ -57,11 +57,11 @@ export default function TeacherAssessmentReview() {
           className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50/80 dark:bg-slate-900/40 p-10 text-center space-y-3"
           data-testid="teacher-review-empty"
         >
-          <ClipboardCheck className="h-12 w-12 mx-auto text-slate-400" />
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+          <ClipboardCheck className="h-12 w-12 mx-auto text-muted-foreground" />
+          <h2 className="text-lg font-semibold text-foreground">
             Работ на проверку нет.
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+          <p className="text-sm text-muted-foreground max-w-md mx-auto">
             Когда ученик сдаст экзамен с заданиями на проверку, работа появится здесь.
           </p>
         </div>
@@ -76,13 +76,13 @@ export default function TeacherAssessmentReview() {
           >
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="space-y-1 min-w-0">
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-white truncate">
+                <h2 className="text-lg font-semibold text-foreground truncate">
                   {item.student_name}
                 </h2>
-                <p className="text-sm text-slate-600 dark:text-slate-300 truncate">
+                <p className="text-sm text-muted-foreground dark:text-slate-300 truncate">
                   {item.exam_name}
                 </p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-muted-foreground">
                   Сдано: {formatDateTime(item.finished_at || item.created_at)}
                 </p>
                 <p className="text-xs text-amber-800 dark:text-amber-200">

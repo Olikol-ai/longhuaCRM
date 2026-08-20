@@ -1,6 +1,7 @@
 /**
  * Map API / auth errors to Russian user-facing text.
  * Keeps technical English out of student/teacher UI.
+ * Validation (HTTP 400) messages must stay visible — never hide behind a generic fallback.
  */
 
 const EXACT = {
@@ -13,6 +14,7 @@ const EXACT = {
   Forbidden: 'Недостаточно прав для этого действия.',
   'Not Found': 'Данные не найдены.',
   'Internal Server Error': 'Временная ошибка сервера. Попробуйте позже.',
+  'Bad Request': 'Проверьте введённые данные и попробуйте снова.',
 };
 
 const PATTERNS = [
@@ -28,6 +30,19 @@ const PATTERNS = [
     /telegram.*(not configured|unavailable|bot_username|BOT_USERNAME)/i,
     'Интеграция Telegram временно недоступна. Обратитесь к администратору.',
   ],
+  [
+    /lessonBalance must not be less than 0|lesson_balance must not be less than 0/i,
+    'Баланс занятий не может быть меньше 0 (устаревшее ограничение сервера — обновите API).',
+  ],
+  [
+    /lessonBalance must be an integer number|lesson_balance must be an integer number/i,
+    'Баланс занятий должен быть целым числом.',
+  ],
+  [/must be an integer number/i, 'Значение должно быть целым числом.'],
+  [/must be a number/i, 'Значение должно быть числом.'],
+  [/must be an email/i, 'Укажите корректный email.'],
+  [/must be a UUID/i, 'Некорректный идентификатор.'],
+  [/should not be empty/i, 'Поле не должно быть пустым.'],
 ];
 
 function looksTechnicalEnglish(text) {
@@ -65,6 +80,14 @@ export function userFacingError(err, fallback = 'Что-то пошло не т�
   if (err?.status === 403) return 'Недостаточно прав для этого действия.';
   if (err?.status === 404) return 'Данные не найдены.';
   if (err?.status >= 500) return 'Временная ошибка сервера. Попробуйте позже.';
+
+  // Validation / business 400: show detail instead of swallowing English messages.
+  if (err?.status === 400) {
+    if (looksTechnicalEnglish(trimmed)) {
+      return `Проверьте данные: ${trimmed}`;
+    }
+    return trimmed;
+  }
 
   if (looksTechnicalEnglish(trimmed)) return fallback;
 

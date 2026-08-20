@@ -226,8 +226,8 @@ export default function GroupDetail() {
     await load();
   };
 
-  const handleLessonDelete = async (id) => {
-    await api.lessons.delete(id);
+  const handleLessonDelete = async (id, applyScope = "this") => {
+    await api.lessons.delete(id, { apply_scope: applyScope });
     setViewingLesson(null);
     await load();
   };
@@ -270,7 +270,7 @@ export default function GroupDetail() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
+      <div className="flex flex-wrap gap-2 border-b border-border pb-2">
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -279,7 +279,7 @@ export default function GroupDetail() {
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               activeTab === tab.id
                 ? "bg-primary text-primary-foreground"
-                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                : "text-muted-foreground hover:bg-muted"
             }`}
           >
             {tab.label}
@@ -366,7 +366,7 @@ export default function GroupDetail() {
                 return (
                   <article
                     key={member.id}
-                    className="rounded-xl border border-slate-100 dark:border-slate-800 p-4 space-y-2"
+                    className="rounded-xl border border-border p-4 space-y-2"
                   >
                     <p className="font-medium break-words">
                       {student?.name
@@ -385,9 +385,9 @@ export default function GroupDetail() {
                 );
               })}
             </div>
-            <div className="hidden lg:block overflow-x-auto rounded-lg border border-slate-100 dark:border-slate-800">
+            <div className="hidden lg:block overflow-x-auto rounded-lg border border-border">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 dark:bg-slate-800/60 text-left text-xs text-muted-foreground">
+                <thead className="bg-muted text-left text-xs text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2 font-medium">Имя</th>
                     <th className="px-3 py-2 font-medium">Эл. почта</th>
@@ -438,7 +438,7 @@ export default function GroupDetail() {
             <div className="border rounded-xl p-4 bg-card space-y-2">
               <h3 className="font-semibold">Текущие серии</h3>
               {seriesList.map((series) => (
-                <div key={series.id} className="text-sm border border-slate-100 dark:border-slate-800 rounded-lg p-3">
+                <div key={series.id} className="text-sm border border-border rounded-lg p-3">
                   <p className="font-medium">
                     {series.start_date ?? series.startDate} · {series.total_lessons ?? series.totalLessons} уроков · {localizeSeriesStatus(series.status)}
                   </p>
@@ -546,8 +546,8 @@ export default function GroupDetail() {
             <p className="text-sm text-muted-foreground">Уроков пока нет. Создайте расписание на вкладке «Расписание».</p>
           ) : (
             lessons.map((lesson) => (
-              <div key={lesson.id} className="border border-slate-100 dark:border-slate-800 rounded-lg overflow-hidden">
-                <div className="flex items-center justify-between gap-3 px-3 py-2 bg-slate-50 dark:bg-slate-800/60">
+              <div key={lesson.id} className="border border-border rounded-lg overflow-hidden">
+                <div className="flex items-center justify-between gap-3 px-3 py-2 bg-muted">
                   <button
                     type="button"
                     onClick={() => setExpandedLessonId(expandedLessonId === lesson.id ? null : lesson.id)}
@@ -558,13 +558,13 @@ export default function GroupDetail() {
                   <button
                     type="button"
                     onClick={() => setViewingLesson(lesson)}
-                    className="text-xs px-2 py-1 border rounded-md hover:bg-white dark:hover:bg-slate-900 border-slate-200 dark:border-slate-700"
+                    className="text-xs px-2 py-1 border rounded-md hover:bg-white dark:hover:bg-slate-900 border-border"
                   >
                     Открыть
                   </button>
                 </div>
                 {expandedLessonId === lesson.id && (
-                  <div className="px-3 py-3 border-t border-slate-100 dark:border-slate-800">
+                  <div className="px-3 py-3 border-t border-border">
                     <LessonAttendancePanel
                       lessonId={lesson.id}
                       students={students}

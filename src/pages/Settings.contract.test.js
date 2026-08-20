@@ -57,4 +57,28 @@ describe('Settings role display', () => {
     assert.match(editor, /flex-1/);
     assert.match(editor, /w-full/);
   });
+
+  it('Settings includes change-password security section', () => {
+    const source = readFileSync(join(__dirname, 'Settings.jsx'), 'utf8');
+    assert.match(source, /ChangePasswordSection/);
+    assert.match(source, /settings-change-password|ChangePasswordSection/);
+    const section = readFileSync(
+      join(__dirname, '..', 'components', 'settings', 'ChangePasswordSection.jsx'),
+      'utf8',
+    );
+    assert.match(section, /changePassword/);
+    assert.match(section, /rewrapWithNewPassword/);
+    assert.match(section, /PasswordInput/);
+    assert.match(section, /Текущий пароль/);
+    assert.match(section, /Новый пароль/);
+    assert.match(section, /Повторите новый пароль/);
+    assert.match(section, /Изменить пароль/);
+    assert.match(section, /REGISTRATION_PASSWORD_HINT/);
+    const passwordInput = readFileSync(
+      join(__dirname, '..', 'design-system', 'primitives', 'Input.jsx'),
+      'utf8',
+    );
+    assert.match(passwordInput, /Показать пароль/);
+    assert.match(passwordInput, /EyeOff/);
+  });
 });

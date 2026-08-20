@@ -5,10 +5,17 @@ import { grantAccess, grantMaterialAccess, revokeAccess } from "@/lib/materialAc
 import { X, Users, Lock, Save, Loader2, BookOpen, FolderKanban, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getMaterialTypeInfo } from "@/lib/materialIcons";
-import { publicMaterialDescription, unpackMaterialDescription } from "@/lib/materialMeta";
+import {
+  CANVA_ACCESS_NOTICE,
+  isCanvaMaterial,
+  isInAppMediaMaterial,
+  publicMaterialDescription,
+  unpackMaterialDescription,
+} from "@/lib/materialMeta";
 import { openMaterial } from "@/lib/materialUrl";
 import { toast } from "@/components/ui/use-toast";
 import AccessSourceBadges from "./AccessSourceBadges";
+import MaterialMediaPreview from "./MaterialMediaPreview";
 
 export default function AccessControlModal({ material, course, folders = [], onClose, onSave }) {
   const { user } = useAuth();
@@ -20,6 +27,7 @@ export default function AccessControlModal({ material, course, folders = [], onC
   const [students, setStudents] = useState([]);
   const [selectedStudentIds, setSelectedStudentIds] = useState([]);
   const [grants, setGrants] = useState(null);
+  const [previewMaterial, setPreviewMaterial] = useState(null);
 
   const load = async () => {
     setError("");
@@ -187,8 +195,8 @@ export default function AccessControlModal({ material, course, folders = [], onC
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
-        <div className="bg-card rounded-2xl p-8">
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+        <div className="bg-card rounded-2xl p-8 border border-border">
           <Loader2 className="h-6 w-6 animate-spin text-brand mx-auto" />
         </div>
       </div>
@@ -262,7 +270,7 @@ export default function AccessControlModal({ material, course, folders = [], onC
           )}
 
           {tab === "info" && (() => {
-            const typeInfo = getMaterialTypeInfo(material.file_type);
+            const typeInfo = getMaterialTypeInfo(material);
             const meta = unpackMaterialDescription(material.description);
             const folder = folders.find((f) => f.id === material.folder_id);
             return (
@@ -270,6 +278,9 @@ export default function AccessControlModal({ material, course, folders = [], onC
                 <div className="rounded-xl border border-border p-4 space-y-2">
                   <p><span className="text-muted-foreground">Название:</span> {material.title}</p>
                   <p><span className="text-muted-foreground">Тип:</span> {typeInfo.label}</p>
+                  {isCanvaMaterial(material) ? (
+                    <p className="text-muted-foreground">{CANVA_ACCESS_NOTICE}</p>
+                  ) : null}
                   <p><span className="text-muted-foreground">Курс:</span> {course?.name || course?.course_name || "—"}</p>
                   <p><span className="text-muted-foreground">Папка:</span> {folder?.name || "Корень"}</p>
                   {meta.blockName && (
@@ -283,6 +294,10 @@ export default function AccessControlModal({ material, course, folders = [], onC
                     type="button"
                     onClick={async () => {
                       try {
+                        if (isInAppMediaMaterial(material)) {
+                          setPreviewMaterial(material);
+                          return;
+                        }
                         await openMaterial(material);
                       } catch (err) {
                         toast({
@@ -505,6 +520,13 @@ export default function AccessControlModal({ material, course, folders = [], onC
           )}
         </div>
       </div>
+
+      {previewMaterial ? (
+        <MaterialMediaPreview
+          material={previewMaterial}
+          onClose={() => setPreviewMaterial(null)}
+        />
+      ) : null}
     </div>
   );
 }

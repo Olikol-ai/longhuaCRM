@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
 import { Card } from '@/components/ui/card';
@@ -6,8 +6,23 @@ import { Loader2, BookOpen, ExternalLink } from 'lucide-react';
 import { openMaterial } from '@/lib/materialUrl';
 import { toast } from '@/components/ui/use-toast';
 import { getMaterialTypeInfo } from '@/lib/materialIcons';
-import { publicMaterialDescription, unpackMaterialDescription } from '@/lib/materialMeta';
+import {
+  isInAppMediaMaterial,
+  publicMaterialDescription,
+  resolveMaterialDisplayTitle,
+  unpackMaterialDescription,
+} from '@/lib/materialMeta';
+import {
+  browseMaterials,
+  collectMaterialBlocks,
+  hasActiveMaterialBrowseFilters,
+  loadMaterialBrowseState,
+  saveMaterialBrowseState,
+} from '@/lib/materialBrowse';
 import AccessSourceBadges from '@/components/materials/AccessSourceBadges';
+import MaterialBrowseToolbar from '@/components/materials/MaterialBrowseToolbar';
+import MaterialMediaPreview from '@/components/materials/MaterialMediaPreview';
+import { Button } from '@/components/ui/button';
 
 export default function StudentLessonMaterials() {
   const { user, isLoadingAuth } = useAuth();
@@ -15,7 +30,34 @@ export default function StudentLessonMaterials() {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [filterType, setFilterType] = useState('all');
+  const [filterBlock, setFilterBlock] = useState('all');
+  const [sort, setSort] = useState('newest');
   const [error, setError] = useState('');
+  const [previewMaterial, setPreviewMaterial] = useState(null);
+  const [browseHydrated, setBrowseHydrated] = useState(false);
+
+  useEffect(() => {
+    if (isLoadingAuth || !user?.id || browseHydrated) return;
+    const saved = loadMaterialBrowseState(user.id, 'student');
+    if (saved) {
+      if (typeof saved.search === 'string') setSearch(saved.search);
+      if (typeof saved.filterType === 'string') setFilterType(saved.filterType);
+      if (typeof saved.filterBlock === 'string') setFilterBlock(saved.filterBlock);
+      if (typeof saved.sort === 'string') setSort(saved.sort);
+    }
+    setBrowseHydrated(true);
+  }, [user?.id, isLoadingAuth, browseHydrated]);
+
+  useEffect(() => {
+    if (!user?.id || !browseHydrated) return;
+    saveMaterialBrowseState(user.id, 'student', {
+      search,
+      filterType,
+      filterBlock,
+      sort,
+    });
+  }, [user?.id, browseHydrated, search, filterType, filterBlock, sort]);
 
   useEffect(() => {
     if (isLoadingAuth) return;
@@ -56,6 +98,32 @@ export default function StudentLessonMaterials() {
     }
   };
 
+  const filtered = useMemo(
+    () =>
+      browseMaterials(materials, {
+        search,
+        typeFilter: filterType,
+        blockFilter: filterBlock,
+        sort,
+      }),
+    [materials, search, filterType, filterBlock, sort],
+  );
+
+  const availableBlocks = useMemo(() => collectMaterialBlocks(materials), [materials]);
+  const filtersActive = hasActiveMaterialBrowseFilters({
+    search,
+    typeFilter: filterType,
+    blockFilter: filterBlock,
+    sort,
+  });
+
+  const resetBrowseFilters = () => {
+    setSearch('');
+    setFilterType('all');
+    setFilterBlock('all');
+    setSort('newest');
+  };
+
   if (loading || isLoadingAuth) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -66,17 +134,6 @@ export default function StudentLessonMaterials() {
 
   const courseNameById = new Map(courses.map((c) => [c.id, c.name || c.course_name || 'Курс']));
 
-  const filtered = materials.filter((m) => {
-    if (m.status === 'deleted') return false;
-    const meta = unpackMaterialDescription(m.description);
-    const q = search.toLowerCase();
-    return (
-      (m.title || '').toLowerCase().includes(q)
-      || meta.blockName.toLowerCase().includes(q)
-      || (courseNameById.get(m.course_id) || '').toLowerCase().includes(q)
-    );
-  });
-
   const grouped = filtered.reduce((acc, mat) => {
     const key = mat.course_id || 'other';
     if (!acc[key]) acc[key] = [];
@@ -86,36 +143,53 @@ export default function StudentLessonMaterials() {
 
   return (
     <div className="p-6 lg:p-8 max-w-6xl mx-auto" data-testid="student-materials-page">
-      <div className="mb-8 flex items-center justify-between gap-4 flex-wrap">
+      <div className="mb-6 space-y-4">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Мои материалы</h1>
           <p className="text-sm text-muted-foreground mt-2">
             Материалы, к которым вам предоставлен доступ
           </p>
         </div>
-        {materials.length > 0 && (
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Поиск..."
-            className="px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground w-full max-w-xs"
+        {materials.length > 0 || filtersActive ? (
+          <MaterialBrowseToolbar
+            search={search}
+            onSearchChange={setSearch}
+            typeFilter={filterType}
+            onTypeFilterChange={setFilterType}
+            blockFilter={filterBlock}
+            onBlockFilterChange={setFilterBlock}
+            blocks={availableBlocks}
+            sort={sort}
+            onSortChange={setSort}
+            showReset={filtersActive}
+            onReset={resetBrowseFilters}
           />
-        )}
+        ) : null}
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 text-sm px-4 py-3">
-          {error}
+        <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 text-sm px-4 py-3 space-y-2">
+          <p>{error}</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => void loadData()}>
+            Повторить
+          </Button>
         </div>
       )}
 
       {filtered.length === 0 ? (
-        <Card className="p-16 text-center border-dashed" data-testid="student-materials-empty">
-          <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-foreground font-medium">
-            {search ? 'Материалы не найдены' : 'Пока нет доступных материалов'}
+        <Card className="p-16 text-center border-dashed space-y-3" data-testid="student-materials-empty">
+          <BookOpen className="h-12 w-12 text-muted-foreground mx-auto" />
+          <p className="text-foreground font-medium">Материалы не найдены</p>
+          <p className="text-sm text-muted-foreground">
+            {materials.length === 0 && !filtersActive
+              ? 'Пока нет доступных материалов'
+              : 'Попробуйте изменить поиск или фильтры'}
           </p>
+          {filtersActive ? (
+            <Button type="button" variant="outline" onClick={resetBrowseFilters}>
+              Сбросить фильтры
+            </Button>
+          ) : null}
         </Card>
       ) : (
         <div className="space-y-8">
@@ -126,18 +200,24 @@ export default function StudentLessonMaterials() {
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {courseMats.map((mat) => {
-                  const typeInfo = getMaterialTypeInfo(mat.file_type);
+                  const typeInfo = getMaterialTypeInfo(mat);
                   const IconComp = typeInfo.icon;
                   const meta = unpackMaterialDescription(mat.description);
                   const description = publicMaterialDescription(mat.description);
+                  const displayTitle = resolveMaterialDisplayTitle(mat);
                   return (
                     <button
                       key={mat.id}
                       type="button"
-                      className="text-left w-full"
+                      className="text-left w-full min-w-0"
                       data-testid={`student-material-${mat.id}`}
+                      title={displayTitle}
                       onClick={async () => {
                         try {
+                          if (isInAppMediaMaterial(mat)) {
+                            setPreviewMaterial(mat);
+                            return;
+                          }
                           await openMaterial(mat);
                         } catch (err) {
                           toast({
@@ -148,16 +228,21 @@ export default function StudentLessonMaterials() {
                         }
                       }}
                     >
-                      <Card className="p-4 hover:shadow-lg transition-all cursor-pointer hover:border-brand/40 dark:hover:border-brand/40 h-full flex flex-col">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className={`h-10 w-10 rounded-lg ${typeInfo.bg} flex items-center justify-center`}>
+                      <Card className="p-4 hover:shadow-lg transition-all cursor-pointer hover:border-brand/40 dark:hover:border-brand/40 h-full flex flex-col min-w-0 overflow-hidden">
+                        <div className="flex items-start justify-between gap-2 mb-3">
+                          <div className={`h-10 w-10 rounded-lg ${typeInfo.bg} flex items-center justify-center shrink-0`}>
                             <IconComp className={`h-5 w-5 ${typeInfo.color}`} />
                           </div>
-                          <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                          <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
                         </div>
-                        <p className="text-sm font-semibold text-foreground line-clamp-2 mb-1">{mat.title}</p>
+                        <p
+                          className="text-sm font-semibold text-foreground line-clamp-2 break-words mb-1"
+                          data-testid={`material-title-${mat.id}`}
+                        >
+                          {displayTitle}
+                        </p>
                         {meta.blockName && (
-                          <p className="text-xs text-muted-foreground mb-1">{meta.blockName}</p>
+                          <p className="text-xs text-muted-foreground mb-1 truncate">{meta.blockName}</p>
                         )}
                         {description && (
                           <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{description}</p>
@@ -172,6 +257,13 @@ export default function StudentLessonMaterials() {
           ))}
         </div>
       )}
+
+      {previewMaterial ? (
+        <MaterialMediaPreview
+          material={previewMaterial}
+          onClose={() => setPreviewMaterial(null)}
+        />
+      ) : null}
     </div>
   );
 }

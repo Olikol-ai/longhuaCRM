@@ -2,11 +2,11 @@ import React, { useState, useEffect } from "react";
 import { api } from "@/api";
 import { useAuth } from "@/lib/AuthContext";
 import TeacherAvailabilityTab from "@/components/schedule/TeacherAvailabilityTab";
-import { Sun, Moon } from "lucide-react";
-import { useTheme } from "@/lib/ThemeContext";
 import { createWeeklyLessonSeries } from "@/lib/recurring-lessons";
 import { toast } from "@/components/ui/use-toast";
 import SchoolScheduleCalendar from "@/components/schedule/SchoolScheduleCalendar";
+import { OfflineSnapshotBanner } from "@/components/pwa/OfflineSnapshotBanner";
+import { OFFLINE_RESOURCES, readWithOfflineFallback } from "@/lib/offline";
 
 export default function TeacherSchedule() {
   const { user } = useAuth();
@@ -19,7 +19,7 @@ export default function TeacherSchedule() {
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState("schedule");
   const [loadError, setLoadError] = useState(null);
-  const { theme, toggleTheme } = useTheme();
+  const [offlineMeta, setOfflineMeta] = useState({ fromCache: false, updatedAt: null, missing: false });
 
   useEffect(() => {
     if (user) loadData();
@@ -27,34 +27,59 @@ export default function TeacherSchedule() {
 
   const loadData = async () => {
     setLoadError(null);
+    if (!user?.id) return;
     try {
-      const [teachers, allLessons, allStudents, allGroups, myContacts] =
-        await Promise.all([
-          api.teachers.list(),
-          api.lessons.list("-date", 500),
-          api.students.list(),
-          api.groups.list(),
-          api.teacherStudentContacts
-            .listMine({ ownerType: "teacher" })
-            .catch(() => []),
-        ]);
-      const t = teachers.find(
-        (row) => row.user_id === user.id || row.email === user.email,
-      );
-      setAllTeachers(teachers);
-      if (t) {
-        setTeacher(t);
-        setLessons(allLessons.filter((l) => l.teacher_id === t.id));
-        setStudents(allStudents.filter((s) => s.assigned_teacher === t.id));
-        setGroups(allGroups.filter((g) => g.teacher_id === t.id));
-        setContacts(Array.isArray(myContacts) ? myContacts : []);
-      } else {
+      const result = await readWithOfflineFallback({
+        userId: user.id,
+        role: user.role || 'teacher',
+        resource: OFFLINE_RESOURCES.SCHEDULE,
+        resourceKey: 'teacher',
+        fetcher: async () => {
+          const [teachers, allLessons, allStudents, allGroups, myContacts] =
+            await Promise.all([
+              api.teachers.list(),
+              api.lessons.list("-date", 500),
+              api.students.list(),
+              api.groups.list(),
+              api.teacherStudentContacts
+                .listMine({ ownerType: "teacher" })
+                .catch(() => []),
+            ]);
+          const t = teachers.find(
+            (row) => row.user_id === user.id || row.email === user.email,
+          );
+          return {
+            allTeachers: teachers,
+            teacher: t || null,
+            lessons: t ? allLessons.filter((l) => l.teacher_id === t.id) : [],
+            students: t ? allStudents.filter((s) => s.assigned_teacher === t.id) : [],
+            groups: t ? allGroups.filter((g) => g.teacher_id === t.id) : [],
+            contacts: Array.isArray(myContacts) ? myContacts : [],
+          };
+        },
+      });
+      setOfflineMeta({
+        fromCache: result.fromCache,
+        updatedAt: result.updatedAt,
+        missing: result.missing,
+      });
+      if (result.missing || !result.data) {
+        setLoadError("Расписание пока недоступно без подключения");
         setTeacher(null);
         setLessons([]);
         setStudents([]);
         setGroups([]);
         setContacts([]);
+        setAllTeachers([]);
+        return;
       }
+      const payload = result.data;
+      setAllTeachers(payload.allTeachers || []);
+      setTeacher(payload.teacher || null);
+      setLessons(payload.lessons || []);
+      setStudents(payload.students || []);
+      setGroups(payload.groups || []);
+      setContacts(payload.contacts || []);
     } catch (err) {
       setLoadError(err?.message || "Не удалось загрузить расписание");
     } finally {
@@ -91,24 +116,36 @@ export default function TeacherSchedule() {
     const wasAbsent = data.completion_attendance === "missed";
     const timeChanged =
       data.date != null || data.start_time != null || data.duration != null;
+    const cancelled = data.status === "cancelled";
+    const series =
+      data?.apply_scope === "all" ||
+      data?.apply_scope === "series" ||
+      data?.applyScope === "all" ||
+      data?.applyScope === "series";
 
     try {
       await api.lessons.update(id, data);
       toast({
-        title: attendanceConfirmed
-          ? wasAbsent
-            ? "Отсутствие зафиксировано."
-            : "Посещение подтверждено."
-          : timeChanged
-            ? "Занятие успешно перенесено."
-            : "Информация о занятии обновлена.",
+        title: cancelled
+          ? series
+            ? "Занятия серии отменены"
+            : "Урок отменён"
+          : attendanceConfirmed
+            ? wasAbsent
+              ? "Отсутствие зафиксировано."
+              : "Посещение подтверждено."
+            : timeChanged
+              ? "Занятие успешно перенесено."
+              : "Информация о занятии обновлена.",
       });
       await loadData();
     } catch (err) {
       toast({
-        title: attendanceConfirmed
-          ? "Не удалось завершить занятие"
-          : "Не удалось обновить занятие",
+        title: cancelled
+          ? "Не удалось отменить урок"
+          : attendanceConfirmed
+            ? "Не удалось завершить занятие"
+            : "Не удалось обновить занятие",
         description:
           err?.message || "Проверьте свободный график и пересечения",
         variant: "destructive",
@@ -121,20 +158,29 @@ export default function TeacherSchedule() {
     lesson,
     status,
     completionAttendance = "attended",
+    applyScope = "this",
   ) => {
     try {
       const payload =
         status === "completed"
           ? { status, completion_attendance: completionAttendance }
           : { status };
+      if (applyScope && applyScope !== "this") {
+        payload.apply_scope = applyScope;
+      }
       await api.lessons.update(lesson.id, payload);
+      const series = applyScope === "all" || applyScope === "series";
       toast({
         title:
           status === "completed"
             ? completionAttendance === "missed"
               ? "Отсутствие зафиксировано."
               : "Посещение подтверждено."
-            : "Статус занятия обновлён.",
+            : status === "cancelled"
+              ? series
+                ? "Занятия серии отменены"
+                : "Урок отменён"
+              : "Статус занятия обновлён.",
       });
       await loadData();
     } catch (err) {
@@ -147,16 +193,36 @@ export default function TeacherSchedule() {
     }
   };
 
+  const handleDeleteLesson = async (id, applyScope = "this") => {
+    try {
+      await api.lessons.delete(id, { apply_scope: applyScope });
+      await loadData();
+      toast({
+        title:
+          applyScope === "all" || applyScope === "series"
+            ? "Серия занятий удалена"
+            : "Урок удалён",
+      });
+    } catch (err) {
+      toast({
+        title: "Не удалось удалить урок",
+        description: err?.message || "Попробуйте ещё раз",
+        variant: "destructive",
+      });
+      throw err;
+    }
+  };
+
   const headerExtra = (
     <div className="flex items-center justify-between gap-2 mb-6 flex-wrap">
-      <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
+      <div className="flex gap-1 bg-muted rounded-xl p-1">
         <button
           type="button"
           onClick={() => setMainTab("schedule")}
-          className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+          className={`min-h-touch px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
             mainTab === "schedule"
-              ? "bg-white dark:bg-slate-700 text-brand dark:text-brand shadow-sm"
-              : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+              ? "bg-card text-brand shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           Моё расписание
@@ -164,33 +230,21 @@ export default function TeacherSchedule() {
         <button
           type="button"
           onClick={() => setMainTab("availability")}
-          className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+          className={`min-h-touch px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
             mainTab === "availability"
-              ? "bg-white dark:bg-slate-700 text-brand dark:text-brand shadow-sm"
-              : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+              ? "bg-card text-brand shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           Свободный график
         </button>
       </div>
-      <button
-        type="button"
-        onClick={toggleTheme}
-        className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-        title="Сменить тему"
-      >
-        {theme === "dark" ? (
-          <Sun className="h-4 w-4" />
-        ) : (
-          <Moon className="h-4 w-4" />
-        )}
-      </button>
     </div>
   );
 
   if (mainTab === "availability") {
     return (
-      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto dark:bg-slate-950 min-h-screen">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
         {headerExtra}
         <TeacherAvailabilityTab teacher={teacher} />
       </div>
@@ -198,32 +252,42 @@ export default function TeacherSchedule() {
   }
 
   return (
-    <SchoolScheduleCalendar
-      title="Моё расписание"
-      role="teacher"
-      lessons={lessons}
-      teachers={allTeachers.length ? allTeachers : teacher ? [teacher] : []}
-      students={students}
-      contacts={contacts}
-      groups={groups}
-      loading={loading}
-      error={loadError}
-      onRetry={() => {
-        setLoading(true);
-        loadData();
-      }}
-      defaultTeacherId={teacher?.id || ""}
-      onCreateLesson={handleSaveLesson}
-      onUpdateLesson={handleUpdateLesson}
-      onMarkLesson={handleMarkLesson}
-      onLessonsLocalPatch={(updated) => {
-        setLessons((prev) =>
-          prev.map((row) => (row.id === updated.id ? { ...row, ...updated } : row)),
-        );
-      }}
-      showQuickActions
-      createButtonLabel="Создать занятие"
-      headerExtra={headerExtra}
-    />
+    <div className="space-y-3">
+      <OfflineSnapshotBanner
+        fromCache={offlineMeta.fromCache}
+        updatedAt={offlineMeta.updatedAt}
+        missing={offlineMeta.missing}
+        emptyLabel="Расписание пока недоступно без подключения"
+        className="mx-4 mt-3 sm:mx-6"
+      />
+      <SchoolScheduleCalendar
+        title="Моё расписание"
+        role="teacher"
+        lessons={lessons}
+        teachers={allTeachers.length ? allTeachers : teacher ? [teacher] : []}
+        students={students}
+        contacts={contacts}
+        groups={groups}
+        loading={loading}
+        error={loadError}
+        onRetry={() => {
+          setLoading(true);
+          loadData();
+        }}
+        defaultTeacherId={teacher?.id || ""}
+        onCreateLesson={handleSaveLesson}
+        onUpdateLesson={handleUpdateLesson}
+        onDeleteLesson={handleDeleteLesson}
+        onMarkLesson={handleMarkLesson}
+        onLessonsLocalPatch={(updated) => {
+          setLessons((prev) =>
+            prev.map((row) => (row.id === updated.id ? { ...row, ...updated } : row)),
+          );
+        }}
+        showQuickActions
+        createButtonLabel="Создать занятие"
+        headerExtra={headerExtra}
+      />
+    </div>
   );
 }

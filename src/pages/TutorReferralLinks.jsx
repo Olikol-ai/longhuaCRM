@@ -129,10 +129,10 @@ export default function TutorReferralLinks() {
   return (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-5">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground">
           Реферальные ссылки
         </h1>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           {getGreetingName(user)
             ? `${getGreetingName(user)}, одна постоянная ссылка — после регистрации ученик закрепится за вами как «Ученик репетитора»`
             : 'Одна постоянная ссылка — после регистрации ученик закрепится за вами как «Ученик репетитора»'}
@@ -169,11 +169,11 @@ export default function TutorReferralLinks() {
       </Card>
 
       <div className="space-y-2">
-        <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+        <h2 className="text-sm font-semibold text-foreground">
           Активная ссылка
         </h2>
         {activeInvites.length === 0 ? (
-          <Card className="p-6 text-center text-slate-400">Ссылки пока нет</Card>
+          <Card className="p-6 text-center text-muted-foreground">Ссылки пока нет</Card>
         ) : (
           activeInvites.map((row) => (
             <Card key={row.id} className="p-4 flex items-center justify-between gap-3">
@@ -181,7 +181,7 @@ export default function TutorReferralLinks() {
                 <div className="flex items-center gap-2">
                   <Badge variant="default">Активна</Badge>
                   {row.label && (
-                    <span className="text-sm text-slate-700 dark:text-slate-200">{row.label}</span>
+                    <span className="text-sm text-foreground dark:text-slate-200">{row.label}</span>
                   )}
                 </div>
                 <p className="text-xs break-all text-brand mt-1">{inviteUrlFromRow(row)}</p>

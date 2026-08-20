@@ -86,7 +86,28 @@ export function buildJitsiConfigOverwrite(options = {}) {
     },
     filmstrip: {
       disableResizable: true,
+      // Keep thumbnails visible when someone shares (Zoom-like stage + strip).
+      disableStageFilmstrip: false,
     },
+    /**
+     * P2P↔JVB handoff causes a brief media blackout that looks like a dropped call.
+     * Always use the videobridge for lesson stability (esp. with screen share).
+     */
+    p2p: {
+      enabled: false,
+    },
+    /**
+     * Hide unused Jitsi chrome (e.g. Russian «Параметры производительности»).
+     * CRM owns all controls; empty toolbar already, reinforce settings scope.
+     */
+    disableThirdPartyRequests: true,
+    analytics: { disabled: true },
+    disabledNotifications: [
+      'notify.disconnected',
+      'notify.connectedOneMember',
+      'notify.connectedTwoMembers',
+      'notify.connectedThreePlusMembers',
+    ],
   };
   if (subject) {
     config.subject = subject;
@@ -99,6 +120,11 @@ export function buildJitsiInterfaceConfigOverwrite() {
     APP_NAME: 'Longhua',
     NATIVE_APP_NAME: 'Longhua',
     PROVIDER_NAME: 'Longhua',
+    DEFAULT_BACKGROUND: '#0a0a0a',
+    DEFAULT_LOGO_URL: '',
+    DEFAULT_WELCOME_PAGE_LOGO_URL: '',
+    JITSI_WATERMARK_LINK: '',
+    BRAND_WATERMARK_LINK: '',
     DEFAULT_LANGUAGE: 'ru',
     LANG_DETECTION: false,
     SHOW_JITSI_WATERMARK: false,
@@ -107,15 +133,23 @@ export function buildJitsiInterfaceConfigOverwrite() {
     SHOW_POWERED_BY: false,
     SHOW_CHROME_EXTENSION_BANNER: false,
     MOBILE_APP_PROMO: false,
+    DISPLAY_WELCOME_FOOTER: false,
     DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
     DISABLE_PRESENCE_STATUS: true,
     DEFAULT_REMOTE_DISPLAY_NAME: 'Участник',
     DEFAULT_LOCAL_DISPLAY_NAME: 'Я',
     TOOLBAR_BUTTONS: [],
+    MAIN_TOOLBAR_BUTTONS: [],
     SETTINGS_SECTIONS: ['devices', 'language'],
     HIDE_INVITE_MORE_HEADER: true,
     DISABLE_FOCUS_INDICATOR: true,
-    FILM_STRIP_MAX_HEIGHT: 90,
+    /** Compact thumbnails beside/above stage — Zoom-like on phones. */
+    FILM_STRIP_MAX_HEIGHT: 96,
+    VERTICAL_FILMSTRIP: true,
+    TILE_VIEW_MAX_COLUMNS: 2,
+    /** Prefer remote screen share on the large stage automatically. */
+    AUTO_PIN_LATEST_SCREEN_SHARE: 'remote-only',
+    SHOW_PERFORMANCE_SETTINGS: false,
   };
 }
 
@@ -202,15 +236,170 @@ export function resizeJitsiEmbed(api, container, options = {}) {
 /** Connection status labels for the lesson video shell. */
 export const VIDEO_CONNECTION_STATUS = {
   idle: { id: 'idle', label: 'Ожидание', tone: 'muted' },
-  connecting: { id: 'connecting', label: 'Подключение…', tone: 'warn' },
-  connected: { id: 'connected', label: 'Подключено', tone: 'ok' },
-  reconnecting: { id: 'reconnecting', label: 'Переподключение…', tone: 'warn' },
-  degraded: { id: 'degraded', label: 'Проблемы соединения', tone: 'warn' },
+  connecting: { id: 'connecting', label: 'Подключаемся…', tone: 'warn' },
+  connected: { id: 'connected', label: 'На связи', tone: 'ok' },
+  reconnecting: {
+    id: 'reconnecting',
+    label: 'Восстановление…',
+    tone: 'warn',
+  },
+  degraded: { id: 'degraded', label: 'Слабое соединение', tone: 'warn' },
   failed: { id: 'failed', label: 'Нет соединения', tone: 'bad' },
 };
 
 export function videoConnectionMeta(status) {
   return VIDEO_CONNECTION_STATUS[status] || VIDEO_CONNECTION_STATUS.idle;
+}
+
+/**
+ * Local / peer link quality (Jitsi connectionQuality 0–100).
+ * Shown as a small traffic-light indicator in the lesson chrome.
+ */
+export const VIDEO_LINK_QUALITY = {
+  excellent: {
+    id: 'excellent',
+    label: 'Отличное',
+    shortLabel: 'Отлично',
+    tone: 'ok',
+    hint: 'Ваше соединение стабильное',
+  },
+  good: {
+    id: 'good',
+    label: 'Хорошее',
+    shortLabel: 'Хорошо',
+    tone: 'ok',
+    hint: 'Качество достаточное для урока',
+  },
+  fair: {
+    id: 'fair',
+    label: 'Нестабильное',
+    shortLabel: 'Нестабильно',
+    tone: 'warn',
+    hint: 'Возможны задержки. Закройте лишние вкладки или переключите сеть',
+  },
+  poor: {
+    id: 'poor',
+    label: 'Слабое',
+    shortLabel: 'Слабо',
+    tone: 'warn',
+    hint: 'Плохое соединение. Ученики могут видеть задержки у вас',
+  },
+  lost: {
+    id: 'lost',
+    label: 'Соединение потеряно',
+    shortLabel: 'Нет связи',
+    tone: 'bad',
+    hint: 'Проверьте интернет — восстанавливаем автоматически',
+  },
+  unknown: {
+    id: 'unknown',
+    label: 'Проверка…',
+    shortLabel: '…',
+    tone: 'muted',
+    hint: 'Оцениваем качество связи',
+  },
+};
+
+export function linkQualityMeta(id) {
+  return VIDEO_LINK_QUALITY[id] || VIDEO_LINK_QUALITY.unknown;
+}
+
+/** Map Jitsi connectionQuality score (0–100) to CRM link quality id. */
+export function mapLinkQualityScore(score) {
+  if (score == null || Number.isNaN(Number(score))) return 'unknown';
+  const n = Number(score);
+  if (n <= 0) return 'lost';
+  if (n >= 70) return 'excellent';
+  if (n >= 45) return 'good';
+  if (n >= 25) return 'fair';
+  return 'poor';
+}
+
+/**
+ * Map raw Jitsi / WebRTC / network failures to short user-facing Russian copy.
+ * Never expose stack traces or internal exception names.
+ */
+export function mapVideoConferenceError(raw) {
+  const text = String(
+    typeof raw === 'string'
+      ? raw
+      : raw?.message || raw?.error || raw?.error?.message || '',
+  )
+    .trim()
+    .toLowerCase();
+
+  if (!text) {
+    return {
+      title: 'Проблема с видеоуроком',
+      description:
+        'Не удалось подключиться. Проверьте интернет и попробуйте ещё раз.',
+      code: 'unknown',
+    };
+  }
+
+  if (
+    text.includes('not-allowed') ||
+    text.includes('permission') ||
+    text.includes('denied') ||
+    text.includes('getusermedia')
+  ) {
+    return {
+      title: 'Нет доступа к камере или микрофону',
+      description:
+        'Разрешите камеру и микрофон в настройках браузера, затем нажмите «Повторить».',
+      code: 'media_permission',
+    };
+  }
+
+  if (
+    text.includes('token') ||
+    text.includes('jwt') ||
+    text.includes('unauthorized') ||
+    text.includes('auth')
+  ) {
+    return {
+      title: 'Сессия видеоурока устарела',
+      description: 'Обновите страницу или войдите в урок снова.',
+      code: 'auth',
+    };
+  }
+
+  if (
+    text.includes('timeout') ||
+    text.includes('timed out') ||
+    text.includes('ice') ||
+    text.includes('network') ||
+    text.includes('offline') ||
+    text.includes('failed to fetch')
+  ) {
+    return {
+      title: 'Проблема с интернетом',
+      description:
+        'Проверьте подключение к сети. Мы попробуем восстановить звонок автоматически.',
+      code: 'network',
+    };
+  }
+
+  if (
+    text.includes('conference') ||
+    text.includes('connection') ||
+    text.includes('jitsi') ||
+    text.includes('видео')
+  ) {
+    return {
+      title: 'Временно нет связи с видеосервером',
+      description:
+        'Сервер видеоурока недоступен или соединение прервалось. Подождите или нажмите «Повторить».',
+      code: 'server',
+    };
+  }
+
+  return {
+    title: 'Не удалось подключиться к видеоуроку',
+    description:
+      'Проверьте интернет и разрешения браузера, затем попробуйте подключиться снова.',
+    code: 'generic',
+  };
 }
 
 /** Min time in conference before suggesting attendance status «Был». */
@@ -328,15 +517,35 @@ export function coalesceLivePresence(liveList) {
         secondary.displayName ||
         secondary.display_name,
       online: Boolean(existing.online || row.online),
-      joinedAt: joinedCandidates.length ? Math.min(...joinedCandidates) : primary.joinedAt || null,
-      leftAt: existing.online || row.online ? null : primary.leftAt || secondary.leftAt || null,
+      joinedAt: joinedCandidates.length
+        ? Math.min(...joinedCandidates)
+        : primary.joinedAt || null,
+      leftAt:
+        existing.online || row.online
+          ? null
+          : primary.leftAt || secondary.leftAt || null,
       sessionStart: primary.online
         ? primary.sessionStart || primary.session_start || null
         : null,
       accumulatedMs,
-      crmUserId: existing.crmUserId || crmUserId || null,
-      email: existing.email || email || null,
-      jitsiIds: [...new Set([...(existing.jitsiIds || [existing.id]), row.id])],
+      crmUserId:
+        existing.crmUserId ||
+        crmUserId ||
+        primary.crmUserId ||
+        secondary.crmUserId ||
+        null,
+      email: existing.email || email || primary.email || secondary.email || null,
+      jitsiIds: [
+        ...new Set([...(existing.jitsiIds || [existing.id]), row.id]),
+      ],
+      audioMuted: primary.audioMuted ?? secondary.audioMuted ?? null,
+      videoMuted: primary.videoMuted ?? secondary.videoMuted ?? null,
+      screenSharing: Boolean(primary.screenSharing || secondary.screenSharing),
+      handRaised: Boolean(primary.handRaised || secondary.handRaised),
+      connectionQuality:
+        primary.connectionQuality ?? secondary.connectionQuality ?? null,
+      linkQuality: primary.linkQuality || secondary.linkQuality || null,
+      reconnecting: Boolean(primary.reconnecting || secondary.reconnecting),
     });
   }
 
@@ -431,6 +640,13 @@ export function mergeRosterWithPresence(participants, livePresence) {
       online,
       joinedAt: presence?.joinedAt || presence?.joined_at || null,
       connectionStatus: participantConnectionLabel({ online, presence }),
+      audioMuted: presence?.audioMuted ?? null,
+      videoMuted: presence?.videoMuted ?? null,
+      screenSharing: Boolean(presence?.screenSharing),
+      handRaised: Boolean(presence?.handRaised),
+      linkQuality: presence?.linkQuality || (online ? 'unknown' : null),
+      connectionQuality:
+        presence?.connectionQuality ?? presence?.connection_quality ?? null,
     };
   });
 
@@ -458,6 +674,12 @@ export function mergeRosterWithPresence(participants, livePresence) {
       online,
       joinedAt: entry.joinedAt || entry.joined_at || null,
       connectionStatus: participantConnectionLabel({ online, presence: entry }),
+      audioMuted: entry.audioMuted ?? null,
+      videoMuted: entry.videoMuted ?? null,
+      screenSharing: Boolean(entry.screenSharing),
+      handRaised: Boolean(entry.handRaised),
+      linkQuality: entry.linkQuality || (online ? 'unknown' : null),
+      connectionQuality: entry.connectionQuality ?? null,
     });
   }
 
@@ -497,6 +719,7 @@ export function formatJoinedAt(ts) {
 /** Human-readable conference connection status for the participants list. */
 export function participantConnectionLabel({ online, presence }) {
   if (online) return 'в конференции';
+  if (presence?.reconnecting) return 'переподключается…';
   if (presence?.leftAt || presence?.left_at) return 'отключился';
   return 'не подключался';
 }

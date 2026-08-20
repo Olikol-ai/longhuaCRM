@@ -106,17 +106,17 @@ export default function AssessmentAssignmentDetail() {
         <div>
           <Link
             to={createPageUrl('AssessmentAssignments')}
-            className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
+            className="text-xs text-muted-foreground hover:text-brand dark:hover:text-brand"
           >
             ← Назначения экзаменов
           </Link>
           <div className="flex flex-wrap items-center gap-2 mt-1">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+            <h1 className="text-2xl font-bold text-foreground">
               {exam?.name || 'Экзамен'}
             </h1>
             <AssignmentStatusBadge status={assignment.status} />
           </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             {ASSIGNMENT_TARGET_LABEL[assignment.target_type] || assignment.target_type}
           </p>
         </div>
@@ -135,13 +135,13 @@ export default function AssessmentAssignmentDetail() {
       </div>
 
       <Card className="p-4 sm:p-5 space-y-2 text-sm">
-        <p className="text-slate-600 dark:text-slate-300">
-          <span className="text-slate-400">Период: </span>
+        <p className="text-muted-foreground dark:text-slate-300">
+          <span className="text-muted-foreground">Период: </span>
           {formatDateTime(assignment.valid_from)} — {formatDateTime(assignment.valid_to)}
         </p>
         {exam?.rule && (
-          <p className="text-slate-600 dark:text-slate-300">
-            <span className="text-slate-400">Правило: </span>
+          <p className="text-muted-foreground dark:text-slate-300">
+            <span className="text-muted-foreground">Правило: </span>
             {exam.rule.duration_minutes} мин · {exam.rule.max_attempts} попыт. · проходной{' '}
             {exam.rule.pass_score_percent}%
           </p>
@@ -149,17 +149,17 @@ export default function AssessmentAssignmentDetail() {
       </Card>
 
       <Card className="p-4 sm:p-5 space-y-3">
-        <h2 className="font-semibold text-slate-900 dark:text-white">
+        <h2 className="font-semibold text-foreground">
           Назначенные пользователи ({participants.length})
         </h2>
         {participants.length === 0 ? (
-          <p className="text-sm text-slate-500">Список участников пуст</p>
+          <p className="text-sm text-muted-foreground">Список участников пуст</p>
         ) : (
           <ul className="divide-y divide-slate-100 dark:divide-slate-800">
             {participants.map((p) => (
               <li
                 key={p.id}
-                className="py-2 text-sm text-slate-800 dark:text-slate-100"
+                className="py-2 text-sm text-foreground"
               >
                 {p.name}
               </li>
@@ -169,11 +169,11 @@ export default function AssessmentAssignmentDetail() {
       </Card>
 
       <Card className="p-4 sm:p-5 space-y-3">
-        <h2 className="font-semibold text-slate-900 dark:text-white">
+        <h2 className="font-semibold text-foreground">
           Попытки ({attempts.length})
         </h2>
         {attempts.length === 0 ? (
-          <p className="text-sm text-slate-500">Попыток ещё нет</p>
+          <p className="text-sm text-muted-foreground">Попыток ещё нет</p>
         ) : (
           <ResponsiveTable
             rows={attempts}
@@ -205,11 +205,11 @@ export default function AssessmentAssignmentDetail() {
       </Card>
 
       <Card className="p-4 sm:p-5 space-y-3">
-        <h2 className="font-semibold text-slate-900 dark:text-white">
+        <h2 className="font-semibold text-foreground">
           Результаты ({results.length})
         </h2>
         {results.length === 0 ? (
-          <p className="text-sm text-slate-500">Результатов пока нет</p>
+          <p className="text-sm text-muted-foreground">Результатов пока нет</p>
         ) : (
           <ResponsiveTable
             rows={results}

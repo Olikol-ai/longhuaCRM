@@ -1,16 +1,16 @@
 import { Loader2, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { chatsApi } from '@/api/chats.api';
-import { Button } from '@/components/ui/button';
 import {
+  Button,
+  Input,
   ResponsiveDialog,
   ResponsiveDialogDescription,
   ResponsiveDialogFooter,
   ResponsiveDialogHeader,
   ResponsiveDialogTitle,
-} from '@/components/responsive/ResponsiveDialog';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+  Textarea,
+} from '@/design-system';
 import { toast } from '@/components/ui/use-toast';
 import { displayUserName, pickField } from '@/lib/chat-normalize';
 import { userFacingError } from '@/lib/userFacingError';
@@ -116,7 +116,7 @@ export default function FindInterlocutorDialog({ open, onOpenChange, onRequestSe
       </ResponsiveDialogHeader>
 
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" />
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -144,7 +144,7 @@ export default function FindInterlocutorDialog({ open, onOpenChange, onRequestSe
         <div className="max-h-[40dvh] sm:max-h-80 space-y-1 overflow-y-auto rounded-md border border-border/60 p-1">
           {loading ? (
             <div className="flex items-center justify-center gap-2 p-4 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Поиск…
+              <Loader2 className="size-4 animate-spin" /> Поиск…
             </div>
           ) : null}
 
@@ -202,7 +202,7 @@ export default function FindInterlocutorDialog({ open, onOpenChange, onRequestSe
         <ResponsiveDialogFooter className="gap-2 sm:gap-0">
           <Button
             type="button"
-            variant="outline"
+            intent="outline"
             disabled={sending}
             onClick={() => onOpenChange(false)}
           >
@@ -216,7 +216,7 @@ export default function FindInterlocutorDialog({ open, onOpenChange, onRequestSe
           >
             {sending ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Отправка…
+                <Loader2 className="size-4 animate-spin" /> Отправка…
               </>
             ) : (
               'Отправить запрос'

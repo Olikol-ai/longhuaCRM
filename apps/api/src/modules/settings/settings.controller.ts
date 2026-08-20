@@ -7,17 +7,18 @@ import { SettingsService } from './settings.service';
 
 @Controller('settings')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('admin')
 export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
 
   @Get()
+  @Roles('admin')
   async findAll() {
     const rows = await this.settingsService.findAll();
     return entityToApiRecord(rows);
   }
 
   @Patch(':key')
+  @Roles('admin')
   async upsert(
     @Param('key') key: string,
     @Body() body: { value: string; description?: string },
@@ -26,6 +27,7 @@ export class SettingsController {
     return entityToApiRecord(row);
   }
 
+  /** Readable by any authenticated user (onboarding Welcome / PendingApproval). */
   @Get('welcome/page')
   async getWelcomePage() {
     const record = await this.settingsService.getWelcomePage();
@@ -33,6 +35,7 @@ export class SettingsController {
   }
 
   @Patch('welcome/page')
+  @Roles('admin')
   async saveWelcomePage(@Body() body: Record<string, unknown>) {
     const record = await this.settingsService.saveWelcomePage(body);
     return entityToApiRecord(record);

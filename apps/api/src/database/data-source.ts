@@ -77,6 +77,15 @@ import { ExamContentPlatformSchema1745400000000 } from './migrations/17454000000
 import { AssessmentQuestionBankScope1745500000000 } from './migrations/1745500000000-AssessmentQuestionBankScope';
 import { DropExamContentInReview1745600000000 } from './migrations/1745600000000-DropExamContentInReview';
 import { LessonRecurrenceSeries1745700000000 } from './migrations/1745700000000-LessonRecurrenceSeries';
+import { TeacherContactBalanceStudentSsot1745800000000 } from './migrations/1745800000000-TeacherContactBalanceStudentSsot';
+import { DropContactLessonBalanceTutorTable1745900000000 } from './migrations/1745900000000-DropContactLessonBalanceTutorTable';
+import { InstructorScheduleDigests1746000000000 } from './migrations/1746000000000-InstructorScheduleDigests';
+import { MaterialFileMetadata1746100000000 } from './migrations/1746100000000-MaterialFileMetadata';
+import { LessonRecurrenceExceptions1746200000000 } from './migrations/1746200000000-LessonRecurrenceExceptions';
+import { WebPushAndNotificationEvents1746300000000 } from './migrations/1746300000000-WebPushAndNotificationEvents';
+import { ChatMemberListPrefs1746400000000 } from './migrations/1746400000000-ChatMemberListPrefs';
+import { HomeworkGradingMode1746500000000 } from './migrations/1746500000000-HomeworkGradingMode';
+import { AssessmentExamDescription1746600000000 } from './migrations/1746600000000-AssessmentExamDescription';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -157,6 +166,15 @@ export default new DataSource({
     AssessmentQuestionBankScope1745500000000,
     DropExamContentInReview1745600000000,
     LessonRecurrenceSeries1745700000000,
+    TeacherContactBalanceStudentSsot1745800000000,
+    DropContactLessonBalanceTutorTable1745900000000,
+    InstructorScheduleDigests1746000000000,
+    MaterialFileMetadata1746100000000,
+    LessonRecurrenceExceptions1746200000000,
+    WebPushAndNotificationEvents1746300000000,
+    ChatMemberListPrefs1746400000000,
+    HomeworkGradingMode1746500000000,
+    AssessmentExamDescription1746600000000,
   ],
   synchronize: false,
 });

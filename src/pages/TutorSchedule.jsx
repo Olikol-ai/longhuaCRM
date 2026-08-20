@@ -5,20 +5,24 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   ChevronLeft, ChevronRight, Loader2, Video, Plus,
-  CheckCircle2, XCircle, Calendar, List,
+  CheckCircle2, XCircle,
 } from 'lucide-react';
 import { resolveLessonStudentLabel } from '@/lib/studentLabels';
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   eachDayOfInterval, addMonths, subMonths, addWeeks, subWeeks,
-  isToday, isSameMonth, addDays,
+  isToday, isSameMonth,
 } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import TutorLessonModal from '@/components/tutors/TutorLessonModal';
 import LessonDetailModal from '@/components/schedule/LessonDetailModal';
+import RecurrenceApplyScopeDialog from '@/components/schedule/RecurrenceApplyScopeDialog';
+import { lessonBelongsToSeries } from '@/lib/lessonSeriesScope';
 import { toast } from '@/components/ui/use-toast';
 import { isOnlineLesson, lessonVideoPath } from '@/lib/lesson-video';
 import { filterScheduleListLessons } from '@/lib/scheduleListLessons';
+import { OfflineSnapshotBanner } from '@/components/pwa/OfflineSnapshotBanner';
+import { OFFLINE_RESOURCES, readWithOfflineFallback } from '@/lib/offline';
 
 const STATUS_BG = {
   planned: 'bg-brand',
@@ -44,12 +48,12 @@ function TutorLessonCard({ lesson, students, onOpen, onComplete, onCancel, busy 
     <button
       type="button"
       onClick={() => onOpen(lesson)}
-      className="w-full text-left rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 hover:border-brand/40 transition-colors"
+      className="w-full text-left rounded-xl border border-border bg-card p-3 hover:border-brand/40 transition-colors"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{label}</p>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-sm font-medium text-foreground truncate">{label}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
             {(lesson.start_time || '').slice(0, 5)} · {lesson.duration || 60} мин
           </p>
         </div>
@@ -95,19 +99,48 @@ export default function TutorSchedule() {
   const [selectedDay, setSelectedDay] = useState(null);
   const [viewingLesson, setViewingLesson] = useState(null);
   const [showCompletedInList, setShowCompletedInList] = useState(false);
+  const [offlineMeta, setOfflineMeta] = useState({ fromCache: false, updatedAt: null, missing: false });
+  const [cancelScopeOpen, setCancelScopeOpen] = useState(false);
+  const [cancelScope, setCancelScope] = useState('this');
+  const [pendingCancel, setPendingCancel] = useState(null);
 
   const loadData = async () => {
     setLoadError(null);
+    if (!user?.id) return;
     try {
-      const [me, allLessons, allContacts] = await Promise.all([
-        api.tutors.me(),
-        api.lessons.list('-date', 500),
-        api.teacherStudentContacts.listMine({ ownerType: 'tutor' }),
-      ]);
-      setTutor(me);
-      // Backend already scopes; keep client filter for safety.
-      setLessons((Array.isArray(allLessons) ? allLessons : []).filter((l) => l.tutor_id === me.id));
-      setStudents((Array.isArray(allContacts) ? allContacts : []).filter((s) => s.status !== 'inactive'));
+      const result = await readWithOfflineFallback({
+        userId: user.id,
+        role: user.role || 'tutor',
+        resource: OFFLINE_RESOURCES.SCHEDULE,
+        resourceKey: 'tutor',
+        fetcher: async () => {
+          const [me, allLessons, allContacts] = await Promise.all([
+            api.tutors.me(),
+            api.lessons.list('-date', 500),
+            api.teacherStudentContacts.listMine({ ownerType: 'tutor' }),
+          ]);
+          return {
+            tutor: me,
+            lessons: (Array.isArray(allLessons) ? allLessons : []).filter((l) => l.tutor_id === me.id),
+            students: (Array.isArray(allContacts) ? allContacts : []).filter((s) => s.status !== 'inactive'),
+          };
+        },
+      });
+      setOfflineMeta({
+        fromCache: result.fromCache,
+        updatedAt: result.updatedAt,
+        missing: result.missing,
+      });
+      if (result.missing || !result.data) {
+        setLoadError('Расписание пока недоступно без подключения');
+        setTutor(null);
+        setLessons([]);
+        setStudents([]);
+        return;
+      }
+      setTutor(result.data.tutor);
+      setLessons(result.data.lessons || []);
+      setStudents(result.data.students || []);
     } catch (err) {
       setLoadError(err?.message || 'Не удалось загрузить расписание');
       setTutor(null);
@@ -145,22 +178,44 @@ export default function TutorSchedule() {
     [lessons, showCompletedInList],
   );
 
-  const markLesson = async (lesson, status, completionAttendance = 'attended') => {
+  const markLesson = async (lesson, status, completionAttendance = 'attended', applyScope) => {
     if (status === 'completed') {
       const confirmed = window.confirm(
         'Подтвердить проведение занятия?\n\nПосле подтверждения изменить отметку будет нельзя.',
       );
       if (!confirmed) return;
     }
+    if (
+      status === 'cancelled' &&
+      lessonBelongsToSeries(lesson) &&
+      applyScope === undefined
+    ) {
+      setPendingCancel(lesson);
+      setCancelScope('this');
+      setCancelScopeOpen(true);
+      return;
+    }
+    const scope = applyScope || 'this';
     setUpdating(lesson.id);
     try {
       const payload =
         status === 'completed'
           ? { status, completion_attendance: completionAttendance }
           : { status };
+      if (scope !== 'this') {
+        payload.apply_scope = scope;
+      }
       await api.lessons.update(lesson.id, payload);
+      const series = scope === 'all' || scope === 'series';
       toast({
-        title: status === 'completed' ? 'Занятие проведено' : 'Статус обновлён',
+        title:
+          status === 'completed'
+            ? 'Занятие проведено'
+            : status === 'cancelled'
+              ? series
+                ? 'Занятия серии отменены'
+                : 'Урок отменён'
+              : 'Статус обновлён',
       });
       await loadData();
     } catch (err) {
@@ -180,6 +235,27 @@ export default function TutorSchedule() {
     await loadData();
   };
 
+  const handleDeleteLesson = async (id, applyScope = 'this') => {
+    try {
+      await api.lessons.delete(id, { apply_scope: applyScope });
+      setViewingLesson(null);
+      await loadData();
+      toast({
+        title:
+          applyScope === 'all' || applyScope === 'series'
+            ? 'Серия занятий удалена'
+            : 'Урок удалён',
+      });
+    } catch (err) {
+      toast({
+        title: 'Не удалось удалить занятие',
+        description: err?.message,
+        variant: 'destructive',
+      });
+      throw err;
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -196,10 +272,16 @@ export default function TutorSchedule() {
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-4">
+      <OfflineSnapshotBanner
+        fromCache={offlineMeta.fromCache}
+        updatedAt={offlineMeta.updatedAt}
+        missing={offlineMeta.missing}
+        emptyLabel="Расписание пока недоступно без подключения"
+      />
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">Моё расписание</h1>
-          <p className="text-sm text-slate-500 mt-1">Только ваши занятия с вашими учениками</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Моё расписание</h1>
+          <p className="text-sm text-muted-foreground mt-1">Только ваши занятия с вашими учениками</p>
         </div>
         <Button onClick={() => { setSelectedDate(format(new Date(), 'yyyy-MM-dd')); setShowModal(true); }}>
           <Plus className="w-4 h-4 mr-1" /> Занятие
@@ -207,10 +289,10 @@ export default function TutorSchedule() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
-          <button type="button" onClick={() => setViewMode('week')} className={`px-3 py-1.5 text-sm rounded-lg ${viewMode === 'week' ? 'bg-white dark:bg-slate-900 shadow-sm' : ''}`}>Неделя</button>
-          <button type="button" onClick={() => setViewMode('month')} className={`px-3 py-1.5 text-sm rounded-lg ${viewMode === 'month' ? 'bg-white dark:bg-slate-900 shadow-sm' : ''}`}>Месяц</button>
-          <button type="button" onClick={() => setViewMode('list')} className={`px-3 py-1.5 text-sm rounded-lg ${viewMode === 'list' ? 'bg-white dark:bg-slate-900 shadow-sm' : ''}`}>Список</button>
+        <div className="flex items-center gap-1 bg-muted rounded-xl p-1">
+          <button type="button" onClick={() => setViewMode('week')} className={`px-3 py-1.5 text-sm rounded-lg ${viewMode === 'week' ? 'bg-card shadow-sm' : ''}`}>Неделя</button>
+          <button type="button" onClick={() => setViewMode('month')} className={`px-3 py-1.5 text-sm rounded-lg ${viewMode === 'month' ? 'bg-card shadow-sm' : ''}`}>Месяц</button>
+          <button type="button" onClick={() => setViewMode('list')} className={`px-3 py-1.5 text-sm rounded-lg ${viewMode === 'list' ? 'bg-card shadow-sm' : ''}`}>Список</button>
         </div>
         {viewMode !== 'list' && (
           <div className="flex items-center gap-2 ml-auto">
@@ -230,10 +312,10 @@ export default function TutorSchedule() {
       {viewMode === 'list' ? (
         <div className="space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-muted-foreground">
               Показаны актуальные занятия. Завершённые скрыты по умолчанию.
             </p>
-            <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200 cursor-pointer select-none">
+            <label className="inline-flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
               <input
                 type="checkbox"
                 className="h-4 w-4 accent-brand rounded border-slate-300"
@@ -245,7 +327,7 @@ export default function TutorSchedule() {
             </label>
           </div>
           {listLessons.length === 0 ? (
-            <p className="text-sm text-slate-400 py-10 text-center">
+            <p className="text-sm text-muted-foreground py-10 text-center">
               {showCompletedInList ? 'Занятий пока нет' : 'Нет актуальных занятий'}
             </p>
           ) : (
@@ -266,7 +348,7 @@ export default function TutorSchedule() {
         <>
           <div className={`grid ${viewMode === 'week' ? 'grid-cols-7' : 'grid-cols-7'} gap-1 sm:gap-2`}>
             {WEEK_DAYS_RU.map((d) => (
-              <div key={d} className="text-center text-[11px] font-semibold text-slate-400 py-1">{d}</div>
+              <div key={d} className="text-center text-[11px] font-semibold text-muted-foreground py-1">{d}</div>
             ))}
             {days.map((day) => {
               const dateStr = format(day, 'yyyy-MM-dd');
@@ -284,16 +366,16 @@ export default function TutorSchedule() {
                     }
                   }}
                   className={`min-h-[5.5rem] sm:min-h-[7rem] rounded-xl border p-1.5 text-left transition-colors ${
-                    isToday(day) ? 'border-brand bg-brand-soft/40' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900'
+                    isToday(day) ? 'border-brand bg-brand-soft/40' : 'border-border bg-card'
                   } ${!inMonth ? 'opacity-40' : ''}`}
                 >
-                  <div className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{format(day, 'd')}</div>
+                  <div className="text-xs font-medium text-muted-foreground mb-1">{format(day, 'd')}</div>
                   <div className="space-y-0.5">
                     {dayLessons.slice(0, 3).map((l) => (
                       <div key={l.id} className={`h-1.5 rounded-full ${STATUS_BG[l.status] || 'bg-slate-300'}`} title={STATUS_LABELS[l.status]} />
                     ))}
                     {dayLessons.length > 3 && (
-                      <span className="text-[10px] text-slate-400">+{dayLessons.length - 3}</span>
+                      <span className="text-[10px] text-muted-foreground">+{dayLessons.length - 3}</span>
                     )}
                   </div>
                 </button>
@@ -302,7 +384,7 @@ export default function TutorSchedule() {
           </div>
 
           {selectedDay && (
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-3">
+            <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold">
                   {format(new Date(`${selectedDay}T12:00:00`), 'd MMMM yyyy', { locale: ru })}
@@ -312,7 +394,7 @@ export default function TutorSchedule() {
                 </Button>
               </div>
               {getLessonsForDay(selectedDay).length === 0 ? (
-                <p className="text-sm text-slate-400">Нет занятий</p>
+                <p className="text-sm text-muted-foreground">Нет занятий</p>
               ) : getLessonsForDay(selectedDay).map((lesson) => (
                 <TutorLessonCard
                   key={lesson.id}
@@ -340,11 +422,23 @@ export default function TutorSchedule() {
           isTutor
           onUpdate={async (id, data) => {
             await api.lessons.update(id, data);
-            toast({ title: 'Занятие обновлено' });
+            const series =
+              data?.apply_scope === 'all' ||
+              data?.apply_scope === 'series' ||
+              data?.applyScope === 'all' ||
+              data?.applyScope === 'series';
+            toast({
+              title:
+                data?.status === 'cancelled'
+                  ? series
+                    ? 'Занятия серии отменены'
+                    : 'Урок отменён'
+                  : 'Занятие обновлено',
+            });
             await loadData();
             setViewingLesson(null);
           }}
-          onDelete={() => {}}
+          onDelete={handleDeleteLesson}
           onStudentsUpdated={(updated) => {
             setViewingLesson(updated);
             setLessons((prev) =>
@@ -354,6 +448,26 @@ export default function TutorSchedule() {
           onClose={() => setViewingLesson(null)}
         />
       ) : null}
+
+      <RecurrenceApplyScopeDialog
+        open={cancelScopeOpen}
+        mode="status"
+        value={cancelScope}
+        onChange={setCancelScope}
+        title="Отменить:"
+        confirmLabel="Отменить"
+        onCancel={() => {
+          setCancelScopeOpen(false);
+          setPendingCancel(null);
+        }}
+        onConfirm={() => {
+          if (!pendingCancel) return;
+          const lesson = pendingCancel;
+          setCancelScopeOpen(false);
+          setPendingCancel(null);
+          void markLesson(lesson, 'cancelled', 'attended', cancelScope);
+        }}
+      />
 
       <TutorLessonModal
         open={showModal}

@@ -47,11 +47,8 @@ export function useStudentExamCards() {
           liveAttempt: findLiveAttempt(examAttempts),
           lastSubmitted: findLatestSubmittedAttempt(examAttempts),
           title: exam?.name || 'Экзамен',
-          description:
-            exam?.description ||
-            (exam?.status === 'published'
-              ? 'Назначенный экзамен Longhua Academy'
-              : 'Экзамен'),
+          description: exam?.description || '',
+          durationMinutes: exam?.rule?.duration_minutes ?? null,
           assignedAt: assignment.valid_from || assignment.created_at,
           deadline: assignment.valid_to || exam?.available_to || null,
         };

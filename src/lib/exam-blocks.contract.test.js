@@ -90,4 +90,11 @@ describe('Exam generation and legacy ExamBlocks contract', () => {
     assert.equal(existsSync(join(root, 'src/pages/AssessmentExamTemplates.jsx')), false);
     assert.equal(existsSync(join(root, 'src/pages/AssessmentBlueprintEdit.jsx')), false);
   });
+
+  it('removes unused ExamBlocks authoring UI (API legacy remains)', () => {
+    assert.equal(existsSync(join(root, 'src/pages/AssessmentExamBlocks.jsx')), false);
+    assert.equal(existsSync(join(root, 'src/pages/AssessmentExamBlockEdit.jsx')), false);
+    assert.equal(existsSync(join(root, 'src/hooks/useAssessmentExamBlocks.js')), false);
+    assert.equal(existsSync(join(root, 'src/pages/Attendance.jsx')), false);
+  });
 });

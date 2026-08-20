@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -61,6 +62,12 @@ import {
 import { formatStudentProfileDisplayName } from '../users/display-name.util';
 import { LessonsRepository } from './lessons.repository';
 import { VideoService } from '../video/video.service';
+import { LessonRecurrenceExceptionsService } from './lesson-recurrence-exceptions.service';
+import { LessonRecurrenceSeriesEntity } from './entities/lesson-recurrence-series.entity';
+import {
+  LessonRecurrenceApplyScope,
+  normalizeLessonRecurrenceApplyScope,
+} from './dto/lesson-recurrence.dto';
 
 /**
  * Statuses that already deducted a lesson from the student/contact balance.
@@ -99,6 +106,8 @@ const TEACHER_LOCKED_ATTENDANCE_STATUSES = new Set([
 
 @Injectable()
 export class LessonsService {
+  private readonly logger = new Logger(LessonsService.name);
+
   constructor(
     private readonly repository: LessonsRepository,
     private readonly studentBalanceService: StudentBalanceService,
@@ -113,6 +122,7 @@ export class LessonsService {
     private readonly events: EventEmitter2,
     private readonly videoService: VideoService,
     private readonly contactBalanceService: TeacherStudentContactBalanceService,
+    private readonly recurrenceExceptions: LessonRecurrenceExceptionsService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -970,11 +980,8 @@ export class LessonsService {
 
     // UI cancels via PATCH { status: 'cancelled' }. Route through cancel() so we
     // take the same pessimistic lock as cron completion and reject non-planned.
-    if (
-      typeof payload.status === 'string' &&
-      payload.status === 'cancelled' &&
-      before.status !== 'cancelled'
-    ) {
+    // Already-cancelled is handled idempotently inside cancel().
+    if (typeof payload.status === 'string' && payload.status === 'cancelled') {
       return this.cancel(actor, id);
     }
 
@@ -1104,7 +1111,32 @@ export class LessonsService {
     const { completionAttendance: _completionAttendance, ...lessonFields } =
       payload as UpdateLessonDto & { completionAttendance?: 'attended' | 'missed' };
 
-    const row = await this.repository.update(id, lessonFields as UpdateLessonDto);
+    // Rolling weekly series: moving one occurrence must leave an exception on the
+    // original series weekday so cron never recreates that date.
+    // Exception + date UPDATE commit together under the series advisory lock so
+    // concurrent fillHorizon cannot observe a gap and insert a ghost planned row.
+    let row: LessonEntity | null = null;
+    if (
+      before.recurrenceSeriesId &&
+      date !== before.date &&
+      nextStatus !== 'cancelled'
+    ) {
+      await this.recurrenceExceptions.recordExceptionThen(
+        before.recurrenceSeriesId,
+        before.date,
+        'rescheduled',
+        before.id,
+        async (manager) => {
+          await manager.getRepository(LessonEntity).update(
+            { id },
+            lessonFields as Partial<LessonEntity>,
+          );
+        },
+      );
+      row = await this.repository.findById(id);
+    } else {
+      row = await this.repository.update(id, lessonFields as UpdateLessonDto);
+    }
     if (!row) {
       throw new NotFoundException('Lesson not found');
     }
@@ -1311,12 +1343,166 @@ export class LessonsService {
     return [];
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(
+    id: string,
+    options?: { skipRecurrenceException?: boolean },
+  ): Promise<void> {
     const row = await this.repository.findById(id);
     if (!row) {
       throw new NotFoundException('Lesson not found');
     }
+    if (row.recurrenceSeriesId && !options?.skipRecurrenceException) {
+      await this.recurrenceExceptions.recordExceptionThen(
+        row.recurrenceSeriesId,
+        row.date,
+        'deleted',
+        row.id,
+        async (manager) => {
+          await manager.getRepository(LessonEntity).delete({ id });
+        },
+      );
+      return;
+    }
     await this.repository.delete(id);
+  }
+
+  /**
+   * Delete one lesson or every occurrence in its weekly series.
+   * Scope `this` (default) deletes only the anchor. `following` / `all` / `series`
+   * delete matching siblings in one transaction under the series advisory lock.
+   * ACL is checked for every targeted lesson — access to the anchor alone is not enough.
+   */
+  async deleteWithScope(
+    actor: JwtPayload,
+    id: string,
+    applyScope?: LessonRecurrenceApplyScope | string | null,
+  ): Promise<{ deletedCount: number; deletedIds: string[] }> {
+    const scope = normalizeLessonRecurrenceApplyScope(applyScope);
+    if (typeof id !== 'string' || !id.trim()) {
+      throw new BadRequestException('lessonId is required for delete');
+    }
+    const anchorId = id.trim();
+    await this.lessonAccess.assertCanWriteLesson(actor, anchorId);
+
+    const anchor = await this.repository.findById(anchorId);
+    if (!anchor) {
+      throw new NotFoundException('Lesson not found');
+    }
+
+    if (scope === 'this' || !anchor.recurrenceSeriesId) {
+      await this.delete(anchorId);
+      return { deletedCount: 1, deletedIds: [anchorId] };
+    }
+
+    const seriesId = anchor.recurrenceSeriesId;
+    const fromDate = scope === 'following' ? anchor.date : null;
+
+    const runBulk = async () =>
+      this.dataSource.transaction(async (manager) => {
+        const lessonRepo = manager.getRepository(LessonEntity);
+        const seriesRepo = manager.getRepository(LessonRecurrenceSeriesEntity);
+
+        const lockedAnchor = await lessonRepo.findOne({
+          where: { id: anchorId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!lockedAnchor) {
+          throw new NotFoundException('Lesson not found');
+        }
+        if (!lockedAnchor.recurrenceSeriesId) {
+          throw new ConflictException(
+            'Урок больше не входит в серию — обновите расписание',
+          );
+        }
+
+        const candidates = await lessonRepo.find({
+          where: { recurrenceSeriesId: seriesId },
+          order: { date: 'ASC' },
+          lock: { mode: 'pessimistic_write' },
+        });
+
+        const targets = candidates.filter((row) => {
+          if (fromDate && row.date < fromDate) return false;
+          return true;
+        });
+
+        if (targets.length === 0) {
+          throw new ConflictException(
+            'В серии нет занятий для удаления',
+          );
+        }
+
+        for (const row of targets) {
+          await this.lessonAccess.assertCanWriteLesson(actor, row.id);
+        }
+
+        const deletedIds: string[] = [];
+        for (const row of targets) {
+          const deleteResult = await lessonRepo.delete({ id: row.id });
+          const affectedRows = deleteResult.affected ?? 0;
+          if (affectedRows !== 1) {
+            throw new ConflictException(
+              `lesson.delete.series aborted: expected 1 row for ${row.id}, got ${affectedRows}`,
+            );
+          }
+          deletedIds.push(row.id);
+        }
+
+        await seriesRepo.update({ id: seriesId }, { status: 'stopped' });
+
+        return {
+          deletedCount: deletedIds.length,
+          deletedIds,
+        };
+      });
+
+    let bulkResult: { deletedCount: number; deletedIds: string[] };
+    try {
+      bulkResult = await this.recurrenceExceptions.withSeriesLock(
+        seriesId,
+        runBulk,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        JSON.stringify({
+          event: 'lesson.delete.series.rejected',
+          lessonId: anchorId,
+          seriesId,
+          scope,
+          actorUserId: actor.sub,
+          reason: message,
+        }),
+      );
+      await this.audit.log({
+        actorUserId: actor.sub,
+        action: 'lesson.delete.series.rejected',
+        entityType: 'LessonRecurrenceSeries',
+        entityId: seriesId,
+        summary: `lesson.delete.series.rejected lessonId=${anchorId} scope=${scope} reason=${message}`,
+      });
+      throw error;
+    }
+
+    this.logger.log(
+      JSON.stringify({
+        event: 'lesson.delete.series.completed',
+        lessonId: anchorId,
+        seriesId,
+        scope,
+        actorUserId: actor.sub,
+        deletedCount: bulkResult.deletedCount,
+      }),
+    );
+    await this.audit.log({
+      actorUserId: actor.sub,
+      action: 'lesson.delete.series.completed',
+      entityType: 'LessonRecurrenceSeries',
+      entityId: seriesId,
+      summary: `lesson.delete.series.completed lessonId=${anchorId} scope=${scope} deletedCount=${bulkResult.deletedCount}`,
+    });
+
+    return bulkResult;
   }
 
   async filter(actor: JwtPayload, where: Record<string, unknown>): Promise<LessonEntity[]> {
@@ -1712,56 +1898,359 @@ export class LessonsService {
   }
 
   async cancel(actor: JwtPayload, id: string): Promise<LessonEntity> {
-    await this.lessonAccess.assertCanWriteLesson(actor, id);
-
-    const cancelled = await this.dataSource.transaction(async (manager) => {
-      const lessonRepo = manager.getRepository(LessonEntity);
-      const lesson = await lessonRepo.findOne({
-        where: { id },
-        lock: { mode: 'pessimistic_write' },
+    if (typeof id !== 'string' || !id.trim()) {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'lesson.cancel.rejected',
+          reason: 'empty_lesson_id',
+          actorUserId: actor.sub,
+        }),
+      );
+      await this.audit.log({
+        actorUserId: actor.sub,
+        action: 'lesson.cancel.rejected',
+        entityType: 'Lesson',
+        entityId: null,
+        summary: 'lesson.cancel.rejected empty_lesson_id affectedRows=0',
       });
-      if (!lesson) {
-        throw new NotFoundException('Lesson not found');
-      }
+      throw new BadRequestException('lessonId is required for cancel');
+    }
 
-      const isContactLesson = Boolean(lesson.primaryTeacherStudentContactId);
-      const canCancelCompletedContact =
-        lesson.status === 'completed' && isContactLesson;
+    const lessonId = id.trim();
+    await this.lessonAccess.assertCanWriteLesson(actor, lessonId);
 
-      // Planned: free the slot. Completed private-contact: restore private balance.
-      // School CRM completed lessons stay locked (balance + TeacherPayment).
-      if (lesson.status !== 'planned' && !canCancelCompletedContact) {
-        throw new ConflictException(
-          'Отменить можно только запланированное занятие',
-        );
-      }
-
-      if (canCancelCompletedContact) {
-        await this.contactBalanceService.restoreForCancelledLesson(
-          id,
-          manager,
-          actor.sub,
-        );
-      }
-
-      lesson.status = 'cancelled';
-      await lessonRepo.save(lesson);
-
-      await manager.getRepository(AvailabilityBookingEntity).update(
-        { lessonId: id },
-        { status: 'cancelled' },
+    const preview = await this.repository.findById(lessonId);
+    if (!preview) {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'lesson.cancel.rejected',
+          reason: 'not_found',
+          lessonId,
+          actorUserId: actor.sub,
+        }),
       );
+      await this.audit.log({
+        actorUserId: actor.sub,
+        action: 'lesson.cancel.rejected',
+        entityType: 'Lesson',
+        entityId: lessonId,
+        summary: `lesson.cancel.rejected not_found lessonId=${lessonId} affectedRows=0`,
+      });
+      throw new NotFoundException('Lesson not found');
+    }
 
-      await manager.getRepository(AttendanceEntity).update(
-        { lessonId: id },
-        { attendanceStatus: 'cancelled' },
-      );
-
-      return lesson;
+    const previousStatus = preview.status;
+    this.logger.log(
+      JSON.stringify({
+        event: 'lesson.cancel.requested',
+        lessonId,
+        actorUserId: actor.sub,
+        previousStatus,
+      }),
+    );
+    await this.audit.log({
+      actorUserId: actor.sub,
+      action: 'lesson.cancel.requested',
+      entityType: 'Lesson',
+      entityId: lessonId,
+      summary: `lesson.cancel.requested lessonId=${lessonId} previousStatus=${previousStatus}`,
     });
 
-    const withNames = await this.repository.findById(cancelled.id);
-    return (await this.attachDisplayNames([withNames ?? cancelled]))[0];
+    const runCancel = async () =>
+      this.dataSource.transaction(async (manager) => {
+        const lessonRepo = manager.getRepository(LessonEntity);
+        const lesson = await lessonRepo.findOne({
+          where: { id: lessonId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!lesson) {
+          throw new NotFoundException('Lesson not found');
+        }
+
+        const isContactLesson = Boolean(lesson.primaryTeacherStudentContactId);
+        const canCancelCompletedContact =
+          lesson.status === 'completed' && isContactLesson;
+
+        // Idempotent: already cancelled → return as-is (no balance / booking side-effects).
+        if (lesson.status === 'cancelled') {
+          return { lesson, affectedRows: 0, idempotent: true as const };
+        }
+
+        // Planned: free the slot. Completed private-contact: restore private balance.
+        // School CRM completed lessons stay locked (balance + TeacherPayment).
+        if (lesson.status !== 'planned' && !canCancelCompletedContact) {
+          throw new ConflictException(
+            'Отменить можно только запланированное занятие',
+          );
+        }
+
+        if (canCancelCompletedContact) {
+          await this.contactBalanceService.restoreForCancelledLesson(
+            lessonId,
+            manager,
+            actor.sub,
+          );
+        }
+
+        // Exact-id UPDATE with affected-row guard (never criteria by date/teacher/group).
+        const updateResult = await lessonRepo.update(
+          { id: lessonId },
+          { status: 'cancelled' },
+        );
+        const affectedRows = updateResult.affected ?? 0;
+        if (affectedRows !== 1) {
+          throw new ConflictException(
+            `lesson.cancel aborted: expected exactly 1 affected row, got ${affectedRows}`,
+          );
+        }
+        lesson.status = 'cancelled';
+
+        if (lesson.recurrenceSeriesId) {
+          await this.recurrenceExceptions.markSkipped(
+            lesson.recurrenceSeriesId,
+            lesson.date,
+            'cancelled',
+            lesson.id,
+            manager,
+          );
+        }
+
+        await manager.getRepository(AvailabilityBookingEntity).update(
+          { lessonId },
+          { status: 'cancelled' },
+        );
+
+        await manager.getRepository(AttendanceEntity).update(
+          { lessonId },
+          { attendanceStatus: 'cancelled' },
+        );
+
+        return { lesson, affectedRows, idempotent: false as const };
+      });
+
+    let outcome: {
+      lesson: LessonEntity;
+      affectedRows: number;
+      idempotent: boolean;
+    };
+    try {
+      outcome = preview.recurrenceSeriesId
+        ? await this.recurrenceExceptions.withSeriesLock(
+            preview.recurrenceSeriesId,
+            runCancel,
+          )
+        : await runCancel();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        JSON.stringify({
+          event: 'lesson.cancel.rejected',
+          lessonId,
+          actorUserId: actor.sub,
+          previousStatus,
+          reason: message,
+        }),
+      );
+      await this.audit.log({
+        actorUserId: actor.sub,
+        action: 'lesson.cancel.rejected',
+        entityType: 'Lesson',
+        entityId: lessonId,
+        summary: `lesson.cancel.rejected lessonId=${lessonId} previousStatus=${previousStatus} reason=${message}`,
+      });
+      throw error;
+    }
+
+    this.logger.log(
+      JSON.stringify({
+        event: 'lesson.cancel.completed',
+        lessonId,
+        actorUserId: actor.sub,
+        previousStatus,
+        newStatus: 'cancelled',
+        affectedRows: outcome.affectedRows,
+        idempotent: outcome.idempotent,
+      }),
+    );
+    await this.audit.log({
+      actorUserId: actor.sub,
+      action: 'lesson.cancel.completed',
+      entityType: 'Lesson',
+      entityId: lessonId,
+      summary: `lesson.cancel.completed lessonId=${lessonId} previousStatus=${previousStatus} newStatus=cancelled affectedRows=${outcome.affectedRows}${outcome.idempotent ? ' idempotent=1' : ''}`,
+    });
+
+    const withNames = await this.repository.findById(outcome.lesson.id);
+    return (await this.attachDisplayNames([withNames ?? outcome.lesson]))[0];
+  }
+
+  /**
+   * Cancel one planned lesson or every planned occurrence in its series.
+   * Scope `this` delegates to {@link cancel}. `following` / `all` / `series`
+   * cancel matching planned siblings in a single transaction under the series lock.
+   */
+  async cancelWithScope(
+    actor: JwtPayload,
+    id: string,
+    applyScope?: LessonRecurrenceApplyScope | string | null,
+  ): Promise<LessonEntity> {
+    const scope = normalizeLessonRecurrenceApplyScope(applyScope);
+    if (scope === 'this') {
+      return this.cancel(actor, id);
+    }
+
+    if (typeof id !== 'string' || !id.trim()) {
+      throw new BadRequestException('lessonId is required for cancel');
+    }
+    const anchorId = id.trim();
+    await this.lessonAccess.assertCanWriteLesson(actor, anchorId);
+
+    const anchor = await this.repository.findById(anchorId);
+    if (!anchor) {
+      throw new NotFoundException('Lesson not found');
+    }
+    if (!anchor.recurrenceSeriesId) {
+      return this.cancel(actor, anchorId);
+    }
+
+    const seriesId = anchor.recurrenceSeriesId;
+    const fromDate = scope === 'following' ? anchor.date : null;
+
+    const runBulk = async () =>
+      this.dataSource.transaction(async (manager) => {
+        const lessonRepo = manager.getRepository(LessonEntity);
+        const seriesRepo = manager.getRepository(LessonRecurrenceSeriesEntity);
+
+        const lockedAnchor = await lessonRepo.findOne({
+          where: { id: anchorId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!lockedAnchor) {
+          throw new NotFoundException('Lesson not found');
+        }
+        if (!lockedAnchor.recurrenceSeriesId) {
+          throw new ConflictException(
+            'Урок больше не входит в серию — обновите расписание',
+          );
+        }
+
+        const candidates = await lessonRepo.find({
+          where: {
+            recurrenceSeriesId: seriesId,
+            status: 'planned',
+          },
+          order: { date: 'ASC' },
+          lock: { mode: 'pessimistic_write' },
+        });
+
+        const targets = candidates.filter((row) => {
+          if (fromDate && row.date < fromDate) return false;
+          return true;
+        });
+
+        if (targets.length === 0) {
+          throw new ConflictException(
+            'В серии нет запланированных занятий для отмены',
+          );
+        }
+
+        for (const row of targets) {
+          await this.lessonAccess.assertCanWriteLesson(actor, row.id);
+        }
+
+        for (const row of targets) {
+          const updateResult = await lessonRepo.update(
+            { id: row.id, status: 'planned' },
+            { status: 'cancelled' },
+          );
+          const affectedRows = updateResult.affected ?? 0;
+          if (affectedRows !== 1) {
+            throw new ConflictException(
+              `lesson.cancel.series aborted: expected 1 row for ${row.id}, got ${affectedRows}`,
+            );
+          }
+
+          await this.recurrenceExceptions.markSkipped(
+            seriesId,
+            row.date,
+            'cancelled',
+            row.id,
+            manager,
+          );
+
+          await manager.getRepository(AvailabilityBookingEntity).update(
+            { lessonId: row.id },
+            { status: 'cancelled' },
+          );
+          await manager.getRepository(AttendanceEntity).update(
+            { lessonId: row.id },
+            { attendanceStatus: 'cancelled' },
+          );
+        }
+
+        // Stop generating new occurrences for cancelled horizon.
+        await seriesRepo.update(
+          { id: seriesId },
+          { status: 'stopped' },
+        );
+
+        return {
+          cancelledCount: targets.length,
+          cancelledIds: targets.map((row) => row.id),
+        };
+      });
+
+    let bulkResult: { cancelledCount: number; cancelledIds: string[] };
+    try {
+      bulkResult = await this.recurrenceExceptions.withSeriesLock(
+        seriesId,
+        runBulk,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        JSON.stringify({
+          event: 'lesson.cancel.series.rejected',
+          lessonId: anchorId,
+          seriesId,
+          scope,
+          actorUserId: actor.sub,
+          reason: message,
+        }),
+      );
+      await this.audit.log({
+        actorUserId: actor.sub,
+        action: 'lesson.cancel.series.rejected',
+        entityType: 'LessonRecurrenceSeries',
+        entityId: seriesId,
+        summary: `lesson.cancel.series.rejected lessonId=${anchorId} scope=${scope} reason=${message}`,
+      });
+      throw error;
+    }
+
+    this.logger.log(
+      JSON.stringify({
+        event: 'lesson.cancel.series.completed',
+        lessonId: anchorId,
+        seriesId,
+        scope,
+        actorUserId: actor.sub,
+        cancelledCount: bulkResult.cancelledCount,
+      }),
+    );
+    await this.audit.log({
+      actorUserId: actor.sub,
+      action: 'lesson.cancel.series.completed',
+      entityType: 'LessonRecurrenceSeries',
+      entityId: seriesId,
+      summary: `lesson.cancel.series.completed lessonId=${anchorId} scope=${scope} cancelledCount=${bulkResult.cancelledCount}`,
+    });
+
+    const withNames = await this.repository.findById(anchorId);
+    if (!withNames) {
+      throw new NotFoundException('Lesson not found');
+    }
+    return (await this.attachDisplayNames([withNames]))[0];
   }
 
   async findAllAttendance(actor: JwtPayload): Promise<AttendanceEntity[]> {

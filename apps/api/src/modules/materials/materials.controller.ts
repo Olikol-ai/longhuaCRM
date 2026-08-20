@@ -77,9 +77,13 @@ export class MaterialsController {
   }
 
   @Patch('folders/:id')
-  @Roles('admin')
-  updateFolder(@Param('id') id: string, @Body() dto: UpdateMaterialFolderDto) {
-    return this.materialsService.updateFolder(id, dto);
+  @Roles('admin', 'teacher', 'tutor')
+  updateFolder(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateMaterialFolderDto,
+  ) {
+    return this.materialsService.updateFolder(user, id, dto);
   }
 
   @Delete('folders/:id')

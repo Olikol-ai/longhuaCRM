@@ -5,7 +5,7 @@ export default function ExamTimer({ remainingSeconds, expired = false }) {
   const critical = remainingSeconds != null && remainingSeconds <= 60;
 
   let tone =
-    'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700';
+    'bg-slate-100 text-foreground dark:bg-slate-800 dark:text-slate-100 border-border';
   if (expired || critical) {
     tone =
       'bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-200 border-rose-200 dark:border-rose-800';

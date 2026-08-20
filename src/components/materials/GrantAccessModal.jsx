@@ -180,7 +180,7 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
         <Card className="p-8">
           <Loader2 className="h-6 w-6 animate-spin text-brand mx-auto" />
         </Card>

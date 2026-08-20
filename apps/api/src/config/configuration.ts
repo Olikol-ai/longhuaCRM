@@ -48,7 +48,7 @@ export default () => ({
     /** Required HS256 app id/secret — Prosody AUTH_TYPE=jwt, no guests. */
     jitsiJwtAppId: process.env.JITSI_JWT_APP_ID ?? '',
     jitsiJwtAppSecret: process.env.JITSI_JWT_APP_SECRET ?? '',
-    jitsiJwtTtlSeconds: parseInt(process.env.JITSI_JWT_TTL_SECONDS ?? '900', 10),
+    jitsiJwtTtlSeconds: parseInt(process.env.JITSI_JWT_TTL_SECONDS ?? '14400', 10),
   },
   mail: readMailEnvFromProcess(),
   pendingRegistration: {
@@ -61,6 +61,11 @@ export default () => ({
       .map((value) => value.trim())
       .filter(Boolean),
   },
+  webPush: {
+    vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? '',
+    vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ?? '',
+    vapidSubject: process.env.VAPID_SUBJECT ?? 'mailto:admin@longhua.local',
+  },
   rateLimit: {
     ttl: parseInt(process.env.RATE_LIMIT_TTL ?? '60', 10),
     limit: parseInt(process.env.RATE_LIMIT_MAX ?? '120', 10),
@@ -71,5 +76,10 @@ export default () => ({
     process.env.UPLOADS_ROOT ||
     '/mnt/storage/longhua-storage'
   ).trim(),
+  /** Max multipart size for materials upload (bytes). Default 2 GiB. */
+  materialsMaxUploadBytes: parseInt(
+    process.env.MATERIALS_MAX_UPLOAD_BYTES ?? String(2 * 1024 * 1024 * 1024),
+    10,
+  ),
 });
 

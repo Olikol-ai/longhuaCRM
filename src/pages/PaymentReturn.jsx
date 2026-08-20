@@ -3,7 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { api } from '@/api';
 import { Check, Loader2, XCircle, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { formatCurrency } from '@/lib/formatters';
+import { formatBYN } from '@/lib/formatters';
 import { userFacingError } from '@/lib/userFacingError';
 
 const STATUS_UI = {
@@ -25,7 +25,7 @@ const STATUS_UI = {
   refunded: {
     title: 'Оплата возвращена',
     icon: XCircle,
-    iconClass: 'bg-slate-100 text-slate-600',
+    iconClass: 'bg-muted text-muted-foreground',
   },
 };
 
@@ -91,33 +91,33 @@ export default function PaymentReturn() {
 
   return (
     <div className="min-h-[60vh] flex items-center justify-center p-6">
-      <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-8 text-center space-y-5">
+      <div className="w-full max-w-md bg-card rounded-3xl border border-border p-8 text-center space-y-5">
         {loading ? (
           <>
             <Loader2 className="h-10 w-10 animate-spin text-brand mx-auto" />
-            <p className="text-sm text-slate-500">Проверяем статус оплаты…</p>
+            <p className="text-sm text-muted-foreground">Проверяем статус оплаты…</p>
           </>
         ) : error ? (
           <>
             <div className="h-16 w-16 rounded-full bg-red-100 flex items-center justify-center mx-auto">
               <XCircle className="h-8 w-8 text-red-600" />
             </div>
-            <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">Не удалось проверить оплату</h1>
-            <p className="text-sm text-slate-500">{error}</p>
+            <h1 className="text-lg font-bold text-foreground">Не удалось проверить оплату</h1>
+            <p className="text-sm text-muted-foreground">{error}</p>
           </>
         ) : (
           <>
             <div className={`h-16 w-16 rounded-full flex items-center justify-center mx-auto ${ui.iconClass}`}>
               <Icon className="h-8 w-8" />
             </div>
-            <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">{result?.message || ui.title}</h1>
+            <h1 className="text-lg font-bold text-foreground">{result?.message || ui.title}</h1>
             {result?.amount != null && (
-              <p className="text-sm text-slate-500">
-                Сумма: {formatCurrency(result.amount)} {result.currency || 'BYN'}
+              <p className="text-sm text-muted-foreground">
+                Сумма: {formatBYN(result.amount)}
               </p>
             )}
             {result?.status === 'pending' && (
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 Статус обновится автоматически после подтверждения банком. Можно закрыть страницу и зайти позже.
               </p>
             )}

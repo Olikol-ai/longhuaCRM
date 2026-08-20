@@ -27,6 +27,11 @@ describe('TutorsService private notebook', () => {
     save: jest.fn(async (row: unknown) => row),
   };
 
+  const lessonRepo = {
+    find: jest.fn().mockResolvedValue([]),
+    update: jest.fn().mockResolvedValue({ affected: 0 }),
+  };
+
   const service = new TutorsService(
     {} as never,
     tutorAccess as never,
@@ -34,6 +39,7 @@ describe('TutorsService private notebook', () => {
     {} as never,
     {} as never,
     tutorStudentRepo as never,
+    lessonRepo as never,
     {} as never,
     {} as never,
     {} as never,
@@ -87,7 +93,12 @@ describe('TutorsService private notebook', () => {
     expect(tutorStudentRepo.save).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'ts-1', status: 'inactive' }),
     );
-    expect(result).toEqual({ id: 'ts-1', deleted: true });
+    expect(result).toEqual({
+      id: 'ts-1',
+      deleted: true,
+      archived: true,
+      cancelledLessons: 0,
+    });
   });
 
   it('updates notebook name and comment', async () => {

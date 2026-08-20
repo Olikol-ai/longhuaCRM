@@ -15,6 +15,8 @@ export type VideoAccessData = {
   displayName: string;
   /** Optional provider JWT / token when the backend is configured for authenticated rooms. */
   token: string | null;
+  /** Unix epoch seconds when the Jitsi JWT expires (if issued). */
+  tokenExpiresAt?: number | null;
   embedUrl: string;
   /** Hostname for JitsiMeetExternalAPI (e.g. meet.example.com). */
   domain: string;

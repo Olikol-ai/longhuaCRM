@@ -190,6 +190,6 @@ export class UpdateLessonDto {
       (obj as Record<string, unknown>).applyScope
     );
   })
-  @IsEnum(['this', 'following', 'all'])
+  @IsEnum(['this', 'following', 'all', 'series'])
   applyScope?: LessonRecurrenceApplyScope;
 }

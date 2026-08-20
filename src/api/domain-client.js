@@ -30,9 +30,16 @@ const FIELD_ALIASES = {
   lessons: 'lessonsCount',
   file_url: 'fileUrl',
   file_type: 'fileType',
+  mime_type: 'mimeType',
+  file_size_bytes: 'fileSizeBytes',
+  duration_seconds: 'durationSeconds',
+  original_filename: 'originalFilename',
+  stored_filename: 'storedFilename',
   external_link: 'externalLink',
   block_name: 'blockName',
   payment_date: 'paymentDate',
+  comment: 'notes',
+  notes: 'notes',
   start_time: 'startTime',
   lesson_balance: 'lessonBalance',
   start_date: 'startDate',
@@ -122,6 +129,10 @@ export function createDomainClient(basePath, options = {}) {
         method: 'POST',
         body: JSON.stringify(toPayload(data)),
       });
+    },
+
+    get(id) {
+      return apiFetch(`${basePath}/${encodeURIComponent(id)}`);
     },
 
     update(id, data) {

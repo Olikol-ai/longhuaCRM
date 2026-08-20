@@ -32,6 +32,12 @@ import {
 import { AssessmentChangeJournalService } from './assessment-change-journal.service';
 import { AssessmentContentGuard } from './assessment-content.guard';
 
+function normalizeExamDescription(value?: string | null): string | null {
+  if (value == null) return null;
+  const trimmed = String(value).trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export type ExamRuleInput = {
   durationMinutes: number;
   maxAttempts?: number;
@@ -63,6 +69,7 @@ export type CreateExamInput = {
     }>;
   }>;
   name: string;
+  description?: string | null;
   availableFrom?: Date | null;
   availableTo?: Date | null;
   rule: ExamRuleInput;
@@ -71,6 +78,7 @@ export type CreateExamInput = {
 
 export type UpdateExamInput = {
   name?: string;
+  description?: string | null;
   availableFrom?: Date | null;
   availableTo?: Date | null;
   rule?: ExamRuleInput;
@@ -150,6 +158,7 @@ export class ExamService {
 
     const exam = await this.exams.save({
       name: input.name,
+      description: normalizeExamDescription(input.description),
       availableFrom: input.availableFrom ?? null,
       availableTo: input.availableTo ?? null,
       createdByUserId: input.createdByUserId ?? actor.sub,
@@ -218,6 +227,7 @@ export class ExamService {
 
     const exam = await this.exams.save({
       name: input.name,
+      description: normalizeExamDescription(input.description),
       availableFrom: input.availableFrom ?? null,
       availableTo: input.availableTo ?? null,
       createdByUserId: input.createdByUserId ?? actor.sub,
@@ -275,6 +285,9 @@ export class ExamService {
 
     await this.exams.update(id, {
       ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.description !== undefined
+        ? { description: normalizeExamDescription(input.description) }
+        : {}),
       ...(input.availableFrom !== undefined ? { availableFrom: input.availableFrom } : {}),
       ...(input.availableTo !== undefined ? { availableTo: input.availableTo } : {}),
     });
@@ -600,6 +613,7 @@ export class ExamService {
     return {
       id: exam.id,
       name: exam.name,
+      description: exam.description,
       status: exam.status,
       created_by_user_id: exam.createdByUserId,
       available_from: exam.availableFrom,

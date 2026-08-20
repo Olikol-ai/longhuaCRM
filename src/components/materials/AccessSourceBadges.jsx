@@ -3,7 +3,7 @@ import React from "react";
 const SOURCE_STYLES = {
   personal: "bg-brand-soft text-brand border-brand/30 dark:bg-brand-soft/40 dark:text-brand dark:border-brand/40",
   course: "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
-  group: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
+  group: "bg-muted text-muted-foreground border-border",
 };
 
 /**

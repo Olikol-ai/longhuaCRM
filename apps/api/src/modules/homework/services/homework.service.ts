@@ -36,6 +36,11 @@ import {
   UpdateLocalHomeworkStatusDto,
 } from '../dto/homework.dto';
 import {
+  computeAutoHomeworkPercent,
+  normalizeHomeworkGradingMode,
+  resolveHomeworkPercent,
+} from '../homework-grading.util';
+import {
   HomeworkAssignmentStatus,
   HomeworkAttemptStatus,
   HomeworkLifecycleStatus,
@@ -724,9 +729,15 @@ export class HomeworkService {
     const ownerMap = hw ? await this.buildHomeworkOwnerInfoMap([hw]) : new Map();
     const ownerInfo = hw ? ownerMap.get(hw.id) ?? null : null;
 
-    const hideCorrect = attempt.status !== HomeworkAttemptStatus.Submitted;
     const isManager =
       user.role === 'admin' || user.role === 'teacher' || user.role === 'tutor';
+    const isLearner = user.role === 'student' || user.role === 'tutor_student';
+    const reviewed =
+      result?.status === 'checked' || result?.status === 'reviewed';
+    const showExpectedAnswers =
+      isManager || Boolean(reviewed && result?.showCorrectAnswers);
+    const showStudentReview =
+      isManager || Boolean(reviewed);
 
     const attachmentsBySource = new Map<string, Array<{ id: string; kind: string; url: string | null }>>();
     const sourceIds = [
@@ -777,6 +788,7 @@ export class HomeworkService {
       owner_id: ownerInfo?.ownerId ?? null,
       owner_name: ownerInfo?.ownerName ?? null,
       owner_comment: assignment?.ownerComment ?? null,
+      student_feedback: assignment?.ownerComment ?? result?.ownerComment ?? null,
       review_result: assignment?.reviewResult ?? null,
       questions: qSnaps.map((question) => ({
         id: question.id,
@@ -785,7 +797,7 @@ export class HomeworkService {
         type: question.type,
         stem: question.stem,
         points: Number(question.points),
-        explanation: isManager ? question.explanation : null,
+        explanation: showExpectedAnswers ? question.explanation : null,
         passage_text: question.passageText,
         task_instructions: question.taskInstructions,
         vocabulary: mapVocabularyDto(question.vocabulary),
@@ -802,7 +814,7 @@ export class HomeworkService {
             text: answer.body,
             body: answer.body,
             sort_order: answer.sortOrder,
-            ...(hideCorrect ? {} : { is_correct: answer.isCorrect }),
+            ...(showExpectedAnswers ? { is_correct: answer.isCorrect } : {}),
           })),
       })),
       answers: answers.map((answer) => ({
@@ -819,28 +831,16 @@ export class HomeworkService {
         audio_mime: answer.audioMime,
         audio_original_filename: answer.audioOriginalFilename,
         audio_duration_ms: answer.audioDurationMs,
-        review_comment:
-          !hideCorrect || isManager ? answer.reviewComment : null,
-        ...(hideCorrect
-          ? {}
-          : {
+        review_comment: showStudentReview ? answer.reviewComment : null,
+        ...(isManager || showStudentReview
+          ? {
               is_correct: answer.isCorrect,
-              earned_points: answer.earnedPoints != null ? Number(answer.earnedPoints) : null,
-            }),
+              earned_points:
+                answer.earnedPoints != null ? Number(answer.earnedPoints) : null,
+            }
+          : {}),
       })),
-      result: result
-        ? {
-            id: result.id,
-            score: Number(result.score),
-            max_score: Number(result.maxScore),
-            percent: Number(result.percent),
-            passed: result.passed,
-            evaluation_type: result.evaluationType,
-            status: result.status,
-            duration_seconds: result.durationSeconds,
-            breakdown: result.breakdownJson ? JSON.parse(result.breakdownJson) : null,
-          }
-        : null,
+      result: result ? this.serializeHomeworkResult(result) : null,
     };
   }
 
@@ -900,18 +900,11 @@ export class HomeworkService {
       },
       result: localResult
         ? {
-            id: localResult.id,
-            score: localResult.score != null ? Number(localResult.score) : null,
-            max_score: localResult.maxScore != null ? Number(localResult.maxScore) : null,
-            percent: localResult.percent != null ? Number(localResult.percent) : null,
-            passed: localResult.passed ?? null,
-            evaluation_type: localResult.evaluationType,
-            status: localResult.status,
-            duration_seconds: localResult.durationSeconds,
-            breakdown: localResult.breakdownJson ? JSON.parse(localResult.breakdownJson) : null,
+            ...this.serializeHomeworkResult(localResult),
             manual: true,
             review_result: localResult.reviewResult,
             owner_comment: localResult.ownerComment,
+            student_feedback: localResult.ownerComment,
             completed_at: localResult.completedAt,
             checked_at: localResult.checkedAt,
           }
@@ -1572,6 +1565,8 @@ export class HomeworkService {
       passed: scored.passed,
       evaluationType: scored.evaluationType as EvaluationType,
       status,
+      gradingMode: 'auto' as const,
+      showCorrectAnswers: result?.showCorrectAnswers ?? false,
       durationSeconds,
       breakdownJson: JSON.stringify({
         questions: scored.questions,
@@ -2216,16 +2211,11 @@ export class HomeworkService {
     const qById = new Map(qSnaps.map((q) => [q.id, q]));
     const now = new Date();
 
-    for (const row of dto.answers) {
+    for (const row of dto.answers ?? []) {
       const qSnap = qById.get(row.question_snapshot_id);
       if (!qSnap) {
         throw new BadRequestException(
           `Unknown question snapshot: ${row.question_snapshot_id}`,
-        );
-      }
-      if (!isManualReviewQuestionType(qSnap.type)) {
-        throw new BadRequestException(
-          'Only text/speaking answers can be scored during manual review',
         );
       }
       const maxPoints = Number(qSnap.points);
@@ -2271,10 +2261,20 @@ export class HomeworkService {
       }
     }
 
+    this.applyReviewMeta(result, assignment, dto);
+    const totals = await this.sumAttemptPoints(attempt.id);
+    this.applyResultPercent(result, totals.earned, totals.max);
+    await this.results.save(result);
+    await this.assignments.save(assignment);
+
     return this.getAttemptState(user, attempt.id);
   }
 
-  async finalizeReview(user: JwtPayload, assignmentId: string) {
+  async finalizeReview(
+    user: JwtPayload,
+    assignmentId: string,
+    dto?: SaveHomeworkReviewDto,
+  ) {
     await this.assertManagerOrAdmin(user);
     const assignment = await this.assignments.findOne({
       where: { id: assignmentId },
@@ -2295,6 +2295,29 @@ export class HomeworkService {
 
     const result = await this.results.findOne({ where: { attemptId: attempt.id } });
     if (!result || result.status !== 'pending_review') {
+      throw new ConflictException('Работа не ожидает проверки');
+    }
+
+    if (dto) {
+      if (dto.answers?.length) {
+        await this.saveReview(user, assignmentId, dto);
+      } else {
+        this.applyReviewMeta(result, assignment, dto);
+        await this.results.save(result);
+        await this.assignments.save(assignment);
+      }
+    }
+
+    const freshAssignment = await this.assignments.findOne({
+      where: { id: assignmentId },
+      relations: ['homework'],
+    });
+    if (!freshAssignment?.homework) {
+      throw new NotFoundException('Assignment not found');
+    }
+
+    const freshResult = await this.results.findOne({ where: { attemptId: attempt.id } });
+    if (!freshResult) {
       throw new ConflictException('Работа не ожидает проверки');
     }
 
@@ -2324,43 +2347,55 @@ export class HomeworkService {
       }
     }
 
-    const percent =
-      totalMax > 0 ? Math.round((totalScore / totalMax) * 10000) / 100 : 0;
+    let percent: number;
+    try {
+      percent = resolveHomeworkPercent({
+        gradingMode: freshResult.gradingMode,
+        manualPercentage: freshResult.manualPercentage,
+        earnedPoints: totalScore,
+        maxPoints: totalMax,
+      });
+    } catch (err) {
+      throw new BadRequestException(
+        err instanceof Error ? err.message : 'Некорректный процент выполнения',
+      );
+    }
     const passPercent =
-      assignment.homework.passScorePercent != null
-        ? Number(assignment.homework.passScorePercent)
+      freshAssignment.homework.passScorePercent != null
+        ? Number(freshAssignment.homework.passScorePercent)
         : 60;
     const passed = percent >= passPercent;
 
-    result.score = String(totalScore);
-    result.maxScore = String(totalMax);
-    result.percent = String(percent);
-    result.passed = passed;
-    result.status = 'checked';
-    await this.results.save(result);
+    freshResult.score = String(totalScore);
+    freshResult.maxScore = String(totalMax);
+    freshResult.percent = String(percent);
+    freshResult.passed = passed;
+    freshResult.status = 'checked';
+    await this.results.save(freshResult);
 
     const now = new Date();
-    assignment.status = HomeworkAssignmentStatus.Checked;
-    assignment.reviewResult = passed
+    freshAssignment.status = HomeworkAssignmentStatus.Checked;
+    freshAssignment.reviewResult = passed
       ? `Проверено: ${percent}%`
       : `Проверено: ${percent}% (ниже порога)`;
-    assignment.manualCheckedAt = now;
-    assignment.checkedAt = now;
-    assignment.checkedByUserId = user.sub;
-    assignment.submittedAt = assignment.submittedAt ?? attempt.submittedAt ?? now;
-    await this.assignments.save(assignment);
+    freshAssignment.manualCheckedAt = now;
+    freshAssignment.checkedAt = now;
+    freshAssignment.checkedByUserId = user.sub;
+    freshAssignment.submittedAt =
+      freshAssignment.submittedAt ?? attempt.submittedAt ?? now;
+    await this.assignments.save(freshAssignment);
 
     if (attempt.studentId) {
       const learner = await this.students.findOne({ where: { id: attempt.studentId } });
       if (learner) {
         this.notifier.notifyReviewed(
-          assignment,
-          assignment.homework,
+          freshAssignment,
+          freshAssignment.homework,
           {
             userId: learner.userId ?? null,
             displayName: this.studentDisplayName(learner),
           },
-          result,
+          freshResult,
         );
       }
     } else if (attempt.tutorStudentId) {
@@ -2369,17 +2404,108 @@ export class HomeworkService {
       });
       if (learner) {
         this.notifier.notifyReviewed(
-          assignment,
-          assignment.homework,
+          freshAssignment,
+          freshAssignment.homework,
           {
             userId: learner.userId ?? null,
             displayName: this.tutorStudentDisplayName(learner),
           },
-          result,
+          freshResult,
         );
       }
     }
 
     return this.getAttemptState(user, attempt.id);
+  }
+
+  private serializeHomeworkResult(result: HomeworkResultEntity) {
+    const mode = normalizeHomeworkGradingMode(result.gradingMode);
+    return {
+      id: result.id,
+      score: result.score != null ? Number(result.score) : null,
+      max_score: result.maxScore != null ? Number(result.maxScore) : null,
+      percent: result.percent != null ? Number(result.percent) : null,
+      passed: result.passed ?? null,
+      evaluation_type: result.evaluationType,
+      status: result.status,
+      duration_seconds: result.durationSeconds,
+      breakdown: result.breakdownJson ? JSON.parse(result.breakdownJson) : null,
+      grading_mode: mode,
+      manual_percentage:
+        result.manualPercentage != null ? Number(result.manualPercentage) : null,
+      show_correct_answers: Boolean(result.showCorrectAnswers),
+      student_feedback: result.ownerComment ?? null,
+      owner_comment: result.ownerComment ?? null,
+    };
+  }
+
+  private applyReviewMeta(
+    result: HomeworkResultEntity,
+    assignment: HomeworkAssignmentEntity,
+    dto: SaveHomeworkReviewDto,
+  ): void {
+    if (dto.grading_mode) {
+      result.gradingMode = normalizeHomeworkGradingMode(dto.grading_mode);
+    }
+    if (dto.manual_percentage != null && dto.manual_percentage !== undefined) {
+      result.manualPercentage = String(dto.manual_percentage);
+    }
+    if (dto.show_correct_answers != null) {
+      result.showCorrectAnswers = Boolean(dto.show_correct_answers);
+    }
+    const feedback = dto.student_feedback ?? dto.comment;
+    if (feedback !== undefined) {
+      const text = feedback == null || String(feedback).trim() === ''
+        ? null
+        : String(feedback).trim();
+      result.ownerComment = text;
+      assignment.ownerComment = text;
+    }
+  }
+
+  private applyResultPercent(
+    result: HomeworkResultEntity,
+    earned: number,
+    maxPoints: number,
+  ): void {
+    result.score = String(earned);
+    result.maxScore = String(maxPoints);
+    const mode = normalizeHomeworkGradingMode(result.gradingMode);
+    if (mode === 'manual') {
+      if (result.manualPercentage == null || result.manualPercentage === '') {
+        return;
+      }
+      try {
+        result.percent = String(
+          resolveHomeworkPercent({
+            gradingMode: 'manual',
+            manualPercentage: result.manualPercentage,
+            earnedPoints: earned,
+            maxPoints,
+          }),
+        );
+      } catch (err) {
+        throw new BadRequestException(
+          err instanceof Error ? err.message : 'Некорректный процент выполнения',
+        );
+      }
+      return;
+    }
+    result.percent = String(computeAutoHomeworkPercent(earned, maxPoints));
+  }
+
+  private async sumAttemptPoints(
+    attemptId: string,
+  ): Promise<{ earned: number; max: number }> {
+    const qSnaps = await this.questionSnapshots.find({ where: { attemptId } });
+    const answers = await this.attemptAnswers.find({ where: { attemptId } });
+    const answerByQ = new Map(answers.map((a) => [a.questionSnapshotId, a]));
+    let earned = 0;
+    let max = 0;
+    for (const qSnap of qSnaps) {
+      max += Number(qSnap.points);
+      earned += Number(answerByQ.get(qSnap.id)?.earnedPoints ?? 0);
+    }
+    return { earned, max };
   }
 }

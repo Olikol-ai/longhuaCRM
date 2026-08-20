@@ -262,7 +262,7 @@ async function ensureDemoStudent(deps: AssessmentDemoSeedDeps) {
   const all = await students.findAll(deps.actor);
   let student = all.find((s) => s.userId === user!.id || s.email === email);
   if (!student) {
-    student = await students.create({
+    student = await students.create(deps.actor, {
       name: ASSESSMENT_DEMO.studentName,
       email,
       userId: user.id,

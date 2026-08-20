@@ -35,6 +35,7 @@ function QuestionStack({
   questions,
   startIndex,
   answers,
+  itemReviews,
   currentIndex,
   highlightCurrent,
   readOnly,
@@ -65,6 +66,7 @@ function QuestionStack({
               question={withFilteredAttachments(question, hideAudioKey)}
               index={absoluteIndex}
               localAnswer={answers[qid]}
+              itemReview={itemReviews?.[qid] || itemReviews?.[question.id] || null}
               readOnly={readOnly}
               onSingleChoice={onSingleChoice}
               onToggleMultiple={onToggleMultiple}
@@ -87,6 +89,7 @@ function QuestionStack({
 export default function LearnerQuestionBlocks({
   questions = [],
   answers = {},
+  itemReviews = null,
   currentIndex = 0,
   mode = 'list',
   readOnly = false,
@@ -127,6 +130,7 @@ export default function LearnerQuestionBlocks({
                 questions={block.questions}
                 startIndex={block.startIndex}
                 answers={answers}
+                itemReviews={itemReviews}
                 currentIndex={currentIndex}
                 highlightCurrent={highlightCurrent}
                 readOnly={readOnly}
@@ -157,6 +161,7 @@ export default function LearnerQuestionBlocks({
                 questions={block.questions}
                 startIndex={block.startIndex}
                 answers={answers}
+                itemReviews={itemReviews}
                 currentIndex={currentIndex}
                 highlightCurrent={highlightCurrent}
                 readOnly={readOnly}
@@ -195,6 +200,7 @@ export default function LearnerQuestionBlocks({
               question={question}
               index={absoluteIndex}
               localAnswer={answers[qid]}
+              itemReview={itemReviews?.[qid] || itemReviews?.[question.id] || null}
               readOnly={readOnly}
               onSingleChoice={onSingleChoice}
               onToggleMultiple={onToggleMultiple}

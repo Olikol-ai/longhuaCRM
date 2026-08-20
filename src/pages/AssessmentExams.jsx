@@ -132,8 +132,8 @@ export default function AssessmentExams() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Экзамены</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <h1 className="text-2xl font-bold text-foreground">Экзамены</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             {isAdmin
               ? 'Все экзамены всех авторов: наборы заданий и публикация'
               : 'При старте экзамена вопросы подбираются случайно из вашего набора'}
@@ -208,12 +208,12 @@ export default function AssessmentExams() {
           <Loader2 className="h-6 w-6 animate-spin text-brand" />
         </div>
       ) : visibleExams.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-10 text-center space-y-3">
-          <BookOpen className="h-10 w-10 mx-auto text-slate-400" />
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+        <div className="rounded-2xl border border-dashed border-border p-10 text-center space-y-3">
+          <BookOpen className="h-10 w-10 mx-auto text-muted-foreground" />
+          <h2 className="text-lg font-semibold text-foreground">
             Экзаменов пока нет
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-muted-foreground">
             Создайте экзамен из вопросов и заданий на аудирование и чтение.
           </p>
           <Button
@@ -233,20 +233,20 @@ export default function AssessmentExams() {
             return (
               <article
                 key={exam.id}
-                className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/80 p-4 sm:p-5"
+                className="rounded-2xl border border-border bg-card/80 p-4 sm:p-5"
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 space-y-1.5">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-base font-semibold text-slate-900 dark:text-white truncate">
+                      <h2 className="text-base font-semibold text-foreground truncate">
                         {exam.name}
                       </h2>
                       <LifecycleBadge status={exam.status} />
                     </div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                    <p className="text-sm text-muted-foreground">
                       Случайный набор вопросов при старте экзамена
                     </p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-muted-foreground">
                       Создан: {formatDateTime(exam.created_at)}
                       {isAdmin && authorName ? ` · Автор: ${authorName}` : ''}
                     </p>

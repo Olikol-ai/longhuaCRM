@@ -2,7 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
+import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
+import { NotificationDeliveryService } from '../notifications/notification-delivery.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { formatLessonTime } from '../telegram/telegram-messages';
@@ -19,6 +21,7 @@ export class LessonRescheduledNotifier {
 
   constructor(
     private readonly notifications: NotificationsService,
+    private readonly delivery: NotificationDeliveryService,
     private readonly telegram: TelegramService,
     private readonly config: ConfigService,
     @InjectRepository(StudentEntity)
@@ -69,16 +72,18 @@ export class LessonRescheduledNotifier {
 
     const inAppTitle = 'Время занятия изменено';
     const inAppBody = 'Преподаватель изменил время вашего занятия.';
+    const eventId = randomUUID();
 
-    await this.notifications.create({
-      userId: student.userId,
-      channel: 'in_app',
-      type: 'lesson_rescheduled',
+    await this.delivery.fanoutToRecipient({
+      eventId,
+      eventType: 'lesson.rescheduled',
+      recipientId: student.userId,
       title: inAppTitle,
       body: inAppBody,
-      status: 'sent',
       referenceType: 'lesson',
       referenceId: payload.lessonId,
+      payload: { lessonId: payload.lessonId },
+      channels: ['in_app', 'web_push'],
     });
 
     if (!telegramId) {
@@ -114,6 +119,7 @@ export class LessonRescheduledNotifier {
       status: sent.ok ? 'sent' : 'failed',
       referenceType: 'lesson',
       referenceId: payload.lessonId,
+      eventId,
     });
   }
 

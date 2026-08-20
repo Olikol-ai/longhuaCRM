@@ -98,7 +98,7 @@ export class JitsiVideoProvider implements VideoProvider {
 
     const roomName = this.sanitizeRoomId(input.roomId);
     const roomUrl = `${base}/${roomName}`;
-    const { token } = this.jitsiJwt.sign({
+    const { token, expiresAt } = this.jitsiJwt.sign({
       roomName,
       userId: input.userId || `crm-${roomName}`,
       displayName,
@@ -128,6 +128,7 @@ export class JitsiVideoProvider implements VideoProvider {
       roomUrl,
       displayName,
       token,
+      tokenExpiresAt: expiresAt,
       embedUrl: `${roomUrl}#${embedParts.join('&')}`,
       domain,
       roomName,

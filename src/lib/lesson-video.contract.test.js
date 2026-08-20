@@ -17,12 +17,35 @@ import {
   shouldSuggestPresent,
   ATTENDANCE_SUGGEST_MS,
   videoConnectionMeta,
+  mapVideoConferenceError,
+  mapLinkQualityScore,
+  linkQualityMeta,
 } from './lesson-video.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 
 describe('lesson-video helpers', () => {
+  it('maps conference errors to human Russian copy', () => {
+    const media = mapVideoConferenceError('NotAllowedError: Permission denied');
+    assert.match(media.title, /камер|микрофон/i);
+    assert.equal(media.code, 'media_permission');
+    const net = mapVideoConferenceError('NetworkError: timeout');
+    assert.equal(net.code, 'network');
+    const generic = mapVideoConferenceError('');
+    assert.ok(generic.description.length > 20);
+  });
+
+  it('maps link quality scores to traffic-light labels', () => {
+    assert.equal(mapLinkQualityScore(90), 'excellent');
+    assert.equal(mapLinkQualityScore(50), 'good');
+    assert.equal(mapLinkQualityScore(30), 'fair');
+    assert.equal(mapLinkQualityScore(10), 'poor');
+    assert.equal(mapLinkQualityScore(0), 'lost');
+    assert.equal(linkQualityMeta('excellent').label, 'Отличное');
+    assert.equal(linkQualityMeta('lost').tone, 'bad');
+  });
+
   it('builds CRM video path', () => {
     assert.equal(lessonVideoPath('abc'), '/lesson/abc/video');
   });
@@ -58,9 +81,14 @@ describe('lesson-video helpers', () => {
     assert.equal(config.toolbarButtons.length, 0);
     assert.ok(!config.toolbarButtons.includes('invite'));
 
+    assert.equal(config.p2p?.enabled, false);
+    assert.equal(config.filmstrip?.disableStageFilmstrip, false);
+
     const ui = buildJitsiInterfaceConfigOverwrite();
     assert.equal(ui.APP_NAME, 'Longhua');
+    assert.equal(ui.SHOW_JITSI_WATERMARK, false);
     assert.equal(ui.MOBILE_APP_PROMO, false);
+    assert.equal(ui.AUTO_PIN_LATEST_SCREEN_SHARE, 'remote-only');
     assert.match(JITSI_IFRAME_ALLOW, /camera/);
     assert.match(JITSI_IFRAME_ALLOW, /microphone/);
     assert.match(JITSI_IFRAME_ALLOW, /display-capture/);
@@ -68,10 +96,10 @@ describe('lesson-video helpers', () => {
   });
 
   it('maps connection status labels in Russian', () => {
-    assert.equal(videoConnectionMeta('connecting').label, 'Подключение…');
-    assert.equal(videoConnectionMeta('connected').label, 'Подключено');
-    assert.equal(videoConnectionMeta('degraded').label, 'Проблемы соединения');
-    assert.equal(videoConnectionMeta('reconnecting').label, 'Переподключение…');
+    assert.equal(videoConnectionMeta('connecting').label, 'Подключаемся…');
+    assert.equal(videoConnectionMeta('connected').label, 'На связи');
+    assert.equal(videoConnectionMeta('degraded').label, 'Слабое соединение');
+    assert.equal(videoConnectionMeta('reconnecting').label, 'Восстановление…');
   });
 
   it('matches Jitsi display names and suggests present after long connection', () => {
@@ -177,6 +205,8 @@ describe('Video lesson UI contract', () => {
 
   it('uses Russian labels and External API embed', () => {
     const page = readFileSync(join(root, 'pages/LessonVideo.jsx'), 'utf8');
+    const layer = readFileSync(join(root, 'components/video/VideoSessionLayer.jsx'), 'utf8');
+    const sessionCtx = readFileSync(join(root, 'lib/VideoSessionContext.jsx'), 'utf8');
     const embed = readFileSync(join(root, 'components/video/JitsiLessonEmbed.jsx'), 'utf8');
     const prejoin = readFileSync(join(root, 'components/video/VideoPrejoin.jsx'), 'utf8');
     const controls = readFileSync(join(root, 'components/video/LessonVideoControls.jsx'), 'utf8');
@@ -188,34 +218,49 @@ describe('Video lesson UI contract', () => {
     );
     const student = readFileSync(join(root, 'pages/StudentLessons.jsx'), 'utf8');
     const layout = readFileSync(join(root, 'Layout.jsx'), 'utf8');
+    const app = readFileSync(join(root, 'App.jsx'), 'utf8');
 
     assert.match(page, /lesson-video-page/);
     assert.match(page, /Китайский язык/);
     assert.match(page, /Войти в урок|Начать урок/);
-    assert.match(page, /LessonVideoSideRail/);
-    assert.match(page, /LessonVideoControls/);
-    assert.match(controls, /Завершить/);
+    assert.match(page, /startSession|useVideoSession/);
+    assert.match(layer, /LessonVideoSideRail/);
+    assert.match(layer, /LessonVideoControls/);
+    assert.match(controls, /Завершить|Выйти/);
     assert.match(rail, /Материалы/);
     assert.match(rail, /Домашнее задание|ДЗ/);
     assert.match(rail, /Чат/);
-    assert.match(rail, /Посещаемость/);
-    assert.match(rail, /canManageAttendance/);
-    assert.match(rail, /lesson-video-attendance/);
-    assert.match(rail, /attendance-suggest-present|Рекомендуем: Был/);
-    assert.match(rail, /Уважительная причина/);
-    assert.match(rail, /Опоздал/);
-    // Attendance actions stay on the attendance tab, not the participants roster.
-    assert.match(rail, /tab === 'attendance'/);
-    assert.match(rail, /tab === 'participants'/);
-    assert.match(rail, /data-testid="lesson-video-participants"/);
-    assert.match(rail, /data-testid="lesson-video-attendance"/);
-    const participantsBlock = rail.slice(
-      rail.indexOf("tab === 'participants'"),
-      rail.indexOf("tab === 'attendance'"),
+    assert.doesNotMatch(rail, /Посещаемость|id: 'info'|id: 'participants'|id: 'attendance'/);
+    const people = readFileSync(
+      join(root, 'components/video/LessonVideoParticipantsPanel.jsx'),
+      'utf8',
     );
-    assert.doesNotMatch(participantsBlock, /Был|Не был|Опоздал|Уважительная причина/);
-    assert.match(page, /canManageAttendance/);
-    assert.match(page, /onPresenceChange|livePresence/);
+    const attendance = readFileSync(
+      join(root, 'components/video/LessonVideoAttendancePanel.jsx'),
+      'utf8',
+    );
+    const infoPanel = readFileSync(
+      join(root, 'components/video/LessonVideoInfoPanel.jsx'),
+      'utf8',
+    );
+    const shareBar = readFileSync(
+      join(root, 'components/video/LessonVideoScreenShareBar.jsx'),
+      'utf8',
+    );
+    const sharePreview = readFileSync(
+      join(root, 'components/video/LessonVideoSharePreview.jsx'),
+      'utf8',
+    );
+    assert.match(people, /data-testid="lesson-video-participants"/);
+    assert.match(people, /mergeRosterWithPresence|LessonVideoParticipantDevices/);
+    assert.match(people, /онлайн|офлайн|Закрепить|Pin|handRaised|Рука/);
+    assert.match(attendance, /data-testid="lesson-video-attendance"/);
+    assert.match(attendance, /attendance-suggest-present|Рекомендуем: Был/);
+    assert.match(attendance, /Уважительная причина|Опоздал/);
+    assert.match(infoPanel, /lesson-video-info|Информация|Урок:/);
+    assert.match(layer, /LessonVideoParticipantsPanel|LessonVideoAttendancePanel|LessonVideoInfoPanel/);
+    assert.match(layer, /canManageAttendance|attendanceOpen|settingsOpen/);
+    assert.match(layer, /onPresenceChange|livePresence|setLivePresence/);
     assert.match(embed, /onPresenceChange|getParticipantsInfo|participantJoined/);
     assert.match(prejoin, /Проверка оборудования/);
     assert.match(prejoin, /Камера/);
@@ -226,59 +271,90 @@ describe('Video lesson UI contract', () => {
     assert.match(prejoin, /Проверка…|Проверено|Ошибка/);
     assert.match(prejoin, /Работает|Не найден|Хорошее|Проблемы/);
     assert.match(prejoin, /min-h-11|min-h-12/);
-    // Prejoin inherits CRM ThemeContext via design tokens — no local theme picker.
     assert.match(prejoin, /bg-card|text-card-foreground|border-border/);
     assert.doesNotMatch(prejoin, /useTheme|isDark|prefers-color-scheme|neutral-950/);
-    assert.match(page, /Не удалось подключиться к видеоконференции/);
-    assert.match(page, /lesson-video-retry|Повторить/);
+    assert.match(page, /Не удалось подключиться к видеоконференции|Не удалось подключиться к видеоуроку/);
+    assert.match(page, /Повторить подключение|Повторить/);
     assert.match(embed, /joinedOnceRef|conferenceFailed|connectionFailed/);
+    assert.match(embed, /isTransientVideoError|videoDiag|transient/);
     assert.match(embed, /JitsiMeetExternalAPI/);
     assert.match(embed, /loadJitsiExternalApi/);
     assert.match(embed, /executeCommand\('displayName'/);
     assert.match(embed, /displayName/);
     assert.match(embed, /Подключение к видеоконференции/);
     assert.match(embed, /onConnectionStatus|connectionInterrupted/);
-    // Must not remount conference when jwt / displayName props change.
     assert.match(embed, /Intentionally omit jwt|room identity only/);
     assert.match(embed, /crmTheme/);
-    assert.match(page, /useTheme|data-theme/);
-    assert.match(page, /crmTheme=\{theme/);
-    assert.match(page, /bg-background|bg-card/);
-    assert.doesNotMatch(page, /isDark|neutral-950|prefers-color-scheme/);
+    assert.match(layer, /useTheme|data-theme/);
+    assert.match(layer, /crmTheme=\{theme/);
+    assert.match(layer, /bg-background|bg-card/);
+    assert.match(layer, /LessonVideoFilmstrip|remoteOrLocalShare/);
+    assert.match(layer, /transient|refreshSessionToken/);
+    assert.match(sessionCtx, /refreshSessionToken|tokenExpiresAt/);
+    assert.doesNotMatch(layer, /isDark|neutral-950|prefers-color-scheme/);
     assert.match(controls, /bg-card\/95|border-border/);
     assert.doesNotMatch(controls, /neutral-950|bg-black\/|isDark/);
     assert.match(rail, /bg-card|border-border|text-muted-foreground/);
     assert.doesNotMatch(rail, /isDark|neutral-950|useTheme/);
-    assert.match(page, /sessionJwt|sessionJwtRef/);
-    assert.match(page, /jitsiRef\.current\?\.resize/);
+    assert.match(page, /startSession/);
+    assert.match(layer, /jitsiRef|resize/);
     assert.match(layout, /LessonVideo/);
     assert.doesNotMatch(layout, /LessonVideo[\s\S]*bg-slate-950/);
     assert.match(teacher, /SchoolScheduleCalendar/);
     assert.match(teacherCalendar, /Начать видеоурок/);
     assert.match(student, /Войти в видеоурок/);
 
-    assert.match(page, /videoConnectionMeta|lesson-video-connection/);
-    assert.match(page, /useIsLgUp/);
-    assert.match(page, /grid-cols-\[minmax\(0,1fr\)/);
-    assert.match(page, /DESKTOP_RAIL_WIDTH|lesson-rail-w/);
-    assert.match(page, /side="bottom"/);
-    assert.match(page, /openSheetTab|lesson-video-dock-chat/);
-    assert.match(controls, /flex-col|DockRow|min-h-11/);
-    assert.match(controls, /Завершить/);
-    assert.match(controls, /Посещаемость|Участники|Настройки|ДЗ/);
-    assert.match(controls, /min-h-11|min-h-12/);
-    assert.doesNotMatch(controls, /overflow-x-auto|max-w-\[calc\(100vw/);
-    assert.match(rail, /участник|преподаватель|репетитор|ученик/i);
-    assert.match(rail, /mergeRosterWithPresence/);
+    assert.match(layer, /videoConnectionMeta|lesson-video-connection/);
+    assert.match(layer, /useIsLgUp/);
+    assert.doesNotMatch(layer, /DESKTOP_RAIL_WIDTH|lesson-rail-w|desktopRailVisible/);
+    assert.match(layer, /side=\{isDesktop|side="right"|side="bottom"/);
+    assert.match(layer, /openStudyPanel|onOpenChat/);
+    assert.match(controls, /DockButton|h-12|Участники|Свернуть|Настройки/);
+    assert.match(controls, /Завершить|Выйти/);
+    assert.match(controls, /LessonVideoParticipantsPanel|Popover/);
+    assert.match(controls, /min-h-11|h-12|h-\[3\.25rem\]/);
+    assert.doesNotMatch(controls, /overflow-x-auto|Посещаемость|DockRow/);
+    assert.match(people, /преподаватель|репетитор|ученик/i);
     assert.match(rail, /activeTab|onActiveTabChange/);
     assert.match(rail, /openMaterial|lesson-video-materials/);
-    assert.match(rail, /openCrmInNewTab|noopener/);
-    // In-app Link navigation away from /lesson/:id/video would dispose Jitsi.
+    assert.match(rail, /onRequestNavigate|chatPanelVisible/);
+    assert.doesNotMatch(rail, /onPinParticipant|mergeRosterWithPresence/);
+    assert.doesNotMatch(rail, /Разрешите всплывающие окна/);
+    assert.doesNotMatch(rail, /window\.open\(/);
+    assert.match(app, /VideoSessionProvider|VideoSessionLayer/);
+    assert.match(page, /startSession|useVideoSession|мини/i);
+    assert.match(sessionCtx, /minimize|expand|startSession|endSession|beforeunload/);
+    assert.match(sessionCtx, /enterPipMode|exitPipMode|pip/);
+    assert.match(sessionCtx, /localStorage|lh-crm-video-mini-pos|computeMiniSize/);
+    assert.match(layer, /lesson-video-mini|Свернуть урок|toggleShareScreen|useDocumentVideoPiP|documentPictureInPicture|Поверх окон|Вынести видео поверх окон/);
+    assert.match(layer, /lesson-video-mini-people|participants/);
+    assert.match(layer, /overflow-x-hidden|max-w-\[100vw\]/);
+    assert.match(layer, /VideoScreenShareAudioHint/);
+    assert.match(layer, /LessonVideoLeaveDialog|LessonVideoChatToast|LessonVideoScreenShareBar/);
+    assert.match(layer, /LessonVideoSharePreview|shareLabel|shareStartedAt/);
+    assert.match(layer, /LessonVideoLinkQuality|onLinkQualityChanged|linkQuality/);
+    assert.match(layer, /pinParticipant|setLargeVideoParticipant/);
+    assert.match(shareBar, /Вы демонстрируете|Остановить|Сменить источник|lesson-video-share-timer/);
+    assert.match(sharePreview, /lesson-video-share-preview|Видят ученики/);
+    assert.match(embed, /removeListener|devicechange|connectionQualityChanged|raiseHandUpdated/);
+    assert.match(rail, /AuthenticatedAudio|sendAudioFile|audio\/\*/);
+    assert.match(rail, /flex-wrap/);
+    assert.doesNotMatch(rail, /overflow-x-auto/);
     assert.doesNotMatch(rail, /Link to=\{materialsPath\}|<Link to=\{materialsPath\}/);
     assert.doesNotMatch(rail, /asChild[\s\S]*materialsPath/);
+    assert.doesNotMatch(layer, /Параметры производительности/);
+    assert.doesNotMatch(controls, /Параметры производительности/);
     assert.match(page, /crmUserId|crmEmail/);
-    assert.match(page, /Only swaps SidePanel content|never remount Jitsi/);
+    assert.match(layer, /onRequestNavigate|minimize/);
     assert.match(embed, /crmUserId|setParticipantProperty|coalesceLivePresence/);
+    const shareHint = readFileSync(
+      join(root, 'components/video/VideoScreenShareAudioHint.jsx'),
+      'utf8',
+    );
+    assert.match(shareHint, /Передавать звук|Share tab audio|вкладк/i);
+    assert.match(shareHint, /type="checkbox"|lesson-video-share-audio-checkbox/);
+    const helpersSrc = readFileSync(join(root, 'lib/lesson-video.js'), 'utf8');
+    assert.match(helpersSrc, /SHOW_PERFORMANCE_SETTINGS:\s*false|MAIN_TOOLBAR_BUTTONS/);
 
     assert.doesNotMatch(page, /\bMeeting\b|\bRoom\b|\bLogin\b|\bJoin\b|\bLeave\b|Video conference/);
     assert.doesNotMatch(prejoin, /\bMeeting\b|\bRoom\b|\bLogin\b|\bJoin\b/);

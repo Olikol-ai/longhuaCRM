@@ -229,6 +229,25 @@ export class MarkReadDto {
   messageId?: string;
 }
 
+/** Per-user list preferences (USER+CHAT). Partial patch. */
+export class UpdateChatMemberPrefsDto {
+  @IsOptional()
+  @IsBoolean()
+  archived?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  pinned?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  muted?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  favorite?: boolean;
+}
+
 export class ListMessagesDto {
   @IsOptional()
   @Type(() => Number)

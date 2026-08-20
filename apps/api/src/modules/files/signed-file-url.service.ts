@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac, timingSafeEqual } from 'crypto';
+import { resolveJwtSecret } from '../../config/jwt-secret.util';
 
 export interface SignedFilePayload {
   materialId: string;
@@ -62,8 +63,7 @@ export class SignedFileUrlService {
   }
 
   private hmac(body: string): string {
-    const secret =
-      this.config.get<string>('jwt.secret') ?? 'longhua-dev-secret-change-in-production';
+    const secret = resolveJwtSecret(this.config);
     return createHmac('sha256', secret).update(body).digest('base64url');
   }
 }

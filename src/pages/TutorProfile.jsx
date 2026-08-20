@@ -66,12 +66,12 @@ function TagListEditor({ values, onChange, placeholder }) {
         {values.map((name) => (
           <span
             key={name}
-            className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-sm"
+            className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-sm"
           >
             {name}
             <button
               type="button"
-              className="text-slate-400 hover:text-red-500"
+              className="text-muted-foreground hover:text-red-500"
               onClick={() => onChange(values.filter((v) => v !== name))}
             >
               <X className="w-3.5 h-3.5" />
@@ -241,13 +241,13 @@ export default function TutorProfile() {
   return (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-5" data-testid="tutor-profile-page">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">Профиль</h1>
-        <p className="text-sm text-slate-500 mt-1">
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground">Профиль</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           Ваши данные и настройки работы. Администратор также может их редактировать.
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-1 border-b border-slate-100 dark:border-slate-800 pb-px">
+      <div className="flex flex-wrap gap-1 border-b border-border pb-px">
         {TABS.map((item) => {
           const Icon = item.icon;
           const active = tab === item.id;
@@ -258,8 +258,8 @@ export default function TutorProfile() {
               onClick={() => setTab(item.id)}
               className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap rounded-t-lg ${
                 active
-                  ? 'bg-white dark:bg-slate-900 text-brand border border-b-white dark:border-b-slate-900 border-slate-200 dark:border-slate-700 -mb-px'
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-card text-brand border border-b-white dark:border-b-slate-900 border-border -mb-px'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -357,7 +357,7 @@ export default function TutorProfile() {
                       className={`px-3 py-1.5 rounded-lg text-sm border ${
                         active
                           ? 'bg-brand text-white border-brand'
-                          : 'border-slate-200 dark:border-slate-700 text-slate-600'
+                          : 'border-border text-muted-foreground'
                       }`}
                     >
                       {minutes} мин
@@ -409,11 +409,11 @@ export default function TutorProfile() {
                 onChange={(e) => setForm((f) => ({ ...f, defaultLessonPrice: e.target.value }))}
                 placeholder="BYN"
               />
-              <p className="text-xs text-slate-400">{priceHint}</p>
+              <p className="text-xs text-muted-foreground">{priceHint}</p>
             </div>
-            <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 p-4">
-              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Материалы репетитора</p>
-              <p className="text-xs text-slate-400 mt-1">
+            <div className="rounded-xl border border-dashed border-border p-4">
+              <p className="text-sm font-medium text-foreground">Материалы репетитора</p>
+              <p className="text-xs text-muted-foreground mt-1">
                 Архитектура готова (название, описание, ссылка/файл). Раздел будет расширен позже.
               </p>
             </div>

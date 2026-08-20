@@ -1,5 +1,15 @@
-import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
-import { MaterialFileType } from '../entities/material.entity';
+import { Type } from 'class-transformer';
+import {
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  Min,
+} from 'class-validator';
+import { MATERIAL_FILE_TYPES, MaterialFileType } from '../entities/material.entity';
 
 export class CreateMaterialDto {
   @IsUUID()
@@ -13,10 +23,35 @@ export class CreateMaterialDto {
   fileUrl?: string;
 
   @IsOptional()
-  @IsEnum(['pdf', 'pptx', 'video', 'link', 'other'])
+  @IsIn(MATERIAL_FILE_TYPES)
   fileType?: MaterialFileType;
 
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  mimeType?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  fileSizeBytes?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  durationSeconds?: number;
+
+  @IsOptional()
+  @IsString()
+  originalFilename?: string;
+
+  @IsOptional()
+  @IsString()
+  storedFilename?: string;
 }

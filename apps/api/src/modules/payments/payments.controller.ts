@@ -74,20 +74,24 @@ export class PaymentsController {
   }
 
   @Post()
-  @Roles('admin')
-  createPayment(@Body() dto: CreatePaymentDto) {
-    return this.paymentsService.createPayment(dto);
+  @Roles('admin', 'teacher')
+  createPayment(@CurrentUser() user: JwtPayload, @Body() dto: CreatePaymentDto) {
+    return this.paymentsService.createPayment(user, dto);
   }
 
   @Patch(':id')
-  @Roles('admin')
-  updatePayment(@Param('id') id: string, @Body() dto: UpdatePaymentDto) {
-    return this.paymentsService.updatePayment(id, dto);
+  @Roles('admin', 'teacher')
+  updatePayment(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdatePaymentDto,
+  ) {
+    return this.paymentsService.updatePayment(user, id, dto);
   }
 
   @Delete(':id')
   @Roles('admin')
-  deletePayment(@Param('id') id: string) {
-    return this.paymentsService.deletePayment(id);
+  deletePayment(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.paymentsService.deletePayment(user, id);
   }
 }

@@ -130,7 +130,7 @@ export default function HomeworkAssignment() {
     >
       <div className="min-w-0">
         <h1 className="text-xl sm:text-2xl font-bold break-words">Назначить домашнее задание</h1>
-        <p className="text-sm text-slate-500 mt-1 break-words">
+        <p className="text-sm text-muted-foreground mt-1 break-words">
           Выберите готовое задание или{' '}
           <button
             type="button"
@@ -142,7 +142,7 @@ export default function HomeworkAssignment() {
         </p>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border p-4 sm:p-5 space-y-4 min-w-0">
+      <div className="bg-card rounded-2xl border p-4 sm:p-5 space-y-4 min-w-0">
         <div className="min-w-0">
           <label className="block text-xs font-medium mb-1">Задание</label>
           <select
@@ -170,12 +170,12 @@ export default function HomeworkAssignment() {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <label className="block text-xs font-medium">Ученики</label>
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-muted-foreground">
               Выбрано: {selectedStudents.length} / {students.length}
             </span>
           </div>
           {students.length === 0 ? (
-            <p className="text-sm text-slate-500 border rounded-lg p-4">
+            <p className="text-sm text-muted-foreground border rounded-lg p-4">
               Нет доступных учеников для назначения.
             </p>
           ) : (
@@ -188,7 +188,7 @@ export default function HomeworkAssignment() {
                     className={`flex items-start gap-3 min-h-11 text-sm p-2.5 rounded-lg cursor-pointer min-w-0 ${
                       checked
                         ? 'bg-brand/10 border border-brand/20'
-                        : 'hover:bg-slate-50 dark:hover:bg-slate-800 border border-transparent'
+                        : 'hover:bg-muted border border-transparent'
                     }`}
                   >
                     <input
@@ -199,7 +199,7 @@ export default function HomeworkAssignment() {
                     />
                     <span className="min-w-0 break-words">
                       <span className="font-medium block">{s.name}</span>
-                      <span className="text-xs text-slate-500">{s.kindLabel}</span>
+                      <span className="text-xs text-muted-foreground">{s.kindLabel}</span>
                     </span>
                   </label>
                 );

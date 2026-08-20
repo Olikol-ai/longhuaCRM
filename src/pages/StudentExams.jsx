@@ -75,9 +75,9 @@ export default function StudentExams() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Мои экзамены</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Назначенные экзамены Longhua Academy — прохождение и результаты
+          <h1 className="text-2xl font-bold text-foreground">Мои экзамены</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Назначенные экзамены: статус, сроки и переход к сдаче
           </p>
         </div>
         <Button
@@ -112,12 +112,12 @@ export default function StudentExams() {
           <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-brand-muted dark:bg-brand-soft/60">
             <ClipboardList className="h-10 w-10 text-brand dark:text-brand" />
           </div>
-          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
+          <h2 className="text-xl font-semibold text-foreground">
             Пока вам не назначено ни одного экзамена.
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
-            Когда администратор назначит экзамен, он появится здесь — вы сможете пройти его
-            и получить результат.
+          <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
+            Когда преподаватель назначит экзамен, он появится здесь — вы сможете
+            прочитать описание и начать сдачу.
           </p>
         </div>
       )}
@@ -136,7 +136,7 @@ export default function StudentExams() {
       </div>
 
       {cards.some((c) => c.status === EXAM_UI_STATUS.IN_PROGRESS) && (
-        <p className="text-xs text-slate-400 dark:text-slate-500 text-center">
+        <p className="text-xs text-muted-foreground text-center">
           Незавершённый экзамен можно продолжить — ответы сохраняются автоматически.
         </p>
       )}

@@ -4,9 +4,12 @@ import { BookOpen, ClipboardCheck, History, Loader2, Plus, Send, Trash2, Users }
 import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/design-system';
 import { toast } from '@/components/ui/use-toast';
 import { createPageUrl } from '@/utils';
 import { userFacingError } from '@/lib/userFacingError';
+import { OfflineSnapshotBanner } from '@/components/pwa/OfflineSnapshotBanner';
+import { OFFLINE_RESOURCES, readWithOfflineFallback } from '@/lib/offline';
 
 const HW_STATUS_LABEL = {
   draft: 'Черновик',
@@ -67,16 +70,44 @@ export default function HomeworkList() {
   const [deletingId, setDeletingId] = useState(null);
   const [statusFilter, setStatusFilter] = useState('');
   const [authorFilter, setAuthorFilter] = useState('');
+  const [offlineMeta, setOfflineMeta] = useState({ fromCache: false, updatedAt: null, missing: false });
 
   const load = async () => {
     setLoading(true);
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
     try {
-      const [hw, asg] = await Promise.all([
-        api.homework.list(),
-        api.homework.listAssignments(),
-      ]);
-      setRows(Array.isArray(hw) ? hw : []);
-      setAssignments(Array.isArray(asg) ? asg : []);
+      const result = await readWithOfflineFallback({
+        userId: user.id,
+        role: user.role || 'teacher',
+        resource: OFFLINE_RESOURCES.HOMEWORK,
+        resourceKey: 'list',
+        fetcher: async () => {
+          const [hw, asg] = await Promise.all([
+            api.homework.list(),
+            api.homework.listAssignments(),
+          ]);
+          return {
+            rows: Array.isArray(hw) ? hw : [],
+            assignments: Array.isArray(asg) ? asg : [],
+          };
+        },
+      });
+      setOfflineMeta({
+        fromCache: result.fromCache,
+        updatedAt: result.updatedAt,
+        missing: result.missing,
+      });
+      setRows(result.data?.rows || []);
+      setAssignments(result.data?.assignments || []);
+      if (result.missing) {
+        toast({
+          title: 'Домашние задания недоступны без подключения',
+          variant: 'destructive',
+        });
+      }
     } catch (err) {
       toast({
         title: 'Не удалось загрузить задания',
@@ -89,8 +120,8 @@ export default function HomeworkList() {
   };
 
   useEffect(() => {
-    void load();
-  }, []);
+    if (user?.id) void load();
+  }, [user?.id]);
 
   const authorOptions = useMemo(
     () => [...new Set(rows.map((r) => r.owner_name).filter(Boolean))],
@@ -154,12 +185,18 @@ export default function HomeworkList() {
       className="p-3 sm:p-6 lg:p-8 w-full max-w-6xl mx-auto space-y-4 sm:space-y-6 min-w-0 overflow-x-hidden"
       data-testid="homework-list"
     >
+      <OfflineSnapshotBanner
+        fromCache={offlineMeta.fromCache}
+        updatedAt={offlineMeta.updatedAt}
+        missing={offlineMeta.missing}
+        emptyLabel="Домашние задания пока недоступны без подключения"
+      />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between min-w-0">
         <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white break-words">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground break-words">
             Домашние задания
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 break-words">
+          <p className="text-sm text-muted-foreground mt-1 break-words">
             {isAdmin
               ? 'Все задания преподавателей и репетиторов'
               : user?.role === 'tutor'
@@ -177,7 +214,7 @@ export default function HomeworkList() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 min-w-0">
+      <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 border-b border-border pb-2 min-w-0">
         {TABS.map((item) => {
           const Icon = item.icon;
           const active = tab === item.id;
@@ -197,7 +234,7 @@ export default function HomeworkList() {
               className={`inline-flex min-h-11 sm:min-h-10 items-center justify-center gap-1.5 sm:gap-2 rounded-lg px-2.5 sm:px-3 py-2 text-xs sm:text-sm transition min-w-0 ${
                 active
                   ? 'bg-brand/10 text-brand font-medium'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  : 'text-muted-foreground hover:bg-muted'
               }`}
               data-testid={`homework-tab-${item.id}`}
             >
@@ -240,9 +277,13 @@ export default function HomeworkList() {
           )}
 
           {visibleRows.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 p-8 sm:p-10 text-center text-slate-500">
-              <BookOpen className="h-8 w-8 mx-auto mb-3 opacity-50" />
-              Пока нет домашних заданий. Создайте первое.
+            <div className="rounded-2xl border border-dashed border-border">
+              <EmptyState
+                preset="homework"
+                title="Пока нет домашних заданий"
+                description="Создайте первое задание, чтобы назначить его ученикам."
+                icon={BookOpen}
+              />
             </div>
           ) : (
             <>
@@ -250,20 +291,20 @@ export default function HomeworkList() {
                 {visibleRows.map((hw) => (
                   <div
                     key={hw.id}
-                    className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4 space-y-3 min-w-0"
+                    className="bg-card rounded-2xl border border-border p-4 space-y-3 min-w-0"
                   >
                     <div className="min-w-0">
-                      <h2 className="font-semibold text-slate-800 dark:text-slate-100 break-words">
+                      <h2 className="font-semibold text-foreground break-words">
                         {hw.title}
                       </h2>
-                      <p className="text-xs text-slate-500 mt-1 break-words">
+                      <p className="text-xs text-muted-foreground mt-1 break-words">
                         {ACTIVITY_LABEL[hw.activity_kind] || hw.activity_kind}
                         {' · '}
                         {HW_STATUS_LABEL[hw.status] || hw.status}
                         {' · '}
                         вопросов: {hw.item_count ?? 0}
                       </p>
-                      <p className="text-xs text-slate-500 mt-0.5 break-words">
+                      <p className="text-xs text-muted-foreground mt-0.5 break-words">
                         {hw.owner_name ? `Автор: ${hw.owner_name}` : 'Автор: —'}
                         {hw.created_at ? ` · ${formatDate(hw.created_at)}` : ''}
                       </p>
@@ -290,7 +331,7 @@ export default function HomeworkList() {
                       </Button>
                       <Link
                         to={`${createPageUrl('HomeworkResults')}?homeworkId=${hw.id}`}
-                        className="inline-flex min-h-10 items-center justify-center px-3 text-xs rounded-md border border-slate-200 dark:border-slate-700"
+                        className="inline-flex min-h-10 items-center justify-center px-3 text-xs rounded-md border border-border"
                       >
                         Результаты
                       </Link>
@@ -315,10 +356,10 @@ export default function HomeworkList() {
                 ))}
               </div>
 
-              <div className="hidden md:block rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+              <div className="hidden md:block rounded-2xl border border-border overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
-                    <thead className="bg-slate-50 dark:bg-slate-900/60 text-left text-slate-500">
+                    <thead className="bg-muted text-left text-muted-foreground">
                       <tr>
                         <th className="px-4 py-3 font-medium">Название</th>
                         <th className="px-4 py-3 font-medium">Тип</th>
@@ -332,13 +373,13 @@ export default function HomeworkList() {
                       {visibleRows.map((hw) => (
                         <tr
                           key={hw.id}
-                          className="border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900"
+                          className="border-t border-border bg-card"
                         >
                           <td className="px-4 py-3 max-w-[220px]">
-                            <div className="font-medium text-slate-800 dark:text-slate-100 break-words">
+                            <div className="font-medium text-foreground break-words">
                               {hw.title}
                             </div>
-                            <div className="text-xs text-slate-500 mt-0.5">
+                            <div className="text-xs text-muted-foreground mt-0.5">
                               {HW_STATUS_LABEL[hw.status] || hw.status}
                             </div>
                           </td>
@@ -373,7 +414,7 @@ export default function HomeworkList() {
                               </Button>
                               <Link
                                 to={`${createPageUrl('HomeworkResults')}?homeworkId=${hw.id}`}
-                                className="inline-flex items-center px-3 py-1.5 text-sm rounded-md border border-slate-200 dark:border-slate-700"
+                                className="inline-flex items-center px-3 py-1.5 text-sm rounded-md border border-border"
                               >
                                 Результаты
                               </Link>
@@ -437,8 +478,8 @@ export default function HomeworkList() {
 function AssignmentTable({ rows, empty, onOpen, showDeadline, history, emphasizeStatus }) {
   if (!rows.length) {
     return (
-      <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 p-8 sm:p-10 text-center text-slate-500">
-        {empty}
+      <div className="rounded-2xl border border-dashed border-border">
+        <EmptyState preset="homework" title={empty} icon={ClipboardCheck} />
       </div>
     );
   }
@@ -449,20 +490,20 @@ function AssignmentTable({ rows, empty, onOpen, showDeadline, history, emphasize
         {rows.map((row) => (
           <div
             key={row.id}
-            className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4 space-y-3 min-w-0"
+            className="bg-card rounded-2xl border border-border p-4 space-y-3 min-w-0"
           >
             <div className="min-w-0 space-y-1">
-              <p className="font-semibold text-slate-800 dark:text-slate-100 break-words">
+              <p className="font-semibold text-foreground break-words">
                 {row.learner_name || '—'}
               </p>
               <p className="text-sm break-words">{row.title || '—'}</p>
-              <p className="text-xs text-slate-500 break-words">
+              <p className="text-xs text-muted-foreground break-words">
                 {ACTIVITY_LABEL[row.activity_kind] || row.activity_kind || ''}
                 {row.progress?.total
                   ? ` · ${row.progress.answered ?? 0}/${row.progress.total}`
                   : ''}
               </p>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-500 pt-1">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground pt-1">
                 <span>
                   {history ? 'Дата' : 'Назначено'}:{' '}
                   {formatDate(
@@ -501,10 +542,10 @@ function AssignmentTable({ rows, empty, onOpen, showDeadline, history, emphasize
         ))}
       </div>
 
-      <div className="hidden md:block rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+      <div className="hidden md:block rounded-2xl border border-border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-900/60 text-left text-slate-500">
+            <thead className="bg-muted text-left text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Ученик</th>
                 <th className="px-4 py-3 font-medium">Задание</th>
@@ -525,14 +566,14 @@ function AssignmentTable({ rows, empty, onOpen, showDeadline, history, emphasize
               {rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900"
+                  className="border-t border-border bg-card"
                 >
-                  <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100 max-w-[160px] break-words">
+                  <td className="px-4 py-3 font-medium text-foreground max-w-[160px] break-words">
                     {row.learner_name || '—'}
                   </td>
                   <td className="px-4 py-3 max-w-[220px]">
                     <div className="break-words">{row.title || '—'}</div>
-                    <div className="text-xs text-slate-500 mt-0.5 break-words">
+                    <div className="text-xs text-muted-foreground mt-0.5 break-words">
                       {ACTIVITY_LABEL[row.activity_kind] || row.activity_kind || ''}
                       {row.progress?.total
                         ? ` · ${row.progress.answered ?? 0}/${row.progress.total}`

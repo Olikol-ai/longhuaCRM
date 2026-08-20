@@ -27,7 +27,7 @@ export type JitsiJwtResult = {
 
 /**
  * Single CRM authority for HS256 Jitsi JWTs.
- * Tokens are short-lived; clients refresh via GET /api/video/lessons/:id.
+ * Tokens last for a full lesson (default 4h). Clients may refresh via POST /api/video/lessons/:id/token.
  */
 @Injectable()
 export class JitsiJwtService {
@@ -59,10 +59,11 @@ export class JitsiJwtService {
   ttlSeconds(): number {
     const raw =
       this.config.get<number>('video.jitsiJwtTtlSeconds') ??
-      parseInt(process.env.JITSI_JWT_TTL_SECONDS || '900', 10);
+      parseInt(process.env.JITSI_JWT_TTL_SECONDS || '14400', 10);
     const n = Number(raw);
-    if (!Number.isFinite(n) || n < 60) return 900;
-    return Math.min(n, 3600);
+    // Default 4h covers a long lesson + buffer. Cap 8h.
+    if (!Number.isFinite(n) || n < 300) return 14400;
+    return Math.min(n, 28800);
   }
 
   assertCorporateHost(domain: string): void {

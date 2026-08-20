@@ -461,8 +461,8 @@ export default function AssessmentQuestions() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Вопросы</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <h1 className="text-2xl font-bold text-foreground">Вопросы</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             {isAdmin
               ? 'Вопросы всех авторов: тесты, аудирование и чтение'
               : 'Тестовые вопросы, задания на аудирование и чтение'}
@@ -554,7 +554,7 @@ export default function AssessmentQuestions() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
         <div className="relative sm:col-span-2 lg:col-span-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             className="pl-9"
             placeholder="Поиск…"
@@ -624,8 +624,8 @@ export default function AssessmentQuestions() {
             <Loader2 className="h-6 w-6 animate-spin text-brand" />
           </div>
         ) : visibleQuestions.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-10 text-center space-y-3">
-            <FileQuestion className="h-10 w-10 mx-auto text-slate-400" />
+          <div className="rounded-2xl border border-dashed border-border p-10 text-center space-y-3">
+            <FileQuestion className="h-10 w-10 mx-auto text-muted-foreground" />
             <h2 className="text-lg font-semibold">Вопросов не найдено</h2>
             <Button className="bg-primary hover:bg-primary/90" onClick={openCreate}>
               <Plus className="h-4 w-4 mr-2" />
@@ -636,7 +636,7 @@ export default function AssessmentQuestions() {
           <div className="space-y-6">
             {ownerTree.map((group) => (
               <section key={group.ownerId} className="space-y-3">
-                <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                <h2 className="text-sm font-semibold text-foreground">
                   Автор: {group.ownerName}
                 </h2>
                 {group.rows.map((row) => (
@@ -681,8 +681,8 @@ export default function AssessmentQuestions() {
           <Loader2 className="h-6 w-6 animate-spin text-brand" />
         </div>
       ) : filteredTasks.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-10 text-center space-y-3">
-          <p className="text-sm text-slate-500">Задач пока нет</p>
+        <div className="rounded-2xl border border-dashed border-border p-10 text-center space-y-3">
+          <p className="text-sm text-muted-foreground">Задач пока нет</p>
           <Button onClick={() => openCreateTask(tab)}>
             <Plus className="h-4 w-4 mr-2" />
             Создать {CONTENT_TASK_TYPE_LABEL[tab]}
@@ -694,7 +694,7 @@ export default function AssessmentQuestions() {
             (task) => (
               <article
                 key={task.id}
-                className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/80 p-4 sm:p-5"
+                className="rounded-2xl border border-border bg-card/80 p-4 sm:p-5"
               >
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0 space-y-2 flex-1">
@@ -704,13 +704,13 @@ export default function AssessmentQuestions() {
                       </span>
                       <LifecycleBadge status={task.status} />
                       {isAdmin && task.created_by_user_id ? (
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-muted-foreground">
                           {ownerNames[task.created_by_user_id] || task.created_by_user_id.slice(0, 8)}
                         </span>
                       ) : null}
                     </div>
                     <p className="text-sm sm:text-base font-medium">{task.title}</p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-muted-foreground">
                       Вопросов: {(task.questions || []).length} ·{' '}
                       {formatDateTime(task.updated_at || task.created_at)}
                     </p>
@@ -872,7 +872,7 @@ export default function AssessmentQuestions() {
 function QuestionCardRow({ q, busyId, canDelete, onPreview, onEdit, onConfirm, authorName, showAuthor }) {
   return (
     <article
-      className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/80 p-4 sm:p-5"
+      className="rounded-2xl border border-border bg-card/80 p-4 sm:p-5"
       data-testid={`question-row-${q.id}`}
     >
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -883,13 +883,13 @@ function QuestionCardRow({ q, busyId, canDelete, onPreview, onEdit, onConfirm, a
             </span>
             <LifecycleBadge status={q.status} />
             {showAuthor && authorName ? (
-              <span className="text-xs text-slate-500">Автор: {authorName}</span>
+              <span className="text-xs text-muted-foreground">Автор: {authorName}</span>
             ) : null}
           </div>
-          <p className="text-sm sm:text-base text-slate-900 dark:text-white line-clamp-3 whitespace-pre-wrap">
+          <p className="text-sm sm:text-base text-foreground line-clamp-3 whitespace-pre-wrap">
             {q.stem}
           </p>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-muted-foreground">
             {q.points != null ? `${q.points} балл(ов) · ` : ''}
             Сложность {q.difficulty ?? '—'} · Создан: {formatDateTime(q.created_at)} · Обновлён:{' '}
             {formatDateTime(q.updated_at || q.created_at)}

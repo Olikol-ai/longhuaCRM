@@ -13,7 +13,8 @@ import { MaterialFolderEntity } from './entities/material-folder.entity';
 import { CreateMaterialDto } from './dto/create-material.dto';
 import { CreateMaterialFolderDto } from './dto/create-material-folder.dto';
 import { UpdateMaterialDto } from './dto/update-material.dto';
-import { UpdateMaterialFolderDto } from './dto/update-material-folder.dto';
+import { UpdateMaterialFolderDto, MATERIAL_FOLDER_NAME_MAX_LENGTH } from './dto/update-material-folder.dto';
+import { assertCanUpdateMaterialFolder } from './folder-update-acl.util';
 import { MaterialAccessService } from './material-access.service';
 import { MaterialsRepository } from './materials.repository';
 
@@ -72,6 +73,10 @@ export class MaterialsService {
   async createMaterial(actor: JwtPayload, dto: CreateMaterialDto): Promise<MaterialEntity> {
     const created = await this.repository.saveMaterial({
       ...dto,
+      fileSizeBytes:
+        dto.fileSizeBytes === undefined || dto.fileSizeBytes === null
+          ? undefined
+          : String(dto.fileSizeBytes),
       createdByUserId: actor.sub,
     });
     const grantedByRole =
@@ -107,7 +112,23 @@ export class MaterialsService {
       }
     }
 
-    const row = await this.repository.updateMaterial(id, dto);
+    const patch: Partial<MaterialEntity> = {
+      folderId: dto.folderId,
+      title: dto.title,
+      fileUrl: dto.fileUrl,
+      fileType: dto.fileType,
+      description: dto.description,
+      mimeType: dto.mimeType,
+      durationSeconds: dto.durationSeconds,
+      originalFilename: dto.originalFilename,
+      storedFilename: dto.storedFilename,
+    };
+    if (dto.fileSizeBytes !== undefined) {
+      patch.fileSizeBytes =
+        dto.fileSizeBytes === null ? null : String(dto.fileSizeBytes);
+    }
+
+    const row = await this.repository.updateMaterial(id, patch);
     if (!row) {
       throw new NotFoundException('Material not found');
     }
@@ -207,6 +228,11 @@ export class MaterialsService {
         fileUrl: material.fileUrl,
         fileType: material.fileType,
         description: material.description,
+        mimeType: material.mimeType ?? null,
+        fileSizeBytes: material.fileSizeBytes ?? null,
+        durationSeconds: material.durationSeconds ?? null,
+        originalFilename: material.originalFilename ?? null,
+        storedFilename: material.storedFilename ?? null,
         status: material.status,
         createdByUserId: material.createdByUserId ?? null,
         createdAt: material.createdAt,
@@ -283,6 +309,10 @@ export class MaterialsService {
     actor: JwtPayload,
     dto: CreateMaterialFolderDto,
   ): Promise<MaterialFolderEntity> {
+    const name = dto.name.trim();
+    if (!name) {
+      throw new BadRequestException('Название папки обязательно');
+    }
     const role = normalizeRole(actor.role);
     if (role === 'tutor') {
       if (dto.courseTemplateId) {
@@ -292,18 +322,62 @@ export class MaterialsService {
       }
       return this.repository.saveFolder({
         ...dto,
+        name,
         courseTemplateId: null,
         createdByUserId: actor.sub,
       });
     }
     return this.repository.saveFolder({
       ...dto,
+      name,
       createdByUserId: actor.sub,
     });
   }
 
-  async updateFolder(id: string, dto: UpdateMaterialFolderDto): Promise<MaterialFolderEntity> {
-    const row = await this.repository.updateFolder(id, dto);
+  async updateFolder(
+    actor: JwtPayload,
+    id: string,
+    dto: UpdateMaterialFolderDto,
+  ): Promise<MaterialFolderEntity> {
+    const existing = await this.repository.findFolderById(id);
+    if (!existing) {
+      throw new NotFoundException('Material folder not found');
+    }
+
+    assertCanUpdateMaterialFolder(actor, existing, dto);
+
+    const patch: Partial<MaterialFolderEntity> = {};
+
+    if (dto.name !== undefined) {
+      const name = dto.name.trim();
+      if (!name) {
+        throw new BadRequestException('Название папки обязательно');
+      }
+      if (name.length > MATERIAL_FOLDER_NAME_MAX_LENGTH) {
+        throw new BadRequestException(
+          `Название папки не длиннее ${MATERIAL_FOLDER_NAME_MAX_LENGTH} символов`,
+        );
+      }
+      if (name !== existing.name) {
+        patch.name = name;
+      }
+    }
+
+    if (dto.courseTemplateId !== undefined) {
+      patch.courseTemplateId = dto.courseTemplateId;
+    }
+    if (dto.parentId !== undefined) {
+      patch.parentId = dto.parentId;
+    }
+    if (dto.sortOrder !== undefined) {
+      patch.sortOrder = dto.sortOrder;
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return existing;
+    }
+
+    const row = await this.repository.updateFolder(id, patch);
     if (!row) {
       throw new NotFoundException('Material folder not found');
     }

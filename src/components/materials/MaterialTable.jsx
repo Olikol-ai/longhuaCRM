@@ -18,7 +18,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { getMaterialTypeInfo } from '@/lib/materialIcons';
 import { downloadMaterialFile, openMaterial } from '@/lib/materialUrl';
-import { unpackMaterialDescription } from '@/lib/materialMeta';
+import {
+  isCanvaMaterial,
+  isExternalLinkMaterial,
+  resolveMaterialDisplayTitle,
+  unpackMaterialDescription,
+} from '@/lib/materialMeta';
 import { setMaterialDragData } from '@/lib/materialDrag';
 import { toast } from '@/components/ui/use-toast';
 import AccessSourceBadges from './AccessSourceBadges';
@@ -48,6 +53,9 @@ export default function MaterialTable({
   onAccess,
   onDelete,
   deletingId,
+  emptyHint,
+  showResetFilters = false,
+  onResetFilters,
 }) {
   const allSelected = materials.length > 0 && materials.every((m) => selectedIds.has(m.id));
   const mayEdit = (mat) =>
@@ -90,7 +98,7 @@ export default function MaterialTable({
 
   const handleDownload = async (mat) => {
     try {
-      await downloadMaterialFile(mat, mat.title);
+      await downloadMaterialFile(mat, resolveMaterialDisplayTitle(mat));
     } catch (err) {
       toast({
         title: 'Не удалось скачать',
@@ -103,11 +111,22 @@ export default function MaterialTable({
   if (materials.length === 0) {
     return (
       <div
-        className="flex flex-col items-center justify-center py-16 px-6 border border-dashed border-border rounded-xl bg-card"
+        className="flex flex-col items-center justify-center py-16 px-6 border border-dashed border-border rounded-xl bg-card gap-3"
         data-testid="admin-materials-empty"
       >
         <p className="text-sm font-medium text-muted-foreground">Материалы не найдены</p>
-        <p className="text-xs text-muted-foreground mt-1">Измените фильтры или добавьте материал</p>
+        {emptyHint ? (
+          <p className="text-xs text-muted-foreground text-center">{emptyHint}</p>
+        ) : null}
+        {showResetFilters && onResetFilters ? (
+          <button
+            type="button"
+            onClick={onResetFilters}
+            className="inline-flex items-center px-3 py-2 min-h-touch text-sm rounded-lg border border-border hover:bg-brand-soft hover:text-brand"
+          >
+            Сбросить фильтры
+          </button>
+        ) : null}
       </div>
     );
   }
@@ -117,11 +136,13 @@ export default function MaterialTable({
       {/* Mobile cards */}
       <div className="lg:hidden divide-y divide-border">
         {materials.map((mat) => {
-          const typeInfo = getMaterialTypeInfo(mat.file_type);
+          const typeInfo = getMaterialTypeInfo(mat);
           const Icon = typeInfo.icon;
           const selected = selectedIds.has(mat.id);
+          const displayTitle = resolveMaterialDisplayTitle(mat);
+          const externalLink = isExternalLinkMaterial(mat) || isCanvaMaterial(mat);
           return (
-            <div key={mat.id} className="p-4 space-y-3">
+            <div key={mat.id} className="p-4 space-y-3" data-testid={`material-row-mobile-${mat.id}`}>
               <div className="flex items-start gap-3 min-w-0">
                 {canManage ? (
                   <input
@@ -131,11 +152,17 @@ export default function MaterialTable({
                     className="mt-1 h-5 w-5 rounded border-border accent-brand shrink-0"
                   />
                 ) : null}
-                <div className="h-10 w-10 rounded-lg flex items-center justify-center shrink-0 bg-muted text-muted-foreground">
-                  <Icon className="h-5 w-5" />
+                <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${typeInfo.bg}`}>
+                  <Icon className={`h-5 w-5 ${typeInfo.color}`} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-foreground break-words">{mat.title || mat.name || 'Без названия'}</p>
+                  <p
+                    className="text-sm font-semibold text-foreground break-words line-clamp-2"
+                    title={displayTitle}
+                    data-testid={`material-title-${mat.id}`}
+                  >
+                    {displayTitle}
+                  </p>
                   <p className="text-xs text-muted-foreground mt-0.5">{typeInfo.label}</p>
                 </div>
               </div>
@@ -147,13 +174,15 @@ export default function MaterialTable({
                 >
                   Открыть
                 </button>
-                <button
-                  type="button"
-                  className="inline-flex items-center px-3 py-2 min-h-touch text-sm rounded-lg border border-border"
-                  onClick={() => handleDownload(mat)}
-                >
-                  Скачать
-                </button>
+                {externalLink ? null : (
+                  <button
+                    type="button"
+                    className="inline-flex items-center px-3 py-2 min-h-touch text-sm rounded-lg border border-border"
+                    onClick={() => handleDownload(mat)}
+                  >
+                    Скачать
+                  </button>
+                )}
                 {mayEdit(mat) ? (
                   <button
                     type="button"
@@ -183,7 +212,7 @@ export default function MaterialTable({
                   />
                 </th>
               )}
-              <th className="px-3 py-2.5 text-left font-medium">Название</th>
+              <th className="px-3 py-2.5 text-left font-medium min-w-[14rem] w-[42%]">Название</th>
               <th className="px-3 py-2.5 text-left font-medium hidden sm:table-cell">Тип</th>
               <th className="px-3 py-2.5 text-left font-medium hidden md:table-cell">Курс</th>
               <th className="px-3 py-2.5 text-left font-medium hidden lg:table-cell">Папка</th>
@@ -193,11 +222,13 @@ export default function MaterialTable({
           </thead>
           <tbody>
             {materials.map((mat) => {
-              const typeInfo = getMaterialTypeInfo(mat.file_type);
+              const typeInfo = getMaterialTypeInfo(mat);
               const Icon = typeInfo.icon;
               const meta = unpackMaterialDescription(mat.description);
               const selected = selectedIds.has(mat.id);
               const draggable = Boolean(canDragMaterials && mayEdit(mat));
+              const displayTitle = resolveMaterialDisplayTitle(mat);
+              const externalLink = isExternalLinkMaterial(mat) || isCanvaMaterial(mat);
 
               return (
                 <tr
@@ -217,6 +248,7 @@ export default function MaterialTable({
                     selected ? 'bg-brand-soft/60 dark:bg-brand-soft/20' : ''
                   } ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
                   title={draggable ? 'Перетащите в курс или папку слева' : undefined}
+                  data-testid={`material-row-${mat.id}`}
                 >
                   {canManage && (
                     <td className="px-3 py-2.5">
@@ -236,27 +268,29 @@ export default function MaterialTable({
                       </div>
                     </td>
                   )}
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-start gap-2.5 min-w-0">
+                  <td className="px-3 py-2.5 min-w-0 max-w-0 w-[42%]">
+                    <div className="flex items-start gap-2.5 min-w-0 w-full">
                       {!canManage && draggable && (
-                        <span className="mt-2 text-muted-foreground shrink-0" aria-hidden>
+                        <span className="mt-1.5 text-muted-foreground shrink-0" aria-hidden>
                           <GripVertical className="h-3.5 w-3.5" />
                         </span>
                       )}
                       <div className={`h-9 w-9 rounded-lg ${typeInfo.bg} flex items-center justify-center shrink-0`}>
                         <Icon className={`h-4 w-4 ${typeInfo.color}`} />
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1 overflow-hidden">
                         <button
                           type="button"
-                          className="font-medium text-foreground truncate text-left hover:text-brand hover:underline"
+                          className="block w-full max-w-full text-left text-sm font-semibold text-foreground hover:text-brand hover:underline break-words whitespace-normal line-clamp-2"
+                          title={displayTitle}
+                          data-testid={`material-title-${mat.id}`}
                           onClick={() => handleOpen(mat)}
                           onMouseDown={(e) => e.stopPropagation()}
                         >
-                          {mat.title}
+                          {displayTitle}
                         </button>
                         {meta.blockName && (
-                          <p className="text-xs text-muted-foreground mt-0.5">{meta.blockName}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">{meta.blockName}</p>
                         )}
                         <AccessSourceBadges sources={mat.access_sources} className="mt-1" />
                       </div>
@@ -288,10 +322,12 @@ export default function MaterialTable({
                           <Eye className="h-4 w-4 mr-2" />
                           Открыть
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDownload(mat)}>
-                          <Download className="h-4 w-4 mr-2" />
-                          Скачать
-                        </DropdownMenuItem>
+                        {externalLink ? null : (
+                          <DropdownMenuItem onClick={() => handleDownload(mat)}>
+                            <Download className="h-4 w-4 mr-2" />
+                            Скачать
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={() => handleOpen(mat)}>
                           <ExternalLink className="h-4 w-4 mr-2" />
                           В новой вкладке

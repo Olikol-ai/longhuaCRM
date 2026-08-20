@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '@/api';
-import { BookOpen, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { BookOpen } from 'lucide-react';
+import { Button, PasswordInput } from '@/design-system';
 import { REGISTRATION_PASSWORD_HINT } from '@/lib/passwordPolicy';
 import { userFacingError } from '@/lib/userFacingError';
 
@@ -46,17 +45,17 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <BookOpen className="h-10 w-10 text-brand" />
-            <h1 className="text-3xl font-bold text-foreground tracking-tight">Longhua Academy</h1>
+    <div className="min-h-screen flex items-center justify-center bg-background page-pad safe-pb">
+      <div className="w-full max-w-md min-w-0">
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="flex items-center justify-center gap-2 mb-3 min-w-0">
+            <BookOpen className="h-9 w-9 sm:h-10 sm:w-10 text-brand shrink-0" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight truncate">Longhua Academy</h1>
           </div>
           <p className="text-muted-foreground">Новый пароль</p>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl p-6 space-y-5">
+        <div className="bg-card rounded-2xl border border-border shadow-xl p-6 space-y-5">
           <h2 className="text-xl font-semibold text-foreground text-center">Задать новый пароль</h2>
 
           {!token ? (
@@ -67,19 +66,19 @@ export default function ResetPassword() {
               </p>
               <Link
                 to="/forgot-password"
-                className="block text-center text-sm font-medium text-brand hover:text-brand hover:underline"
+                className="block text-center text-sm font-medium text-brand hover:underline"
               >
                 Восстановить пароль
               </Link>
             </div>
           ) : success ? (
             <div className="space-y-4" data-testid="reset-password-success">
-              <p className="text-sm text-slate-700 dark:text-slate-300 bg-emerald-50 dark:bg-emerald-950/30 p-4 rounded-lg leading-relaxed">
+              <p className="text-sm text-foreground bg-emerald-50 dark:bg-emerald-950/30 p-4 rounded-lg leading-relaxed">
                 {success}
               </p>
               <Link
                 to="/login"
-                className="block text-center text-sm font-medium text-brand hover:text-brand hover:underline"
+                className="block text-center text-sm font-medium text-brand hover:underline"
               >
                 Перейти ко входу
               </Link>
@@ -89,11 +88,11 @@ export default function ResetPassword() {
               <input type="hidden" name="token" value={token} data-testid="reset-password-token" />
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1" htmlFor="reset-password">
                   Новый пароль
                 </label>
-                <Input
-                  type="password"
+                <PasswordInput
+                  id="reset-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
@@ -105,11 +104,11 @@ export default function ResetPassword() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1" htmlFor="reset-password-confirm">
                   Подтвердите пароль
                 </label>
-                <Input
-                  type="password"
+                <PasswordInput
+                  id="reset-password-confirm"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••"
@@ -120,31 +119,25 @@ export default function ResetPassword() {
               </div>
 
               {error && (
-                <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
+                <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg" role="alert">
                   {error}
                 </p>
               )}
 
               <Button
                 type="submit"
-                disabled={loading}
-                className="w-full bg-primary hover:bg-primary/90"
+                intent="primary"
+                loading={loading}
+                className="w-full"
                 data-testid="reset-password-submit"
               >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Сохранение...
-                  </>
-                ) : (
-                  'Сохранить пароль'
-                )}
+                Сохранить пароль
               </Button>
 
               <div className="text-center">
                 <Link
                   to="/login"
-                  className="text-sm text-brand hover:text-brand hover:underline"
+                  className="text-sm text-brand hover:underline"
                 >
                   Вернуться ко входу
                 </Link>

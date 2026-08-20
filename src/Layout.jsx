@@ -20,6 +20,7 @@ import {
   CreditCard,
   NotebookPen,
   MessageSquare,
+  Bell,
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import { useAuth } from "@/lib/AuthContext";
@@ -38,6 +39,10 @@ import {
   refreshChatUnread,
   UNREAD_POLL_INTERVAL_MS,
 } from "@/lib/chat-unread-sync";
+import NotificationCenter from "@/components/pwa/NotificationCenter";
+import { fetchNotificationUnreadCount } from "@/lib/pwa/notificationsApi";
+import { bindNotificationNavigate } from "@/lib/pwa/pushClient";
+import { useNavigate } from "react-router-dom";
 
 const adminNav = [
   { name: "Главная", icon: LayoutDashboard, page: "Dashboard" },
@@ -48,6 +53,7 @@ const adminNav = [
   { name: "Группы", icon: Users, page: "Groups" },
   { name: "Сертификаты", icon: Award, page: "Certificates" },
   { name: "Платежи", icon: CreditCard, page: "Payments" },
+  { name: "Домашние задания", icon: NotebookPen, page: "HomeworkList" },
   { name: "Материалы", icon: BookOpen, page: "MaterialsHub" },
   { name: "HSK Academy", icon: Award, page: "HskAcademy" },
   { name: "Студия HSK", icon: BookOpen, page: "ExamContent" },
@@ -60,11 +66,12 @@ const teacherNav = [
   { name: "Чаты", icon: MessageSquare, page: "Chats" },
   { name: "Моё расписание", icon: Calendar, page: "TeacherSchedule" },
   { name: "Ученики", icon: Users, page: "TeacherStudents" },
+  { name: "Платежи", icon: CreditCard, page: "Payments" },
   { name: "HSK Academy", icon: Award, page: "HskAcademy" },
   { name: "Студия HSK", icon: BookOpen, page: "ExamContent" },
-  { name: "Экзамены", icon: ClipboardList, page: "TeacherAssessment" },
+  { name: "Мои экзамены", icon: ClipboardList, page: "TeacherAssessment" },
   { name: "Мои вопросы", icon: BookOpen, page: "AssessmentQuestions" },
-  { name: "Мои экзамены", icon: ClipboardList, page: "AssessmentExams" },
+  { name: "Каталог экзаменов", icon: ClipboardList, page: "AssessmentExams" },
   { name: "Домашние задания", icon: NotebookPen, page: "HomeworkList" },
   { name: "Материалы", icon: BookOpen, page: "MaterialsHub" },
   { name: "Профиль", icon: UserCircle, page: "Profile" },
@@ -117,9 +124,29 @@ const NAV_BY_ROLE = {
 export default function Layout({ children, currentPageName }) {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const [chatUnread, setChatUnread] = React.useState(0);
+  const [notifUnread, setNotifUnread] = React.useState(0);
+  const [notifOpen, setNotifOpen] = React.useState(false);
   const { theme, toggleTheme } = useTheme();
   const auth = useAuth();
-  const { user, isAuthenticated, logout } = auth;
+  const { user, isAuthenticated, logout, isLoggingOut } = auth;
+  const navigate = useNavigate();
+
+  React.useEffect(() => {
+    return bindNotificationNavigate((url) => navigate(url));
+  }, [navigate]);
+
+  React.useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    void fetchNotificationUnreadCount()
+      .then(setNotifUnread)
+      .catch(() => setNotifUnread(0));
+    const id = window.setInterval(() => {
+      void fetchNotificationUnreadCount()
+        .then(setNotifUnread)
+        .catch(() => {});
+    }, 60_000);
+    return () => window.clearInterval(id);
+  }, [isAuthenticated]);
 
   React.useEffect(() => {
     if (!sidebarOpen) return undefined;
@@ -185,6 +212,8 @@ export default function Layout({ children, currentPageName }) {
 
   // Full-bleed lesson video shell — no CRM sidebar; video owns the viewport.
   // Do not force dark theme here — LessonVideo follows ThemeContext.
+  // VideoSessionLayer is mounted at App level (not here) so Layout swaps
+  // never remount Jitsi when minimizing into the CRM shell.
   if (currentPageName === 'LessonVideo') {
     return (
       <div className="h-dvh max-h-dvh overflow-hidden bg-background">
@@ -256,9 +285,25 @@ export default function Layout({ children, currentPageName }) {
           <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
+              onClick={() => setNotifOpen(true)}
+              className="relative hidden lg:flex p-2 min-h-touch min-w-touch items-center justify-center text-muted-foreground hover:text-foreground rounded-lg hover:bg-brand-soft hover:text-brand transition-colors"
+              title="Уведомления"
+              aria-label="Уведомления"
+              data-testid="notification-bell-desktop"
+            >
+              <Bell className="h-4 w-4" />
+              {notifUnread > 0 ? (
+                <span className="absolute top-1 right-1 flex min-w-4 h-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-white">
+                  {notifUnread > 99 ? '99+' : notifUnread}
+                </span>
+              ) : null}
+            </button>
+            <button
+              type="button"
               onClick={toggleTheme}
               className="hidden lg:flex p-2 min-h-touch min-w-touch items-center justify-center text-muted-foreground hover:text-foreground rounded-lg hover:bg-brand-soft hover:text-brand transition-colors"
               title="Переключить тему"
+              aria-label="Переключить тему"
             >
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
@@ -338,8 +383,10 @@ export default function Layout({ children, currentPageName }) {
             <button
               type="button"
               onClick={logout}
-              className="p-2 min-h-touch min-w-touch inline-flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors shrink-0 rounded-lg"
+              disabled={Boolean(isLoggingOut)}
+              className="p-2 min-h-touch min-w-touch inline-flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors shrink-0 rounded-lg disabled:opacity-50"
               aria-label="Выйти"
+              aria-busy={isLoggingOut ? 'true' : undefined}
             >
               <LogOut className="h-4 w-4" />
             </button>
@@ -348,7 +395,7 @@ export default function Layout({ children, currentPageName }) {
       </aside>
 
       <div className="flex flex-col min-h-app min-w-0 w-full max-w-full lg:pl-64">
-        <header className="lg:hidden sticky top-0 z-30 shrink-0 bg-card border-b border-border safe-pt">
+        <header className="lh-crm-mobile-header lg:hidden sticky top-0 z-30 shrink-0 bg-card border-b border-border safe-pt">
           <div className="h-14 flex items-center justify-between px-3 sm:px-4 safe-px">
             <div className="flex items-center gap-2 min-w-0">
               <button
@@ -361,21 +408,43 @@ export default function Layout({ children, currentPageName }) {
               </button>
               <span className="font-semibold text-foreground truncate">Longhua</span>
             </div>
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className="p-2 min-h-touch min-w-touch inline-flex items-center justify-center text-muted-foreground hover:text-brand transition-colors rounded-lg"
-              aria-label="Переключить тему"
-            >
-              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => setNotifOpen(true)}
+                className="relative p-2 min-h-touch min-w-touch inline-flex items-center justify-center text-muted-foreground hover:text-brand transition-colors rounded-lg"
+                aria-label="Уведомления"
+                data-testid="notification-bell"
+              >
+                <Bell className="h-5 w-5" />
+                {notifUnread > 0 ? (
+                  <span className="absolute top-1 right-1 flex min-w-4 h-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-white">
+                    {notifUnread > 99 ? '99+' : notifUnread}
+                  </span>
+                ) : null}
+              </button>
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="p-2 min-h-touch min-w-touch inline-flex items-center justify-center text-muted-foreground hover:text-brand transition-colors rounded-lg"
+                aria-label="Переключить тему"
+              >
+                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
         </header>
 
-        <main className="flex-1 min-w-0 w-full max-w-full overflow-x-hidden safe-pb">
+        <main className="lh-crm-main flex-1 min-w-0 w-full max-w-full overflow-x-hidden safe-pb">
           {children}
         </main>
       </div>
+
+      <NotificationCenter
+        open={notifOpen}
+        onClose={() => setNotifOpen(false)}
+        onUnreadChange={setNotifUnread}
+      />
     </div>
   );
 }

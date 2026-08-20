@@ -1,6 +1,11 @@
 import { createPortal } from "react-dom";
+import {
+  DELETE_SCOPE_OPTIONS,
+  STATUS_SCOPE_OPTIONS,
+  isSeriesWideScope,
+} from "@/lib/lessonSeriesScope";
 
-const OPTIONS = [
+const EDIT_OPTIONS = [
   {
     value: "this",
     title: "Только это занятие",
@@ -19,7 +24,12 @@ const OPTIONS = [
 ];
 
 /**
- * Ask how to apply edits to a weekly recurrence series (calendar-style scopes).
+ * Ask how to apply edits / status changes / deletes to a weekly recurrence series.
+ *
+ * @param {'edit'|'status'|'delete'} [mode='edit']
+ *   edit — this / following / all
+ *   status — this / all (cancel & similar)
+ *   delete — this / all
  */
 export default function RecurrenceApplyScopeDialog({
   open,
@@ -27,9 +37,43 @@ export default function RecurrenceApplyScopeDialog({
   onChange,
   onConfirm,
   onCancel,
-  title = "Что необходимо изменить?",
+  mode = "edit",
+  title,
+  confirmLabel,
+  subtitle,
 }) {
   if (!open) return null;
+
+  const options =
+    mode === "status"
+      ? STATUS_SCOPE_OPTIONS
+      : mode === "delete"
+        ? DELETE_SCOPE_OPTIONS
+        : EDIT_OPTIONS;
+
+  const heading =
+    title ||
+    (mode === "status"
+      ? "Отменить:"
+      : mode === "delete"
+        ? "Удалить занятие"
+        : "Что необходимо изменить?");
+
+  const helperText =
+    subtitle ||
+    (mode === "delete"
+      ? "Это занятие входит в серию. Что удалить?"
+      : "Урок входит в еженедельную серию. Выберите область применения.");
+
+  const resolvedConfirmLabel =
+    confirmLabel ||
+    (mode === "delete"
+      ? "Удалить"
+      : mode === "status"
+        ? "Применить"
+        : "Применить");
+
+  const confirmDanger = mode === "delete" && isSeriesWideScope(value);
 
   const modal = (
     <div
@@ -37,31 +81,33 @@ export default function RecurrenceApplyScopeDialog({
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 shadow-xl"
+        className="w-full max-w-md rounded-2xl bg-card shadow-xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="recurrence-scope-title"
+        data-testid="recurrence-apply-scope-dialog"
+        data-mode={mode}
       >
-        <div className="border-b border-slate-100 dark:border-slate-800 px-5 py-4">
+        <div className="border-b border-border px-5 py-4">
           <h3
             id="recurrence-scope-title"
-            className="text-base font-semibold text-slate-800 dark:text-slate-100"
+            className="text-base font-semibold text-foreground"
           >
-            {title}
+            {heading}
           </h3>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Урок входит в еженедельную серию. Выберите область применения.
-          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{helperText}</p>
         </div>
         <div className="space-y-2 px-5 py-4">
-          {OPTIONS.map((opt) => (
+          {options.map((opt) => (
             <label
               key={opt.value}
               className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${
                 value === opt.value
-                  ? "border-brand/40 bg-brand-soft dark:bg-brand-soft/30"
-                  : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  ? confirmDanger && opt.value === "all"
+                    ? "border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/40"
+                    : "border-brand/40 bg-brand-soft dark:bg-brand-soft/30"
+                  : "border-border hover:bg-muted"
               }`}
             >
               <input
@@ -72,30 +118,43 @@ export default function RecurrenceApplyScopeDialog({
                 onChange={() => onChange(opt.value)}
               />
               <span className="min-w-0">
-                <span className="block text-sm font-medium text-slate-800 dark:text-slate-100">
+                <span className="block text-sm font-medium text-foreground">
                   {opt.title}
                 </span>
-                <span className="block text-xs text-slate-500 dark:text-slate-400">
+                <span className="block text-xs text-muted-foreground">
                   {opt.description}
                 </span>
               </span>
             </label>
           ))}
+          {mode === "delete" && isSeriesWideScope(value) ? (
+            <p
+              className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+              data-testid="delete-series-warning"
+            >
+              Будут удалены все занятия этой серии.
+            </p>
+          ) : null}
         </div>
-        <div className="flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800 px-5 py-4">
+        <div className="flex justify-end gap-2 border-t border-border px-5 py-4">
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted dark:text-muted-foreground dark:hover:bg-slate-800"
           >
             Отмена
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            data-testid="recurrence-apply-scope-confirm"
+            className={`rounded-lg px-4 py-2 text-sm font-medium text-primary-foreground ${
+              mode === "delete"
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-primary hover:bg-primary/90"
+            }`}
           >
-            Применить
+            {resolvedConfirmLabel}
           </button>
         </div>
       </div>

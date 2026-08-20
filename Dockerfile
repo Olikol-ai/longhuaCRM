@@ -20,7 +20,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3001
 
-RUN apk add --no-cache tini font-dejavu font-noto-cjk
+RUN apk add --no-cache tini wget font-dejavu font-noto-cjk
 
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package-lock.json ./apps/api/
@@ -35,7 +35,7 @@ RUN mkdir -p uploads backups
 EXPOSE 3001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:3001/api/health/live || exit 1
+  CMD wget -qO- http://127.0.0.1:3001/api/health/ready || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["node", "apps/api/dist/main.js"]

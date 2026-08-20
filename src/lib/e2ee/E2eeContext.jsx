@@ -5,10 +5,16 @@ import {
   createAndWrapIdentity,
   unwrapPrivateKey,
   publicKeyToBase64,
+  rewrapPrivateKeyWithNewPassword,
+  rewrapWrappedPrivateKey,
+  E2EE_KDF_ITERATIONS,
 } from '@/lib/e2ee/keys.js';
 import {
   clearPeerCache,
   getE2eeStatus,
+  getMyKeyVersion,
+  getMyPrivateKey,
+  getMyPublicKeyB64,
   isE2eeReady,
   lockE2eeVault,
   setE2eeLockedFromServer,
@@ -136,6 +142,85 @@ export function E2eeProvider({ children }) {
     [refreshStatus, setupWithPassword],
   );
 
+  /**
+   * Keep the same identity key; re-wrap private material with the new password.
+   * Call this before Auth change-password so unlock still works.
+   */
+  const rewrapWithNewPassword = useCallback(
+    async (oldPassword, newPassword) => {
+      if (!oldPassword || !newPassword) {
+        throw new Error('Не удалось обновить ключ шифрования');
+      }
+      const me = await api.crypto.me();
+      if (!me?.configured || me.needsActivation || me.kdf === 'server-hold-v1') {
+        return { ok: true, skipped: true };
+      }
+      const previousWrap = {
+        publicKey: me.publicKey,
+        wrappedPrivateKey: me.wrappedPrivateKey,
+        wrapSalt: me.wrapSalt,
+        wrapIv: me.wrapIv,
+        algorithm: me.algorithm,
+        kdf: me.kdf,
+        kdfIterations: me.kdfIterations || E2EE_KDF_ITERATIONS,
+        keyVersion: me.keyVersion || 1,
+      };
+
+      let privateKey = getMyPrivateKey();
+      let wrapped;
+      try {
+        if (privateKey) {
+          wrapped = await rewrapPrivateKeyWithNewPassword(
+            privateKey,
+            newPassword,
+            previousWrap.kdfIterations,
+          );
+        } else {
+          const restored = await rewrapWrappedPrivateKey({
+            wrappedPrivateKey: me.wrappedPrivateKey,
+            wrapSalt: me.wrapSalt,
+            wrapIv: me.wrapIv,
+            oldPassword,
+            newPassword,
+            iterations: previousWrap.kdfIterations,
+          });
+          privateKey = restored.privateKey;
+          wrapped = restored;
+        }
+        await api.crypto.upsertMe({
+          publicKey: me.publicKey,
+          wrappedPrivateKey: wrapped.wrappedPrivateKey,
+          wrapSalt: wrapped.wrapSalt,
+          wrapIv: wrapped.wrapIv,
+          algorithm: wrapped.algorithm,
+          kdf: wrapped.kdf,
+          kdfIterations: wrapped.kdfIterations,
+          keyVersion: previousWrap.keyVersion,
+        });
+        setE2eeReady({
+          privateKey,
+          publicKeyB64: getMyPublicKeyB64() || me.publicKey,
+          keyVersion: getMyKeyVersion() || previousWrap.keyVersion,
+        });
+        refreshStatus();
+        return {
+          ok: true,
+          skipped: false,
+          rollback: async () => {
+            await api.crypto.upsertMe(previousWrap);
+          },
+        };
+      } catch (err) {
+        const message =
+          err?.message?.includes('парол') || err?.message?.includes('ключ')
+            ? err.message
+            : 'Не удалось обновить ключ шифрования личных чатов. Разблокируйте чаты текущим паролем и повторите смену пароля.';
+        throw new Error(message);
+      }
+    },
+    [refreshStatus],
+  );
+
   const value = useMemo(
     () => ({
       status,
@@ -146,10 +231,11 @@ export function E2eeProvider({ children }) {
       missing: status === 'missing',
       unlockWithPassword,
       setupWithPassword,
+      rewrapWithNewPassword,
       reload: loadServerState,
       publicKeyToBase64,
     }),
-    [status, busy, error, unlockWithPassword, setupWithPassword, loadServerState],
+    [status, busy, error, unlockWithPassword, setupWithPassword, rewrapWithNewPassword, loadServerState],
   );
 
   return <E2eeContext.Provider value={value}>{children}</E2eeContext.Provider>;

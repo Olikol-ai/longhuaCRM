@@ -11,9 +11,11 @@ import { UserEntity } from '../users/entities/user.entity';
 import { AttendanceEntity } from './entities/attendance.entity';
 import { LessonEntity } from './entities/lesson.entity';
 import { LessonRecurrenceSeriesEntity } from './entities/lesson-recurrence-series.entity';
+import { LessonRecurrenceExceptionEntity } from './entities/lesson-recurrence-exception.entity';
 import { LessonStudentChangeHistoryEntity } from './entities/lesson-student-change-history.entity';
 import { StudentBalanceService } from '../students/student-balance.service';
 import { LessonRecurrenceService } from './lesson-recurrence.service';
+import { LessonRecurrenceExceptionsService } from './lesson-recurrence-exceptions.service';
 import { LessonRescheduledNotifier } from './lesson-rescheduled.notifier';
 import { LessonUpdatedNotifier } from './lesson-updated.notifier';
 import { LessonsController } from './lessons.controller';
@@ -28,6 +30,7 @@ import { TeacherStudentContactsModule } from '../teacher-student-contacts/teache
     TypeOrmModule.forFeature([
       LessonEntity,
       LessonRecurrenceSeriesEntity,
+      LessonRecurrenceExceptionEntity,
       AttendanceEntity,
       LessonStudentChangeHistoryEntity,
       StudentEntity,
@@ -47,6 +50,7 @@ import { TeacherStudentContactsModule } from '../teacher-student-contacts/teache
     LessonsRepository,
     LessonsService,
     LessonRecurrenceService,
+    LessonRecurrenceExceptionsService,
     LessonsScheduler,
     StudentBalanceService,
     LessonRescheduledNotifier,
@@ -56,6 +60,7 @@ import { TeacherStudentContactsModule } from '../teacher-student-contacts/teache
     LessonsRepository,
     LessonsService,
     LessonRecurrenceService,
+    LessonRecurrenceExceptionsService,
     LessonsScheduler,
     TypeOrmModule,
   ],

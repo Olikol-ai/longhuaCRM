@@ -341,10 +341,10 @@ export default function QuestionFormDialog({
             <div className="space-y-1.5">
               <Label htmlFor="q-expl">
                 {type === 'speaking'
-                  ? 'Критерии проверки (не видны ученику)'
+                  ? 'Критерии проверки (только для проверяющего)'
                   : type === 'short_text' || type === 'translation'
-                    ? 'Рекомендуемый ответ / комментарии для проверяющего'
-                    : 'Пояснение (необязательно)'}
+                    ? 'Эталонный ответ для проверяющего'
+                    : 'Эталонный ответ / пояснение для проверяющего'}
               </Label>
               <Textarea
                 id="q-expl"
@@ -355,11 +355,15 @@ export default function QuestionFormDialog({
                   type === 'speaking'
                     ? 'Например: чёткость произношения, темп, грамматика…'
                     : type === 'short_text' || type === 'translation'
-                      ? 'Эталонный ответ или подсказки для проверяющего'
-                      : ''
+                      ? 'Эталонный ответ. Ученик не увидит его, пока при проверке не включить «Показывать правильный ответ».'
+                      : 'Не показывается ученику автоматически. Можно открыть после проверки отдельной настройкой.'
                 }
                 disabled={readOnly}
               />
+              <p className="text-xs text-muted-foreground">
+                Это поле для проверяющего. Комментарий ученику задаётся при проверке домашнего задания.
+                Правильный ответ ученик увидит только если преподаватель включит «Показывать правильный ответ ученику после проверки».
+              </p>
             </div>
 
             {showAnswers && (
@@ -377,7 +381,7 @@ export default function QuestionFormDialog({
                   {answers.map((row, index) => (
                     <div
                       key={index}
-                      className="flex items-start gap-2 rounded-xl border border-slate-200 dark:border-slate-700 p-2.5"
+                      className="flex items-start gap-2 rounded-xl border border-border p-2.5"
                     >
                       <input
                         type={
@@ -412,7 +416,7 @@ export default function QuestionFormDialog({
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-muted-foreground">
                   Отметьте правильный ответ слева от варианта.
                 </p>
               </div>
@@ -433,7 +437,7 @@ export default function QuestionFormDialog({
                     return (
                       <li
                         key={att.id}
-                        className="rounded-lg bg-slate-50 dark:bg-slate-800/60 px-2.5 py-2 space-y-2"
+                        className="rounded-lg bg-muted px-2.5 py-2 space-y-2"
                       >
                         <div className="flex items-center justify-between text-sm gap-2">
                           <span>
@@ -497,7 +501,7 @@ export default function QuestionFormDialog({
                 </div>
               )}
               {!editing && pendingFile && (
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-muted-foreground">
                   Файл будет загружен после создания вопроса: {pendingFile.name}
                 </p>
               )}

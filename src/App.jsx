@@ -14,6 +14,11 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import PendingApproval from './pages/PendingApproval';
 import { ThemeProvider } from '@/lib/ThemeContext';
+import { VideoSessionProvider } from '@/lib/VideoSessionContext';
+import VideoSessionLayer from '@/components/video/VideoSessionLayer';
+import PwaInstallController from '@/components/pwa/PwaInstallController';
+import PwaUpdateController from '@/components/pwa/PwaUpdateController';
+import OfflineStatusController from '@/components/pwa/OfflineStatusController';
 import NameFormModal from '@/components/auth/NameFormModal';
 import RoleRouteGuard, { RoleHomeRedirect, OnboardingFallback, RootRedirect } from '@/components/auth/RoleRouteGuard';
 import { AdminRoute, TeacherRoute, StudentRoute, TutorRoute, PathAccessGuard } from '@/components/auth/AdminRoute';
@@ -233,7 +238,7 @@ const AuthenticatedApp = () => {
         />
         <Route path="/certificate/:id" element={<CertificateView />} />
         <Route path="/Attendance" element={<Navigate to="/Groups" replace />} />
-        <Route path="/Payments" element={<AdminRoute><LayoutWrapper currentPageName="Payments"><Payments /></LayoutWrapper></AdminRoute>} />
+        <Route path="/Payments" element={<TeacherRoute><LayoutWrapper currentPageName="Payments"><Payments /></LayoutWrapper></TeacherRoute>} />
         <Route path="/PaymentReturn" element={<StudentRoute><LayoutWrapper currentPageName="PaymentReturn"><PaymentReturn /></LayoutWrapper></StudentRoute>} />
         <Route path="/AdminAssessment" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AdminAssessment /></LayoutWrapper></AdminRoute>} />
         <Route path="/AssessmentQuestions" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentQuestions"><AssessmentQuestions /></LayoutWrapper></TeacherRoute>} />
@@ -248,6 +253,9 @@ const AuthenticatedApp = () => {
         <Route path="*" element={<OnboardingFallback />} />
       </Routes>
       </Suspense>
+      {/* Global floating / full lesson host — outside page Layout so route
+          changes never remount Jitsi/WebRTC. */}
+      <VideoSessionLayer />
     </RoleRouteGuard>
     </AppErrorBoundary>
   );
@@ -262,6 +270,10 @@ function App() {
         <PresenceProvider>
         <QueryClientProvider client={queryClientInstance}>
           <Router>
+            <VideoSessionProvider>
+            <PwaUpdateController />
+            <PwaInstallController />
+            <OfflineStatusController />
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Login />} />
@@ -278,6 +290,7 @@ function App() {
               />
               <Route path="*" element={<AuthenticatedApp />} />
             </Routes>
+            </VideoSessionProvider>
           </Router>
           <Toaster />
         </QueryClientProvider>

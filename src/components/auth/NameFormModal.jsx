@@ -1,16 +1,15 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { api } from '@/api';
-import { X, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button, Input } from "@/design-system";
 
-export default function NameFormModal({ user, onSave }) {
+export default function NameFormModal({ onSave }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSave = async () => {
+  const handleSave = async (e) => {
+    e?.preventDefault();
     if (!firstName.trim() || !lastName.trim()) {
       setError("Заполните оба поля");
       return;
@@ -31,70 +30,76 @@ export default function NameFormModal({ user, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Введите ваше имя</h2>
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 page-pad">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="name-form-title"
+        className="bg-card text-card-foreground rounded-2xl shadow-2xl w-full max-w-md border border-border"
+      >
+        <div className="px-6 py-4 border-b border-border">
+          <h2 id="name-form-title" className="text-lg font-bold text-foreground">Введите ваше имя</h2>
         </div>
 
-        <div className="p-6 space-y-4">
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            Пожалуйста, заполните ваше имя для продолжения работы в системе.
-          </p>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Фамилия *
-            </label>
-            <Input
-              placeholder="Янчиленко"
-              value={lastName}
-              onChange={(e) => {
-                setLastName(e.target.value);
-                setError("");
-              }}
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Имя *
-            </label>
-            <Input
-              placeholder="Мария"
-              value={firstName}
-              onChange={(e) => {
-                setFirstName(e.target.value);
-                setError("");
-              }}
-              className="w-full"
-            />
-          </div>
-
-          {error && (
-            <p className="text-sm text-red-600 bg-red-50 dark:bg-red-950/30 p-3 rounded-lg">
-              {error}
+        <form onSubmit={handleSave}>
+          <div className="p-6 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Пожалуйста, заполните ваше имя для продолжения работы в системе.
             </p>
-          )}
-        </div>
 
-        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex gap-3">
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex-1 bg-primary hover:bg-primary/90 gap-2"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Сохранение...
-              </>
-            ) : (
-              "Продолжить"
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1" htmlFor="name-form-last">
+                Фамилия *
+              </label>
+              <Input
+                id="name-form-last"
+                placeholder="Янчиленко"
+                value={lastName}
+                autoComplete="family-name"
+                autoFocus
+                onChange={(e) => {
+                  setLastName(e.target.value);
+                  setError("");
+                }}
+                className="w-full"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1" htmlFor="name-form-first">
+                Имя *
+              </label>
+              <Input
+                id="name-form-first"
+                placeholder="Мария"
+                value={firstName}
+                autoComplete="given-name"
+                onChange={(e) => {
+                  setFirstName(e.target.value);
+                  setError("");
+                }}
+                className="w-full"
+              />
+            </div>
+
+            {error && (
+              <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg" role="alert">
+                {error}
+              </p>
             )}
-          </Button>
-        </div>
+          </div>
+
+          <div className="px-6 py-4 border-t border-border flex gap-3">
+            <Button
+              type="submit"
+              intent="primary"
+              loading={saving}
+              className="flex-1"
+            >
+              Продолжить
+            </Button>
+          </div>
+        </form>
       </div>
     </div>
   );

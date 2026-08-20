@@ -1,19 +1,27 @@
 import { useEffect, useRef } from 'react';
 import { Loader2, RefreshCw } from 'lucide-react';
+import { Button } from '@/design-system';
 
 const AUTO_RELOAD_MS = 800;
 
 /**
  * Single reusable UI for all frontend-update flows after deploy.
  * Never renders technical error text.
+ *
+ * phases:
+ * - updating: auto-reload in progress (chunk recovery)
+ * - manual: auto failed — reload / home
+ * - available: SW update waiting — reload now / later (no auto)
  */
 export default function FrontendUpdateScreen({
   phase = 'updating',
   onAutoReload,
   onReloadNow,
   onGoHome,
+  onLater,
 }) {
   const isUpdating = phase === 'updating';
+  const isAvailable = phase === 'available';
   const startedRef = useRef(false);
 
   useEffect(() => {
@@ -28,7 +36,7 @@ export default function FrontendUpdateScreen({
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex min-h-app items-center justify-center overflow-hidden bg-background p-6 text-foreground"
+      className="fixed inset-0 z-[9999] flex min-h-app items-center justify-center overflow-hidden bg-background p-6 text-foreground safe-pt safe-pb"
       data-testid="frontend-update-screen"
       data-phase={phase}
       role="status"
@@ -70,6 +78,39 @@ export default function FrontendUpdateScreen({
               Это займёт всего несколько секунд.
             </p>
           </>
+        ) : isAvailable ? (
+          <>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
+                Longhua CRM
+              </p>
+              <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+                Доступна новая версия Longhua CRM
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Обновите приложение, чтобы продолжить работу на актуальной версии.
+              </p>
+            </div>
+
+            <div className="flex flex-col justify-center gap-2 sm:flex-row">
+              <Button
+                type="button"
+                intent="primary"
+                onClick={onReloadNow}
+                data-testid="frontend-update-reload"
+              >
+                Обновить сейчас
+              </Button>
+              <Button
+                type="button"
+                intent="secondary"
+                onClick={onLater}
+                data-testid="frontend-update-later"
+              >
+                Позже
+              </Button>
+            </div>
+          </>
         ) : (
           <>
             <div className="space-y-2">
@@ -85,22 +126,22 @@ export default function FrontendUpdateScreen({
             </div>
 
             <div className="flex flex-col justify-center gap-2 sm:flex-row">
-              <button
+              <Button
                 type="button"
+                intent="primary"
                 onClick={onReloadNow}
                 data-testid="frontend-update-reload"
-                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
               >
                 Обновить сейчас
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                intent="secondary"
                 onClick={onGoHome}
                 data-testid="frontend-update-home"
-                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-medium transition hover:bg-muted"
               >
                 На главную
-              </button>
+              </Button>
             </div>
           </>
         )}

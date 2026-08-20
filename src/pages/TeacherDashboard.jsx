@@ -7,14 +7,13 @@ import { resolveLessonStudentLabel } from '@/lib/studentLabels';
 import { inviteUrlFromResponse, inviteUrlFromRow, isActiveInvite } from '@/lib/invite-links';
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { Calendar, CheckCircle2, XCircle, Clock, Loader2, Sun, Moon, DollarSign, Link2, Copy, Video } from "lucide-react";
-import { useTheme } from "@/lib/ThemeContext";
-import { Button } from "@/components/ui/button";
+import { Calendar, CheckCircle2, XCircle, Clock, Loader2, DollarSign, Link2, Copy, Video } from "lucide-react";
+import { Button } from "@/design-system";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import StatCard from "@/components/dashboard/StatCard";
 import { toast } from "@/components/ui/use-toast";
-import { formatCurrency } from "@/lib/formatters";
+import { formatBYN } from "@/lib/formatters";
 import { filterLessonsWithinNext48Hours } from "@/lib/teacherUpcomingLessons";
 import {
   computeCompletedLessonsMonthStats,
@@ -31,6 +30,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import RecurrenceApplyScopeDialog from "@/components/schedule/RecurrenceApplyScopeDialog";
+import { lessonBelongsToSeries } from "@/lib/lessonSeriesScope";
 
 export default function TeacherDashboard() {
   const { user } = useAuth();
@@ -46,7 +47,9 @@ export default function TeacherDashboard() {
   const [showMaterialPicker, setShowMaterialPicker] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [loadError, setLoadError] = useState(null);
-  const { theme, toggleTheme } = useTheme();
+  const [cancelScopeOpen, setCancelScopeOpen] = useState(false);
+  const [cancelScope, setCancelScope] = useState("this");
+  const [pendingCancelLesson, setPendingCancelLesson] = useState(null);
 
   const activeInvites = useMemo(
     () => invites.filter(isActiveInvite),
@@ -188,11 +191,19 @@ export default function TeacherDashboard() {
     }
   };
 
-  const handleMarkCancelled = async (lesson) => {
+  const handleMarkCancelled = async (lesson, applyScope = "this") => {
     setActionBusy(true);
     try {
-      await api.lessons.update(lesson.id, { status: "cancelled" });
+      const payload = { status: "cancelled" };
+      if (applyScope && applyScope !== "this") {
+        payload.apply_scope = applyScope;
+      }
+      await api.lessons.update(lesson.id, payload);
       setConfirmAction(null);
+      const series = applyScope === "all" || applyScope === "series";
+      toast({
+        title: series ? "Занятия серии отменены" : "Урок отменён",
+      });
       await loadData();
     } catch (err) {
       toast({
@@ -203,6 +214,17 @@ export default function TeacherDashboard() {
     } finally {
       setActionBusy(false);
     }
+  };
+
+  const beginCancel = (lesson) => {
+    setConfirmAction(null);
+    if (lessonBelongsToSeries(lesson)) {
+      setPendingCancelLesson(lesson);
+      setCancelScope("this");
+      setCancelScopeOpen(true);
+      return;
+    }
+    void handleMarkCancelled(lesson, "this");
   };
 
   if (loading) {
@@ -216,7 +238,7 @@ export default function TeacherDashboard() {
   if (loadError) {
     return (
       <div className="p-4 sm:p-6 lg:p-8 text-center py-20 space-y-3">
-        <p className="text-slate-600 dark:text-slate-300">{loadError}</p>
+        <p className="text-muted-foreground">{loadError}</p>
         <Button variant="outline" onClick={() => { setLoading(true); loadData(); }}>
           Повторить
         </Button>
@@ -227,8 +249,8 @@ export default function TeacherDashboard() {
   if (!teacher) {
     return (
       <div className="p-4 sm:p-6 lg:p-8 text-center py-20">
-        <p className="text-slate-500 dark:text-slate-400">Профиль преподавателя не найден для вашего аккаунта.</p>
-        <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">Обратитесь к администратору.</p>
+        <p className="text-muted-foreground">Профиль преподавателя не найден для вашего аккаунта.</p>
+        <p className="text-xs text-muted-foreground mt-2">Обратитесь к администратору.</p>
       </div>
     );
   }
@@ -241,21 +263,16 @@ export default function TeacherDashboard() {
   );
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto dark:bg-slate-950 min-h-screen">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+          <h1 className="text-2xl font-bold text-foreground">
             {formatWelcomeGreeting(
               getGreetingName(teacher) ? teacher : getGreetingName(user) ? user : null,
             )}
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{format(new Date(), "EEEE, d MMMM yyyy", { locale: ru })}</p>
+          <p className="text-sm text-muted-foreground mt-1">{format(new Date(), "EEEE, d MMMM yyyy", { locale: ru })}</p>
         </div>
-        <button onClick={toggleTheme}
-          className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-          title="Сменить тему">
-          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
@@ -272,9 +289,9 @@ export default function TeacherDashboard() {
         />
       </div>
 
-      <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Приглашение учеников</h2>
+      <h2 className="text-lg font-semibold text-foreground mb-4">Приглашение учеников</h2>
       <Card className="p-4 mb-8 space-y-3">
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-muted-foreground">
           Одна постоянная ссылка для учеников. После регистрации и подтверждения email ученик автоматически закрепится за вами.
         </p>
         <div className="flex flex-wrap gap-2">
@@ -325,11 +342,11 @@ export default function TeacherDashboard() {
         )}
       </Card>
 
-      <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Мои выплаты</h2>
+      <h2 className="text-lg font-semibold text-foreground mb-4">Мои выплаты</h2>
       {paymentPeriods.length === 0 ? (
         <Card className="p-6 text-center border-dashed mb-8">
-          <DollarSign className="h-8 w-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-          <p className="text-sm text-slate-500 dark:text-slate-400">Начислений пока нет</p>
+          <DollarSign className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">Начислений пока нет</p>
         </Card>
       ) : (
         <div className="space-y-2 mb-8">
@@ -347,17 +364,17 @@ export default function TeacherDashboard() {
             }
             return (
               <Card key={period.key || period.month} className="p-4">
-                <p className="text-sm font-medium text-slate-900 dark:text-white">
+                <p className="text-sm font-medium text-foreground">
                   {period.label}
                 </p>
                 {payoutHint ? (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     К выплате {payoutHint}
                   </p>
                 ) : null}
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Начислено:</p>
-                <p className="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mt-1">
-                  <DollarSign className="w-4 h-4" /> {formatCurrency(period.amount)}
+                <p className="text-xs text-muted-foreground mt-2">Начислено:</p>
+                <p className="font-semibold text-foreground flex items-center gap-2 mt-1">
+                  <span className="tabular-nums whitespace-nowrap">{formatBYN(period.amount)}</span>
                 </p>
               </Card>
             );
@@ -365,11 +382,11 @@ export default function TeacherDashboard() {
         </div>
       )}
 
-      <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Предстоящие уроки</h2>
+      <h2 className="text-lg font-semibold text-foreground mb-4">Предстоящие уроки</h2>
       {upcomingLessons.length === 0 ? (
         <Card className="p-8 text-center border-dashed">
-          <Calendar className="h-8 w-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-          <p className="text-sm text-slate-500 dark:text-slate-400">В ближайшие два дня занятий нет.</p>
+          <Calendar className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">В ближайшие два дня занятий нет.</p>
         </Card>
       ) : (
         <div className="space-y-3">
@@ -378,12 +395,12 @@ export default function TeacherDashboard() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-4">
                            <div className="text-center min-w-[60px]">
-                             <p className="text-xs text-slate-400 dark:text-slate-500">{format(new Date(lesson.date), "d MMM", { locale: ru })}</p>
-                             <p className="text-lg font-bold text-slate-900 dark:text-white">{lesson.start_time}</p>
-                             <p className="text-[11px] text-slate-400 dark:text-slate-500">{lesson.duration || 60} min</p>
+                             <p className="text-xs text-muted-foreground">{format(new Date(lesson.date), "d MMM", { locale: ru })}</p>
+                             <p className="text-lg font-bold text-foreground">{lesson.start_time}</p>
+                             <p className="text-[11px] text-muted-foreground">{lesson.duration || 60} min</p>
                            </div>
                            <div>
-                             <p className="font-medium text-slate-900 dark:text-white">{resolveLessonStudentLabel(lesson, students)}</p>
+                             <p className="font-medium text-foreground">{resolveLessonStudentLabel(lesson, students)}</p>
                     {isOnlineLesson(lesson) && (
                       <a
                         href={lessonVideoPath(lesson.id)}
@@ -393,7 +410,7 @@ export default function TeacherDashboard() {
                         Начать видеоурок →
                       </a>
                     )}
-                    {lesson.notes && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{lesson.notes}</p>}
+                    {lesson.notes && <p className="text-xs text-muted-foreground mt-1">{lesson.notes}</p>}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -457,7 +474,7 @@ export default function TeacherDashboard() {
               onClick={() =>
                 confirmAction?.type === "complete"
                   ? handleMarkComplete(confirmAction.lesson)
-                  : handleMarkCancelled(confirmAction.lesson)
+                  : beginCancel(confirmAction.lesson)
               }
               className={confirmAction?.type === "complete" ? "bg-emerald-600" : "bg-red-600"}
             >
@@ -466,6 +483,26 @@ export default function TeacherDashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <RecurrenceApplyScopeDialog
+        open={cancelScopeOpen}
+        mode="status"
+        value={cancelScope}
+        onChange={setCancelScope}
+        title="Отменить:"
+        confirmLabel="Отменить"
+        onCancel={() => {
+          setCancelScopeOpen(false);
+          setPendingCancelLesson(null);
+        }}
+        onConfirm={() => {
+          if (!pendingCancelLesson) return;
+          const lesson = pendingCancelLesson;
+          setCancelScopeOpen(false);
+          setPendingCancelLesson(null);
+          void handleMarkCancelled(lesson, cancelScope);
+        }}
+      />
     </div>
   );
 }

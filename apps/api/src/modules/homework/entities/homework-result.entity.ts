@@ -40,6 +40,17 @@ export class HomeworkResultEntity {
   @Column({ type: 'numeric', precision: 5, scale: 2, nullable: true })
   percent: string | null;
 
+  /** auto = earned/max; manual = teacher-entered percent (not recomputed). */
+  @Column({ name: 'grading_mode', type: 'varchar', length: 16, default: 'auto' })
+  gradingMode: 'auto' | 'manual';
+
+  @Column({ name: 'manual_percentage', type: 'numeric', precision: 5, scale: 2, nullable: true })
+  manualPercentage: string | null;
+
+  /** When true, students may see expected/correct answers after review. */
+  @Column({ name: 'show_correct_answers', type: 'boolean', default: false })
+  showCorrectAnswers: boolean;
+
   @Column({ type: 'boolean', nullable: true })
   passed: boolean | null;
 

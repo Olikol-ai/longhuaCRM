@@ -25,7 +25,7 @@ function reviewStatusClass(status) {
   if (status === 'in_progress') {
     return 'bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100';
   }
-  return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200';
+  return 'bg-slate-100 text-foreground dark:bg-slate-800 dark:text-slate-200';
 }
 
 function ReviewAudioPlayer({ url }) {
@@ -230,12 +230,12 @@ export default function TeacherAssessmentReviewDetail() {
       <div>
         <Link
           to={createPageUrl('TeacherAssessmentReview')}
-          className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
+          className="text-xs text-muted-foreground hover:text-brand dark:hover:text-brand"
         >
           ← Работы на проверку
         </Link>
         <div className="flex flex-wrap items-center gap-2 mt-1">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+          <h1 className="text-2xl font-bold text-foreground">
             {examName}
           </h1>
           <span
@@ -244,7 +244,7 @@ export default function TeacherAssessmentReviewDetail() {
             {REVIEW_STATUS_LABEL[reviewStatus] || reviewStatus}
           </span>
         </div>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           {studentName} · {formatDateTime(result?.finished_at || result?.created_at)}
         </p>
       </div>
@@ -275,15 +275,15 @@ export default function TeacherAssessmentReviewDetail() {
           return (
             <Card key={key || index} className="p-4 sm:p-5 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Вопрос {index + 1}
                   {item.section_key ? ` · ${item.section_key}` : ''}
                 </p>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-muted-foreground">
                   {QUESTION_TYPE_LABEL[item.type] || item.type} · {item.points} б.
                 </span>
               </div>
-              <p className="text-base font-medium text-slate-900 dark:text-white whitespace-pre-wrap">
+              <p className="text-base font-medium text-foreground whitespace-pre-wrap">
                 {item.stem}
               </p>
 
@@ -298,7 +298,7 @@ export default function TeacherAssessmentReviewDetail() {
                         className={`rounded-lg border px-3 py-2 text-sm ${
                           isSelected
                             ? 'border-brand/40 bg-brand-soft dark:bg-brand-soft/40'
-                            : 'border-slate-200 dark:border-slate-700'
+                            : 'border-border'
                         }`}
                       >
                         {a.text}
@@ -313,35 +313,35 @@ export default function TeacherAssessmentReviewDetail() {
 
               {item.explanation ? (
                 <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-600 px-3 py-2 text-sm">
-                  <p className="text-xs text-slate-500 mb-1">
+                  <p className="text-xs text-muted-foreground mb-1">
                     {item.type === 'speaking'
                       ? 'Критерии проверки'
                       : 'Рекомендуемый ответ / заметки'}
                   </p>
-                  <p className="whitespace-pre-wrap text-slate-700 dark:text-slate-200">
+                  <p className="whitespace-pre-wrap text-foreground dark:text-slate-200">
                     {item.explanation}
                   </p>
                 </div>
               ) : null}
 
               {item.text_answer != null && item.text_answer !== '' && (
-                <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-sm">
-                  <p className="text-xs text-slate-500 mb-1">Ответ ученика</p>
-                  <p className="whitespace-pre-wrap text-slate-900 dark:text-white">
+                <div className="rounded-lg bg-muted px-3 py-2 text-sm">
+                  <p className="text-xs text-muted-foreground mb-1">Ответ ученика</p>
+                  <p className="whitespace-pre-wrap text-foreground">
                     {item.text_answer}
                   </p>
                 </div>
               )}
 
               {(item.has_audio || item.audio_url) && (
-                <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-sm space-y-2">
-                  <p className="text-xs text-slate-500">Устный ответ</p>
+                <div className="rounded-lg bg-muted px-3 py-2 text-sm space-y-2">
+                  <p className="text-xs text-muted-foreground">Устный ответ</p>
                   <ReviewAudioPlayer url={item.audio_url} />
                 </div>
               )}
 
               {!item.requires_manual_review && item.score != null && (
-                <p className="text-sm text-slate-600 dark:text-slate-300">
+                <p className="text-sm text-muted-foreground dark:text-slate-300">
                   Автооценка: {item.score} / {item.points}
                 </p>
               )}
@@ -349,7 +349,7 @@ export default function TeacherAssessmentReviewDetail() {
               {item.requires_manual_review && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div>
-                    <label className="text-xs text-slate-500">Балл (макс. {item.points})</label>
+                    <label className="text-xs text-muted-foreground">Балл (макс. {item.points})</label>
                     <Input
                       type="number"
                       min="0"
@@ -363,7 +363,7 @@ export default function TeacherAssessmentReviewDetail() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-slate-500">Комментарий</label>
+                    <label className="text-xs text-muted-foreground">Комментарий</label>
                     <Textarea
                       rows={2}
                       disabled={isFinalized || saving || finalizing}

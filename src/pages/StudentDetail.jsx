@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft,
-  User,
   Mail,
   Phone,
   MessageCircle,
@@ -13,26 +12,31 @@ import {
   BookOpen,
   CreditCard,
   Pencil,
-  Plus,
   Loader2,
   TrendingUp,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { formatDate } from "@/lib/formatters";
+import { formatBYN, formatDate } from "@/lib/formatters";
 import {
   localizeEntityStatus,
   localizeLessonStatus,
 } from "@/lib/locale-by";
 import { resolveAssignedTeacherLabel, resolveLessonTeacherLabel } from "@/lib/teacherLabels";
+import { getLessonBalance } from "@/lib/lessonBalance";
+import LessonBalanceDisplay from "@/components/students/LessonBalanceDisplay";
 import ResponsiveTable from "@/components/responsive/ResponsiveTable";
 import StudentFormDialog from "@/components/students/StudentFormDialog";
 import PaymentFormDialog from "@/components/payments/PaymentFormDialog";
 import { Progress } from "@/components/ui/progress";
+import { useAuth } from "@/lib/AuthContext";
 
 export default function StudentDetail() {
   const params = new URLSearchParams(window.location.search);
   const studentId = params.get("id");
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const studentsListPath = isAdmin ? '/UserManagement' : createPageUrl('TeacherStudents');
 
   const [student, setStudent] = useState(null);
   const [teacher, setTeacher] = useState(null);
@@ -103,26 +107,32 @@ export default function StudentDetail() {
   if (!student) {
     return (
       <div className="p-6 lg:p-8 text-center py-20">
-        <p className="text-slate-500 dark:text-slate-400">Ученик не найден</p>
-        <Link to="/UserManagement">
+        <p className="text-muted-foreground">Ученик не найден</p>
+        <Link to={studentsListPath}>
           <Button variant="link" className="mt-2">Назад к ученикам</Button>
         </Link>
       </div>
     );
   }
 
+  const balance = getLessonBalance(student);
   const info = [
     { icon: Mail, label: "Эл. почта", value: student.email },
     { icon: Phone, label: "Телефон", value: student.phone },
     { icon: MessageCircle, label: "Телеграм", value: student.telegram_id },
     { icon: GraduationCap, label: "Преподаватель", value: resolveAssignedTeacherLabel(student.assigned_teacher, teachers) },
-    { icon: BookOpen, label: "Баланс", value: `${student.lesson_balance || 0} уроков` },
+    {
+      icon: BookOpen,
+      label: "Баланс (пакет занятий)",
+      value: <LessonBalanceDisplay balance={balance} suffix=" уроков" showDebtHint />,
+      isNode: true,
+    },
   ].filter((x) => x.value);
 
   return (
     <div className="p-6 lg:p-8 max-w-5xl mx-auto">
       {/* Back */}
-      <Link to="/UserManagement" className="inline-flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 mb-6">
+      <Link to={studentsListPath} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6">
         <ArrowLeft className="h-4 w-4" />
         Ученики
       </Link>
@@ -134,17 +144,17 @@ export default function StudentDetail() {
             <span className="text-xl font-bold text-brand">{student.name[0].toUpperCase()}</span>
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{student.name}</h1>
+            <h1 className="text-2xl font-bold text-foreground">{student.name}</h1>
             <div className="flex items-center gap-2 mt-1">
               <Badge variant="outline" className={
                 student.status === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
                 student.status === "paused" ? "bg-amber-50 text-amber-700 border-amber-200" :
-                "bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700"
+                "bg-muted text-muted-foreground border-border"
               }>
                 {localizeEntityStatus(student.status)}
               </Badge>
               {student.start_date && (
-                <span className="text-xs text-slate-400">С {formatDate(student.start_date)}</span>
+                <span className="text-xs text-muted-foreground">С {formatDate(student.start_date)}</span>
               )}
             </div>
           </div>
@@ -154,23 +164,29 @@ export default function StudentDetail() {
             <CreditCard className="h-4 w-4 mr-2" />
             Добавить платёж
           </Button>
-          <Button onClick={() => setShowEditForm(true)} className="bg-primary hover:bg-primary/90">
-            <Pencil className="h-4 w-4 mr-2" />
-            Изменить
-          </Button>
+          {isAdmin ? (
+            <Button onClick={() => setShowEditForm(true)} className="bg-primary hover:bg-primary/90">
+              <Pencil className="h-4 w-4 mr-2" />
+              Изменить
+            </Button>
+          ) : null}
         </div>
       </div>
 
       {/* Info grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
         {info.map((item) => (
-          <div key={item.label} className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/70">
-            <div className="h-9 w-9 rounded-lg bg-slate-50 dark:bg-slate-800/60 flex items-center justify-center">
-              <item.icon className="h-4 w-4 text-slate-400" />
+          <div key={item.label} className="flex items-center gap-3 p-3 bg-card rounded-lg border border-border">
+            <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center">
+              <item.icon className="h-4 w-4 text-muted-foreground" />
             </div>
             <div>
-              <p className="text-xs text-slate-400">{item.label}</p>
-              <p className="text-sm font-medium text-slate-900 dark:text-white">{item.value}</p>
+              <p className="text-xs text-muted-foreground">{item.label}</p>
+              {item.isNode ? (
+                item.value
+              ) : (
+                <p className="text-sm font-medium text-foreground">{item.value}</p>
+              )}
             </div>
           </div>
         ))}
@@ -182,14 +198,14 @@ export default function StudentDetail() {
             <CardTitle className="text-base">Заметки</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-slate-600 dark:text-slate-400">{student.notes}</p>
+            <p className="text-sm text-muted-foreground">{student.notes}</p>
           </CardContent>
         </Card>
       )}
 
       {enrollmentProgress.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-brand" />
             Прогресс по курсам
           </h2>
@@ -214,8 +230,8 @@ export default function StudentDetail() {
                   <CardContent className="space-y-4">
                     <div>
                       <div className="flex justify-between text-sm mb-2">
-                        <span className="text-slate-600 dark:text-slate-400">Прогресс</span>
-                        <span className="font-medium text-slate-900 dark:text-white">{percent}%</span>
+                        <span className="text-muted-foreground">Прогресс</span>
+                        <span className="font-medium text-foreground">{percent}%</span>
                       </div>
                       <Progress value={percent} className="h-2" />
                     </div>
@@ -232,9 +248,9 @@ export default function StudentDetail() {
                         <p className="text-xs text-brand">Осталось</p>
                         <p className="text-lg font-semibold text-brand">{remaining}</p>
                       </div>
-                      <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-3 border border-slate-200 dark:border-slate-700">
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Всего</p>
-                        <p className="text-lg font-semibold text-slate-800 dark:text-slate-100">{total}</p>
+                      <div className="rounded-lg bg-muted p-3 border border-border">
+                        <p className="text-xs text-muted-foreground">Всего</p>
+                        <p className="text-lg font-semibold text-foreground">{total}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -247,7 +263,7 @@ export default function StudentDetail() {
 
       {/* Lesson History */}
       <div className="mb-8">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">История уроков</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">История уроков</h2>
         <ResponsiveTable
           rows={[...lessons].sort((a, b) => (b.date || "").localeCompare(a.date || ""))}
           columns={[
@@ -280,7 +296,7 @@ export default function StudentDetail() {
 
       {/* Payment History */}
       <div>
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">История платежей</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">История платежей</h2>
         <ResponsiveTable
           rows={payments}
           columns={[
@@ -289,7 +305,9 @@ export default function StudentDetail() {
               id: 'amount',
               header: 'Сумма',
               cell: (p) => (
-                <span className="font-semibold text-emerald-600">${p.amount}</span>
+                <span className="font-semibold tabular-nums whitespace-nowrap text-emerald-600">
+                  {formatBYN(p.amount)}
+                </span>
               ),
             },
             {
@@ -308,12 +326,14 @@ export default function StudentDetail() {
         />
       </div>
 
-      <StudentFormDialog
-        open={showEditForm}
-        onOpenChange={setShowEditForm}
-        student={student}
-        onSave={loadData}
-      />
+      {isAdmin ? (
+        <StudentFormDialog
+          open={showEditForm}
+          onOpenChange={setShowEditForm}
+          student={student}
+          onSave={loadData}
+        />
+      ) : null}
       <PaymentFormDialog
         open={showPaymentForm}
         onOpenChange={setShowPaymentForm}

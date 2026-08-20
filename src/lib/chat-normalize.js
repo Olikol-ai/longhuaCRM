@@ -40,6 +40,8 @@ export function normalizeUser(raw) {
     lastName: pickField(raw, 'lastName', 'last_name'),
     role: raw.role,
     lastSeenAt: pickField(raw, 'lastSeenAt', 'last_seen_at') ?? null,
+    hasAvatar: Boolean(pickField(raw, 'hasAvatar', 'has_avatar') ?? pickField(raw, 'avatarFilePath', 'avatar_file_path')),
+    avatarUpdatedAt: pickField(raw, 'avatarUpdatedAt', 'avatar_updated_at') ?? null,
   };
 }
 
@@ -78,6 +80,33 @@ export function normalizeMessages(list) {
 
 export function normalizeChat(raw) {
   if (!raw) return null;
+  const userState = (() => {
+    const src = raw.userState || raw.user_state;
+    if (!src || typeof src !== 'object') {
+      return {
+        archived: false,
+        pinned: false,
+        muted: false,
+        favorite: false,
+        mutedUntil: null,
+        archivedAt: null,
+        pinnedAt: null,
+        favoritedAt: null,
+        lastReadMessageId: null,
+      };
+    }
+    return {
+      archived: Boolean(src.archived),
+      pinned: Boolean(src.pinned),
+      muted: Boolean(src.muted),
+      favorite: Boolean(src.favorite),
+      mutedUntil: src.mutedUntil ?? src.muted_until ?? null,
+      archivedAt: src.archivedAt ?? src.archived_at ?? null,
+      pinnedAt: src.pinnedAt ?? src.pinned_at ?? null,
+      favoritedAt: src.favoritedAt ?? src.favorited_at ?? null,
+      lastReadMessageId: src.lastReadMessageId ?? src.last_read_message_id ?? null,
+    };
+  })();
   return {
     ...raw,
     id: raw.id,
@@ -88,6 +117,16 @@ export function normalizeChat(raw) {
     memberUserIds: (() => {
       const ids = pickField(raw, 'memberUserIds', 'member_user_ids');
       return Array.isArray(ids) ? ids.filter(Boolean) : [];
+    })(),
+    userState,
+    archived: userState.archived,
+    pinned: userState.pinned,
+    muted: userState.muted,
+    favorite: userState.favorite,
+    lastReadMessageId: userState.lastReadMessageId,
+    peer: (() => {
+      const peer = pickField(raw, 'peer', 'peerUser', 'peer_user');
+      return peer ? normalizeUser(peer) : null;
     })(),
   };
 }

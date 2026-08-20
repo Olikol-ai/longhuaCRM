@@ -88,9 +88,11 @@ describe('Homework module architecture', () => {
     assert.match(editor, /w-full sm:w-auto/);
     assert.match(assign, /sm:grid-cols-2/);
     assert.match(assign, /min-h-11/);
-    assert.match(results, /md:grid-cols-2/);
-    assert.match(results, /hidden md:block/);
+    assert.match(results, /homework-review-accordion/);
+    assert.match(results, /overflow-x-hidden/);
+    assert.match(results, /min-h-11/);
     assert.match(results, /break-words/);
+    assert.doesNotMatch(results, /md:grid-cols-2/);
   });
 
   it('uses assignment lifecycle statuses assigned/started/submitted/checked/expired/cancelled', () => {

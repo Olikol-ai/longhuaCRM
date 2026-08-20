@@ -197,6 +197,24 @@ export class ChatGateway
   }
 
   /**
+   * Users currently joined to chat:{chatId} (viewing the conversation).
+   * Used to suppress Web Push while the chat is open.
+   */
+  async getUsersViewingChat(chatId: string): Promise<Set<string>> {
+    if (!this.server) return new Set();
+    try {
+      const socketsInChat = await this.server.in(`chat:${chatId}`).fetchSockets();
+      return new Set(
+        socketsInChat
+          .map((sock) => (sock.data?.actor as JwtPayload | undefined)?.sub)
+          .filter((id): id is string => Boolean(id)),
+      );
+    } catch {
+      return new Set();
+    }
+  }
+
+  /**
    * Broadcast a new message to:
    * 1) chat room (clients currently viewing the conversation);
    * 2) each member's personal user room (so Layout badge / Chats list update

@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  addCalendarDaysYmd,
   buildBalanceText,
   buildNearestLessonCard,
   build15mOnlineLessonReminderMessage,
   buildOnlineLessonJoinKeyboard,
+  buildTeacherTomorrowDigestMessage,
   formatLessonBalanceAmount,
+  formatSchoolDateLongRu,
+  getSchoolTomorrowDateYmd,
   matchMainMenuButton,
 } from './telegram-messages';
 
@@ -100,5 +104,42 @@ describe('online lesson 15m reminder', () => {
       kb.inline_keyboard[0][0].url,
       'https://crm.example.com/lesson/1/video',
     );
+  });
+});
+
+describe('teacher tomorrow digest', () => {
+  it('builds compact schedule with format icons and total', () => {
+    const text = buildTeacherTomorrowDigestMessage({
+      scheduleDateYmd: '2026-08-08',
+      timeZone: 'Europe/Minsk',
+      lessons: [
+        { startTime: '09:00:00', participantLabel: 'Иван Петров', lessonFormat: 'online' },
+        { startTime: '10:30', participantLabel: 'Группа HSK 2', lessonFormat: 'offline' },
+        { startTime: '18:30:15', participantLabel: 'Екатерина Иванова', lessonFormat: 'online' },
+      ],
+    });
+    assert.match(text, /📅 Ваше расписание на завтра/);
+    assert.match(text, /8 августа/i);
+    assert.match(text, /💻 09:00 — Иван Петров/);
+    assert.match(text, /🏫 10:30 — Группа HSK 2/);
+    assert.match(text, /💻 18:30 — Екатерина Иванова/);
+    assert.match(text, /Всего уроков: 3/);
+    assert.match(text, /🐉/);
+  });
+
+  it('advances school calendar date by one day', () => {
+    assert.equal(addCalendarDaysYmd('2026-08-08', 1), '2026-08-09');
+    assert.equal(addCalendarDaysYmd('2026-12-31', 1), '2027-01-01');
+    const tomorrow = getSchoolTomorrowDateYmd(
+      'Europe/Minsk',
+      new Date('2026-08-07T16:00:00Z'),
+    );
+    assert.equal(tomorrow, '2026-08-08');
+  });
+
+  it('formats long Russian date label', () => {
+    const label = formatSchoolDateLongRu('2026-08-08', 'Europe/Minsk');
+    assert.match(label, /августа/i);
+    assert.match(label, /8/);
   });
 });

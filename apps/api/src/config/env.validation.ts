@@ -242,6 +242,25 @@ export function validateEnv(config: Record<string, unknown>) {
     throw new Error('JWT_SECRET must be set in production');
   }
 
+  if (parsed.NODE_ENV === 'production' && parsed.JWT_SECRET) {
+    const secret = parsed.JWT_SECRET.trim();
+    if (secret.length < 32) {
+      throw new Error('JWT_SECRET must be at least 32 characters in production');
+    }
+    const lowered = secret.toLowerCase();
+    const weakMarkers = [
+      'change-me',
+      'changeme',
+      'longhua-dev-secret',
+      'dev-secret',
+      'test-secret',
+      'your-secret',
+    ];
+    if (weakMarkers.some((marker) => lowered.includes(marker))) {
+      throw new Error('JWT_SECRET is too weak for production');
+    }
+  }
+
   if (parsed.NODE_ENV === 'production') {
     if (!parsed.APP_PUBLIC_URL?.trim()) {
       throw new Error('APP_PUBLIC_URL must be set in production');

@@ -4,21 +4,36 @@ import { useAuth } from '@/lib/AuthContext';
 import { openMaterial } from '@/lib/materialUrl';
 import { toast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
+  ArrowLeft,
   Loader2,
   Lock,
   Plus,
-  Search,
   Users,
 } from 'lucide-react';
 import AccessManager from './AccessManager';
 import AccessManagementPanel from './AccessManagementPanel';
 import FolderTree from './FolderTree';
 import GrantAccessModal from './GrantAccessModal';
+import MaterialBrowseToolbar from './MaterialBrowseToolbar';
 import MaterialDialog from './MaterialDialog';
+import MaterialMediaPreview from './MaterialMediaPreview';
 import MaterialTable from './MaterialTable';
 import { TUTOR_LIBRARY_COURSE_ID, isTutorLibraryCourseId } from '@/lib/tutorMaterials';
+import { isInAppMediaMaterial } from '@/lib/materialMeta';
+import {
+  browseMaterials,
+  collectMaterialBlocks,
+  hasActiveMaterialBrowseFilters,
+  loadMaterialBrowseState,
+  saveMaterialBrowseState,
+} from '@/lib/materialBrowse';
+import { OfflineSnapshotBanner } from '@/components/pwa/OfflineSnapshotBanner';
+import {
+  OFFLINE_RESOURCES,
+  readWithOfflineFallback,
+  sanitizeMaterialMetaList,
+} from '@/lib/offline';
 
 function MaterialsSkeleton() {
   return (
@@ -51,14 +66,19 @@ export default function MaterialManager() {
   const [loadError, setLoadError] = useState(null);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('all');
+  const [filterBlock, setFilterBlock] = useState('all');
+  const [sort, setSort] = useState('newest');
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [selectedFolderId, setSelectedFolderId] = useState(null);
+  const [browseHydrated, setBrowseHydrated] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [view, setView] = useState('library'); // library | users-access
   const [dialog, setDialog] = useState(null); // { mode, material?, courseId?, folderId? }
+  const [previewMaterial, setPreviewMaterial] = useState(null);
   const [accessMaterial, setAccessMaterial] = useState(null);
   const [showGrant, setShowGrant] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [offlineMeta, setOfflineMeta] = useState({ fromCache: false, updatedAt: null, missing: false });
   const materialsRequestId = useRef(0);
   const courseInitialized = useRef(false);
 
@@ -100,20 +120,38 @@ export default function MaterialManager() {
 
   /** Tree + courses first — unlock UI without waiting for the full materials list. */
   const loadTree = useCallback(async () => {
-    if (!user) return;
+    if (!user?.id) return;
     setLoadError(null);
     setTreeLoading(true);
     try {
-      const requests = [api.materials.folders.list()];
-      if (!isTutor) {
-        requests.unshift(api.courses.list());
-      }
-      const results = await Promise.all(requests);
-      const courseList = isTutor
-        ? [{ id: TUTOR_LIBRARY_COURSE_ID, name: 'Мои материалы', sort_order: 0 }]
-        : (Array.isArray(results[0]) ? results[0] : []);
-      const flds = isTutor ? results[0] : results[1];
-
+      const result = await readWithOfflineFallback({
+        userId: user.id,
+        role: user.role || 'unknown',
+        resource: OFFLINE_RESOURCES.MATERIALS,
+        resourceKey: isTutor ? 'tree_tutor' : 'tree_library',
+        fetcher: async () => {
+          const requests = [api.materials.folders.list()];
+          if (!isTutor) {
+            requests.unshift(api.courses.list());
+          }
+          const results = await Promise.all(requests);
+          const courseList = isTutor
+            ? [{ id: TUTOR_LIBRARY_COURSE_ID, name: 'Мои материалы', sort_order: 0 }]
+            : (Array.isArray(results[0]) ? results[0] : []);
+          const flds = isTutor ? results[0] : results[1];
+          return {
+            courses: courseList,
+            folders: flds,
+          };
+        },
+      });
+      setOfflineMeta({
+        fromCache: result.fromCache,
+        updatedAt: result.updatedAt,
+        missing: result.missing,
+      });
+      const courseList = result.data?.courses || [];
+      const flds = result.data?.folders || [];
       setCourses(courseList);
       setFolders(mapFolders(flds, courseList));
 
@@ -121,9 +159,11 @@ export default function MaterialManager() {
         setSelectedCourseId((prev) => prev || TUTOR_LIBRARY_COURSE_ID);
         courseInitialized.current = true;
       } else if (!courseInitialized.current && courseList.length > 0) {
-        // Prefer a concrete course on first open so materials load scoped (lazy).
         setSelectedCourseId((prev) => prev || courseList[0].id);
         courseInitialized.current = true;
+      }
+      if (result.missing) {
+        setLoadError('Материалы пока недоступны без подключения');
       }
     } catch (err) {
       setCourses([]);
@@ -139,7 +179,7 @@ export default function MaterialManager() {
    * Does not download file bytes; open/download is on-demand only.
    */
   const loadMaterials = useCallback(async (courseId, folderId) => {
-    if (!user) return;
+    if (!user?.id) return;
     const reqId = ++materialsRequestId.current;
     setMaterialsLoading(true);
     setLoadError(null);
@@ -151,10 +191,27 @@ export default function MaterialManager() {
       if (folderId) {
         scope.folderId = folderId;
       }
-      // Tutor library / "all courses": no server course filter.
-      const mats = await api.materials.list('-created_date', undefined, scope);
+      const resourceKey = `list:${scope.courseId || 'all'}:${scope.folderId || 'root'}`;
+      const result = await readWithOfflineFallback({
+        userId: user.id,
+        role: user.role || 'unknown',
+        resource: OFFLINE_RESOURCES.MATERIALS,
+        resourceKey,
+        fetcher: async () => {
+          const mats = await api.materials.list('-created_date', undefined, scope);
+          return { materials: sanitizeMaterialMetaList(mats) };
+        },
+      });
       if (reqId !== materialsRequestId.current) return;
-      setMaterials(mapMaterials(mats));
+      setOfflineMeta((prev) => ({
+        fromCache: result.fromCache || prev.fromCache,
+        updatedAt: result.updatedAt || prev.updatedAt,
+        missing: result.missing,
+      }));
+      setMaterials(mapMaterials(result.data?.materials || []));
+      if (result.missing) {
+        setLoadError('Материалы пока недоступны без подключения');
+      }
     } catch (err) {
       if (reqId !== materialsRequestId.current) return;
       setMaterials([]);
@@ -169,6 +226,47 @@ export default function MaterialManager() {
   const loadData = useCallback(async () => {
     await loadTree();
   }, [loadTree]);
+
+  useEffect(() => {
+    if (isLoadingAuth || !user?.id || browseHydrated) return;
+    const saved = loadMaterialBrowseState(user.id, isTutor ? 'tutor' : 'library');
+    if (saved) {
+      if (typeof saved.search === 'string') setSearch(saved.search);
+      if (typeof saved.filterType === 'string') setFilterType(saved.filterType);
+      if (typeof saved.filterBlock === 'string') setFilterBlock(saved.filterBlock);
+      if (typeof saved.sort === 'string') setSort(saved.sort);
+      if (saved.selectedCourseId) {
+        setSelectedCourseId(saved.selectedCourseId);
+        courseInitialized.current = true;
+      }
+      if (saved.selectedFolderId !== undefined) {
+        setSelectedFolderId(saved.selectedFolderId || null);
+      }
+    }
+    setBrowseHydrated(true);
+  }, [user?.id, isLoadingAuth, isTutor, browseHydrated]);
+
+  useEffect(() => {
+    if (!user?.id || !browseHydrated) return;
+    saveMaterialBrowseState(user.id, isTutor ? 'tutor' : 'library', {
+      search,
+      filterType,
+      filterBlock,
+      sort,
+      selectedCourseId,
+      selectedFolderId,
+    });
+  }, [
+    user?.id,
+    browseHydrated,
+    isTutor,
+    search,
+    filterType,
+    filterBlock,
+    sort,
+    selectedCourseId,
+    selectedFolderId,
+  ]);
 
   useEffect(() => {
     if (isLoadingAuth) return;
@@ -198,23 +296,34 @@ export default function MaterialManager() {
   ]);
 
   const filtered = useMemo(() => {
-    return materials.filter((m) => {
-      const q = search.trim().toLowerCase();
-      if (q && !(m.title || '').toLowerCase().includes(q) && !(m.description || '').toLowerCase().includes(q)) {
-        return false;
-      }
+    const scoped = materials.filter((m) => {
       if (selectedCourseId && m.course_id !== selectedCourseId) return false;
       if (selectedFolderId && m.folder_id !== selectedFolderId) return false;
-      if (filterType !== 'all') {
-        if (filterType === 'link') {
-          if (m.file_type !== 'link' && !String(m.file_url || '').startsWith('http')) return false;
-        } else if (m.file_type !== filterType) {
-          return false;
-        }
-      }
       return true;
     });
-  }, [materials, search, selectedCourseId, selectedFolderId, filterType]);
+    return browseMaterials(scoped, {
+      search,
+      typeFilter: filterType,
+      blockFilter: filterBlock,
+      sort,
+    });
+  }, [materials, search, selectedCourseId, selectedFolderId, filterType, filterBlock, sort]);
+
+  const availableBlocks = useMemo(() => collectMaterialBlocks(materials), [materials]);
+
+  const filtersActive = hasActiveMaterialBrowseFilters({
+    search,
+    typeFilter: filterType,
+    blockFilter: filterBlock,
+    sort,
+  });
+
+  const resetBrowseFilters = () => {
+    setSearch('');
+    setFilterType('all');
+    setFilterBlock('all');
+    setSort('newest');
+  };
 
   const openCreate = () => {
     const courseId = selectedCourseId || courses[0]?.id || (isTutor ? TUTOR_LIBRARY_COURSE_ID : null);
@@ -343,6 +452,39 @@ export default function MaterialManager() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-4">
+      <OfflineSnapshotBanner
+        fromCache={offlineMeta.fromCache}
+        updatedAt={offlineMeta.updatedAt}
+        missing={offlineMeta.missing}
+        emptyLabel="Материалы пока недоступны без подключения"
+      />
+      {view === 'users-access' ? (
+        <div className="space-y-4">
+          <div className="flex items-start gap-3">
+            <button
+              type="button"
+              onClick={() => setView('library')}
+              className="mt-1 inline-flex items-center gap-1.5 min-h-10 px-2 rounded-lg text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              aria-label="Назад"
+              data-testid="materials-access-back"
+            >
+              <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+              Назад
+            </button>
+            <div className="min-w-0">
+              <p className="text-sm text-muted-foreground">Материалы</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+                Назначение доступа
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Выберите пользователя и настройте материалы, которые ему доступны
+              </p>
+            </div>
+          </div>
+          <AccessManagementPanel isAdmin={isAdmin} />
+        </div>
+      ) : (
+        <>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Материалы уроков</h1>
@@ -355,9 +497,10 @@ export default function MaterialManager() {
         <div className="flex flex-wrap gap-2">
           {canBulkUserAccess && (
             <Button
-              variant={view === 'users-access' ? 'default' : 'outline'}
-              onClick={() => setView(view === 'users-access' ? 'library' : 'users-access')}
+              variant="outline"
+              onClick={() => setView('users-access')}
               className="gap-2"
+              data-testid="materials-open-user-access"
             >
               <Users className="h-4 w-4" />
               Доступ пользователей
@@ -372,60 +515,52 @@ export default function MaterialManager() {
         </div>
       </div>
 
-      {view === 'users-access' ? (
-        <AccessManagementPanel isAdmin={isAdmin} />
-      ) : (
-        <>
-          <div className="flex flex-col lg:flex-row gap-3 lg:items-center">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Поиск..."
-                className="pl-9"
-              />
-            </div>
-            <select
-              value={selectedCourseId || ''}
-              onChange={(e) => {
-                const id = e.target.value || null;
-                setSelectedCourseId(id);
-                setSelectedFolderId(null);
-              }}
-              className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
-            >
-              {!isTutor && <option value="">Все курсы</option>}
-              {courses.map((c) => (
-                <option key={c.id} value={c.id}>{c.name || c.course_name || 'Курс'}</option>
-              ))}
-            </select>
-            <select
-              value={selectedFolderId || ''}
-              onChange={(e) => setSelectedFolderId(e.target.value || null)}
-              className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
-              disabled={!selectedCourseId}
-            >
-              <option value="">Все папки</option>
-              {folders
-                .filter((f) => f.course_id === selectedCourseId)
-                .map((f) => (
-                  <option key={f.id} value={f.id}>{f.name}</option>
-                ))}
-            </select>
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="all">Все типы</option>
-              <option value="pdf">PDF</option>
-              <option value="pptx">Презентация</option>
-              <option value="video">Видео</option>
-              <option value="link">Ссылка</option>
-              <option value="other">Файл</option>
-            </select>
-          </div>
+          <MaterialBrowseToolbar
+            search={search}
+            onSearchChange={setSearch}
+            typeFilter={filterType}
+            onTypeFilterChange={setFilterType}
+            blockFilter={filterBlock}
+            onBlockFilterChange={setFilterBlock}
+            blocks={availableBlocks}
+            sort={sort}
+            onSortChange={setSort}
+            showReset={filtersActive}
+            onReset={resetBrowseFilters}
+            extraFilters={(
+              <>
+                <select
+                  value={selectedCourseId || ''}
+                  onChange={(e) => {
+                    const id = e.target.value || null;
+                    setSelectedCourseId(id);
+                    setSelectedFolderId(null);
+                  }}
+                  className="w-full min-w-0 min-h-touch rounded-lg border border-input bg-background px-3 py-2 text-sm sm:w-auto sm:min-w-[10rem]"
+                  aria-label="Курс"
+                >
+                  {!isTutor && <option value="">Все курсы</option>}
+                  {courses.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name || c.course_name || 'Курс'}</option>
+                  ))}
+                </select>
+                <select
+                  value={selectedFolderId || ''}
+                  onChange={(e) => setSelectedFolderId(e.target.value || null)}
+                  className="w-full min-w-0 min-h-touch rounded-lg border border-input bg-background px-3 py-2 text-sm sm:w-auto sm:min-w-[10rem]"
+                  aria-label="Папка"
+                  disabled={!selectedCourseId}
+                >
+                  <option value="">Все папки</option>
+                  {folders
+                    .filter((f) => f.course_id === selectedCourseId)
+                    .map((f) => (
+                      <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                </select>
+              </>
+            )}
+          />
 
           {selectedIds.size > 0 && canAccess && (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/30 dark:border-brand/50 bg-brand-soft/50 dark:bg-brand-soft/30 px-4 py-3">
@@ -462,7 +597,16 @@ export default function MaterialManager() {
                 await loadTree();
                 await loadMaterials(selectedCourseId, selectedFolderId);
               }}
+              onTreeRefresh={loadTree}
+              onFolderRenamed={(folderId, name) => {
+                setFolders((prev) =>
+                  prev.map((folder) =>
+                    folder.id === folderId ? { ...folder, name } : folder,
+                  ),
+                );
+              }}
               canManage={canManageCourses}
+              currentUserId={user?.id || null}
               canReceiveMaterials={canReceiveMaterials}
               onDropMaterials={moveMaterials}
             />
@@ -477,6 +621,17 @@ export default function MaterialManager() {
                 courses={courses}
                 folders={folders}
                 selectedIds={selectedIds}
+                emptyHint={
+                  materials.length === 0
+                    ? 'Измените курс или папку, либо добавьте материал'
+                    : 'Попробуйте изменить поиск или фильтры'
+                }
+                onResetFilters={
+                  filtersActive || materials.length > 0
+                    ? resetBrowseFilters
+                    : undefined
+                }
+                showResetFilters={filtersActive && filtered.length === 0 && materials.length > 0}
                 onToggleSelect={(id) => {
                   setSelectedIds((prev) => {
                     const next = new Set(prev);
@@ -494,6 +649,10 @@ export default function MaterialManager() {
                 canDragMaterials={canDragMaterials}
                 onOpen={async (mat) => {
                   try {
+                    if (isInAppMediaMaterial(mat)) {
+                      setPreviewMaterial(mat);
+                      return;
+                    }
                     await openMaterial(mat);
                   } catch (err) {
                     toast({
@@ -529,6 +688,13 @@ export default function MaterialManager() {
           }}
         />
       )}
+
+      {previewMaterial ? (
+        <MaterialMediaPreview
+          material={previewMaterial}
+          onClose={() => setPreviewMaterial(null)}
+        />
+      ) : null}
 
       {accessMaterial && (
         <AccessManager

@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '@/api';
 import { Award, Download, ExternalLink, Loader2, Sparkles } from 'lucide-react';
+import { api } from '@/api';
 import { toast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
-
-const STATUS_LABEL = {
-  draft: 'Черновик',
-  issued: 'Выдан',
-  sent: 'Отправлен',
-  duplicate: 'Дубликат',
-  revoked: 'Отозван',
-};
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import PageHeader from '@/components/responsive/PageHeader';
+import CertificateStatusBadge from '@/components/certificates/CertificateStatusBadge';
 
 const DISCLAIMER =
   'Данные сертификаты не являются сертификатами государственного образца и не предоставляют преимуществ, предусмотренных законодательством.';
@@ -49,7 +51,9 @@ export default function StudentCertificates() {
               n.channel === 'in_app' &&
               (n.status === 'pending' || n.status === 'sent'),
           )
-          .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+          .sort((a, b) =>
+            String(b.created_at || '').localeCompare(String(a.created_at || '')),
+          );
         setCelebration(unread[0] || null);
       } catch (err) {
         toast({
@@ -115,7 +119,7 @@ export default function StudentCertificates() {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-20">
+      <div className="flex justify-center py-20" data-testid="student-certificates-loading">
         <Loader2 className="h-6 w-6 animate-spin text-brand" />
       </div>
     );
@@ -127,94 +131,131 @@ export default function StudentCertificates() {
     : '/StudentCertificates';
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Мои сертификаты</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Достижения Longhua Academy — сертификаты о прохождении курсов и экзаменов
-        </p>
-      </div>
+    <div
+      className="p-3 sm:p-6 lg:p-8 w-full max-w-5xl mx-auto space-y-4 sm:space-y-6 min-w-0 overflow-x-hidden"
+      data-testid="student-certificates-page"
+    >
+      <PageHeader
+        title="Мои сертификаты"
+        description="Достижения Longhua Academy — сертификаты о прохождении курсов и экзаменов"
+      />
 
-      {celebration && (
-        <div
-          className="relative overflow-hidden rounded-2xl border-2 border-amber-300/80 dark:border-amber-700 bg-gradient-to-br from-amber-50 via-white to-red-50 dark:from-slate-900 dark:via-slate-950 dark:to-red-950/40 p-5 sm:p-6 shadow-md"
+      {celebration ? (
+        <Card
+          className="overflow-hidden border-brand/30 bg-brand/5 shadow-sm"
           data-testid="certificate-achievement-banner"
         >
-          <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-amber-200/40 blur-2xl" />
-          <div className="relative space-y-3">
-            <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-amber-800 dark:text-amber-200">
+          <CardHeader className="space-y-2 p-4 sm:p-6">
+            <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-brand">
               <Sparkles className="h-3.5 w-3.5" />
               Достижение
             </p>
-            <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white whitespace-pre-line">
+            <CardTitle className="text-lg sm:text-xl whitespace-pre-line break-words">
               {celebration.title}
-            </h2>
-            <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-line leading-relaxed">
+            </CardTitle>
+            <CardDescription className="text-sm text-foreground/80 whitespace-pre-line leading-relaxed">
               {celebration.body}
-            </p>
-            <div className="flex flex-wrap gap-2 pt-1">
-              <Button asChild className="bg-red-800 hover:bg-red-900 gap-2">
-                <Link to={viewPath} onClick={markCelebrationRead}>
-                  Открыть сертификат
-                </Link>
-              </Button>
-              <Button type="button" variant="outline" onClick={markCelebrationRead}>
-                Скрыть
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+            </CardDescription>
+          </CardHeader>
+          <CardFooter className="flex flex-wrap gap-2 p-4 pt-0 sm:p-6 sm:pt-0">
+            <Button asChild className="gap-2 min-h-10">
+              <Link to={viewPath} onClick={markCelebrationRead}>
+                Открыть сертификат
+              </Link>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-10"
+              onClick={markCelebrationRead}
+            >
+              Скрыть
+            </Button>
+          </CardFooter>
+        </Card>
+      ) : null}
 
       {rows.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 p-12 text-center">
-          <Award className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-500">Пока нет выданных сертификатов</p>
+        <div className="rounded-xl border border-dashed border-border bg-card/40 px-4 py-12 text-center space-y-3">
+          <Award className="mx-auto h-10 w-10 text-muted-foreground/60" />
+          <div className="space-y-1">
+            <h2 className="text-base font-semibold text-foreground">
+              Пока нет выданных сертификатов
+            </h2>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+              Когда преподаватель оформит сертификат, он появится здесь.
+            </p>
+          </div>
         </div>
       ) : (
-        <div className="grid gap-6 sm:grid-cols-1 lg:grid-cols-2">
-          {rows.map((cert) => (
-            <article
-              key={cert.id}
-              className="relative overflow-hidden rounded-3xl border-2 border-amber-200/90 dark:border-amber-900/50 bg-gradient-to-br from-amber-50 via-white to-red-50 dark:from-slate-900 dark:via-slate-950 dark:to-red-950/30 p-6 sm:p-8 shadow-md"
-              data-testid={`student-cert-card-${cert.id}`}
-            >
-              <div className="absolute inset-4 border border-amber-300/50 dark:border-amber-700/40 rounded-2xl pointer-events-none" />
-              <div className="relative flex flex-col items-center text-center gap-4">
-                <img
-                  src="/icons/icon-192.png?v=20260802c"
-                  alt="Longhua Academy"
-                  className="h-16 w-16 sm:h-20 sm:w-20 object-contain drop-shadow-sm"
-                />
-                <p className="text-[11px] uppercase tracking-[0.22em] text-amber-900/70 dark:text-amber-200/70 font-semibold">
-                  Longhua Academy · Достижение
-                </p>
-                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white leading-snug">
-                  {courseName(cert.course_id)}
-                </h2>
-                <p className="text-sm text-slate-600 dark:text-slate-300">{studentName}</p>
-                <div className="text-sm text-slate-600 dark:text-slate-400 space-y-1.5">
-                  <p>
-                    Серия <span className="font-semibold text-slate-800 dark:text-slate-200">{cert.blank_series || '—'}</span>
-                    {' · '}
-                    № <span className="font-semibold text-slate-800 dark:text-slate-200">{cert.blank_number || '—'}</span>
-                  </p>
-                  <p>Дата выдачи: {cert.issue_date || '—'}</p>
-                  <p className="inline-flex items-center rounded-full bg-amber-100/80 dark:bg-amber-900/40 px-3 py-0.5 text-xs font-medium text-amber-900 dark:text-amber-100">
-                    {STATUS_LABEL[cert.status] || 'Статус неизвестен'}
-                  </p>
-                </div>
-                <div className="flex flex-wrap justify-center gap-2 pt-2">
-                  <Button asChild className="bg-red-800 hover:bg-red-900 gap-2">
+        <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
+          {rows.map((cert) => {
+            const course = courseName(cert.course_id);
+            const blank =
+              cert.blank_series || cert.blank_number
+                ? `${cert.blank_series || '—'} · № ${cert.blank_number || '—'}`
+                : 'Бланк не указан';
+            return (
+              <Card
+                key={cert.id}
+                className="flex h-full min-w-0 flex-col overflow-hidden shadow-sm"
+                data-testid={`student-cert-card-${cert.id}`}
+              >
+                <CardHeader className="space-y-3 p-4 sm:p-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted">
+                      <img
+                        src="/icons/icon-192.png?v=20260802c"
+                        alt=""
+                        className="h-8 w-8 object-contain"
+                      />
+                    </div>
+                    <CertificateStatusBadge status={cert.status} />
+                  </div>
+                  <div className="min-w-0 space-y-1">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Longhua Academy
+                    </p>
+                    <CardTitle
+                      className="text-lg leading-snug break-words"
+                      title={course}
+                    >
+                      {course}
+                    </CardTitle>
+                    <CardDescription className="truncate" title={studentName}>
+                      {studentName}
+                    </CardDescription>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1 space-y-2 p-4 pt-0 text-sm sm:p-6 sm:pt-0">
+                  <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 space-y-1">
+                    <p className="text-muted-foreground truncate" title={blank}>
+                      {blank}
+                    </p>
+                    <p className="tabular-nums text-foreground">
+                      Дата выдачи: {cert.issue_date || '—'}
+                    </p>
+                    {cert.registration_number ? (
+                      <p
+                        className="text-xs text-muted-foreground truncate"
+                        title={cert.registration_number}
+                      >
+                        Рег. № {cert.registration_number}
+                      </p>
+                    ) : null}
+                  </div>
+                </CardContent>
+                <CardFooter className="flex flex-wrap gap-2 p-4 pt-0 sm:p-6 sm:pt-0">
+                  <Button asChild className="gap-2 min-h-10 flex-1 sm:flex-none">
                     <Link to={`/certificate/${cert.id}`}>
                       <ExternalLink className="h-4 w-4" />
-                      Открыть сертификат
+                      Открыть
                     </Link>
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
-                    className="gap-2 border-amber-300 text-amber-950 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-100"
+                    className="gap-2 min-h-10 flex-1 sm:flex-none"
                     disabled={downloadingId === cert.id}
                     onClick={(e) => downloadPdf(cert.id, e)}
                   >
@@ -223,16 +264,16 @@ export default function StudentCertificates() {
                     ) : (
                       <Download className="h-4 w-4" />
                     )}
-                    Скачать PDF
+                    PDF
                   </Button>
-                </div>
-              </div>
-            </article>
-          ))}
+                </CardFooter>
+              </Card>
+            );
+          })}
         </div>
       )}
 
-      <p className="pt-4 text-[11px] leading-relaxed text-slate-500 text-center max-w-2xl mx-auto border-t border-slate-200 dark:border-slate-800">
+      <p className="border-t border-border pt-4 text-center text-[11px] leading-relaxed text-muted-foreground max-w-2xl mx-auto">
         {DISCLAIMER}
       </p>
     </div>

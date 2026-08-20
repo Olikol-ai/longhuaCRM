@@ -1,0 +1,30 @@
+[Unit]
+Description=LonghuaCRM stack (screen: longhua → npm run dev)
+Documentation=file:///opt/longhuaCRM/docs/Deployment.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ilya
+Group=ilya
+WorkingDirectory=/opt/longhuaCRM
+Environment=HOME=/home/ilya
+Environment=CRM_DIR=/opt/longhuaCRM
+Environment=SCREEN_NAME=longhua
+Environment=PATH=/home/ilya/.nvm/versions/node/v24.18.0/bin:/usr/local/bin:/usr/bin:/bin
+# Runtime only — does NOT run deploy.sh / git pull / migrate / full build.
+# Launches: screen -dmS longhua → npm run dev (API + Vite + cloudflared).
+ExecStart=/opt/longhuaCRM/scripts/longhua-screen-runtime.sh start
+ExecStop=/opt/longhuaCRM/scripts/longhua-screen-runtime.sh stop
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=240
+TimeoutStopSec=60
+KillMode=mixed
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=longhua
+
+[Install]
+WantedBy=multi-user.target

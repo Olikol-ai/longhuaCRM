@@ -7,6 +7,8 @@ import {
   Param,
   Patch,
   Post,
+  Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -18,19 +20,115 @@ import { JwtPayload } from '../auth/auth.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { FilterQueryDto } from './dto/filter-query.dto';
 import { UpdateNotificationDto } from './dto/update-notification.dto';
+import { UpsertPushSubscriptionDto } from './dto/upsert-push-subscription.dto';
+import { UpdateNotificationPreferenceDto } from './dto/update-notification-preference.dto';
 import { NotificationsService } from './notifications.service';
+import { PushSubscriptionsService } from './push-subscriptions.service';
+import { NotificationPreferencesService } from './notification-preferences.service';
+import { WebPushSenderService } from './web-push-sender.service';
 
 @Controller('notifications')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(
+    private readonly notificationsService: NotificationsService,
+    private readonly pushSubscriptions: PushSubscriptionsService,
+    private readonly preferences: NotificationPreferencesService,
+    private readonly webPush: WebPushSenderService,
+  ) {}
+
+  @Get('vapid-public-key')
+  vapidPublicKey() {
+    return {
+      publicKey: this.webPush.getPublicKey(),
+      configured: this.webPush.isConfigured(),
+      // Human-readable config hint only — never include private key material.
+      error: this.webPush.isConfigured() ? null : this.webPush.getConfigError(),
+    };
+  }
+
+  @Get('feed')
+  async feed(@CurrentUser() user: JwtPayload) {
+    const items = await this.notificationsService.listForUser(user.sub);
+    const unreadCount = await this.notificationsService.unreadCount(user.sub);
+    return { items, unreadCount };
+  }
+
+  @Get('unread-count')
+  async unreadCount(@CurrentUser() user: JwtPayload) {
+    const unreadCount = await this.notificationsService.unreadCount(user.sub);
+    return { unreadCount };
+  }
+
+  @Post('mark-all-read')
+  async markAllRead(@CurrentUser() user: JwtPayload) {
+    const updated = await this.notificationsService.markAllRead(user.sub);
+    return { updated };
+  }
+
+  @Get('push-subscriptions')
+  listPush(@CurrentUser() user: JwtPayload) {
+    return this.pushSubscriptions.listActiveForUser(user.sub);
+  }
+
+  @Post('push-subscriptions')
+  upsertPush(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: UpsertPushSubscriptionDto,
+    @Req() req: { headers?: { 'user-agent'?: string } },
+  ) {
+    return this.pushSubscriptions.upsert({
+      userId: user.sub,
+      endpoint: dto.endpoint,
+      p256dh: dto.keys.p256dh,
+      auth: dto.keys.auth,
+      deviceLabel: dto.deviceLabel || null,
+      userAgent: req.headers?.['user-agent'] || null,
+    });
+  }
+
+  /**
+   * Device-scoped logout revoke. Query param preferred (DELETE bodies are unreliable).
+   * Does not revoke other devices for the same user.
+   */
+  @Delete('push-subscriptions/by-endpoint')
+  async revokePushByEndpoint(
+    @CurrentUser() user: JwtPayload,
+    @Query('endpoint') endpoint?: string,
+  ) {
+    await this.pushSubscriptions.revokeEndpointForUser(user.sub, endpoint || '');
+    return { ok: true };
+  }
+
+  @Delete('push-subscriptions/:id')
+  async revokePush(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    await this.pushSubscriptions.revokeByIdForUser(id, user.sub);
+    return { ok: true };
+  }
+
+  @Get('preferences')
+  listPreferences(@CurrentUser() user: JwtPayload) {
+    return this.preferences.listForUser(user.sub);
+  }
+
+  @Patch('preferences')
+  updatePreference(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: UpdateNotificationPreferenceDto,
+  ) {
+    return this.preferences.upsert(user.sub, dto.category, {
+      pushEnabled: dto.pushEnabled,
+      inAppEnabled: dto.inAppEnabled,
+      telegramEnabled: dto.telegramEnabled,
+    });
+  }
 
   @Get()
   findAll(@CurrentUser() user: JwtPayload) {
     if (normalizeRole(user.role) === 'admin') {
       return this.notificationsService.findAll();
     }
-    return this.notificationsService.filter({ userId: user.sub });
+    return this.notificationsService.listForUser(user.sub);
   }
 
   @Post('filter')
@@ -70,7 +168,6 @@ export class NotificationsController {
     if (role === 'admin') {
       return this.notificationsService.update(id, dto);
     }
-    // Students/teachers may only mark their own notifications as read.
     if (row.userId !== user.sub) {
       throw new ForbiddenException('Forbidden');
     }

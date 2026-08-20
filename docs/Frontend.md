@@ -15,13 +15,16 @@ src/
 │   ├── functions.js        # legacy RPC
 │   ├── schedule.js
 │   └── alfabank.js
+├── design-system/          # Design System 2.0 SSOT — import for NEW UI
 ├── pages/                  # Страницы
-├── components/             # UI, auth guards, forms
+├── components/             # UI, auth guards, forms (legacy + domain)
 ├── lib/                    # AuthContext, routing, query-client, theme
 ├── App.jsx                 # Router root
 ├── Layout.jsx              # Sidebar
 └── pages.config.js         # Реестр страниц для auto-routes
 ```
+
+**UI rule:** new screens compose from `@/design-system` only. See [architecture/design-system-2.0.md](./architecture/design-system-2.0.md).
 
 ## Маршрутизация
 

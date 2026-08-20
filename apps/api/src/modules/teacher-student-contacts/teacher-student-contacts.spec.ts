@@ -1,5 +1,7 @@
 import { TeacherStudentContactsService } from './teacher-student-contacts.service';
 import { TeacherStudentContactBalanceService } from './teacher-student-contact-balance.service';
+import { StudentEntity } from '../students/entities/student.entity';
+import { TeacherStudentContactEntity } from './entities/teacher-student-contact.entity';
 
 describe('TeacherStudentContactsService private notebook', () => {
   const teacherId = 'teacher-1';
@@ -50,11 +52,12 @@ describe('TeacherStudentContactsService private notebook', () => {
 
   const balanceService = {
     applyManualBalance: jest.fn(
-      async (_em: unknown, contact: { lessonBalance: number }, newBalance: number) => {
+      async (_em: unknown, contact: { lessonBalance?: number }, newBalance: number) => {
         contact.lessonBalance = newBalance;
         return contact;
       },
     ),
+    ensureTutorBalanceRow: jest.fn(async () => undefined),
   };
 
   const service = new TeacherStudentContactsService(
@@ -81,7 +84,22 @@ describe('TeacherStudentContactsService private notebook', () => {
     });
   });
 
-  it('teacher creates contact without User / linked Student / with zero balance', async () => {
+  it('teacher creates contact linked to school Student for admin visibility', async () => {
+    const studentRepo = {
+      create: jest.fn((row: unknown) => row),
+      save: jest.fn(async (row: { id: string }) => ({ ...row, id: 'stu-linked-1' })),
+    };
+    dataSource.transaction.mockImplementation(async (fn: (m: unknown) => unknown) =>
+      fn({
+        getRepository: (entity: unknown) => {
+          if (entity === StudentEntity) {
+            return studentRepo;
+          }
+          return contactRepo;
+        },
+      }),
+    );
+
     const row = await service.create(teacherActor, {
       name: 'Иванов Иван',
       phone: '+375291112233',
@@ -89,20 +107,29 @@ describe('TeacherStudentContactsService private notebook', () => {
     });
 
     expect(contactAccess.resolveOwner).toHaveBeenCalled();
+    expect(studentRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Иванов Иван',
+        phone: '+375291112233',
+        assignedTeacherId: teacherId,
+        status: 'active',
+      }),
+    );
     expect(contactRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
         ownerType: 'teacher',
         ownerId: teacherId,
         name: 'Иванов Иван',
-        phone: '+375291112233',
-        comment: 'личный список',
-        lessonBalance: 0,
-        linkedStudentId: null,
+        linkedStudentId: 'stu-linked-1',
         status: 'active',
       }),
     );
-    expect(row.linkedStudentId).toBeNull();
-    expect((row as { userId?: unknown }).userId).toBeUndefined();
+    expect(contactRepo.create).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        lessonBalance: expect.anything(),
+      }),
+    );
+    expect(row.linkedStudentId).toBe('stu-linked-1');
   });
 
   it('tutor can create contact under tutor owner', async () => {
@@ -117,10 +144,10 @@ describe('TeacherStudentContactsService private notebook', () => {
         ownerType: 'tutor',
         ownerId: tutorId,
         name: 'Пупкин',
-        lessonBalance: 0,
         linkedStudentId: null,
       }),
     );
+    expect(balanceService.ensureTutorBalanceRow).toHaveBeenCalled();
     expect(row.linkedStudentId).toBeNull();
   });
 
@@ -209,8 +236,9 @@ describe('TeacherStudentContactsService private notebook', () => {
 });
 
 describe('TeacherStudentContactBalanceService', () => {
-  it('deducts once and skips when already deducted', async () => {
-    const contact = { id: 'c-1', lessonBalance: 10 };
+  it('deducts tutor balance once and skips when already deducted', async () => {
+    const contact = { id: 'c-1', ownerType: 'tutor', linkedStudentId: null };
+    const tutorBalance = { contactId: 'c-1', lessonBalance: 10 };
     const attendance = {
       id: 'a-1',
       balanceDeducted: false,
@@ -233,6 +261,11 @@ describe('TeacherStudentContactBalanceService', () => {
       findOne: jest.fn().mockResolvedValue(contact),
       save: jest.fn(async (row: unknown) => row),
     };
+    const tutorBalanceRepo = {
+      findOne: jest.fn().mockResolvedValue(tutorBalance),
+      save: jest.fn(async (row: unknown) => row),
+      create: jest.fn((row: unknown) => row),
+    };
     const historyRepo = {
       create: jest.fn((row: unknown) => row),
       save: jest.fn(async (row: unknown) => row),
@@ -244,27 +277,10 @@ describe('TeacherStudentContactBalanceService', () => {
       }),
     };
 
-    const manager = {
-      getRepository: (entity: { name?: string }) => {
-        const name = entity?.name || String(entity);
-        if (String(name).includes('Attendance') || name === 'AttendanceEntity') {
-          return attendanceRepo;
-        }
-        if (String(name).includes('BalanceHistory')) return historyRepo;
-        if (String(name).includes('Contact') && !String(name).includes('Balance')) {
-          return contactRepo;
-        }
-        return lessonRepo;
-      },
-    };
+    const service = new TeacherStudentContactBalanceService({
+      transaction: jest.fn(),
+    } as never);
 
-    const dataSource = {
-      transaction: jest.fn(async (fn: (m: unknown) => unknown) => fn(manager)),
-    };
-
-    const service = new TeacherStudentContactBalanceService(dataSource as never);
-
-    // Use entity class names via prototype - getRepository receives Entity class
     const { AttendanceEntity } = await import('../lessons/entities/attendance.entity');
     const { LessonEntity } = await import('../lessons/entities/lesson.entity');
     const { TeacherStudentContactEntity } = await import(
@@ -273,6 +289,9 @@ describe('TeacherStudentContactBalanceService', () => {
     const { TeacherStudentBalanceHistoryEntity } = await import(
       './entities/teacher-student-balance-history.entity'
     );
+    const { TutorContactBalanceEntity } = await import(
+      './entities/tutor-contact-balance.entity'
+    );
 
     const typedManager = {
       getRepository: (entity: unknown) => {
@@ -280,12 +299,13 @@ describe('TeacherStudentContactBalanceService', () => {
         if (entity === LessonEntity) return lessonRepo;
         if (entity === TeacherStudentContactEntity) return contactRepo;
         if (entity === TeacherStudentBalanceHistoryEntity) return historyRepo;
+        if (entity === TutorContactBalanceEntity) return tutorBalanceRepo;
         return lessonRepo;
       },
     };
 
     await service.deductForCompletedLesson('l-1', typedManager as never);
-    expect(contact.lessonBalance).toBe(9);
+    expect(tutorBalance.lessonBalance).toBe(9);
     expect(historyRepo.save).toHaveBeenCalledWith(
       expect.objectContaining({
         oldBalance: 10,
@@ -295,11 +315,12 @@ describe('TeacherStudentContactBalanceService', () => {
     );
 
     await service.deductForCompletedLesson('l-1', typedManager as never);
-    expect(contact.lessonBalance).toBe(9);
+    expect(tutorBalance.lessonBalance).toBe(9);
   });
 
-  it('restores balance when cancelling completed contact lesson', async () => {
-    const contact = { id: 'c-1', lessonBalance: 9 };
+  it('restores tutor balance when cancelling completed contact lesson', async () => {
+    const contact = { id: 'c-1', ownerType: 'tutor', linkedStudentId: null };
+    const tutorBalance = { contactId: 'c-1', lessonBalance: 9 };
     const attendance = {
       id: 'a-1',
       balanceDeducted: true,
@@ -313,6 +334,11 @@ describe('TeacherStudentContactBalanceService', () => {
       findOne: jest.fn().mockResolvedValue(contact),
       save: jest.fn(async (row: unknown) => row),
     };
+    const tutorBalanceRepo = {
+      findOne: jest.fn().mockResolvedValue(tutorBalance),
+      save: jest.fn(async (row: unknown) => row),
+      create: jest.fn((row: unknown) => row),
+    };
     const historyRepo = {
       create: jest.fn((row: unknown) => row),
       save: jest.fn(async (row: unknown) => row),
@@ -332,6 +358,9 @@ describe('TeacherStudentContactBalanceService', () => {
     const { TeacherStudentBalanceHistoryEntity } = await import(
       './entities/teacher-student-balance-history.entity'
     );
+    const { TutorContactBalanceEntity } = await import(
+      './entities/tutor-contact-balance.entity'
+    );
 
     const typedManager = {
       getRepository: (entity: unknown) => {
@@ -339,6 +368,7 @@ describe('TeacherStudentContactBalanceService', () => {
         if (entity === LessonEntity) return lessonRepo;
         if (entity === TeacherStudentContactEntity) return contactRepo;
         if (entity === TeacherStudentBalanceHistoryEntity) return historyRepo;
+        if (entity === TutorContactBalanceEntity) return tutorBalanceRepo;
         return lessonRepo;
       },
     };
@@ -348,7 +378,7 @@ describe('TeacherStudentContactBalanceService', () => {
     } as never);
 
     await service.restoreForCancelledLesson('l-1', typedManager as never);
-    expect(contact.lessonBalance).toBe(10);
+    expect(tutorBalance.lessonBalance).toBe(10);
     expect(historyRepo.save).toHaveBeenCalledWith(
       expect.objectContaining({
         oldBalance: 9,
@@ -381,5 +411,147 @@ describe('TeacherStudentContactBalanceService', () => {
     } as never);
     await service.deductForCompletedLesson('l-crm', typedManager as never);
     expect(attendanceRepo.findOne).not.toHaveBeenCalled();
+  });
+
+  it('applyManualBalance for teacher writes Student only (no contact balance)', async () => {
+    const student = { id: 's-1', lessonBalance: 1 };
+    const contact = {
+      id: 'c-1',
+      ownerType: 'teacher',
+      linkedStudentId: 's-1',
+    };
+    const contactRepo = {
+      save: jest.fn(async (row: unknown) => row),
+    };
+    const studentRepo = {
+      findOne: jest.fn().mockResolvedValue(student),
+      save: jest.fn(async (row: unknown) => row),
+    };
+    const historyRepo = {
+      create: jest.fn((row: unknown) => row),
+      save: jest.fn(async (row: unknown) => row),
+    };
+    const { TeacherStudentContactEntity } = await import(
+      './entities/teacher-student-contact.entity'
+    );
+    const { StudentEntity } = await import('../students/entities/student.entity');
+    const { TeacherStudentBalanceHistoryEntity } = await import(
+      './entities/teacher-student-balance-history.entity'
+    );
+    const typedManager = {
+      getRepository: (entity: unknown) => {
+        if (entity === TeacherStudentContactEntity) return contactRepo;
+        if (entity === StudentEntity) return studentRepo;
+        if (entity === TeacherStudentBalanceHistoryEntity) return historyRepo;
+        return contactRepo;
+      },
+    };
+    const service = new TeacherStudentContactBalanceService({
+      transaction: jest.fn(),
+    } as never);
+
+    await service.applyManualBalance(typedManager as never, contact as never, 0, 'zero', 'u-1');
+    expect(student.lessonBalance).toBe(0);
+    expect(contactRepo.save).not.toHaveBeenCalled();
+    expect(historyRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ oldBalance: 1, newBalance: 0, changeAmount: -1 }),
+    );
+  });
+
+  it('applyManualBalance for tutor writes tutor_contact_balances only', async () => {
+    const contact = {
+      id: 'c-tutor',
+      ownerType: 'tutor',
+      linkedStudentId: null,
+    };
+    const tutorBalance = { contactId: 'c-tutor', lessonBalance: 3 };
+    const contactRepo = {
+      save: jest.fn(async (row: unknown) => row),
+    };
+    const tutorBalanceRepo = {
+      findOne: jest.fn().mockResolvedValue(tutorBalance),
+      save: jest.fn(async (row: unknown) => row),
+      create: jest.fn((row: unknown) => row),
+    };
+    const studentRepo = {
+      findOne: jest.fn(),
+      save: jest.fn(),
+    };
+    const historyRepo = {
+      create: jest.fn((row: unknown) => row),
+      save: jest.fn(async (row: unknown) => row),
+    };
+    const { TeacherStudentContactEntity } = await import(
+      './entities/teacher-student-contact.entity'
+    );
+    const { StudentEntity } = await import('../students/entities/student.entity');
+    const { TeacherStudentBalanceHistoryEntity } = await import(
+      './entities/teacher-student-balance-history.entity'
+    );
+    const { TutorContactBalanceEntity } = await import(
+      './entities/tutor-contact-balance.entity'
+    );
+    const typedManager = {
+      getRepository: (entity: unknown) => {
+        if (entity === TeacherStudentContactEntity) return contactRepo;
+        if (entity === StudentEntity) return studentRepo;
+        if (entity === TeacherStudentBalanceHistoryEntity) return historyRepo;
+        if (entity === TutorContactBalanceEntity) return tutorBalanceRepo;
+        return contactRepo;
+      },
+    };
+    const service = new TeacherStudentContactBalanceService({
+      transaction: jest.fn(),
+    } as never);
+
+    await service.applyManualBalance(typedManager as never, contact as never, 2, 'adj', 'u-1');
+    expect(tutorBalance.lessonBalance).toBe(2);
+    expect(tutorBalanceRepo.save).toHaveBeenCalled();
+    expect(contactRepo.save).not.toHaveBeenCalled();
+    expect(studentRepo.findOne).not.toHaveBeenCalled();
+  });
+
+  it('applyManualBalance allows negative debt on Student', async () => {
+    const student = { id: 's-1', lessonBalance: 0 };
+    const contact = {
+      id: 'c-1',
+      ownerType: 'teacher',
+      linkedStudentId: 's-1',
+    };
+    const contactRepo = {
+      save: jest.fn(async (row: unknown) => row),
+    };
+    const studentRepo = {
+      findOne: jest.fn().mockResolvedValue(student),
+      save: jest.fn(async (row: unknown) => row),
+    };
+    const historyRepo = {
+      create: jest.fn((row: unknown) => row),
+      save: jest.fn(async (row: unknown) => row),
+    };
+    const { TeacherStudentContactEntity } = await import(
+      './entities/teacher-student-contact.entity'
+    );
+    const { StudentEntity } = await import('../students/entities/student.entity');
+    const { TeacherStudentBalanceHistoryEntity } = await import(
+      './entities/teacher-student-balance-history.entity'
+    );
+    const typedManager = {
+      getRepository: (entity: unknown) => {
+        if (entity === TeacherStudentContactEntity) return contactRepo;
+        if (entity === StudentEntity) return studentRepo;
+        if (entity === TeacherStudentBalanceHistoryEntity) return historyRepo;
+        return contactRepo;
+      },
+    };
+    const service = new TeacherStudentContactBalanceService({
+      transaction: jest.fn(),
+    } as never);
+
+    await service.applyManualBalance(typedManager as never, contact as never, -2, 'debt', 'u-1');
+    expect(student.lessonBalance).toBe(-2);
+    expect(historyRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ oldBalance: 0, newBalance: -2, changeAmount: -2 }),
+    );
   });
 });

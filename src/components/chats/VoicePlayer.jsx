@@ -1,78 +1,68 @@
-import { Pause, Play } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { Loader2 } from 'lucide-react';
+import LonghuaAudioPlayer from '@/components/media/LonghuaAudioPlayer';
 import { useChatAttachmentObjectUrl } from '@/lib/use-chat-attachment-object-url';
+import { cn } from '@/lib/utils';
 
-function formatDuration(ms) {
-  if (!ms || ms < 0) return '';
-  const total = Math.round(ms / 1000);
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
+/**
+ * Chat voice message — same LonghuaAudioPlayer engine (variant="voice").
+ */
+export default function VoicePlayer({
+  attachment,
+  own = false,
+  mediaLocked = false,
+  standalone = false,
+}) {
+  const { src, error: loadError, loading } = useChatAttachmentObjectUrl(
+    mediaLocked ? null : attachment?.id,
+    { enabled: Boolean(attachment?.id) && !mediaLocked },
+  );
+  const durationHintMs = attachment?.durationMs ?? attachment?.duration_ms ?? null;
 
-export default function VoicePlayer({ attachment }) {
-  const audioRef = useRef(null);
-  const [playing, setPlaying] = useState(false);
-  const [playError, setPlayError] = useState(null);
-  const { src, error: loadError, loading } = useChatAttachmentObjectUrl(attachment?.id);
-  const label = formatDuration(attachment.durationMs ?? attachment.duration_ms);
-  const error = playError || loadError;
+  if (mediaLocked) {
+    return (
+      <p className="text-xs text-muted-foreground px-1 py-2">Голосовое сообщение недоступно.</p>
+    );
+  }
 
-  useEffect(() => {
-    setPlayError(null);
-    setPlaying(false);
-  }, [attachment?.id, src]);
+  if (loadError) {
+    return (
+      <div
+        className={cn(
+          'lh-chat-voice',
+          standalone && 'lh-chat-voice--standalone',
+          own ? 'lh-chat-voice--own' : 'lh-chat-voice--peer',
+        )}
+        role="alert"
+      >
+        <span className="text-xs px-2 py-1">Не удалось загрузить</span>
+      </div>
+    );
+  }
 
-  const toggle = async () => {
-    const el = audioRef.current;
-    if (!el || !src) return;
-    try {
-      if (el.paused) {
-        await el.play();
-      } else {
-        el.pause();
-      }
-    } catch (err) {
-      setPlayError(err?.message || 'Не удалось воспроизвести');
-    }
-  };
+  if (loading || !src) {
+    return (
+      <div
+        className={cn(
+          'lh-chat-voice',
+          standalone && 'lh-chat-voice--standalone',
+          own ? 'lh-chat-voice--own' : 'lh-chat-voice--peer',
+        )}
+        data-testid="voice-player-loading"
+      >
+        <Loader2 className="size-5 animate-spin shrink-0 opacity-70" aria-hidden />
+        <span className="text-xs opacity-80">Загрузка…</span>
+      </div>
+    );
+  }
 
   return (
-    <div className="mt-1 flex max-w-full items-center gap-2 rounded-md border border-border bg-muted/40 px-2 py-1.5">
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        className="h-11 w-11 shrink-0"
-        onClick={() => void toggle()}
-        disabled={!src || loading}
-        aria-label={playing ? 'Пауза' : 'Воспроизвести'}
-      >
-        {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-      </Button>
-      <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium">Голосовое сообщение</p>
-        {label ? <p className="text-[11px] text-muted-foreground">{label}</p> : null}
-        {loading && !error ? (
-          <p className="text-[11px] text-muted-foreground">Загрузка…</p>
-        ) : null}
-        {error ? <p className="text-[11px] text-destructive">{error}</p> : null}
-      </div>
-      {src ? (
-        <audio
-          ref={audioRef}
-          src={src}
-          preload="metadata"
-          playsInline
-          onPlay={() => setPlaying(true)}
-          onPause={() => setPlaying(false)}
-          onEnded={() => setPlaying(false)}
-          onError={() =>
-            setPlayError('Не удалось воспроизвести аудио. Формат может не поддерживаться браузером.')
-          }
-        />
-      ) : null}
-    </div>
+    <LonghuaAudioPlayer
+      src={src}
+      variant="voice"
+      own={own}
+      durationHintMs={durationHintMs}
+      waveformSeed={attachment?.id}
+      wrapperClassName={cn(standalone && 'lh-chat-voice--standalone')}
+    />
   );
 }

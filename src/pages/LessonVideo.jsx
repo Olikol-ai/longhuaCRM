@@ -1,99 +1,43 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { ArrowLeft, Loader2, Maximize2, PhoneOff } from 'lucide-react';
 import { api } from '@/api';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { toast } from '@/components/ui/use-toast';
 import { userFacingError } from '@/lib/userFacingError';
 import { createPageUrl } from '@/utils';
 import { useAuth } from '@/lib/AuthContext';
-import { useTheme } from '@/lib/ThemeContext';
 import {
   checkMediaDevices,
+  mapVideoConferenceError,
   parseJitsiDomain,
-  videoConnectionMeta,
 } from '@/lib/lesson-video';
-import { useIsLgUp } from '@/lib/responsive';
-import { cn } from '@/lib/utils';
-import JitsiLessonEmbed from '@/components/video/JitsiLessonEmbed';
+import { useVideoSession } from '@/lib/VideoSessionContext';
 import VideoPrejoin from '@/components/video/VideoPrejoin';
-import LessonVideoControls from '@/components/video/LessonVideoControls';
-import LessonVideoSideRail from '@/components/video/LessonVideoSideRail';
 
-/** Fixed desktop rail width (~15–20% of common desktops, never squeezes video). */
-const DESKTOP_RAIL_WIDTH = 'min(20vw, 22rem)';
-
-function formatClock(t) {
-  if (!t) return '—';
-  return String(t).slice(0, 5);
-}
-
-function ConnectionPill({ status }) {
-  const meta = videoConnectionMeta(status);
-  const tone =
-    meta.tone === 'ok'
-      ? 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/25 dark:text-emerald-300 dark:ring-emerald-500/30'
-      : meta.tone === 'warn'
-        ? 'bg-amber-500/10 text-amber-800 ring-amber-500/25 dark:text-amber-200 dark:ring-amber-500/30'
-        : meta.tone === 'bad'
-          ? 'bg-rose-500/10 text-rose-700 ring-rose-500/25 dark:text-rose-300 dark:ring-rose-500/30'
-          : 'bg-muted text-muted-foreground ring-border';
-  const dot =
-    meta.tone === 'ok'
-      ? 'bg-emerald-500'
-      : meta.tone === 'warn'
-        ? 'bg-amber-500 animate-pulse'
-        : meta.tone === 'bad'
-          ? 'bg-rose-500'
-          : 'bg-muted-foreground';
-
-  return (
-    <span
-      className={cn(
-        'inline-flex h-7 max-w-[9.5rem] items-center gap-1.5 truncate rounded-full px-2 text-[11px] font-medium ring-1',
-        tone,
-      )}
-      data-testid="lesson-video-connection"
-    >
-      <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', dot)} aria-hidden />
-      <span className="truncate">{meta.label}</span>
-    </span>
-  );
-}
-
+/**
+ * Lesson video entry page: access + prejoin.
+ * Once joined, the live conference lives in VideoSessionLayer (global),
+ * so CRM navigation no longer tears down WebRTC.
+ */
 export default function LessonVideo() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { theme } = useTheme();
-  const isDesktop = useIsLgUp();
-  const jitsiRef = useRef(null);
-  const stageRef = useRef(null);
-  const conferenceJoinedRef = useRef(false);
-  const sessionJwtRef = useRef(null);
+  const videoSession = useVideoSession();
+  const didInitialDeviceCheckRef = useRef(false);
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [forceJoin, setForceJoin] = useState(false);
-  const [joined, setJoined] = useState(false);
   const [checking, setChecking] = useState(false);
   const [checks, setChecks] = useState(null);
-  const [sessionEnded, setSessionEnded] = useState(false);
   const [joinError, setJoinError] = useState(null);
   const [joining, setJoining] = useState(false);
-  const [audioMuted, setAudioMuted] = useState(false);
-  const [videoMuted, setVideoMuted] = useState(false);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [desktopRailOpen, setDesktopRailOpen] = useState(true);
-  const [railTab, setRailTab] = useState('chat');
-  const [embedKey, setEmbedKey] = useState(0);
-  const [connectionStatus, setConnectionStatus] = useState('idle');
-  const [jitsiParticipantCount, setJitsiParticipantCount] = useState(null);
-  const [livePresence, setLivePresence] = useState([]);
-  const [sessionJwt, setSessionJwt] = useState(null);
-  const [lessonChatUnread, setLessonChatUnread] = useState(0);
-  const didInitialDeviceCheckRef = useRef(false);
+
+  const sessionMatches =
+    videoSession.active &&
+    String(videoSession.session?.lessonId) === String(id);
 
   useEffect(() => {
     if (!id) return;
@@ -132,8 +76,7 @@ export default function LessonVideo() {
   const runDeviceCheck = useCallback(async () => {
     setChecking(true);
     try {
-      const result = await checkMediaDevices();
-      setChecks(result);
+      setChecks(await checkMediaDevices());
     } catch {
       setChecks({
         camera: { ok: false, label: 'Камера' },
@@ -149,40 +92,17 @@ export default function LessonVideo() {
   }, []);
 
   useEffect(() => {
-    // One-shot prejoin probe only — never re-request getUserMedia during an active call
-    // (that can interrupt the Jitsi tracks).
     if (loading || !data || didInitialDeviceCheckRef.current) return;
-    if (joined || joining) return;
+    if (sessionMatches || joining) return;
     didInitialDeviceCheckRef.current = true;
     void runDeviceCheck();
-  }, [loading, data, runDeviceCheck, joined, joining]);
-
-  useEffect(() => {
-    if (isDesktop) setSheetOpen(false);
-  }, [isDesktop]);
-
-  // Side panel open/close must only resize the iframe — never remount Jitsi.
-  useEffect(() => {
-    if (!joined) return undefined;
-    const frame = window.requestAnimationFrame(() => {
-      jitsiRef.current?.resize?.();
-    });
-    const t = window.setTimeout(() => jitsiRef.current?.resize?.(), 280);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.clearTimeout(t);
-    };
-  }, [joined, desktopRailOpen, sheetOpen, isDesktop]);
+  }, [loading, data, runDeviceCheck, sessionMatches, joining]);
 
   const canJoinWindow = forceJoin || Boolean(data?.timing?.can_join);
   const phase = data?.timing?.phase;
   const tooEarly = phase === 'before' && !canJoinWindow;
   const isHost = Boolean(data?.is_host);
   const isStudent = data?.viewer_role === 'student';
-  const canManageAttendance =
-    user?.role === 'admin' ||
-    user?.role === 'teacher' ||
-    user?.role === 'tutor';
 
   const backPath = useMemo(() => {
     if (user?.role === 'student' || user?.role === 'tutor_student') {
@@ -208,97 +128,65 @@ export default function LessonVideo() {
   const enterConference = useCallback(async () => {
     setJoining(true);
     setJoinError(null);
-    setSessionEnded(false);
-    setConnectionStatus('connecting');
-    conferenceJoinedRef.current = false;
     try {
       const access = await prepareJoin();
       const token = access?.token || data?.token;
-      const room = access?.room_name || access?.room_id || data?.room_name || data?.room_id;
-      const host = access?.domain || data?.domain || parseJitsiDomain(access?.room_url || data?.room_url);
+      const room =
+        access?.room_name || access?.room_id || data?.room_name || data?.room_id;
+      const host =
+        access?.domain ||
+        data?.domain ||
+        parseJitsiDomain(access?.room_url || data?.room_url);
       if (!token || !room || !host) {
-        setJoinError('Не удалось получить доступ к видеоконференции. Обновите страницу и попробуйте снова.');
-        setJoined(false);
-        setConnectionStatus('failed');
+        setJoinError(
+          'Не удалось получить доступ к видеоконференции. Обновите страницу и попробуйте снова.',
+        );
         return;
       }
       setForceJoin(true);
-      sessionJwtRef.current = token;
-      setSessionJwt(token);
-      setJoined(true);
+      const payloadAccess = access || data;
+      videoSession.startSession({
+        lessonId: id,
+        jwt: token,
+        tokenExpiresAt:
+          access?.token_expires_at ??
+          data?.token_expires_at ??
+          null,
+        domain: host,
+        roomName: room,
+        roomUrl: payloadAccess?.room_url || data?.room_url,
+        displayName: payloadAccess?.display_name || data?.display_name,
+        subject: payloadAccess?.conference_subject || payloadAccess?.subject || data?.subject,
+        externalApiUrl: payloadAccess?.external_api_url || data?.external_api_url,
+        access: payloadAccess,
+        isHost,
+        isStudent,
+        viewerRole: payloadAccess?.viewer_role || data?.viewer_role,
+        materialsPath,
+        homeworkPath,
+        backPath,
+        crmUserId: user?.id || null,
+        crmEmail: user?.email || null,
+      });
     } catch (err) {
-      setJoinError(userFacingError(err) || 'Не удалось подключиться к видеоконференции.');
-      setJoined(false);
-      setConnectionStatus('failed');
+      const mapped = mapVideoConferenceError(err);
+      setJoinError(mapped.description || userFacingError(err));
     } finally {
       setJoining(false);
     }
-  }, [prepareJoin, data]);
-
-  const handleJoin = useCallback(async () => {
-    if (tooEarly && !isHost) return;
-    await enterConference();
-  }, [tooEarly, isHost, enterConference]);
-
-  const handleForceJoin = useCallback(async () => {
-    await enterConference();
-  }, [enterConference]);
-
-  const handleLeft = useCallback(() => {
-    if (!conferenceJoinedRef.current) return;
-    setJoined(false);
-    setSessionEnded(true);
-    setJoinError(null);
-    setConnectionStatus('idle');
-    setJitsiParticipantCount(null);
-    sessionJwtRef.current = null;
-    setSessionJwt(null);
-  }, []);
-
-  const handleJoined = useCallback(() => {
-    conferenceJoinedRef.current = true;
-    setSessionEnded(false);
-    setJoinError(null);
-    setConnectionStatus('connected');
-  }, []);
-
-  const handleEmbedError = useCallback((err) => {
-    const message =
-      userFacingError(err) || 'Не удалось подключиться к видеоконференции.';
-    setJoinError(message);
-    setJoined(false);
-    setSessionEnded(false);
-    setConnectionStatus('failed');
-    sessionJwtRef.current = null;
-    setSessionJwt(null);
-    setEmbedKey((k) => k + 1);
-  }, []);
-
-  const hangup = useCallback(() => {
-    conferenceJoinedRef.current = true;
-    jitsiRef.current?.executeCommand?.('hangup');
-    setJoined(false);
-    setSessionEnded(true);
-    setJoinError(null);
-    setConnectionStatus('idle');
-    sessionJwtRef.current = null;
-    setSessionJwt(null);
-    setEmbedKey((k) => k + 1);
-  }, []);
-
-  const openSheetTab = useCallback((tabId) => {
-    // Only swaps SidePanel content — never navigate away or remount Jitsi.
-    setRailTab(tabId || 'chat');
-    if (isDesktop) {
-      setDesktopRailOpen(true);
-    } else {
-      setSheetOpen(true);
-    }
-  }, [isDesktop]);
-
-  const openPanel = useCallback(() => {
-    openSheetTab(railTab || 'chat');
-  }, [openSheetTab, railTab]);
+  }, [
+    prepareJoin,
+    data,
+    videoSession,
+    id,
+    isHost,
+    isStudent,
+    materialsPath,
+    homeworkPath,
+    backPath,
+    user?.id,
+    user?.email,
+  ]);
 
   if (loading) {
     return (
@@ -314,7 +202,7 @@ export default function LessonVideo() {
 
   if (!data) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background p-6 text-center text-foreground">
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background p-6 text-center">
         <p className="text-muted-foreground">Видеоурок недоступен</p>
         <Button variant="outline" className="min-h-11" onClick={() => navigate(backPath)}>
           Назад
@@ -323,309 +211,134 @@ export default function LessonVideo() {
     );
   }
 
-  const lesson = data.lesson || {};
-  const subject = data.subject || 'Китайский язык';
-  const timeRange =
-    lesson.time_range_label ||
-    `${formatClock(lesson.start_time)}${lesson.end_time ? ` – ${formatClock(lesson.end_time)}` : ''}`;
-  const domain = data.domain || parseJitsiDomain(data.room_url);
-  const embedJwt = sessionJwt || sessionJwtRef.current;
-  const showVideo = joined && canJoinWindow && Boolean(embedJwt);
-  const connectionLabel = videoConnectionMeta(showVideo || joining ? connectionStatus : 'idle').label;
-  const desktopRailVisible = isDesktop && desktopRailOpen;
+  // Live conference chrome is owned by VideoSessionLayer.
+  if (sessionMatches && videoSession.mode === 'full') {
+    return (
+      <div
+        className="flex min-h-dvh items-center justify-center bg-background text-muted-foreground"
+        data-testid="lesson-video-page-delegated"
+      >
+        <Loader2 className="h-6 w-6 animate-spin text-brand" />
+      </div>
+    );
+  }
 
-  const sideRailProps = {
-    lessonId: id,
-    lesson,
-    isHost,
-    isStudent,
-    canManageAttendance,
-    materialsPath,
-    homeworkPath,
-    jitsiParticipantCount,
-    livePresence,
-    timeRange,
-    subject,
-    connectionLabel,
-    activeTab: railTab,
-    onActiveTabChange: setRailTab,
-    onChatUnreadChange: setLessonChatUnread,
-  };
+  if (sessionMatches && videoSession.mode === 'mini') {
+    return (
+      <div
+        className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background p-6 text-center"
+        data-testid="lesson-video-page-minimized"
+      >
+        <p className="text-lg font-semibold text-foreground">Урок идёт в мини-окне</p>
+        <p className="max-w-md text-sm text-muted-foreground">
+          Камера и микрофон активны. Можно работать в CRM или вернуться к полному
+          интерфейсу урока.
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <Button type="button" className="min-h-11" onClick={() => videoSession.expand()}>
+            <Maximize2 className="mr-2 h-4 w-4" />
+            Развернуть урок
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11"
+            onClick={() => videoSession.requestEnd(videoSession.endSession)}
+          >
+            <PhoneOff className="mr-2 h-4 w-4" />
+            Завершить урок
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="min-h-11"
+            onClick={() => navigate(backPath)}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            К расписанию
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
-      className="grid h-dvh max-h-dvh w-full grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-background text-foreground"
+      className="flex min-h-dvh flex-col bg-background text-foreground"
       data-testid="lesson-video-page"
-      data-theme={theme}
     >
-      {/* Compact top bar — CRM chrome tokens */}
-      <header className="z-20 grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-border bg-card/95 px-2 py-1.5 backdrop-blur-sm safe-pt sm:gap-3 sm:px-3">
+      <header className="flex items-center gap-2 border-b border-border px-3 py-2">
         <button
           type="button"
           onClick={() => navigate(backPath)}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
+          className="inline-flex min-h-touch min-w-touch items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
           aria-label="Назад"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold leading-tight text-foreground">
-            {lesson.title || 'Онлайн-урок'}
+          <p className="truncate text-sm font-semibold">
+            {data.lesson?.title || 'Онлайн-урок'}
           </p>
-          <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground sm:text-xs">
-            <span className="text-brand">{subject}</span>
-            <span className="mx-1 opacity-40">·</span>
-            <span>{lesson.teacher_name || 'Преподаватель'}</span>
-            <span className="mx-1 opacity-40">·</span>
-            <span className="tabular-nums">{timeRange}</span>
+          <p className="truncate text-xs text-muted-foreground">
+            {data.subject || 'Китайский язык'}
           </p>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          {showVideo || joining ? <ConnectionPill status={connectionStatus} /> : null}
-
-          {isDesktop ? (
-            <button
-              type="button"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
-              onClick={() => setDesktopRailOpen((v) => !v)}
-              aria-label={desktopRailOpen ? 'Скрыть панель' : 'Показать панель'}
-              aria-pressed={desktopRailOpen}
-              data-testid="lesson-video-rail-toggle"
-            >
-              {desktopRailOpen ? (
-                <PanelRightClose className="h-5 w-5" />
-              ) : (
-                <PanelRightOpen className="h-5 w-5" />
-              )}
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="inline-flex h-10 min-h-10 items-center gap-1.5 rounded-full bg-muted px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
-              onClick={() => openSheetTab('chat')}
-              data-testid="lesson-video-open-sheet"
-            >
-              <PanelRightOpen className="h-4 w-4" />
-              <span className="hidden min-[360px]:inline">Панель</span>
-            </button>
-          )}
         </div>
       </header>
 
-      {/* Stage + optional desktop rail */}
-      <div
-        className={cn(
-          'grid min-h-0 min-w-0 overflow-hidden transition-[grid-template-columns] duration-300 ease-out',
-          desktopRailVisible
-            ? 'grid-cols-[minmax(0,1fr)_var(--lesson-rail-w)]'
-            : 'grid-cols-[minmax(0,1fr)_0fr]',
-        )}
-        style={{ '--lesson-rail-w': DESKTOP_RAIL_WIDTH }}
-      >
-        <section
-          className={cn(
-            'relative grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)] overflow-hidden',
-            showVideo ? 'bg-black' : 'bg-muted/40',
-          )}
-        >
-          {showVideo ? (
-            <div className="relative grid min-h-0 grid-rows-[minmax(0,1fr)]">
-              <div
-                ref={stageRef}
-                className="relative min-h-0 min-w-0 overflow-hidden bg-black"
-                data-testid="lesson-video-stage"
-              >
-                <JitsiLessonEmbed
-                  key={embedKey}
-                  ref={jitsiRef}
-                  domain={domain}
-                  roomName={data.room_name || data.room_id}
-                  roomUrl={data.room_url}
-                  displayName={data.display_name}
-                  subject={data.conference_subject || lesson.title}
-                  externalApiUrl={data.external_api_url}
-                  jwt={embedJwt}
-                  crmUserId={user?.id || null}
-                  crmEmail={user?.email || null}
-                  crmTheme={theme === 'dark' ? 'dark' : 'light'}
-                  onLeft={handleLeft}
-                  onJoined={handleJoined}
-                  onError={handleEmbedError}
-                  onAudioMuteChanged={setAudioMuted}
-                  onVideoMuteChanged={setVideoMuted}
-                  onConnectionStatus={setConnectionStatus}
-                  onParticipantCount={setJitsiParticipantCount}
-                  onPresenceChange={setLivePresence}
-                />
-              </div>
-
-              {/* Floating dock — overlays video bottom, does not steal layout height */}
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-10">
-                <LessonVideoControls
-                  audioMuted={audioMuted}
-                  videoMuted={videoMuted}
-                  compact={!isDesktop}
-                  canManageAttendance={canManageAttendance}
-                  chatUnread={lessonChatUnread}
-                  onToggleAudio={() => jitsiRef.current?.executeCommand?.('toggleAudio')}
-                  onToggleVideo={() => jitsiRef.current?.executeCommand?.('toggleVideo')}
-                  onShareScreen={() => jitsiRef.current?.executeCommand?.('toggleShareScreen')}
-                  onFullscreen={() => {
-                    const el = stageRef.current;
-                    if (!el) return;
-                    if (document.fullscreenElement) {
-                      void document.exitFullscreen?.();
-                    } else {
-                      void el.requestFullscreen?.();
-                    }
-                  }}
-                  onHangup={hangup}
-                  onOpenChat={() => openSheetTab('chat')}
-                  onOpenMaterials={() => openSheetTab('materials')}
-                  onOpenHomework={() => openSheetTab('homework')}
-                  onOpenParticipants={() => openSheetTab('participants')}
-                  onOpenAttendance={() => openSheetTab('attendance')}
-                  onOpenSettings={async () => {
-                    try {
-                      const result = await checkMediaDevices();
-                      const cam = result.camera.ok ? 'камера ок' : 'камера недоступна';
-                      const mic = result.microphone.ok ? 'микрофон ок' : 'микрофон недоступен';
-                      toast({
-                        title: 'Настройки устройств',
-                        description: `${cam}, ${mic}. Управление устройствами — через разрешения браузера.`,
-                      });
-                    } catch {
-                      toast({
-                        title: 'Настройки',
-                        description: 'Проверьте разрешения камеры и микрофона в браузере.',
-                      });
-                    }
-                    openSheetTab('info');
-                  }}
-                />
+      <div className="flex min-h-0 flex-1 items-start justify-center overflow-y-auto p-4 sm:items-center sm:p-6">
+        <div className="w-full max-w-lg">
+          {joinError ? (
+            <div
+              className="space-y-4 rounded-2xl border border-rose-200 bg-card p-6 text-center shadow-sm dark:border-rose-900/50 sm:p-8"
+              data-testid="lesson-video-join-error"
+            >
+              <p className="font-medium text-rose-700 dark:text-rose-300">
+                Не удалось подключиться к видеоуроку
+              </p>
+              <p className="text-sm text-muted-foreground">{joinError}</p>
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button
+                  type="button"
+                  className="min-h-11"
+                  onClick={enterConference}
+                  disabled={joining}
+                >
+                  {joining ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Подключение…
+                    </>
+                  ) : (
+                    'Повторить подключение'
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-11"
+                  onClick={() => navigate(backPath)}
+                >
+                  Покинуть
+                </Button>
               </div>
             </div>
           ) : (
-            <div className="flex min-h-0 items-start justify-center overflow-y-auto overscroll-contain p-4 sm:items-center sm:p-6">
-              <div className="w-full max-w-lg">
-                {joinError ? (
-                  <div
-                    className="space-y-4 rounded-2xl border border-rose-200 bg-card p-6 text-center shadow-sm dark:border-rose-900/50 sm:p-8"
-                    data-testid="lesson-video-join-error"
-                  >
-                    <p className="font-medium text-rose-700 dark:text-rose-300">
-                      Не удалось подключиться к видеоконференции.
-                    </p>
-                    <p className="text-sm text-muted-foreground">{joinError}</p>
-                    <div className="flex flex-wrap justify-center gap-2">
-                      <Button
-                        type="button"
-                        className="min-h-11"
-                        onClick={enterConference}
-                        disabled={joining}
-                        data-testid="lesson-video-retry"
-                      >
-                        {joining ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Подключение…
-                          </>
-                        ) : (
-                          'Повторить'
-                        )}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="min-h-11"
-                        onClick={() => navigate(backPath)}
-                      >
-                        Назад
-                      </Button>
-                    </div>
-                  </div>
-                ) : sessionEnded ? (
-                  <div className="space-y-4 rounded-2xl border border-border bg-card p-6 text-center shadow-sm sm:p-8">
-                    <p className="font-medium text-foreground">Вы вышли из урока</p>
-                    <p className="text-sm text-muted-foreground">
-                      Можно вернуться в видео или открыть чат и материалы в панели урока.
-                    </p>
-                    <div className="flex flex-wrap justify-center gap-2">
-                      <Button
-                        type="button"
-                        className="min-h-11"
-                        onClick={handleJoin}
-                        data-testid="lesson-video-rejoin"
-                      >
-                        {isHost ? 'Вернуться в урок' : 'Войти в урок снова'}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="min-h-11"
-                        onClick={openPanel}
-                      >
-                        Панель урока
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <VideoPrejoin
-                    isHost={isHost}
-                    checking={checking || joining}
-                    checks={checks}
-                    canJoin={canJoinWindow}
-                    tooEarly={tooEarly}
-                    minutesUntilStart={data.timing?.minutes_until_start}
-                    hostRequiresAccount={Boolean(data.host_requires_account)}
-                    onCheck={runDeviceCheck}
-                    onJoin={handleJoin}
-                    onForceJoin={handleForceJoin}
-                    joinLabel={joinLabel}
-                  />
-                )}
-              </div>
-            </div>
+            <VideoPrejoin
+              isHost={isHost}
+              checking={checking || joining}
+              checks={checks}
+              canJoin={canJoinWindow}
+              tooEarly={tooEarly}
+              minutesUntilStart={data.timing?.minutes_until_start}
+              hostRequiresAccount={Boolean(data.host_requires_account)}
+              onCheck={runDeviceCheck}
+              onJoin={enterConference}
+              onForceJoin={enterConference}
+              joinLabel={joinLabel}
+            />
           )}
-        </section>
-
-        {/* Desktop informational rail — collapses to 0fr without remounting video */}
-        <aside
-          className={cn(
-            'min-h-0 min-w-0 overflow-hidden border-l transition-[border-color] duration-300',
-            desktopRailVisible ? 'border-border' : 'border-transparent',
-          )}
-          aria-hidden={!desktopRailVisible}
-          data-testid="lesson-video-desktop-rail"
-        >
-          <div
-            className="flex h-full flex-col"
-            style={{ width: DESKTOP_RAIL_WIDTH, minWidth: '17.5rem' }}
-          >
-            <LessonVideoSideRail {...sideRailProps} />
-          </div>
-        </aside>
+        </div>
       </div>
-
-      {/* Mobile / tablet: bottom sheet only — no permanent side panel */}
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent
-          side="bottom"
-          className="flex h-[min(85dvh,100%)] max-h-[85dvh] w-full flex-col gap-0 rounded-t-2xl border-border bg-card p-0 text-card-foreground safe-pb"
-        >
-          <div
-            className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-muted-foreground/30"
-            aria-hidden
-          />
-          <SheetHeader className="shrink-0 border-b border-border px-4 py-3 pr-12">
-            <SheetTitle className="text-left text-base text-foreground">Панель урока</SheetTitle>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <LessonVideoSideRail {...sideRailProps} compact />
-          </div>
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }

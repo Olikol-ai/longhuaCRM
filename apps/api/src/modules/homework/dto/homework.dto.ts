@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -257,8 +258,35 @@ export class HomeworkReviewAnswerDto {
 }
 
 export class SaveHomeworkReviewDto {
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => HomeworkReviewAnswerDto)
-  answers!: HomeworkReviewAnswerDto[];
+  answers?: HomeworkReviewAnswerDto[];
+
+  @IsOptional()
+  @IsIn(['auto', 'manual'])
+  grading_mode?: 'auto' | 'manual';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  manual_percentage?: number | null;
+
+  /** Student-facing teacher comment (stored as owner_comment). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  student_feedback?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  comment?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  show_correct_answers?: boolean;
 }

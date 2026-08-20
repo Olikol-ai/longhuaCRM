@@ -1,13 +1,10 @@
 import { getToken } from '@/api';
+import { PageLoading } from '@/design-system';
 
 const VALID_DASHBOARD_ROLES = new Set(['admin', 'teacher', 'tutor', 'student', 'tutor_student']);
 
 export function AuthLoadingScreen() {
-  return (
-    <div className="fixed inset-0 flex items-center justify-center bg-background">
-      <div className="w-8 h-8 border-4 border-slate-200 dark:border-slate-700 border-t-slate-800 dark:border-t-slate-200 rounded-full animate-spin" />
-    </div>
-  );
+  return <PageLoading fullScreen label="Загрузка сессии" />;
 }
 
 export function isValidDashboardRole(role) {

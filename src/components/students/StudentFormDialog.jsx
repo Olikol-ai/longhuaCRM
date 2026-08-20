@@ -20,6 +20,7 @@ import { api } from '@/api';
 import { Loader2 } from "lucide-react";
 import { formatBelarusPhone, PHONE_PLACEHOLDER } from "@/utils/phone";
 import { toast } from "@/components/ui/use-toast";
+import { userFacingError } from "@/lib/userFacingError";
 
 function emptyToNull(value) {
   if (value === undefined || value === null) return null;
@@ -82,7 +83,7 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
     } catch (err) {
       toast({
         title: "Не удалось загрузить преподавателей",
-        description: err?.message,
+        description: userFacingError(err),
         variant: "destructive",
       });
     }
@@ -110,26 +111,31 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
         phone: formData.phone || "",
         assigned_teacher: emptyToNull(formData.assigned_teacher),
         assigned_tutor: emptyToNull(formData.assigned_tutor),
-        lesson_balance: Number(formData.lesson_balance) || 0,
+        lesson_balance: (() => {
+          const raw = Number(formData.lesson_balance);
+          // Allow explicit 0 and negative debt — never use `x || default` (0 is falsy).
+          return Number.isFinite(raw) ? Math.trunc(raw) : 0;
+        })(),
         start_date: emptyToNull(formData.start_date),
         notes: formData.notes || "",
         status: formData.status || "active",
       };
       if (student) {
         await api.students.update(student.id, data);
-        toast({ title: "Данные ученика сохранены" });
+        toast({ title: "Изменения успешно сохранены" });
       } else {
         await api.students.create(data);
         toast({ title: "Ученик создан" });
       }
-      onSave?.();
+      await onSave?.();
       onOpenChange(false);
     } catch (err) {
       toast({
         title: "Не удалось сохранить",
-        description: err?.message || "Проверьте поля и попробуйте снова",
+        description: userFacingError(err),
         variant: "destructive",
       });
+      // Keep dialog open with current form values.
     } finally {
       setLoading(false);
     }
@@ -220,7 +226,7 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
               <Label>Баланс уроков</Label>
               <Input
                 type="number"
-                min={0}
+                step={1}
                 value={formData.lesson_balance}
                 onChange={(e) => setFormData({ ...formData, lesson_balance: e.target.value })}
               />

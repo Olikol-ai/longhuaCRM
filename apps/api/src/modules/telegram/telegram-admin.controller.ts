@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsIn, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString, IsUUID } from 'class-validator';
 import { Request } from 'express';
 import { Repository } from 'typeorm';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -18,6 +18,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { LessonConfirmationService } from '../lesson-confirmations/lesson-confirmation.service';
+import { TeacherTomorrowDigestJobsService } from '../lesson-confirmations/teacher-tomorrow-digest-jobs.service';
 import { TelegramDiagnosticsService } from './telegram-diagnostics.service';
 import { TelegramLinkService } from './telegram-link.service';
 import { TelegramService } from './telegram.service';
@@ -43,6 +44,21 @@ class SendTestLessonConfirmationDto {
   lessonId?: string;
 }
 
+class PreviewTomorrowDigestDto {
+  /**
+   * Default true — build messages without Telegram send / idempotency claims.
+   * Set false only together with TELEGRAM_DIGEST_TEST_CHAT_ID to redirect sends.
+   */
+  @IsOptional()
+  @IsBoolean()
+  dryRun?: boolean;
+
+  /** When true and dryRun=false, require TELEGRAM_DIGEST_TEST_CHAT_ID. */
+  @IsOptional()
+  @IsBoolean()
+  sendToTestChat?: boolean;
+}
+
 @Controller('telegram/admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('admin')
@@ -52,6 +68,7 @@ export class TelegramAdminController {
     private readonly config: ConfigService,
     private readonly diagnostics: TelegramDiagnosticsService,
     private readonly lessonConfirmations: LessonConfirmationService,
+    private readonly digestJobs: TeacherTomorrowDigestJobsService,
     private readonly linkService: TelegramLinkService,
     @InjectRepository(StudentEntity)
     private readonly studentRepo: Repository<StudentEntity>,
@@ -94,6 +111,43 @@ export class TelegramAdminController {
         running: debug.pollingRunning,
       },
       debug,
+    };
+  }
+
+  /**
+   * Safe tomorrow-digest check:
+   * - dryRun (default): DB → recipients → message text, no Telegram send, no claims
+   * - sendToTestChat: only if TELEGRAM_DIGEST_TEST_CHAT_ID is set; redirects sends,
+   *   does not claim production idempotency slots
+   */
+  @Post('preview-tomorrow-digest')
+  async previewTomorrowDigest(@Body() body: PreviewTomorrowDigestDto = {}) {
+    const sendToTestChat = body.sendToTestChat === true;
+    const dryRun = body.dryRun !== false && !sendToTestChat;
+    const testChatId = (
+      process.env.TELEGRAM_DIGEST_TEST_CHAT_ID
+      ?? this.config.get<string>('telegram.digestTestChatId')
+      ?? ''
+    ).trim();
+
+    if (sendToTestChat && !testChatId) {
+      throw new BadRequestException(
+        'Для sendToTestChat задайте TELEGRAM_DIGEST_TEST_CHAT_ID',
+      );
+    }
+
+    const result = await this.digestJobs.runSendTeacherTomorrowDigests(
+      new Date(),
+      {
+        dryRun,
+        redirectChatId: sendToTestChat ? testChatId : null,
+      },
+    );
+
+    return {
+      ok: true,
+      ...result,
+      mode: dryRun ? 'dry_run' : sendToTestChat ? 'test_chat' : 'live',
     };
   }
 

@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { X, Edit2, Trash2, GraduationCap, CalendarDays } from "lucide-react";
+import { X, Edit2, Trash2, GraduationCap } from "lucide-react";
 import TeacherAvailabilityView from "./TeacherAvailabilityView";
 import { localizeEntityStatus } from "@/lib/locale-by";
 import { formatHourlyRateShort } from "@/lib/formatters";
+import LessonBalanceDisplay from "@/components/students/LessonBalanceDisplay";
 
 export default function TeacherDetailModal({ teacher, students, onEdit, onDelete, onClose }) {
   const [tab, setTab] = useState("info");
@@ -10,40 +11,40 @@ export default function TeacherDetailModal({ teacher, students, onEdit, onDelete
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+      <div className="bg-card rounded-2xl w-full max-w-md shadow-xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-brand-active flex items-center justify-center">
               <span className="text-sm font-bold text-white">{teacher.name[0]}</span>
             </div>
             <div>
-              <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">{teacher.name}</h3>
-              <span className={`text-[10px] font-semibold uppercase ${teacher.status === "active" ? "text-emerald-600" : "text-slate-400 dark:text-slate-500"}`}>
+              <h3 className="text-base font-semibold text-foreground">{teacher.name}</h3>
+              <span className={`text-[10px] font-semibold uppercase ${teacher.status === "active" ? "text-emerald-600" : "text-muted-foreground"}`}>
                 {localizeEntityStatus(teacher.status || "active")}
               </span>
             </div>
           </div>
           <div className="flex gap-1">
-            <button onClick={() => onEdit(teacher)} className="p-1.5 hover:bg-brand-soft dark:hover:bg-brand-soft/50 hover:text-brand dark:hover:text-brand text-slate-400 dark:text-slate-500 rounded-lg">
+            <button onClick={() => onEdit(teacher)} className="p-1.5 hover:bg-brand-soft dark:hover:bg-brand-soft/50 hover:text-brand dark:hover:text-brand text-muted-foreground rounded-lg">
               <Edit2 className="w-4 h-4" />
             </button>
-            <button onClick={() => { onDelete(teacher.id); onClose(); }} className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-500 dark:hover:text-red-400 text-slate-400 dark:text-slate-500 rounded-lg">
+            <button onClick={() => { onDelete(teacher.id); onClose(); }} className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-500 dark:hover:text-red-400 text-muted-foreground rounded-lg">
               <Trash2 className="w-4 h-4" />
             </button>
-            <button onClick={onClose} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-lg ml-1">
+            <button onClick={onClose} className="p-1.5 hover:bg-muted text-muted-foreground rounded-lg ml-1">
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 px-6 pt-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex gap-1 px-6 pt-4 border-b border-border">
           {[{id: "info", label: "Информация"}, {id: "availability", label: "Свободный график"}].map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 -mb-px ${
-                tab === t.id ? "border-brand text-brand dark:text-brand" : "border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
+                tab === t.id ? "border-brand text-brand dark:text-brand" : "border-transparent text-muted-foreground hover:text-muted-foreground dark:hover:text-muted-foreground"
               }`}
             >
               {t.label}
@@ -60,29 +61,29 @@ export default function TeacherDetailModal({ teacher, students, onEdit, onDelete
               ["Телеграм", teacher.telegram_id],
               ["Специализации", teacher.specializations],
             ].map(([label, val]) => val ? (
-              <div key={label} className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3">
-                <p className="text-xs text-slate-400 dark:text-slate-500 mb-0.5">{label}</p>
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{val}</p>
+              <div key={label} className="bg-muted rounded-xl p-3">
+                <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
+                <p className="text-sm font-medium text-foreground">{val}</p>
               </div>
             ) : null)}
           </div>
 
           <div>
-            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
               <GraduationCap className="w-3.5 h-3.5" />
               Ученики ({myStudents.length})
             </h4>
             <div className="space-y-1.5">
               {myStudents.length === 0 ? (
-                <p className="text-sm text-slate-400 dark:text-slate-500">Нет прикреплённых учеников</p>
+                <p className="text-sm text-muted-foreground">Нет прикреплённых учеников</p>
               ) : (
                 myStudents.map(s => (
-                  <div key={s.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800">
+                  <div key={s.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted">
                     <div className="w-6 h-6 rounded-full bg-brand-muted flex items-center justify-center">
                       <span className="text-[10px] font-bold text-brand">{s.name[0]}</span>
                     </div>
-                    <span className="text-sm text-slate-700 dark:text-slate-200">{s.name}</span>
-                    <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">{s.lesson_balance || 0} уроков</span>
+                    <span className="text-sm text-foreground">{s.name}</span>
+                    <LessonBalanceDisplay row={s} className="ml-auto text-xs" suffix=" ур." />
                   </div>
                 ))
               )}

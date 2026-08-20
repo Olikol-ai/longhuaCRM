@@ -4,9 +4,8 @@ import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
 import { useE2ee } from '@/lib/e2ee/E2eeContext';
 import { resolveRedirect } from '@/lib/routing';
-import { BookOpen, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { BookOpen } from 'lucide-react';
+import { Button, Input, PasswordInput } from '@/design-system';
 import { REGISTRATION_PASSWORD_HINT } from '@/lib/passwordPolicy';
 import { userFacingError } from '@/lib/userFacingError';
 
@@ -106,22 +105,26 @@ export default function Login() {
           <p className="text-muted-foreground">Платформа управления языковой школой</p>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl p-6 space-y-5">
-          <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
+        <div className="bg-card rounded-2xl border border-border shadow-xl p-6 space-y-5">
+          <div className="flex gap-1 bg-muted rounded-xl p-1" role="tablist" aria-label="Режим входа">
             <button
               type="button"
+              role="tab"
+              aria-selected={mode === 'login'}
               onClick={() => setMode('login')}
               className={`flex-1 min-h-touch py-2.5 text-sm font-semibold rounded-lg transition-colors ${
-                mode === 'login' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'
+                mode === 'login' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               Вход
             </button>
             <button
               type="button"
+              role="tab"
+              aria-selected={mode === 'register'}
               onClick={() => setMode('register')}
               className={`flex-1 min-h-touch py-2.5 text-sm font-semibold rounded-lg transition-colors ${
-                mode === 'register' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'
+                mode === 'register' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               Регистрация
@@ -137,12 +140,24 @@ export default function Login() {
                   </p>
                 )}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Фамилия</label>
-                  <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Иванов" />
+                  <label className="block text-sm font-medium text-foreground mb-1" htmlFor="login-last-name">Фамилия</label>
+                  <Input
+                    id="login-last-name"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Иванов"
+                    autoComplete="family-name"
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Имя</label>
-                  <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Иван" />
+                  <label className="block text-sm font-medium text-foreground mb-1" htmlFor="login-first-name">Имя</label>
+                  <Input
+                    id="login-first-name"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="Иван"
+                    autoComplete="given-name"
+                  />
                 </div>
                 {!inviteToken && (
                   <label
@@ -153,10 +168,10 @@ export default function Login() {
                       type="checkbox"
                       checked={wantsStudentRole}
                       onChange={(e) => setWantsStudentRole(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-brand focus:ring-brand"
+                      className="mt-0.5 h-4 w-4 rounded border-border text-brand focus:ring-brand"
                       data-testid="register-wants-student"
                     />
-                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 text-left">
+                    <span className="text-sm font-semibold text-foreground text-left">
                       Я являюсь учеником
                     </span>
                   </label>
@@ -165,20 +180,22 @@ export default function Login() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Эл. почта</label>
+              <label className="block text-sm font-medium text-foreground mb-1" htmlFor="login-email">Эл. почта</label>
               <Input
+                id="login-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="ivan@example.com"
                 required
+                autoComplete="email"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Пароль</label>
-              <Input
-                type="password"
+              <label className="block text-sm font-medium text-foreground mb-1" htmlFor="login-password">Пароль</label>
+              <PasswordInput
+                id="login-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
@@ -186,29 +203,16 @@ export default function Login() {
                 autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
               />
               {mode === 'register' && (
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{REGISTRATION_PASSWORD_HINT}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{REGISTRATION_PASSWORD_HINT}</p>
               )}
             </div>
 
             {error && (
-              <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">{error}</p>
+              <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg" role="alert">{error}</p>
             )}
 
-            <Button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-primary hover:bg-primary/90"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Подождите...
-                </>
-              ) : mode === 'login' ? (
-                'Войти'
-              ) : (
-                'Зарегистрироваться'
-              )}
+            <Button type="submit" intent="primary" loading={loading} className="w-full">
+              {mode === 'login' ? 'Войти' : 'Зарегистрироваться'}
             </Button>
 
             {mode === 'login' && (

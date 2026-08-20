@@ -5,6 +5,7 @@
 export {
   CHUNK_RELOAD_STORAGE_KEY,
   claimChunkAutoReload,
+  claimChunkAutoReloadUnlessVideo,
   clearClientModuleCaches,
   extractChunkUrl,
   finalizeFrontendUpdateRecovery,

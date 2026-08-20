@@ -36,6 +36,8 @@ import { canStartVideoLesson, isOnlineLesson, lessonVideoPath } from "@/lib/less
 import { filterScheduleListLessons } from "@/lib/scheduleListLessons";
 import LessonModal from "@/components/schedule/LessonModal";
 import LessonDetailModal from "@/components/schedule/LessonDetailModal";
+import RecurrenceApplyScopeDialog from "@/components/schedule/RecurrenceApplyScopeDialog";
+import { lessonBelongsToSeries } from "@/lib/lessonSeriesScope";
 
 export const WEEK_DAYS_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
@@ -111,6 +113,9 @@ export default function SchoolScheduleCalendar({
   const [expandedLesson, setExpandedLesson] = useState(null);
   const [selectedDay, setSelectedDay] = useState(null);
   const [showCompletedInList, setShowCompletedInList] = useState(false);
+  const [statusScopeOpen, setStatusScopeOpen] = useState(false);
+  const [statusScopeValue, setStatusScopeValue] = useState("this");
+  const [pendingMark, setPendingMark] = useState(null);
 
   const modalTeachers = useMemo(() => {
     if (defaultTeacherId) {
@@ -165,6 +170,16 @@ export default function SchoolScheduleCalendar({
     setExpandedLesson(null);
   };
 
+  const runMarkLesson = async (lesson, status, completionAttendance = "attended", applyScope) => {
+    setUpdating(lesson.id);
+    try {
+      await onMarkLesson(lesson, status, completionAttendance, applyScope);
+      setExpandedLesson(null);
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   const markLesson = async (lesson, status, completionAttendance = "attended") => {
     if (!onMarkLesson) return;
     if (status === "completed") {
@@ -176,13 +191,13 @@ export default function SchoolScheduleCalendar({
       );
       if (!confirmed) return;
     }
-    setUpdating(lesson.id);
-    try {
-      await onMarkLesson(lesson, status, completionAttendance);
-      setExpandedLesson(null);
-    } finally {
-      setUpdating(null);
+    if (status === "cancelled" && lessonBelongsToSeries(lesson)) {
+      setPendingMark({ lesson, status, completionAttendance });
+      setStatusScopeValue("this");
+      setStatusScopeOpen(true);
+      return;
     }
+    await runMarkLesson(lesson, status, completionAttendance, "this");
   };
 
   const handleSave = async (data, recurring) => {
@@ -196,9 +211,9 @@ export default function SchoolScheduleCalendar({
     setExpandedLesson(null);
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id, applyScope = "this") => {
     if (!onDeleteLesson) return;
-    await onDeleteLesson(id);
+    await onDeleteLesson(id, applyScope);
     setViewingLesson(null);
   };
 
@@ -213,7 +228,7 @@ export default function SchoolScheduleCalendar({
   if (error) {
     return (
       <div className="p-4 sm:p-6 lg:p-8 text-center py-20 space-y-3">
-        <p className="text-slate-600 dark:text-slate-300">{error}</p>
+        <p className="text-muted-foreground">{error}</p>
         {onRetry ? (
           <Button variant="outline" onClick={onRetry}>
             Повторить
@@ -224,17 +239,17 @@ export default function SchoolScheduleCalendar({
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto dark:bg-slate-950 min-h-screen">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto ">
       {headerExtra}
 
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{title}</h1>
+        <h1 className="text-2xl font-bold text-foreground">{title}</h1>
         <div className="flex items-center gap-3 flex-wrap">
           {showTeacherFilter ? (
             <select
               value={selectedTeacherId}
               onChange={(e) => onSelectedTeacherIdChange?.(e.target.value)}
-              className="text-sm border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 w-full sm:w-auto sm:min-w-[200px] min-h-[40px]"
+              className="text-sm border border-border rounded-xl px-3 py-2 bg-card text-foreground w-full sm:w-auto sm:min-w-[200px] min-h-touch"
             >
               <option value="">Все преподаватели</option>
               {teachers
@@ -247,7 +262,7 @@ export default function SchoolScheduleCalendar({
             </select>
           ) : null}
 
-          <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
+          <div className="flex gap-1 bg-muted rounded-xl p-1">
             {[
               { id: "month", label: "Месяц" },
               { id: "week", label: "Неделя" },
@@ -262,8 +277,8 @@ export default function SchoolScheduleCalendar({
                 }}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
                   viewMode === v.id
-                    ? "bg-white dark:bg-slate-700 text-brand dark:text-brand shadow-sm"
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                    ? "bg-card text-brand dark:text-brand shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {v.label}
@@ -292,7 +307,7 @@ export default function SchoolScheduleCalendar({
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white flex-1 sm:flex-none sm:min-w-[180px] text-center capitalize truncate">
+            <h2 className="text-base font-semibold text-foreground flex-1 sm:flex-none sm:min-w-[180px] text-center capitalize truncate">
               {format(currentDate, "LLLL yyyy", { locale: ru })}
             </h2>
             <Button
@@ -313,9 +328,9 @@ export default function SchoolScheduleCalendar({
             </Button>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+          <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
             {/* Mobile month: vertical day list */}
-            <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+            <div className="md:hidden divide-y divide-border">
               {monthDays
                 .filter((day) => isSameMonth(day, currentDate))
                 .map((day) => {
@@ -326,7 +341,7 @@ export default function SchoolScheduleCalendar({
                       key={dayStr}
                       type="button"
                       onClick={() => setSelectedDay(day)}
-                      className="w-full text-left px-4 py-3 min-h-touch hover:bg-slate-50 dark:hover:bg-slate-800"
+                      className="w-full text-left px-4 py-3 min-h-touch hover:bg-muted"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span
@@ -360,11 +375,11 @@ export default function SchoolScheduleCalendar({
 
             {/* Desktop month grid */}
             <div className="hidden md:block overflow-x-auto">
-              <div className="grid grid-cols-7 border-b border-slate-100 dark:border-slate-700 min-w-[520px]">
+              <div className="grid grid-cols-7 border-b border-border min-w-[520px]">
                 {WEEK_DAYS_RU.map((d) => (
                   <div
                     key={d}
-                    className="py-3 text-center text-xs font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wide"
+                    className="py-3 text-center text-xs font-semibold text-muted-foreground dark:text-muted-foreground uppercase tracking-wide"
                   >
                     {d}
                   </div>
@@ -380,14 +395,14 @@ export default function SchoolScheduleCalendar({
                     <div
                       key={i}
                       onClick={() => setSelectedDay(isSelected ? null : day)}
-                      className={`min-h-[80px] p-2 border-b border-r border-slate-100 dark:border-slate-700 cursor-pointer transition-colors
-                        ${isSelected ? "bg-brand-soft dark:bg-brand-soft/40" : "hover:bg-slate-50 dark:hover:bg-slate-800"}
+                      className={`min-h-[80px] p-2 border-b border-r border-border cursor-pointer transition-colors
+                        ${isSelected ? "bg-brand-soft dark:bg-brand-soft/40" : "hover:bg-muted"}
                         ${!inMonth ? "opacity-40" : ""}
                       `}
                     >
                       <div
                         className={`text-xs font-semibold mb-1 w-6 h-6 flex items-center justify-center rounded-full
-                        ${isToday(day) ? "bg-primary text-primary-foreground" : "text-slate-700 dark:text-slate-300"}
+                        ${isToday(day) ? "bg-primary text-primary-foreground" : "text-foreground"}
                       `}
                       >
                         {format(day, "d")}
@@ -396,7 +411,21 @@ export default function SchoolScheduleCalendar({
                         {dayLessons.slice(0, 2).map((lesson) => (
                           <div
                             key={lesson.id}
-                            className={`text-[10px] font-medium text-white px-1.5 py-0.5 rounded-md truncate ${STATUS_BG[lesson.status] || "bg-slate-400"}`}
+                            role="button"
+                            tabIndex={0}
+                            title="Открыть урок"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openLessonDetails(lesson);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                openLessonDetails(lesson);
+                              }
+                            }}
+                            className={`text-[10px] font-medium text-white px-1.5 py-0.5 rounded-md truncate hover:opacity-90 cursor-pointer ${STATUS_BG[lesson.status] || "bg-muted-foreground"}`}
                           >
                             {lesson.start_time}{" "}
                             {(
@@ -406,7 +435,7 @@ export default function SchoolScheduleCalendar({
                           </div>
                         ))}
                         {dayLessons.length > 2 && (
-                          <p className="text-[9px] text-slate-400 pl-1">
+                          <p className="text-[9px] text-muted-foreground pl-1">
                             +{dayLessons.length - 2} ещё
                           </p>
                         )}
@@ -421,7 +450,7 @@ export default function SchoolScheduleCalendar({
           {selectedDay && (
             <div className="mt-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 capitalize">
+                <h3 className="text-sm font-semibold text-foreground capitalize">
                   {format(selectedDay, "EEEE, d MMMM", { locale: ru })}
                 </h3>
                 <Button
@@ -433,7 +462,7 @@ export default function SchoolScheduleCalendar({
                 </Button>
               </div>
               {selectedDayLessons.length === 0 ? (
-                <p className="text-sm text-slate-400 dark:text-slate-400 text-center py-6 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                <p className="text-sm text-muted-foreground dark:text-muted-foreground text-center py-6 bg-card rounded-xl border border-dashed border-border">
                   Уроков нет
                 </p>
               ) : (
@@ -473,7 +502,7 @@ export default function SchoolScheduleCalendar({
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white flex-1 sm:flex-none sm:min-w-[220px] text-center truncate">
+            <h2 className="text-base font-semibold text-foreground flex-1 sm:flex-none sm:min-w-[220px] text-center truncate">
               {format(weekDays[0], "d MMM", { locale: ru })} —{" "}
               {format(weekDays[6], "d MMM yyyy", { locale: ru })}
             </h2>
@@ -505,19 +534,19 @@ export default function SchoolScheduleCalendar({
                   className={`rounded-2xl border p-3 ${
                     isToday(day)
                       ? "border-brand/40 bg-brand-soft/40 dark:bg-brand-soft/40 dark:border-brand/40"
-                      : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                      : "border-border bg-card"
                   }`}
                 >
                   <div className="flex items-center justify-between mb-3">
                     <div>
-                      <p className="text-[11px] text-slate-400 uppercase font-medium">
+                      <p className="text-[11px] text-muted-foreground uppercase font-medium">
                         {WEEK_DAYS_RU[i]}
                       </p>
                       <div
                         className={`text-xl font-bold w-8 h-8 flex items-center justify-center rounded-full mt-0.5 ${
                           isToday(day)
                             ? "bg-primary text-primary-foreground"
-                            : "text-slate-900 dark:text-white"
+                            : "text-foreground"
                         }`}
                       >
                         {format(day, "d")}
@@ -533,7 +562,7 @@ export default function SchoolScheduleCalendar({
                   </div>
                   <div className="space-y-2">
                     {dayLessons.length === 0 ? (
-                      <div className="text-xs text-slate-300 text-center py-3">—</div>
+                      <div className="text-xs text-muted-foreground text-center py-3">—</div>
                     ) : (
                       dayLessons.map((lesson) => (
                         <WeekLessonChip
@@ -565,13 +594,13 @@ export default function SchoolScheduleCalendar({
       {viewMode === "list" && (
         <div className="space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-muted-foreground">
               Показаны актуальные занятия. Завершённые скрыты по умолчанию.
             </p>
-            <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200 cursor-pointer select-none">
+            <label className="inline-flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
               <input
                 type="checkbox"
-                className="h-4 w-4 accent-brand rounded border-slate-300"
+                className="h-4 w-4 accent-brand rounded border-border"
                 checked={showCompletedInList}
                 onChange={(e) => setShowCompletedInList(e.target.checked)}
                 data-testid="schedule-list-show-completed"
@@ -580,7 +609,7 @@ export default function SchoolScheduleCalendar({
             </label>
           </div>
           {listLessons.length === 0 ? (
-            <div className="text-center py-16 text-slate-400">
+            <div className="text-center py-16 text-muted-foreground">
               {showCompletedInList
                 ? "Уроков нет"
                 : "Нет актуальных занятий"}
@@ -637,6 +666,26 @@ export default function SchoolScheduleCalendar({
           showAttendance={showAttendance}
         />
       )}
+
+      <RecurrenceApplyScopeDialog
+        open={statusScopeOpen}
+        mode="status"
+        value={statusScopeValue}
+        onChange={setStatusScopeValue}
+        title="Отменить:"
+        confirmLabel="Отменить"
+        onCancel={() => {
+          setStatusScopeOpen(false);
+          setPendingMark(null);
+        }}
+        onConfirm={() => {
+          if (!pendingMark) return;
+          const { lesson, status, completionAttendance } = pendingMark;
+          setStatusScopeOpen(false);
+          setPendingMark(null);
+          void runMarkLesson(lesson, status, completionAttendance, statusScopeValue);
+        }}
+      />
     </div>
   );
 }
@@ -658,25 +707,34 @@ function WeekLessonChip({
   const studentLabel = resolveLessonStudentLabel(lesson, students);
   const teacherLabel = resolveLessonTeacherLabel(lesson, teachers);
 
+  const openDetails = (e) => {
+    e?.stopPropagation?.();
+    onOpenDetails?.(lesson);
+  };
+
   return (
     <div
-      className={`p-2.5 bg-white dark:bg-slate-900 rounded-xl border-l-4 border border-slate-100 dark:border-slate-800 shadow-sm cursor-pointer hover:shadow-md transition-all ${STATUS_BORDER[lesson.status] || "border-l-slate-300"}`}
+      className={`p-2.5 bg-card rounded-xl border-l-4 border border-border shadow-sm cursor-pointer hover:shadow-md transition-all ${STATUS_BORDER[lesson.status] || "border-l-muted-foreground"}`}
+      title="Двойной клик — открыть урок"
       onClick={() => {
-        if (showQuickActions) {
-          setExpandedLesson(expandedLesson === lesson.id ? null : lesson.id);
-        } else {
+        // Admin: open lesson card immediately (edit lives inside the modal).
+        // Teacher: first click expands quick actions; details via «Перенести» / double-click.
+        if (isAdmin || !showQuickActions) {
           onOpenDetails(lesson);
+          return;
         }
+        setExpandedLesson(expandedLesson === lesson.id ? null : lesson.id);
       }}
+      onDoubleClick={openDetails}
     >
-      <p className="text-xs font-bold text-slate-900 dark:text-white">{lesson.start_time}</p>
-      <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 truncate">
+      <p className="text-xs font-bold text-foreground">{lesson.start_time}</p>
+      <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
         {studentLabel}
       </p>
       {showTeacher ? (
-        <p className="text-[10px] text-slate-400 truncate">{teacherLabel}</p>
+        <p className="text-[10px] text-muted-foreground truncate">{teacherLabel}</p>
       ) : null}
-      <p className="text-[10px] text-slate-400">{lesson.duration || 60} мин</p>
+      <p className="text-[10px] text-muted-foreground">{lesson.duration || 60} мин</p>
       {isOnlineLesson(lesson) && (
         <button
           type="button"
@@ -698,24 +756,21 @@ function WeekLessonChip({
           {isAdmin ? "Видеоурок" : "Начать видеоурок"}
         </button>
       )}
-      {showQuickActions &&
-        expandedLesson === lesson.id &&
-        lesson.status === "planned" && (
+      {showQuickActions && !isAdmin && expandedLesson === lesson.id ? (
+        <>
           <QuickActionsPanel
             lesson={lesson}
             compact
             updating={updating}
-            markLesson={markLesson}
+            markLesson={lesson.status === "planned" ? markLesson : null}
             onOpenDetails={onOpenDetails}
             isAdmin={isAdmin}
           />
-        )}
-      {showQuickActions &&
-        expandedLesson === lesson.id &&
-        lesson.status === "completed" &&
-        !isAdmin && (
-          <HomeworkAction lesson={lesson} compact navigate={navigate} />
-        )}
+          {lesson.status === "completed" ? (
+            <HomeworkAction lesson={lesson} compact navigate={navigate} />
+          ) : null}
+        </>
+      ) : null}
     </div>
   );
 }
@@ -736,41 +791,46 @@ export function ScheduleLessonCard({
   const navigate = useNavigate();
   return (
     <div
-      className={`p-4 bg-white dark:bg-slate-900 rounded-xl border-l-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:shadow-sm transition-all ${STATUS_BORDER[lesson.status] || "border-l-slate-300 dark:border-l-slate-600"}`}
+      className={`p-4 bg-card rounded-xl border-l-4 border border-border cursor-pointer hover:shadow-sm transition-all ${STATUS_BORDER[lesson.status] || "border-l-muted-foreground"}`}
+      title="Двойной клик — открыть урок"
       onClick={() => {
-        if (showQuickActions) {
-          setExpandedLesson(expandedLesson === lesson.id ? null : lesson.id);
-        } else {
+        if (isAdmin || !showQuickActions) {
           onOpenDetails?.(lesson);
+          return;
         }
+        setExpandedLesson(expandedLesson === lesson.id ? null : lesson.id);
+      }}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        onOpenDetails?.(lesson);
       }}
     >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-4">
-          <div className="text-center min-w-[56px] bg-slate-50 dark:bg-slate-800/60 rounded-xl py-2">
-            <p className="text-[10px] text-slate-400 uppercase font-medium">
+          <div className="text-center min-w-[56px] bg-muted rounded-xl py-2">
+            <p className="text-[10px] text-muted-foreground uppercase font-medium">
               {format(new Date(lesson.date), "MMM", { locale: ru })}
             </p>
-            <p className="text-xl font-bold text-slate-900 dark:text-white leading-tight">
+            <p className="text-xl font-bold text-foreground leading-tight">
               {format(new Date(lesson.date), "d")}
             </p>
-            <p className="text-[10px] text-slate-400">
+            <p className="text-[10px] text-muted-foreground">
               {format(new Date(lesson.date), "EEE", { locale: ru })}
             </p>
           </div>
           <div>
-            <p className="font-semibold text-slate-900 dark:text-white">
+            <p className="font-semibold text-foreground">
               {lesson.start_time}
             </p>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-sm text-muted-foreground">
               {resolveLessonStudentLabel(lesson, students)}
             </p>
             {showTeacher ? (
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 {resolveLessonTeacherLabel(lesson, teachers)}
               </p>
             ) : null}
-            <p className="text-xs text-slate-400">{lesson.duration || 60} мин</p>
+            <p className="text-xs text-muted-foreground">{lesson.duration || 60} мин</p>
             {isOnlineLesson(lesson) && (
               <button
                 type="button"
@@ -808,22 +868,21 @@ export function ScheduleLessonCard({
         </Badge>
       </div>
 
-      {showQuickActions &&
-        expandedLesson === lesson.id &&
-        lesson.status === "planned" && (
+      {showQuickActions && !isAdmin && expandedLesson === lesson.id ? (
+        <>
           <QuickActionsPanel
             lesson={lesson}
             compact={false}
             updating={updating}
-            markLesson={markLesson}
+            markLesson={lesson.status === "planned" ? markLesson : null}
             onOpenDetails={onOpenDetails}
             isAdmin={isAdmin}
           />
-        )}
-      {showQuickActions &&
-        expandedLesson === lesson.id &&
-        lesson.status === "completed" &&
-        !isAdmin && <HomeworkAction lesson={lesson} compact={false} navigate={navigate} />}
+          {lesson.status === "completed" ? (
+            <HomeworkAction lesson={lesson} compact={false} navigate={navigate} />
+          ) : null}
+        </>
+      ) : null}
     </div>
   );
 }
@@ -916,8 +975,8 @@ function QuickActionsPanel({
         ];
 
   const wrap = compact
-    ? "mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1"
-    : "mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap gap-2";
+    ? "mt-2 pt-2 border-t border-border space-y-1"
+    : "mt-3 pt-3 border-t border-border flex flex-wrap gap-2";
   const btnBase = compact
     ? "w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium rounded-lg transition-colors"
     : "flex items-center gap-1.5 px-3 py-2 min-h-[40px] text-xs font-medium rounded-lg border transition-colors";
@@ -937,7 +996,7 @@ function QuickActionsPanel({
         }`}
       >
         <Calendar className={compact ? "w-3 h-3" : "w-3.5 h-3.5"} />{" "}
-        {isAdmin ? "Редактировать" : "Перенести"}
+        {isAdmin ? "Изменить" : "Открыть / перенести"}
       </button>
       {markLesson
         ? actions.map(({ status, attendance, icon: Icon, label, cls }) => (
@@ -961,8 +1020,8 @@ function QuickActionsPanel({
 
 function HomeworkAction({ lesson, compact, navigate }) {
   const wrap = compact
-    ? "mt-2 pt-2 border-t border-slate-100 dark:border-slate-800"
-    : "mt-3 pt-3 border-t border-slate-100 dark:border-slate-800";
+    ? "mt-2 pt-2 border-t border-border"
+    : "mt-3 pt-3 border-t border-border";
   const btn = compact
     ? "w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium rounded-lg bg-brand-soft text-brand hover:bg-brand-muted"
     : "flex items-center gap-1.5 px-3 py-2 min-h-[40px] text-xs font-medium rounded-lg border bg-brand-soft text-brand hover:bg-brand-muted border-brand/20";

@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { resolveJwtSecret } from '../../config/jwt-secret.util';
 import { JwtPayload } from '../../modules/auth/auth.service';
 import { normalizeUserRole } from '../../modules/auth/onboarding';
 import { UsersRepository } from '../users/users.repository';
@@ -20,7 +21,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         ExtractJwt.fromUrlQueryParameter('access_token'),
       ]),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>('jwt.secret') ?? 'longhua-dev-secret-change-in-production',
+      secretOrKey: resolveJwtSecret(config),
     });
   }
 

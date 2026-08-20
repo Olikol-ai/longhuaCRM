@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { toast } from "@/components/ui/use-toast";
-import { formatCurrency } from "@/lib/formatters";
+import { formatBYN } from "@/lib/formatters";
 
 const fieldCls =
   "px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-brand/20";
@@ -203,7 +203,7 @@ export default function Salary() {
 
       <div className="bg-gradient-to-r from-primary to-brand-hover rounded-xl p-5 text-primary-foreground">
         <p className="text-primary-foreground/80 text-sm mb-1">Итого к выплате</p>
-        <p className="text-3xl font-bold">{formatCurrency(totalSalary)}</p>
+        <p className="text-3xl font-bold tabular-nums whitespace-nowrap">{formatBYN(totalSalary)}</p>
         <p className="text-primary-foreground/80 text-xs mt-1">
           {rows.length} преподавателей · {totalLessons} занятий · {payoutTitle}
         </p>
@@ -258,7 +258,7 @@ export default function Salary() {
                     </div>
                     <div className="col-span-2">
                       <dt className="text-xs text-muted-foreground">Сумма</dt>
-                      <dd className="font-semibold">{formatCurrency(row.amount || 0)}</dd>
+                      <dd className="font-semibold">{formatBYN(row.amount || 0)}</dd>
                     </div>
                   </dl>
                   <div className="flex flex-wrap gap-2 pt-1 border-t border-border">
@@ -310,7 +310,7 @@ export default function Salary() {
                                 {String(lesson.start_time ?? lesson.startTime ?? "").slice(0, 5)}
                               </span>
                               <span>{lesson.duration || 60} мин</span>
-                              <span>{formatCurrency(lesson.amount || 0)}</span>
+                              <span>{formatBYN(lesson.amount || 0)}</span>
                             </li>
                           ))}
                         </ul>
@@ -353,7 +353,7 @@ export default function Salary() {
                       <td className="px-4 py-3">{lessonsCount}</td>
                       <td className="px-4 py-3">{totalHours.toFixed(1)}</td>
                       <td className="px-4 py-3 font-semibold">
-                        {formatCurrency(row.amount || 0)}
+                        {formatBYN(row.amount || 0)}
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -419,7 +419,7 @@ export default function Salary() {
                                     {String(lesson.start_time ?? lesson.startTime ?? "").slice(0, 5)}
                                   </span>
                                   <span>{lesson.duration || 60} мин</span>
-                                  <span>{formatCurrency(lesson.amount || 0)}</span>
+                                  <span>{formatBYN(lesson.amount || 0)}</span>
                                 </li>
                               ))}
                             </ul>

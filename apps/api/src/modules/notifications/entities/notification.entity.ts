@@ -9,7 +9,7 @@ import {
 } from 'typeorm';
 import { UserEntity } from '../../users/entities/user.entity';
 
-export type NotificationChannel = 'telegram' | 'email' | 'in_app';
+export type NotificationChannel = 'telegram' | 'email' | 'in_app' | 'web_push';
 export type NotificationStatus = 'pending' | 'sent' | 'failed' | 'read';
 
 @Entity('notifications')
@@ -26,8 +26,8 @@ export class NotificationEntity {
   user?: UserEntity;
 
   @Column({
-    type: 'enum',
-    enum: ['telegram', 'email', 'in_app'],
+    type: 'varchar',
+    length: 32,
   })
   channel: NotificationChannel;
 
@@ -41,8 +41,8 @@ export class NotificationEntity {
   body: string;
 
   @Column({
-    type: 'enum',
-    enum: ['pending', 'sent', 'failed', 'read'],
+    type: 'varchar',
+    length: 32,
     default: 'pending',
   })
   status: NotificationStatus;
@@ -58,6 +58,19 @@ export class NotificationEntity {
 
   @Column({ name: 'reference_id', type: 'varchar', length: 128, nullable: true })
   referenceId: string | null;
+
+  /** Business event id — idempotency with (eventId, userId, channel). */
+  @Column({ name: 'event_id', type: 'uuid', nullable: true })
+  eventId: string | null;
+
+  @Column({ name: 'deep_link', type: 'varchar', length: 512, nullable: true })
+  deepLink: string | null;
+
+  @Column({ name: 'attempt_count', type: 'int', default: 0 })
+  attemptCount: number;
+
+  @Column({ name: 'last_error', type: 'text', nullable: true })
+  lastError: string | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

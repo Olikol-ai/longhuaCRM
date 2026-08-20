@@ -4,9 +4,8 @@ import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
 import { resolveRedirect } from '@/lib/routing';
 import { formatHelloGreeting } from '@/lib/display-name';
-import { BookOpen, Clock, KeyRound, Loader2, LogOut, Sparkles, CheckCircle2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { BookOpen, Clock, KeyRound, LogOut, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Button, Input } from '@/design-system';
 import { userFacingError } from '@/lib/userFacingError';
 
 const DEFAULTS = {
@@ -121,22 +120,22 @@ export default function PendingApproval() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-brand-soft dark:from-brand-soft/40 via-white dark:via-slate-950 to-slate-50 dark:to-slate-950 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-gradient-to-br from-brand-soft dark:from-brand-soft/40 via-background to-muted flex items-center justify-center page-pad safe-pb">
       <div className="max-w-lg w-full text-center space-y-8">
         <div className="flex items-center justify-center gap-3">
-          <div className="h-14 w-14 bg-brand rounded-2xl flex items-center justify-center shadow-lg shadow-amber-300">
+          <div className="h-14 w-14 bg-brand rounded-2xl flex items-center justify-center shadow-lg shadow-amber-300/50">
             <BookOpen className="h-7 w-7 text-white" />
           </div>
         </div>
 
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{settings.school_name}</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">{settings.subtitle}</p>
+          <h1 className="text-3xl font-bold text-foreground tracking-tight">{settings.school_name}</h1>
+          <p className="text-muted-foreground text-sm">{settings.subtitle}</p>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl shadow-slate-100 border border-slate-100 dark:border-slate-800 p-10 space-y-6 text-left">
+        <div className="bg-card rounded-2xl shadow-xl border border-border p-8 sm:p-10 space-y-6 text-left">
           <div className="flex items-center justify-center">
-            <div className="h-20 w-20 rounded-full bg-amber-50 flex items-center justify-center">
+            <div className="h-20 w-20 rounded-full bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center">
               {registrationVerified || waitingForRole ? (
                 <CheckCircle2 className="h-10 w-10 text-emerald-500" />
               ) : (
@@ -146,7 +145,7 @@ export default function PendingApproval() {
           </div>
 
           <div className="space-y-3 text-center">
-            <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100" data-testid="registration-result-title">
+            <h2 className="text-xl font-bold text-foreground" data-testid="registration-result-title">
               {registrationVerified
                 ? 'Регистрация успешно подтверждена'
                 : user
@@ -155,26 +154,27 @@ export default function PendingApproval() {
             </h2>
 
             {isBlocked && (
-              <p className="text-red-600 font-medium">
+              <p className="text-destructive font-medium">
                 Аккаунт заблокирован. Обратитесь к администратору.
               </p>
             )}
 
             {registrationVerified && (
               <>
-                <p className="text-emerald-600 font-medium">Email подтверждён ✓</p>
+                <p className="text-emerald-600 dark:text-emerald-400 font-medium">Email подтверждён ✓</p>
                 {verifiedRole === 'student' ? (
-                  <p className="text-slate-500 dark:text-slate-400 leading-relaxed">
+                  <p className="text-muted-foreground leading-relaxed">
                     Вам назначена роль ученика. Войдите с email и паролем, чтобы открыть личный кабинет.
                   </p>
                 ) : (
-                  <p className="text-slate-500 dark:text-slate-400 leading-relaxed">
+                  <p className="text-muted-foreground leading-relaxed">
                     Войдите в аккаунт. После входа доступ откроется, когда администратор назначит роль.
                   </p>
                 )}
                 <Button
                   asChild
-                  className="w-full bg-primary hover:bg-primary/90"
+                  intent="primary"
+                  className="w-full"
                   data-testid="registration-verified-login"
                 >
                   <Link to="/login">Войти</Link>
@@ -184,19 +184,19 @@ export default function PendingApproval() {
 
             {needsVerification && (
               <>
-                <p className="text-slate-500 dark:text-slate-400 leading-relaxed">
+                <p className="text-muted-foreground leading-relaxed">
                   {emailSent
                     ? `Мы отправили код подтверждения на ${displayEmail || 'ваш email'}. Введите его ниже.`
                     : 'Не удалось отправить письмо с кодом. Запросите новый код или обратитесь к администратору.'}
                 </p>
                 {!emailSent && (
-                  <p className="text-sm text-amber-700 bg-amber-50 rounded-xl px-4 py-3">
+                  <p className="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 rounded-xl px-4 py-3">
                     Email-сервис временно недоступен. Код не отображается в интерфейсе — попробуйте «Запросить новый код» позже.
                   </p>
                 )}
                 <form onSubmit={handleVerify} className="space-y-3 pt-2">
                   <div className="relative">
-                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       value={code}
                       onChange={(e) => setCode(e.target.value)}
@@ -204,25 +204,29 @@ export default function PendingApproval() {
                       className="pl-10 text-center font-mono tracking-widest"
                       maxLength={6}
                       required
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      aria-label="Код подтверждения"
                       data-testid="registration-verify-code"
                     />
                   </div>
                   {error && (
-                    <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-lg" data-testid="registration-verify-error">
+                    <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-lg" role="alert" data-testid="registration-verify-error">
                       {error}
                     </p>
                   )}
                   <Button
                     type="submit"
-                    disabled={verifying}
-                    className="w-full bg-primary hover:bg-primary/90"
+                    intent="primary"
+                    loading={verifying}
+                    className="w-full"
                     data-testid="registration-verify-submit"
                   >
-                    {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Подтвердить код'}
+                    Подтвердить код
                   </Button>
                   <Button
                     type="button"
-                    variant="outline"
+                    intent="outline"
                     className="w-full"
                     disabled={resendCooldown > 0}
                     onClick={handleResend}
@@ -237,12 +241,12 @@ export default function PendingApproval() {
 
             {!registrationVerified && waitingForRole && (
               <>
-                <p className="text-emerald-600 font-medium">Аккаунт активирован ✓</p>
-                <p className="text-slate-500 dark:text-slate-400 leading-relaxed">
+                <p className="text-emerald-600 dark:text-emerald-400 font-medium">Аккаунт активирован ✓</p>
+                <p className="text-muted-foreground leading-relaxed">
                   Ожидайте подтверждения администратора. После назначения роли вы автоматически получите доступ.
                 </p>
                 {settings.body_text.split('\n').filter(Boolean).map((line, i) => (
-                  <p key={i} className="text-slate-500 dark:text-slate-400 leading-relaxed text-sm">{line}</p>
+                  <p key={i} className="text-muted-foreground leading-relaxed text-sm">{line}</p>
                 ))}
               </>
             )}
@@ -258,13 +262,13 @@ export default function PendingApproval() {
 
         <div className="flex flex-col items-center gap-3">
           {(user || pendingEmail) && !registrationVerified && (
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-muted-foreground">
               {pendingEmail && !user ? 'Регистрация для: ' : 'Вы вошли как: '}
-              <span className="font-medium text-slate-600 dark:text-slate-400">{displayEmail}</span>
+              <span className="font-medium text-foreground">{displayEmail}</span>
             </p>
           )}
           {!registrationVerified && (
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-400 gap-2">
+            <Button intent="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-foreground gap-2">
               <LogOut className="h-4 w-4" />
               {pendingEmail && !user ? 'Отменить регистрацию' : 'Выйти'}
             </Button>

@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
+import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
+import { NotificationDeliveryService } from '../notifications/notification-delivery.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { CourseTemplateEntity } from '../courses/entities/course-template.entity';
@@ -16,6 +18,7 @@ export class CertificateIssuedNotifier {
 
   constructor(
     private readonly notifications: NotificationsService,
+    private readonly delivery: NotificationDeliveryService,
     private readonly telegram: TelegramService,
     private readonly config: ConfigService,
     @InjectRepository(StudentEntity)
@@ -118,16 +121,19 @@ export class CertificateIssuedNotifier {
         buttonText = 'Посмотреть сертификат';
       }
 
-      await this.notifications.create({
-        userId: student.userId,
-        channel: 'in_app',
-        type: 'certificate_issued',
-        title,
-        body,
-        status: 'pending',
+      await this.delivery.fanoutToRecipient({
+        eventId: randomUUID(),
+        eventType: 'certificate.issued',
+        recipientId: student.userId,
+        title: 'Выдан новый сертификат',
+        body: 'Откройте Longhua CRM, чтобы посмотреть сертификат.',
         referenceType: 'certificate',
         referenceId: certificate.id,
+        payload: { certificateId: certificate.id },
+        channels: ['in_app', 'web_push'],
       });
+
+      // Keep rich Telegram copy (existing), without putting full PII into Web Push.
 
       if (telegramId) {
         const tgBody = `${title}\n\n${body}`;

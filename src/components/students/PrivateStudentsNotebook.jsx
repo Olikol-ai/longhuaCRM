@@ -20,6 +20,10 @@ import {
   normalizePersonName,
   displayName,
 } from '@/lib/ownerStudents';
+import {
+  getLessonBalance,
+} from '@/lib/lessonBalance';
+import LessonBalanceDisplay from '@/components/students/LessonBalanceDisplay';
 
 function formatLessonDate(date, time) {
   if (!date) return '—';
@@ -120,7 +124,7 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
       const row = await api.teacherStudentContacts.detail(id);
       setDetail({ type: 'contact', data: row });
       setBalanceForm({
-        newBalance: String(row.lesson_balance ?? row.lessonBalance ?? 0),
+        newBalance: String(getLessonBalance(row)),
         reason: '',
       });
     } catch (err) {
@@ -219,9 +223,27 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
         comment: form.comment.trim() || null,
       };
 
+      let savedContactId = null;
       if (editing) {
         if (editing.source === 'contact') {
-          await api.teacherStudentContacts.update(editing.id, payload);
+          const saved = await api.teacherStudentContacts.update(editing.id, payload);
+          savedContactId = editing.id;
+          // Immediately refresh the open card so the UI does not keep stale detail
+          // (list reload alone does not re-trigger detail fetch — same row key).
+          setDetail((prev) =>
+            prev?.type === 'contact'
+              ? {
+                  type: 'contact',
+                  data: {
+                    ...(prev.data || {}),
+                    ...(saved || {}),
+                    name: saved?.name ?? name,
+                    phone: saved?.phone ?? payload.phone,
+                    comment: saved?.comment ?? payload.comment,
+                  },
+                }
+              : prev,
+          );
           if (ownerType === 'tutor') {
             const twin = findMatchingTutorStudent(editing.name, editing.phone);
             if (twin?.id) {
@@ -241,7 +263,7 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
         } else {
           throw new Error('Эту запись нельзя изменить здесь');
         }
-        toast({ title: 'Запись обновлена' });
+        toast({ title: 'Изменения успешно сохранены' });
       } else {
         await api.teacherStudentContacts.createMine(payload, { ownerType });
         if (ownerType === 'tutor') {
@@ -256,12 +278,16 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
       }
       closeForm();
       await loadData();
+      if (savedContactId && selectedKey === `contact:${savedContactId}`) {
+        await loadContactDetail(savedContactId);
+      }
     } catch (err) {
       toast({
         title: 'Не удалось сохранить',
         description: userFacingError(err),
         variant: 'destructive',
       });
+      // Keep the form open with entered values so the user can fix and retry.
     } finally {
       setSaving(false);
     }
@@ -327,12 +353,18 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
     e.preventDefault();
     if (!selectedRow?.usesContactDetail) return;
     const newBalance = Number(balanceForm.newBalance);
-    if (!Number.isInteger(newBalance) || newBalance < 0) {
-      toast({ title: 'Укажите целое число ≥ 0', variant: 'destructive' });
+    if (!Number.isInteger(newBalance)) {
+      toast({
+        title: 'Укажите целое число баланса',
+        description: 'Допускаются отрицательные значения (задолженность).',
+        variant: 'destructive',
+      });
       return;
     }
     setBalanceSaving(true);
     try {
+      // Teacher: backend writes students.lesson_balance (SSOT) via linkedStudentId.
+      // Tutor: backend writes tutor_contact_balances via contact updateBalance.
       await api.teacherStudentContacts.updateBalance(selectedRow.id, {
         newBalance,
         reason: balanceForm.reason.trim() || null,
@@ -365,11 +397,11 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-5" data-testid={testId}>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
             <BookUser className="h-6 w-6 text-brand" />
             Ученики
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             {getGreetingName(user)
               ? `${getGreetingName(user)}, зарегистрированные и добавленные вручную в одном списке`
               : 'Зарегистрированные и добавленные вручную в одном списке'}
@@ -399,12 +431,12 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
               className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
                 active
                   ? 'bg-brand text-white border-brand'
-                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                  : 'bg-card border-border text-foreground'
               }`}
               data-testid={`students-tab-${item.id}`}
             >
               {item.label}
-              <span className={`ml-1.5 text-xs ${active ? 'text-white/80' : 'text-slate-400'}`}>
+              <span className={`ml-1.5 text-xs ${active ? 'text-white/80' : 'text-muted-foreground'}`}>
                 {counts[item.id] ?? 0}
               </span>
             </button>
@@ -413,7 +445,7 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
       </div>
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -422,13 +454,13 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
         />
       </div>
 
-      <p className="text-xs text-slate-400">{filtered.length} записей</p>
+      <p className="text-xs text-muted-foreground">{filtered.length} записей</p>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         <div className="lg:col-span-2 space-y-2">
           {filtered.length === 0 ? (
             <Card className="p-8 text-center space-y-3">
-              <p className="text-slate-400">Пока никого нет</p>
+              <p className="text-muted-foreground">Пока никого нет</p>
               <Button type="button" variant="outline" onClick={openCreate}>
                 Добавить ученика
               </Button>
@@ -440,13 +472,13 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
                 className={`p-4 cursor-pointer transition-colors ${
                   selectedKey === s.key
                     ? 'border-brand ring-1 ring-brand/30'
-                    : 'hover:border-slate-300'
+                    : 'hover:border-border'
                 }`}
                 onClick={() => setSelectedKey(s.key)}
                 data-testid={`student-row-${s.kind}`}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <p className="font-medium text-slate-900 dark:text-slate-100 truncate">{s.name}</p>
+                  <p className="font-medium text-foreground truncate">{s.name}</p>
                   <span
                     className={`shrink-0 text-[11px] px-2 py-0.5 rounded-full ${
                       s.kind === 'registered'
@@ -457,13 +489,13 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
                     {STUDENT_KIND_LABEL[s.kind]}
                   </span>
                 </div>
-                <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+                <p className="text-sm text-muted-foreground mt-1">
                   Баланс:{' '}
-                  <span className="font-semibold">
-                    {s.lesson_balance == null ? '—' : s.lesson_balance}
-                  </span>
+                  <LessonBalanceDisplay
+                    balance={s.lesson_balance == null ? null : getLessonBalance(s)}
+                  />
                 </p>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   {STUDENT_STATUS_LABEL[s.status] || s.status || '—'}
                   {s.phone ? ` · ${s.phone}` : ''}
                 </p>
@@ -474,7 +506,7 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
 
         <div className="lg:col-span-3">
           {!selectedRow ? (
-            <Card className="p-8 text-center text-slate-400">
+            <Card className="p-8 text-center text-muted-foreground">
               Выберите ученика, чтобы открыть карточку
             </Card>
           ) : detailLoading || !detail ? (
@@ -506,17 +538,17 @@ export default function PrivateStudentsNotebook({ ownerType = 'teacher' }) {
 
       {formOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4">
-          <div className="w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="w-full sm:max-w-md bg-card rounded-t-2xl sm:rounded-2xl shadow-xl border border-border">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
               <h2 className="text-base font-semibold">
                 {editing ? 'Изменить ученика' : 'Добавить ученика'}
               </h2>
-              <button type="button" onClick={closeForm} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+              <button type="button" onClick={closeForm} className="p-2 rounded-lg hover:bg-muted">
                 <X className="w-4 h-4" />
               </button>
             </div>
             <form onSubmit={handleSave} className="p-5 space-y-4">
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 Создаётся запись без аккаунта: для расписания, баланса и ручной проверки ДЗ.
                 Уведомления и вход в кабинет не создаются.
               </p>
@@ -578,20 +610,20 @@ function ContactDetailCard({
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{detail.name}</h2>
+            <h2 className="text-lg font-semibold text-foreground">{detail.name}</h2>
             <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-800">
               {STUDENT_KIND_LABEL.manual}
             </span>
           </div>
           {detail.phone && (
-            <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-1">
+            <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
               <Phone className="w-3.5 h-3.5" /> {detail.phone}
             </p>
           )}
           {detail.comment && (
-            <p className="text-sm text-slate-500 mt-2 whitespace-pre-wrap">{detail.comment}</p>
+            <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">{detail.comment}</p>
           )}
-          <p className="text-xs text-slate-400 mt-2">
+          <p className="text-xs text-muted-foreground mt-2">
             Статус: {STUDENT_STATUS_LABEL[detail.status] || detail.status || '—'}
           </p>
         </div>
@@ -616,22 +648,24 @@ function ContactDetailCard({
         </div>
       </div>
 
-      <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-4">
-        <p className="text-sm text-slate-500 flex items-center gap-1.5">
+      <div className="rounded-xl bg-muted/50 p-4">
+        <p className="text-sm text-muted-foreground flex items-center gap-1.5">
           <Wallet className="w-4 h-4" /> Баланс занятий
         </p>
-        <p className="text-3xl font-bold text-slate-900 dark:text-white mt-1">
-          {detail.lesson_balance ?? detail.lessonBalance ?? 0}
-        </p>
+        <LessonBalanceDisplay
+          balance={getLessonBalance(detail)}
+          variant="hero"
+          showDebtHint
+          className="mt-1"
+        />
       </div>
 
-      <form onSubmit={onBalanceSave} className="space-y-3 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+      <form onSubmit={onBalanceSave} className="space-y-3 border border-border rounded-xl p-4">
         <h3 className="text-sm font-semibold">Изменить баланс занятий</h3>
         <div className="space-y-2">
           <Label>Новое значение</Label>
           <Input
             type="number"
-            min={0}
             step={1}
             value={balanceForm.newBalance}
             onChange={(e) => setBalanceForm((f) => ({ ...f, newBalance: e.target.value }))}
@@ -655,18 +689,18 @@ function ContactDetailCard({
       <div>
         <h3 className="text-sm font-semibold mb-2">История занятий</h3>
         {(detail.lessons || []).length === 0 ? (
-          <p className="text-xs text-slate-400">Пока нет уроков</p>
+          <p className="text-xs text-muted-foreground">Пока нет уроков</p>
         ) : (
           <ul className="space-y-2 max-h-48 overflow-y-auto">
             {detail.lessons.map((l) => (
               <li
                 key={l.id}
-                className="text-sm flex justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-1"
+                className="text-sm flex justify-between gap-2 border-b border-border pb-1"
               >
                 <span>
                   {formatLessonDate(l.date, l.start_time || l.startTime)} · {l.duration} мин
                 </span>
-                <span className="text-slate-500 shrink-0">
+                <span className="text-muted-foreground shrink-0">
                   {LESSON_STATUS_RU[l.status] || l.status}
                 </span>
               </li>
@@ -678,7 +712,7 @@ function ContactDetailCard({
       <div>
         <h3 className="text-sm font-semibold mb-2">История изменений баланса</h3>
         {(detail.balance_history || detail.balanceHistory || []).length === 0 ? (
-          <p className="text-xs text-slate-400">Изменений пока нет</p>
+          <p className="text-xs text-muted-foreground">Изменений пока нет</p>
         ) : (
           <ul className="space-y-2 max-h-48 overflow-y-auto">
             {(detail.balance_history || detail.balanceHistory).map((h) => {
@@ -687,7 +721,7 @@ function ContactDetailCard({
               return (
                 <li
                   key={h.id}
-                  className="text-sm border-b border-slate-100 dark:border-slate-800 pb-2"
+                  className="text-sm border-b border-border pb-2"
                 >
                   <div className="flex justify-between gap-2">
                     <span>
@@ -699,7 +733,7 @@ function ContactDetailCard({
                     </span>
                   </div>
                   {h.reason && (
-                    <p className="text-xs text-slate-400 mt-0.5">{h.reason}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{h.reason}</p>
                   )}
                 </li>
               );
@@ -717,7 +751,7 @@ function AccountOrNotebookCard({ row, deletingKey, onEdit, onDelete }) {
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{row.name}</h2>
+            <h2 className="text-lg font-semibold text-foreground">{row.name}</h2>
             <span
               className={`text-[11px] px-2 py-0.5 rounded-full ${
                 row.kind === 'registered'
@@ -729,16 +763,16 @@ function AccountOrNotebookCard({ row, deletingKey, onEdit, onDelete }) {
             </span>
           </div>
           {row.phone && (
-            <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-1">
+            <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
               <Phone className="w-3.5 h-3.5" /> {row.phone}
             </p>
           )}
           {row.email && (
-            <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-1">
+            <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
               <Mail className="w-3.5 h-3.5" /> {row.email}
             </p>
           )}
-          <p className="text-xs text-slate-400 mt-2">
+          <p className="text-xs text-muted-foreground mt-2">
             Статус: {STUDENT_STATUS_LABEL[row.status] || row.status || '—'}
           </p>
         </div>
@@ -769,15 +803,18 @@ function AccountOrNotebookCard({ row, deletingKey, onEdit, onDelete }) {
         )}
       </div>
 
-      <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-4">
-        <p className="text-sm text-slate-500 flex items-center gap-1.5">
+      <div className="rounded-xl bg-muted/50 p-4">
+        <p className="text-sm text-muted-foreground flex items-center gap-1.5">
           <Wallet className="w-4 h-4" /> Баланс занятий
         </p>
-        <p className="text-3xl font-bold text-slate-900 dark:text-white mt-1">
-          {row.lesson_balance == null ? '—' : row.lesson_balance}
-        </p>
+        <LessonBalanceDisplay
+          balance={row.lesson_balance == null ? null : getLessonBalance(row)}
+          variant="hero"
+          showDebtHint
+          className="mt-1"
+        />
         {row.kind === 'registered' && (
-          <p className="text-xs text-slate-400 mt-2">
+          <p className="text-xs text-muted-foreground mt-2">
             Зарегистрированный ученик: есть кабинет и уведомления. Добавление вручную создаёт
             только CRM-запись без аккаунта.
           </p>

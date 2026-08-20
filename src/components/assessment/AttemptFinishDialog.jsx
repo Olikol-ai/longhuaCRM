@@ -30,14 +30,14 @@ export default function AttemptFinishDialog({
       aria-modal="true"
       aria-labelledby="attempt-finish-title"
     >
-      <div className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl bg-white dark:bg-slate-900 p-5 sm:p-6 space-y-4 shadow-xl safe-pb sm:pb-6">
+      <div className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl bg-card p-5 sm:p-6 space-y-4 shadow-xl safe-pb sm:pb-6">
         <h2
           id="attempt-finish-title"
-          className="text-lg font-semibold text-slate-900 dark:text-white"
+          className="text-lg font-semibold text-foreground"
         >
           {title}
         </h2>
-        <p className="text-sm text-slate-600 dark:text-slate-300">{body}</p>
+        <p className="text-sm text-muted-foreground">{body}</p>
         <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
           <Button type="button" variant="outline" onClick={onContinue} disabled={submitting}>
             Продолжить выполнение

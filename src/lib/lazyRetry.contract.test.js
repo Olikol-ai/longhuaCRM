@@ -47,12 +47,15 @@ describe('frontend update recovery', () => {
     assert.doesNotMatch(boundary, /Longhua CRM была обновлена/);
     assert.match(main, /FrontendUpdateScreen/);
     assert.match(main, /mountFrontendUpdateOverlay/);
+    assert.match(main, /registerLonghuaServiceWorker/);
     assert.match(screen, /Longhua CRM была обновлена/);
     assert.match(screen, /Загружаем новую версию приложения/);
     assert.match(screen, /Это займёт всего несколько секунд/);
     assert.match(screen, /Longhua CRM не удалось обновить автоматически/);
+    assert.match(screen, /Доступна новая версия Longhua CRM/);
     assert.match(screen, /Обновить сейчас/);
     assert.match(screen, /onAutoReload/);
+    assert.match(screen, /onLater/);
     assert.doesNotMatch(screen, /Failed to fetch|ChunkLoadError|MIME type|stack/i);
     assert.match(updateLib, /saveNavigationStateForUpdate/);
     assert.match(updateLib, /finalizeFrontendUpdateRecovery/);

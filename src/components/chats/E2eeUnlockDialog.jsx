@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { Loader2, Lock } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Lock } from 'lucide-react';
 import {
+  Button,
+  PasswordInput,
   ResponsiveDialog,
   ResponsiveDialogDescription,
   ResponsiveDialogFooter,
   ResponsiveDialogHeader,
   ResponsiveDialogTitle,
-} from '@/components/responsive/ResponsiveDialog';
+} from '@/design-system';
+import { iconSize } from '@/design-system/tokens/icon';
 import { useE2ee } from '@/lib/e2ee/E2eeContext';
 
 /**
@@ -31,7 +32,7 @@ export default function E2eeUnlockDialog({ open, onOpenChange, title }) {
     <ResponsiveDialog open={open} onOpenChange={onOpenChange} fullscreenOnMobile={false}>
       <ResponsiveDialogHeader>
         <ResponsiveDialogTitle className="flex items-center gap-2">
-          <Lock className="h-4 w-4" />
+          <Lock className={iconSize.sm} />
           {title || (missing ? 'Настроить сквозное шифрование' : 'Разблокировать личные чаты')}
         </ResponsiveDialogTitle>
         <ResponsiveDialogDescription>
@@ -40,10 +41,8 @@ export default function E2eeUnlockDialog({ open, onOpenChange, title }) {
             : 'Введите пароль аккаунта, чтобы расшифровать личные сообщения на этом устройстве.'}
         </ResponsiveDialogDescription>
       </ResponsiveDialogHeader>
-      <form onSubmit={submit} className="space-y-3 mt-2">
-        <Input
-          type="password"
-          autoComplete="current-password"
+      <form onSubmit={submit} className="mt-2 space-y-3">
+        <PasswordInput
           placeholder="Пароль"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -51,19 +50,11 @@ export default function E2eeUnlockDialog({ open, onOpenChange, title }) {
         />
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <ResponsiveDialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange?.(false)}>
+          <Button type="button" intent="outline" onClick={() => onOpenChange?.(false)}>
             Отмена
           </Button>
-          <Button type="submit" disabled={busy || !password}>
-            {busy ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Подождите…
-              </>
-            ) : missing ? (
-              'Создать ключи'
-            ) : (
-              'Разблокировать'
-            )}
+          <Button type="submit" disabled={busy || !password} loading={busy}>
+            {missing ? 'Создать ключи' : 'Разблокировать'}
           </Button>
         </ResponsiveDialogFooter>
       </form>

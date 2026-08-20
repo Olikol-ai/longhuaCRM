@@ -54,6 +54,18 @@ export class ChatMemberEntity {
   @Column({ name: 'muted_until', type: 'timestamptz', nullable: true })
   mutedUntil: Date | null;
 
+  /** Personal archive: chat leaves Active list, stays available under Archive. */
+  @Column({ name: 'archived_at', type: 'timestamptz', nullable: true })
+  archivedAt: Date | null;
+
+  /** Personal pin for list ordering. */
+  @Column({ name: 'pinned_at', type: 'timestamptz', nullable: true })
+  pinnedAt: Date | null;
+
+  /** Personal favorite flag. */
+  @Column({ name: 'favorited_at', type: 'timestamptz', nullable: true })
+  favoritedAt: Date | null;
+
   /** Personal hide: chat disappears from actor list until new message or reopen. */
   @Column({ name: 'hidden_at', type: 'timestamptz', nullable: true })
   hiddenAt: Date | null;

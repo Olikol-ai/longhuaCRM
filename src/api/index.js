@@ -89,15 +89,29 @@ export const api = {
   functions,
   schedule,
   uploads: {
-    async uploadFile({ file }) {
-      const result = await apiUpload(file);
-      return { file_url: result.url ?? result.file_url };
+    async uploadFile({ file, onProgress, signal } = {}) {
+      const result = await apiUpload(file, { onProgress, signal });
+      return {
+        file_url: result.url ?? result.file_url,
+        mime_type: result.mime_type ?? null,
+        size_bytes: result.size_bytes ?? null,
+        original_name: result.original_name ?? file?.name ?? null,
+        stored_name: result.stored_name ?? null,
+        file_type: result.file_type ?? null,
+      };
     },
   },
   files: {
-    async upload({ file }) {
-      const result = await apiUpload(file);
-      return { url: result.url ?? result.file_url };
+    async upload({ file, onProgress, signal } = {}) {
+      const result = await apiUpload(file, { onProgress, signal });
+      return {
+        url: result.url ?? result.file_url,
+        mime_type: result.mime_type ?? null,
+        size_bytes: result.size_bytes ?? null,
+        original_name: result.original_name ?? file?.name ?? null,
+        stored_name: result.stored_name ?? null,
+        file_type: result.file_type ?? null,
+      };
     },
   },
 };

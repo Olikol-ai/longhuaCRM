@@ -7,6 +7,10 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Response } from 'express';
+import {
+  formatMaterialsMaxUploadLabel,
+  getMaterialsMaxUploadBytes,
+} from '../../modules/files/material-upload.limits';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -23,6 +27,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
         typeof body === 'object' && body !== null
           ? { ...(body as Record<string, unknown>), status }
           : { error: body, status };
+
+      if (status >= 400 && status < 500) {
+        const detail =
+          typeof body === 'object' && body !== null && 'message' in body
+            ? (body as { message?: unknown }).message
+            : body;
+        this.logger.warn(
+          `HTTP ${status}: ${typeof detail === 'string' ? detail : JSON.stringify(detail)}`,
+        );
+      }
+
       response.status(status).json(payload);
       return;
     }
@@ -32,7 +47,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const multerCode = (exception as { code?: string })?.code;
     if (multerCode === 'LIMIT_FILE_SIZE') {
       response.status(HttpStatus.PAYLOAD_TOO_LARGE).json({
-        message: 'Размер файла не должен превышать 5 МБ',
+        message: `Размер файла не должен превышать ${formatMaterialsMaxUploadLabel(getMaterialsMaxUploadBytes())}`,
         status: HttpStatus.PAYLOAD_TOO_LARGE,
       });
       return;

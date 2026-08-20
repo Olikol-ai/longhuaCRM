@@ -402,3 +402,93 @@ export function matchMainMenuButton(
   if (trimmed === TELEGRAM_BTN.help) return 'help';
   return null;
 }
+
+/** Calendar date helpers for school wall-clock (REMINDER_TIMEZONE). */
+export function getSchoolCalendarDateYmd(
+  timeZone: string,
+  now: Date = new Date(),
+): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const y = parts.find((p) => p.type === 'year')?.value ?? '1970';
+  const m = parts.find((p) => p.type === 'month')?.value ?? '01';
+  const d = parts.find((p) => p.type === 'day')?.value ?? '01';
+  return `${y}-${m}-${d}`;
+}
+
+export function addCalendarDaysYmd(dateYmd: string, days: number): string {
+  const [y, m, d] = String(dateYmd)
+    .split('-')
+    .map((part) => Number(part));
+  const utc = Date.UTC(y, m - 1, d) + days * 24 * 60 * 60 * 1000;
+  const next = new Date(utc);
+  const yy = next.getUTCFullYear();
+  const mm = String(next.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(next.getUTCDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
+export function getSchoolTomorrowDateYmd(
+  timeZone: string,
+  now: Date = new Date(),
+): string {
+  return addCalendarDaysYmd(getSchoolCalendarDateYmd(timeZone, now), 1);
+}
+
+/** e.g. «Пятница, 8 августа» */
+export function formatSchoolDateLongRu(
+  dateYmd: string,
+  timeZone = 'Europe/Minsk',
+): string {
+  const [y, m, d] = String(dateYmd)
+    .split('-')
+    .map((part) => Number(part));
+  if (!y || !m || !d) return dateYmd;
+  const probe = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  const label = new Intl.DateTimeFormat('ru-RU', {
+    timeZone,
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(probe);
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+export type TomorrowDigestLessonLine = {
+  startTime: string;
+  participantLabel: string;
+  lessonFormat?: 'online' | 'offline' | string | null;
+};
+
+export function buildTeacherTomorrowDigestMessage(input: {
+  scheduleDateYmd: string;
+  lessons: TomorrowDigestLessonLine[];
+  timeZone?: string;
+}): string {
+  const tz = input.timeZone ?? 'Europe/Minsk';
+  const dateLabel = formatSchoolDateLongRu(input.scheduleDateYmd, tz);
+  const lines = input.lessons.map((lesson) => {
+    const time = formatLessonTime(lesson.startTime);
+    const format = String(lesson.lessonFormat ?? '').toLowerCase();
+    const icon =
+      format === 'offline' ? '🏫 ' : format === 'online' ? '💻 ' : '';
+    const name = String(lesson.participantLabel ?? '').trim() || 'Занятие';
+    return `${icon}${time} — ${name}`;
+  });
+
+  return [
+    '📅 Ваше расписание на завтра',
+    '',
+    dateLabel,
+    '',
+    ...lines,
+    '',
+    `Всего уроков: ${input.lessons.length}`,
+    '',
+    'Желаем хороших занятий! 🐉',
+  ].join('\n');
+}

@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -166,6 +167,31 @@ export class LessonsController {
       applyScope,
       ...lessonPatch
     } = dto;
+
+    // Status + apply_scope goes through recurrence so series cancel can fan out.
+    // Cancel without scope (or apply_scope=this) stays exact-id cancel.
+    if (
+      lessonPatch.status !== undefined &&
+      (recurrenceWeekly !== undefined ||
+        recurrenceUntil !== undefined ||
+        applyScope !== undefined)
+    ) {
+      return this.recurrence.applyLessonUpdateWithRecurrence(
+        user,
+        id,
+        lessonPatch,
+        {
+          weekly: recurrenceWeekly,
+          untilDate: recurrenceUntil,
+          applyScope,
+        },
+      );
+    }
+
+    if (lessonPatch.status === 'cancelled') {
+      return this.lessonsService.cancel(user, id);
+    }
+
     if (
       recurrenceWeekly !== undefined ||
       recurrenceUntil !== undefined ||
@@ -186,8 +212,17 @@ export class LessonsController {
   }
 
   @Delete(':id')
-  @Roles('admin')
-  delete(@Param('id') id: string) {
-    return this.lessonsService.delete(id);
+  @Roles('admin', 'teacher', 'tutor')
+  delete(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Query('applyScope') applyScope?: string,
+    @Query('apply_scope') applyScopeSnake?: string,
+  ) {
+    return this.lessonsService.deleteWithScope(
+      user,
+      id,
+      applyScope ?? applyScopeSnake,
+    );
   }
 }

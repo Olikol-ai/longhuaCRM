@@ -39,9 +39,9 @@ export const ROLE_CONFIG = {
   },
   student: {
     label: getRoleLabel('student'),
-    bg: 'bg-slate-100 dark:bg-slate-800',
-    text: 'text-slate-700 dark:text-slate-300',
-    dot: 'bg-slate-500',
+    bg: 'bg-muted',
+    text: 'text-foreground',
+    dot: 'bg-muted-foreground',
     icon: Users,
   },
   pending: {
@@ -53,9 +53,9 @@ export const ROLE_CONFIG = {
   },
   user: {
     label: getRoleLabel('user'),
-    bg: 'bg-slate-100 dark:bg-slate-800',
-    text: 'text-slate-600 dark:text-slate-300',
-    dot: 'bg-slate-400',
+    bg: 'bg-muted',
+    text: 'text-muted-foreground',
+    dot: 'bg-muted-foreground',
     icon: UserCheck,
   },
 };

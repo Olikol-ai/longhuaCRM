@@ -5,10 +5,10 @@ export default function ExamProgress({ current, total, answeredCount }) {
   return (
     <div className="space-y-2" data-testid="exam-progress">
       <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-        <p className="font-medium text-slate-800 dark:text-slate-100">
+        <p className="font-medium text-foreground">
           Вопрос {current} из {total}
         </p>
-        <p className="text-slate-500 dark:text-slate-400">
+        <p className="text-muted-foreground">
           Отвечено: {answeredCount} / {total} ({pct}%)
         </p>
       </div>

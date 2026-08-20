@@ -324,4 +324,86 @@ describe('Lesson completion balance & attendance (e2e)', () => {
     expect(label.toLowerCase()).not.toContain('unknown');
     expect(label.toLowerCase()).not.toContain('stale');
   });
+
+  it('allows completing lessons into negative balance (debt) and payment restores arithmetically', async () => {
+    const suffix = randomUUID().slice(0, 8);
+
+    const studentRes = await api(app)
+      .post('/api/students')
+      .set(authHeader(adminToken))
+      .send({ name: `Debt ${suffix}`, status: 'active', lessonBalance: 0 });
+    expect(studentRes.status).toBe(201);
+    const studentId = studentRes.body.id as string;
+
+    const teacherRes = await api(app)
+      .post('/api/teachers')
+      .set(authHeader(adminToken))
+      .send({ name: `Debt Teacher ${suffix}`, status: 'active', hourlyRate: 30 });
+    const teacherId = teacherRes.body.id as string;
+
+    const lesson1 = await api(app)
+      .post('/api/lessons')
+      .set(authHeader(adminToken))
+      .send({
+        teacherId,
+        primaryStudentId: studentId,
+        date: futureLessonDate(7),
+        startTime: '10:00',
+        duration: 60,
+        status: 'planned',
+      });
+    expect(lesson1.status).toBe(201);
+
+    await api(app)
+      .patch(`/api/lessons/${lesson1.body.id}/complete`)
+      .set(authHeader(adminToken))
+      .expect(200);
+
+    let student = await api(app)
+      .get(`/api/students/${studentId}`)
+      .set(authHeader(adminToken))
+      .expect(200);
+    expect(student.body.lesson_balance ?? student.body.lessonBalance).toBe(-1);
+
+    const lesson2 = await api(app)
+      .post('/api/lessons')
+      .set(authHeader(adminToken))
+      .send({
+        teacherId,
+        primaryStudentId: studentId,
+        date: futureLessonDate(8),
+        startTime: '11:00',
+        duration: 60,
+        status: 'planned',
+      });
+    expect(lesson2.status).toBe(201);
+
+    await api(app)
+      .patch(`/api/lessons/${lesson2.body.id}/complete`)
+      .set(authHeader(adminToken))
+      .expect(200);
+
+    student = await api(app)
+      .get(`/api/students/${studentId}`)
+      .set(authHeader(adminToken))
+      .expect(200);
+    expect(student.body.lesson_balance ?? student.body.lessonBalance).toBe(-2);
+
+    const payment = await api(app)
+      .post('/api/payments')
+      .set(authHeader(adminToken))
+      .send({
+        studentId,
+        amount: 8000,
+        status: 'paid',
+        lessonsAdded: 8,
+      });
+    expect(payment.status).toBe(201);
+
+    student = await api(app)
+      .get(`/api/students/${studentId}`)
+      .set(authHeader(adminToken))
+      .expect(200);
+    expect(student.body.lesson_balance ?? student.body.lessonBalance).toBe(6);
+  });
 });

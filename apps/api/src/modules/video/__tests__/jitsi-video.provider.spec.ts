@@ -109,14 +109,25 @@ describe('JitsiVideoProvider corporate JWT', () => {
   });
 
   it('requires JWT secrets', () => {
-    const bare = jwtConfig({
-      'video.jitsiJwtAppId': '',
-      'video.jitsiJwtAppSecret': '',
-    });
-    const bareProvider = new JitsiVideoProvider(bare, new JitsiJwtService(bare));
-    expect(() => bareProvider.createRoom({ id: 'x' })).toThrow(
-      ServiceUnavailableException,
-    );
+    const prevId = process.env.JITSI_JWT_APP_ID;
+    const prevSecret = process.env.JITSI_JWT_APP_SECRET;
+    delete process.env.JITSI_JWT_APP_ID;
+    delete process.env.JITSI_JWT_APP_SECRET;
+    try {
+      const bare = jwtConfig({
+        'video.jitsiJwtAppId': '',
+        'video.jitsiJwtAppSecret': '',
+      });
+      const bareProvider = new JitsiVideoProvider(bare, new JitsiJwtService(bare));
+      expect(() => bareProvider.createRoom({ id: 'x' })).toThrow(
+        ServiceUnavailableException,
+      );
+    } finally {
+      if (prevId !== undefined) process.env.JITSI_JWT_APP_ID = prevId;
+      else delete process.env.JITSI_JWT_APP_ID;
+      if (prevSecret !== undefined) process.env.JITSI_JWT_APP_SECRET = prevSecret;
+      else delete process.env.JITSI_JWT_APP_SECRET;
+    }
   });
 
   it('deleteRoom is a no-op', () => {

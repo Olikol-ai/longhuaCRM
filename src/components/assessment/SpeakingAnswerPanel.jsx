@@ -141,15 +141,15 @@ export default function SpeakingAnswerPanel({
   const playSrc = previewUrl || authPreviewUrl;
 
   return (
-    <div className="space-y-3 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 bg-slate-50/80 dark:bg-slate-800/40">
-      <p className="text-xs text-slate-500 dark:text-slate-400">
+    <div className="space-y-3 rounded-xl border border-border p-3 sm:p-4 bg-slate-50/80 dark:bg-slate-800/40">
+      <p className="text-xs text-muted-foreground">
         Запишите устный ответ или загрузите аудио (ogg, opus, mp3, wav).
       </p>
 
       {playSrc ? (
         <AuthenticatedAudio src={playSrc} />
       ) : hasAudio ? (
-        <p className="text-sm text-slate-500">Аудио загружено. Можно перезаписать.</p>
+        <p className="text-sm text-muted-foreground">Аудио загружено. Можно перезаписать.</p>
       ) : null}
 
       <div className="flex flex-wrap gap-2">

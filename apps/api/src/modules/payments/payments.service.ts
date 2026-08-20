@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -43,7 +44,12 @@ export class PaymentsService {
     return row;
   }
 
-  async createPayment(dto: CreatePaymentDto): Promise<PaymentEntity> {
+  async createPayment(
+    actor: JwtPayload,
+    dto: CreatePaymentDto,
+  ): Promise<PaymentEntity> {
+    await this.studentAccess.assertCanWritePayment(actor, dto.studentId);
+
     return this.dataSource.transaction(async (manager) => {
       const student = await manager.getRepository(StudentEntity).findOne({
         where: { id: dto.studentId },
@@ -90,7 +96,11 @@ export class PaymentsService {
     });
   }
 
-  async updatePayment(id: string, dto: UpdatePaymentDto): Promise<PaymentEntity> {
+  async updatePayment(
+    actor: JwtPayload,
+    id: string,
+    dto: UpdatePaymentDto,
+  ): Promise<PaymentEntity> {
     return this.dataSource.transaction(async (manager) => {
       const paymentRepo = manager.getRepository(PaymentEntity);
       const row = await paymentRepo
@@ -100,6 +110,11 @@ export class PaymentsService {
         .getOne();
       if (!row) {
         throw new NotFoundException('Payment not found');
+      }
+
+      await this.studentAccess.assertCanWritePayment(actor, row.studentId);
+      if (dto.studentId && dto.studentId !== row.studentId) {
+        await this.studentAccess.assertCanWritePayment(actor, dto.studentId);
       }
 
       const previousLessons = row.lessonsAdded ?? 0;
@@ -145,7 +160,11 @@ export class PaymentsService {
     });
   }
 
-  async deletePayment(id: string): Promise<void> {
+  async deletePayment(actor: JwtPayload, id: string): Promise<void> {
+    if (!this.studentAccess.isAdmin(actor)) {
+      throw new ForbiddenException('Only administrators can delete payments');
+    }
+
     await this.dataSource.transaction(async (manager) => {
       const paymentRepo = manager.getRepository(PaymentEntity);
       const row = await paymentRepo
@@ -414,12 +433,6 @@ export class PaymentsService {
     }
 
     const nextBalance = (student.lessonBalance ?? 0) + delta;
-    if (nextBalance < 0) {
-      throw new BadRequestException(
-        'Insufficient lesson balance for this payment adjustment',
-      );
-    }
-
     student.lessonBalance = nextBalance;
     return studentRepo.save(student);
   }

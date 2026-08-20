@@ -338,8 +338,8 @@ export default function HomeworkEditor() {
   if (id && loadError) {
     return (
       <div className="p-6 max-w-lg mx-auto space-y-4 text-center">
-        <p className="text-slate-700 dark:text-slate-200 font-medium">Не удалось открыть задание</p>
-        <p className="text-sm text-slate-500">{loadError}</p>
+        <p className="text-foreground font-medium">Не удалось открыть задание</p>
+        <p className="text-sm text-muted-foreground">{loadError}</p>
         <Button variant="outline" onClick={() => navigate(createPageUrl('HomeworkList'))}>
           К списку заданий
         </Button>
@@ -354,10 +354,10 @@ export default function HomeworkEditor() {
     >
       <div className="min-w-0 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white break-words">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground break-words">
             {id ? 'Изменить домашнее задание' : 'Новое домашнее задание'}
           </h1>
-          <p className="text-sm text-slate-500 mt-1 break-words">
+          <p className="text-sm text-muted-foreground mt-1 break-words">
             Название, описание, состав вопросов и настройки. Учеников и срок сдачи настройте при
             назначении.
           </p>
@@ -377,9 +377,9 @@ export default function HomeworkEditor() {
         ) : null}
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4 sm:p-5 space-y-4 min-w-0">
+      <div className="bg-card rounded-2xl border border-border p-4 sm:p-5 space-y-4 min-w-0">
         <div className="min-w-0">
-          <label className="block text-xs font-medium text-slate-600 mb-1">Название</label>
+          <label className="block text-xs font-medium text-muted-foreground mb-1">Название</label>
           <Input
             value={form.title}
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
@@ -387,7 +387,7 @@ export default function HomeworkEditor() {
           />
         </div>
         <div className="min-w-0">
-          <label className="block text-xs font-medium text-slate-600 mb-1">Описание</label>
+          <label className="block text-xs font-medium text-muted-foreground mb-1">Описание</label>
           <Textarea
             value={form.description}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
@@ -396,7 +396,7 @@ export default function HomeworkEditor() {
           />
         </div>
         <div className="min-w-0">
-          <label className="block text-xs font-medium text-slate-600 mb-1">Инструкция</label>
+          <label className="block text-xs font-medium text-muted-foreground mb-1">Инструкция</label>
           <Textarea
             value={form.instructions}
             onChange={(e) => setForm((f) => ({ ...f, instructions: e.target.value }))}
@@ -408,7 +408,7 @@ export default function HomeworkEditor() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="min-w-0">
-            <label className="block text-xs font-medium text-slate-600 mb-1">Тип задания</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Тип задания</label>
             <select
               value={form.activity_kind}
               onChange={(e) => setForm((f) => ({ ...f, activity_kind: e.target.value }))}
@@ -422,7 +422,7 @@ export default function HomeworkEditor() {
             </select>
           </div>
           <div className="min-w-0">
-            <label className="block text-xs font-medium text-slate-600 mb-1">Проходной %</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Проходной %</label>
             <Input
               type="number"
               min={0}
@@ -474,7 +474,7 @@ export default function HomeworkEditor() {
         {form.tasks.map((task, index) => (
           <div
             key={task.localKey}
-            className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4 sm:p-5 space-y-3 min-w-0"
+            className="bg-card rounded-2xl border border-border p-4 sm:p-5 space-y-3 min-w-0"
             data-testid={`homework-question-${index}`}
           >
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -499,7 +499,7 @@ export default function HomeworkEditor() {
 
             {task.task_kind === 'question' ? (
               <div className="min-w-0">
-                <label className="block text-xs font-medium text-slate-600 mb-1">Вопрос</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Вопрос</label>
                 <select
                   value={task.question_id}
                   onChange={(e) => updateTask(task.localKey, { question_id: e.target.value })}
@@ -515,7 +515,7 @@ export default function HomeworkEditor() {
               </div>
             ) : (
               <div className="min-w-0">
-                <label className="block text-xs font-medium text-slate-600 mb-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
                   {CONTENT_TASK_TYPE_LABEL[task.task_kind]}
                 </label>
                 <select
@@ -547,7 +547,7 @@ export default function HomeworkEditor() {
             )}
 
             <div className="min-w-0 sm:max-w-xs">
-              <label className="block text-xs font-medium text-slate-600 mb-1">
+              <label className="block text-xs font-medium text-muted-foreground mb-1">
                 Баллы (необязательно)
               </label>
               <Input

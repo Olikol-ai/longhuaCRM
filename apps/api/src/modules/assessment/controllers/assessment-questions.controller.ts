@@ -181,12 +181,12 @@ export class AssessmentQuestionsController {
     @UploadedFile() file: UploadedFilePayload,
   ) {
     const uploaded = file as UploadedFilePayload & { mimetype?: string };
-    const storageKey = this.secureFiles.saveUploadedFile(file);
+    const saved = this.secureFiles.saveUploadedFile(file);
     return this.questions.addAttachment(user, questionId, {
       kind: dto.kind,
-      storageKey,
-      mime: uploaded.mimetype ?? null,
-      originalFilename: file.originalname ?? null,
+      storageKey: saved.url,
+      mime: uploaded.mimetype ?? saved.mimeType ?? null,
+      originalFilename: file.originalname ?? saved.originalName ?? null,
     });
   }
 

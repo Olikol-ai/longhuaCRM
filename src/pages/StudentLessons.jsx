@@ -12,10 +12,7 @@ import {
   Calendar,
   List,
   ArrowUpDown,
-  Sun,
-  Moon,
 } from "lucide-react";
-import { useTheme } from "@/lib/ThemeContext";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import { canStartVideoLesson, isOnlineLesson, lessonVideoPath } from "@/lib/lesson-video";
@@ -35,6 +32,8 @@ import {
 } from "date-fns";
 import { ru } from "date-fns/locale";
 import { resolveLessonTeacherLabel } from "@/lib/teacherLabels";
+import { OfflineSnapshotBanner } from "@/components/pwa/OfflineSnapshotBanner";
+import { OFFLINE_RESOURCES, readWithOfflineFallback } from "@/lib/offline";
 
 const STATUS_BG = {
   planned: "bg-brand",
@@ -75,7 +74,7 @@ export default function StudentLessons() {
   const [sortAsc, setSortAsc] = useState(true);
   const [selectedDay, setSelectedDay] = useState(null);
   const [filter, setFilter] = useState("all"); // "all" | "upcoming" | "past"
-  const { theme, toggleTheme } = useTheme();
+  const [offlineMeta, setOfflineMeta] = useState({ fromCache: false, updatedAt: null, missing: false });
 
   useEffect(() => {
     if (isLoadingAuth) return;
@@ -101,19 +100,40 @@ export default function StudentLessons() {
 
   const loadData = async () => {
     if (!user) return;
-    const [allStudents, allLessons] = await Promise.all([
-      api.students.list(),
-      api.lessons.list("-date", 300),
-    ]);
-    const student = allStudents.find((s) => s.user_id === user.id || s.email === user.email);
-    if (student) {
-      setLessons(allLessons.filter((l) =>
-        l.primary_student_id === student.id ||
-        l.student_id === student.id ||
-        (l.student_ids || []).includes(student.id)
-      ));
+    try {
+      const result = await readWithOfflineFallback({
+        userId: user.id,
+        role: user.role || 'student',
+        resource: OFFLINE_RESOURCES.SCHEDULE,
+        resourceKey: 'student',
+        fetcher: async () => {
+          const [allStudents, allLessons] = await Promise.all([
+            api.students.list(),
+            api.lessons.list("-date", 300),
+          ]);
+          const student = allStudents.find((s) => s.user_id === user.id || s.email === user.email);
+          const filtered = student
+            ? allLessons.filter((l) =>
+                l.primary_student_id === student.id ||
+                l.student_id === student.id ||
+                (l.student_ids || []).includes(student.id)
+              )
+            : [];
+          return { lessons: filtered };
+        },
+      });
+      setOfflineMeta({
+        fromCache: result.fromCache,
+        updatedAt: result.updatedAt,
+        missing: result.missing,
+      });
+      setLessons(result.data?.lessons || []);
+    } catch {
+      setLessons([]);
+      setOfflineMeta({ fromCache: false, updatedAt: null, missing: true });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const getLessonsForDay = (dateStr) =>
@@ -160,16 +180,17 @@ export default function StudentLessons() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+      <OfflineSnapshotBanner
+        fromCache={offlineMeta.fromCache}
+        updatedAt={offlineMeta.updatedAt}
+        missing={offlineMeta.missing}
+        emptyLabel="Расписание пока недоступно без подключения"
+        className="mb-4"
+      />
       {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Мои уроки</h1>
-        <button onClick={toggleTheme}
-          className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ml-auto"
-          title="Сменить тему">
-          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </button>
-        {/* View switcher */}
-        <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
+        <h1 className="text-2xl font-bold text-foreground">Мои уроки</h1>
+        <div className="flex gap-1 bg-muted rounded-xl p-1" role="group" aria-label="Вид расписания">
           {[
             { id: "calendar", icon: Calendar, label: "Месяц" },
             { id: "week", icon: Calendar, label: "Неделя" },
@@ -177,9 +198,11 @@ export default function StudentLessons() {
           ].map((v) => (
             <button
               key={v.id}
+              type="button"
               onClick={() => { setViewMode(v.id); setSelectedDay(null); }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                viewMode === v.id ? "bg-white dark:bg-slate-900 text-brand shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+              aria-pressed={viewMode === v.id}
+              className={`flex items-center gap-1.5 min-h-touch px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                viewMode === v.id ? "bg-card text-brand shadow-sm" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <v.icon className="h-3.5 w-3.5" />
@@ -194,13 +217,13 @@ export default function StudentLessons() {
         <div>
           {/* Nav */}
           <div className="flex items-center gap-3 mb-5">
-            <Button variant="outline" size="icon" onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="h-9 w-9">
+            <Button variant="outline" size="icon" onClick={() => setCurrentDate(subMonths(currentDate, 1))} aria-label="Предыдущий месяц">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white flex-1 sm:flex-none sm:min-w-[180px] text-center capitalize truncate">
+            <h2 className="text-base font-semibold text-foreground flex-1 sm:flex-none sm:min-w-[180px] text-center capitalize truncate">
               {format(currentDate, "LLLL yyyy", { locale: ru })}
             </h2>
-            <Button variant="outline" size="icon" onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="h-9 w-9">
+            <Button variant="outline" size="icon" onClick={() => setCurrentDate(addMonths(currentDate, 1))} aria-label="Следующий месяц">
               <ChevronRight className="h-4 w-4" />
             </Button>
             <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())} className="ml-2 text-xs">
@@ -208,11 +231,11 @@ export default function StudentLessons() {
             </Button>
           </div>
 
-          <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-x-auto shadow-sm">
+          <div className="hidden md:block bg-card rounded-2xl border border-border overflow-x-auto shadow-sm">
             {/* Weekday headers */}
-            <div className="grid grid-cols-7 border-b border-slate-100 dark:border-slate-800 min-w-[520px]">
+            <div className="grid grid-cols-7 border-b border-border min-w-[520px]">
               {WEEK_DAYS_RU.map((d) => (
-                <div key={d} className="py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                <div key={d} className="py-3 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                   {d}
                 </div>
               ))}
@@ -226,16 +249,19 @@ export default function StudentLessons() {
                 const isSelected = selectedDayStr === dayStr;
                 const inMonth = isSameMonth(day, currentDate);
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={i}
                     onClick={() => setSelectedDay(isSelected ? null : day)}
-                    className={`min-h-[80px] p-2 border-b border-r border-slate-100 dark:border-slate-800 cursor-pointer transition-colors
-                      ${isSelected ? "bg-brand-soft dark:bg-brand-soft/40" : "hover:bg-slate-50 dark:hover:bg-slate-800"}
+                    aria-pressed={isSelected}
+                    aria-label={format(day, "d MMMM yyyy", { locale: ru })}
+                    className={`min-h-[80px] p-2 border-b border-r border-border cursor-pointer transition-colors text-left w-full
+                      ${isSelected ? "bg-brand-soft dark:bg-brand-soft/40" : "hover:bg-muted"}
                       ${!inMonth ? "opacity-40" : ""}
                     `}
                   >
                     <div className={`text-xs font-semibold mb-1 w-6 h-6 flex items-center justify-center rounded-full
-                      ${isToday(day) ? "bg-primary text-primary-foreground" : "text-slate-700 dark:text-slate-300"}
+                      ${isToday(day) ? "bg-primary text-primary-foreground" : "text-foreground"}
                     `}>
                       {format(day, "d")}
                     </div>
@@ -243,16 +269,16 @@ export default function StudentLessons() {
                       {dayLessons.slice(0, 2).map((lesson) => (
                         <div
                           key={lesson.id}
-                          className={`text-[10px] font-medium text-white px-1.5 py-0.5 rounded-md truncate ${STATUS_BG[lesson.status] || "bg-slate-400"}`}
+                          className={`text-[10px] font-medium text-white px-1.5 py-0.5 rounded-md truncate ${STATUS_BG[lesson.status] || "bg-muted-foreground"}`}
                         >
                           {lesson.start_time} {(resolveLessonTeacherLabel(lesson)).split(" ")[0]}
                         </div>
                       ))}
                       {dayLessons.length > 2 && (
-                        <p className="text-[9px] text-slate-400 pl-1">+{dayLessons.length - 2} ещё</p>
+                        <p className="text-[9px] text-muted-foreground pl-1">+{dayLessons.length - 2} ещё</p>
                       )}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -287,11 +313,11 @@ export default function StudentLessons() {
           {/* Selected day detail */}
           {selectedDay && (
             <div className="mt-4">
-              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 capitalize">
+              <h3 className="text-sm font-semibold text-foreground mb-3 capitalize">
                 {format(selectedDay, "EEEE, d MMMM", { locale: ru })}
               </h3>
               {selectedDayLessons.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-6 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                <p className="text-sm text-muted-foreground text-center py-6 bg-card rounded-xl border border-dashed border-border">
                   Уроков нет
                 </p>
               ) : (
@@ -313,7 +339,7 @@ export default function StudentLessons() {
             <Button variant="outline" size="icon" onClick={() => setCurrentDate(subWeeks(currentDate, 1))} className="h-9 w-9">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white flex-1 sm:flex-none sm:min-w-[220px] text-center truncate">
+            <h2 className="text-base font-semibold text-foreground flex-1 sm:flex-none sm:min-w-[220px] text-center truncate">
               {format(weekDays[0], "d MMM", { locale: ru })} — {format(weekDays[6], "d MMM yyyy", { locale: ru })}
             </h2>
             <Button variant="outline" size="icon" onClick={() => setCurrentDate(addWeeks(currentDate, 1))} className="h-9 w-9">
@@ -329,25 +355,25 @@ export default function StudentLessons() {
               const dayStr = format(day, "yyyy-MM-dd");
               const dayLessons = getLessonsForDay(dayStr);
               return (
-                <div key={i} className={`rounded-2xl border p-3 ${isToday(day) ? "border-brand/40 bg-brand-soft/50 dark:border-brand/40 dark:bg-brand-soft/40" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"}`}>
+                <div key={i} className={`rounded-2xl border p-3 ${isToday(day) ? "border-brand/40 bg-brand-soft/50 dark:border-brand/40 dark:bg-brand-soft/40" : "border-border bg-card"}`}>
                   <div className="text-center mb-3">
-                    <p className="text-[11px] text-slate-400 uppercase font-medium">{WEEK_DAYS_RU[i]}</p>
-                    <div className={`text-xl font-bold mx-auto mt-0.5 w-8 h-8 flex items-center justify-center rounded-full ${isToday(day) ? "bg-primary text-primary-foreground" : "text-slate-900 dark:text-white"}`}>
+                    <p className="text-[11px] text-muted-foreground uppercase font-medium">{WEEK_DAYS_RU[i]}</p>
+                    <div className={`text-xl font-bold mx-auto mt-0.5 w-8 h-8 flex items-center justify-center rounded-full ${isToday(day) ? "bg-primary text-primary-foreground" : "text-foreground"}`}>
                       {format(day, "d")}
                     </div>
                   </div>
                   <div className="space-y-2">
                     {dayLessons.length === 0 ? (
-                      <div className="text-xs text-slate-300 text-center py-3">—</div>
+                      <div className="text-xs text-muted-foreground text-center py-3">—</div>
                     ) : (
                       dayLessons.map((lesson) => (
                         <div
                           key={lesson.id}
-                          className={`p-2.5 bg-white dark:bg-slate-900 rounded-xl border-l-4 border border-slate-100 dark:border-slate-800 shadow-sm ${STATUS_BORDER[lesson.status] || "border-l-slate-300"}`}
+                          className={`p-2.5 bg-card rounded-xl border-l-4 border border-border shadow-sm ${STATUS_BORDER[lesson.status] || "border-l-muted-foreground"}`}
                         >
-                          <p className="text-xs font-bold text-slate-900 dark:text-white">{lesson.start_time}</p>
-                          <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 truncate">{resolveLessonTeacherLabel(lesson)}</p>
-                          <p className="text-[10px] text-slate-400">{lesson.duration || 60} мин</p>
+                          <p className="text-xs font-bold text-foreground">{lesson.start_time}</p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{resolveLessonTeacherLabel(lesson)}</p>
+                          <p className="text-[10px] text-muted-foreground">{lesson.duration || 60} мин</p>
                           {isOnlineLesson(lesson) && (
                             <button
                               type="button"
@@ -384,13 +410,13 @@ export default function StudentLessons() {
           {/* Controls */}
           <div className="flex flex-wrap items-center gap-3 mb-5">
             {/* Filter */}
-            <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
+            <div className="flex gap-1 bg-muted rounded-xl p-1">
               {[["all", "Все"], ["upcoming", "Предстоящие"], ["past", "История"]].map(([f, label]) => (
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
                   className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                    filter === f ? "bg-white dark:bg-slate-900 text-brand shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                    filter === f ? "bg-card text-brand shadow-sm" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {label}
@@ -406,8 +432,8 @@ export default function StudentLessons() {
 
           {listLessons.length === 0 ? (
             <Card className="p-10 text-center border-dashed">
-              <Calendar className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-              <p className="text-sm text-slate-500 dark:text-slate-400">Уроков нет</p>
+              <Calendar className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">Уроков нет</p>
             </Card>
           ) : (
             <div className="space-y-2">
@@ -427,27 +453,27 @@ function LessonCard({ lesson, highlighted = false }) {
   return (
     <div
       id={highlighted ? `lesson-${lesson.id}` : undefined}
-      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white dark:bg-slate-900 rounded-xl border-l-4 border border-slate-200 dark:border-slate-700 hover:shadow-sm transition-all ${STATUS_BORDER[lesson.status] || "border-l-slate-300"} ${
+      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-card rounded-xl border-l-4 border border-border hover:shadow-sm transition-all ${STATUS_BORDER[lesson.status] || "border-l-muted-foreground"} ${
         highlighted ? "ring-2 ring-brand/40 bg-brand-soft/30 dark:bg-brand-soft/20" : ""
       }`}
     >
       <div className="flex items-center gap-4">
-        <div className="text-center min-w-[56px] bg-slate-50 dark:bg-slate-800/60 rounded-xl py-2">
-          <p className="text-[10px] text-slate-400 uppercase font-medium">
+        <div className="text-center min-w-[56px] bg-muted rounded-xl py-2">
+          <p className="text-[10px] text-muted-foreground uppercase font-medium">
             {format(new Date(lesson.date), "MMM", { locale: ru })}
           </p>
-          <p className="text-xl font-bold text-slate-900 dark:text-white leading-tight">
+          <p className="text-xl font-bold text-foreground leading-tight">
             {format(new Date(lesson.date), "d")}
           </p>
-          <p className="text-[10px] text-slate-400">
+          <p className="text-[10px] text-muted-foreground">
             {format(new Date(lesson.date), "EEE", { locale: ru })}
           </p>
         </div>
         <div>
-          <p className="font-semibold text-slate-900 dark:text-white">{lesson.start_time}</p>
-          <p className="text-sm text-slate-600 dark:text-slate-400">{resolveLessonTeacherLabel(lesson)}</p>
-          <p className="text-xs text-slate-400">{lesson.duration || 60} мин</p>
-          {lesson.notes && <p className="text-xs text-slate-400 mt-0.5">{lesson.notes}</p>}
+          <p className="font-semibold text-foreground">{lesson.start_time}</p>
+          <p className="text-sm text-muted-foreground">{resolveLessonTeacherLabel(lesson)}</p>
+          <p className="text-xs text-muted-foreground">{lesson.duration || 60} мин</p>
+          {lesson.notes && <p className="text-xs text-muted-foreground mt-0.5">{lesson.notes}</p>}
         </div>
       </div>
       <div className="flex items-center gap-3 ml-auto sm:ml-0">

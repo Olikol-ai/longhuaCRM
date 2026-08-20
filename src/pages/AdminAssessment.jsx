@@ -43,10 +43,10 @@ export default function AdminAssessment() {
             Проверочные работы
           </span>
         </div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+        <h1 className="text-2xl font-bold text-foreground">
           Проверочные работы
         </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           Общий модуль с преподавателями и репетиторами. Администратор видит все материалы.
         </p>
       </div>
@@ -63,8 +63,8 @@ export default function AdminAssessment() {
         ))}
       </div>
 
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-4 sm:p-5">
-        <p className="text-sm font-medium text-slate-800 dark:text-slate-100 mb-2">
+      <div className="rounded-2xl border border-border bg-card/60 p-4 sm:p-5">
+        <p className="text-sm font-medium text-foreground mb-2">
           Дополнительно
         </p>
         <div className="flex flex-wrap gap-3 text-sm">

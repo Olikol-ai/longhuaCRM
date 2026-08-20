@@ -55,16 +55,23 @@ describe('ownerStudents helpers', () => {
     assert.equal(rows.filter((r) => r.source === 'tutor_student' && !r.user_id).length, 0);
   });
 
-  it('filters by tab and query', () => {
+  it('teacher linked contact prefers school Student balance (SSOT)', () => {
     const rows = buildOwnerStudentRows('teacher', {
       schoolStudents: [
-        { id: 's1', name: 'Анна', user_id: 'u1', status: 'active', lesson_balance: 0 },
+        { id: 's-linked', name: 'Екатерина', userId: null, lesson_balance: 7, status: 'active' },
       ],
-      contacts: [{ id: 'c1', name: 'Борис', status: 'active', lesson_balance: 1 }],
+      contacts: [
+        {
+          id: 'c1',
+          name: 'Екатерина',
+          lesson_balance: 1,
+          linked_student_id: 's-linked',
+          status: 'active',
+        },
+      ],
     });
-    assert.equal(filterOwnerStudentRows(rows, { tab: 'registered' }).length, 1);
-    assert.equal(filterOwnerStudentRows(rows, { tab: 'manual' }).length, 1);
-    assert.equal(filterOwnerStudentRows(rows, { tab: 'all', query: 'бор' }).length, 1);
+    const manual = rows.find((r) => r.source === 'contact');
+    assert.equal(manual?.lesson_balance, 7);
   });
 });
 

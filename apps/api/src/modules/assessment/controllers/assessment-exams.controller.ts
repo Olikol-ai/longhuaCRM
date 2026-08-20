@@ -78,6 +78,7 @@ export class AssessmentExamsController {
           })),
         })),
         name: dto.name,
+        description: dto.description,
         availableFrom: dto.available_from ? new Date(dto.available_from) : null,
         availableTo: dto.available_to ? new Date(dto.available_to) : null,
         rule: mapExamRuleDto(dto.rule),
@@ -124,6 +125,7 @@ export class AssessmentExamsController {
       examId,
       {
         name: dto.name,
+        description: dto.description,
         availableFrom:
           dto.available_from === undefined
             ? undefined

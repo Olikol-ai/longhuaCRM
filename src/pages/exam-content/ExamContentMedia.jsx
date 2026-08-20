@@ -36,7 +36,7 @@ export default function ExamContentMedia() {
 
   useEffect(() => {
     reload().catch((err) => setError(userFacingError(err)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [kind]);
 
   const register = async () => {

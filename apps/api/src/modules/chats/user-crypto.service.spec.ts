@@ -1,5 +1,11 @@
+import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { E2EE_KDF, E2EE_KDF_SERVER_HOLD, UserCryptoService } from './services/user-crypto.service';
+import {
+  E2EE_ALGORITHM,
+  E2EE_KDF,
+  E2EE_KDF_SERVER_HOLD,
+  UserCryptoService,
+} from './services/user-crypto.service';
 
 describe('UserCryptoService ensure/activate', () => {
   function build() {
@@ -62,5 +68,56 @@ describe('UserCryptoService ensure/activate', () => {
     const pub = await service.getPublic('u2');
     expect(pub.userId).toBe('u2');
     expect(pub.publicKey).toBeTruthy();
+  });
+
+  it('password rewrap keeps public key and keyVersion', async () => {
+    const { service, store } = build();
+    store.set('u1', {
+      userId: 'u1',
+      publicKey: 'pk1',
+      wrappedPrivateKey: 'old-wrap',
+      wrapSalt: 's',
+      wrapIv: 'i',
+      algorithm: E2EE_ALGORITHM,
+      kdf: E2EE_KDF,
+      kdfIterations: 310000,
+      keyVersion: 3,
+    });
+    const saved = await service.upsertMine('u1', {
+      publicKey: 'pk1',
+      wrappedPrivateKey: 'new-wrap',
+      wrapSalt: 's2',
+      wrapIv: 'i2',
+      kdf: E2EE_KDF,
+      kdfIterations: 310000,
+    });
+    expect(saved.publicKey).toBe('pk1');
+    expect(saved.keyVersion).toBe(3);
+    expect(saved.wrappedPrivateKey).toBe('new-wrap');
+  });
+
+  it('rejects replacing a claimed identity public key', async () => {
+    const { service, store } = build();
+    store.set('u1', {
+      userId: 'u1',
+      publicKey: 'pk1',
+      wrappedPrivateKey: 'old-wrap',
+      wrapSalt: 's',
+      wrapIv: 'i',
+      algorithm: E2EE_ALGORITHM,
+      kdf: E2EE_KDF,
+      kdfIterations: 310000,
+      keyVersion: 1,
+    });
+    await expect(
+      service.upsertMine('u1', {
+        publicKey: 'other-pk',
+        wrappedPrivateKey: 'x',
+        wrapSalt: 's',
+        wrapIv: 'i',
+        kdf: E2EE_KDF,
+        kdfIterations: 310000,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

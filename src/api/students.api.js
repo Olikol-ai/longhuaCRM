@@ -13,4 +13,12 @@ export const students = {
   lowBalance() {
     return apiFetch('/students/low-balance');
   },
+
+  /**
+   * Students for the Payments picker (admin: all, teacher: assigned).
+   * GET /students/payment-options
+   */
+  paymentOptions() {
+    return apiFetch('/students/payment-options');
+  },
 };

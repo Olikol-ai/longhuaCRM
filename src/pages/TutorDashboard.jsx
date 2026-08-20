@@ -94,14 +94,14 @@ export default function TutorDashboard() {
     <div className="p-4 sm:p-6 space-y-6 max-w-5xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+          <h1 className="text-2xl font-bold text-foreground">
             {formatHelloGreeting({
               ...user,
               display_name:
                 profile?.display_name || profile?.displayName || user?.display_name,
             })}
           </h1>
-          <p className="text-sm text-slate-500 mt-1">Ваш кабинет на платформе Longhua</p>
+          <p className="text-sm text-muted-foreground mt-1">Ваш кабинет на платформе Longhua</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
@@ -134,15 +134,15 @@ export default function TutorDashboard() {
         <StatCard label="Часы" value={hours} icon={Clock} color="amber" />
       </div>
 
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-3">
-        <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Ближайшие 48 часов</h2>
+      <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+        <h2 className="text-sm font-semibold text-foreground">Ближайшие 48 часов</h2>
         {upcoming.length === 0 ? (
-          <p className="text-sm text-slate-500">Нет запланированных занятий на ближайшее время</p>
+          <p className="text-sm text-muted-foreground">Нет запланированных занятий на ближайшее время</p>
         ) : upcoming.map((lesson) => (
-          <div key={lesson.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2 border-b border-slate-50 dark:border-slate-800 last:border-0">
+          <div key={lesson.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2 border-b border-border last:border-0">
             <div>
               <p className="text-sm font-medium">{resolveLessonStudentLabel(lesson, students)}</p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 {format(new Date(`${lesson.date}T12:00:00`), 'd MMM', { locale: ru })} · {(lesson.start_time || '').slice(0, 5)}
               </p>
             </div>

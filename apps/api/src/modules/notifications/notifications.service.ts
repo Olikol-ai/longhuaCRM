@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { FindOptionsWhere } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
+import { FindOptionsWhere, IsNull, Not, Repository } from 'typeorm';
 import { NotificationEntity } from './entities/notification.entity';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { UpdateNotificationDto } from './dto/update-notification.dto';
@@ -7,7 +8,11 @@ import { NotificationsRepository } from './notifications.repository';
 
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly repository: NotificationsRepository) {}
+  constructor(
+    private readonly repository: NotificationsRepository,
+    @InjectRepository(NotificationEntity)
+    private readonly repo: Repository<NotificationEntity>,
+  ) {}
 
   findAll(): Promise<NotificationEntity[]> {
     return this.repository.findAll();
@@ -47,5 +52,33 @@ export class NotificationsService {
 
   filter(where: Record<string, unknown>): Promise<NotificationEntity[]> {
     return this.repository.filter(where as FindOptionsWhere<NotificationEntity>);
+  }
+
+  /** In-app feed for one user (newest first). */
+  listForUser(userId: string, limit = 100): Promise<NotificationEntity[]> {
+    return this.repo.find({
+      where: { userId, channel: 'in_app' },
+      order: { createdAt: 'DESC' },
+      take: Math.min(Math.max(limit, 1), 200),
+    });
+  }
+
+  async unreadCount(userId: string): Promise<number> {
+    return this.repo.count({
+      where: {
+        userId,
+        channel: 'in_app',
+        readAt: IsNull(),
+        status: Not('failed'),
+      },
+    });
+  }
+
+  async markAllRead(userId: string): Promise<number> {
+    const result = await this.repo.update(
+      { userId, channel: 'in_app', readAt: IsNull() },
+      { readAt: new Date(), status: 'read' },
+    );
+    return result.affected || 0;
   }
 }

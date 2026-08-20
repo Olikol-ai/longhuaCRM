@@ -126,7 +126,8 @@ export default function AdminDashboard({ user }) {
         <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/50 rounded-xl">
           <AlertCircle className="w-4 h-4 text-amber-500 dark:text-amber-400 flex-shrink-0" />
           <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">
-            У {lowBalance} {lowBalance > 1 ? "учеников" : "ученика"} осталось 2 урока или меньше
+            У {lowBalance} {lowBalance > 1 ? "учеников" : "ученика"} остаток ≤ 2 занятий
+            (включая задолженность)
           </p>
           <Link
             to={createPageUrl("LowBalanceStudents")}

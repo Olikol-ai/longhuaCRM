@@ -1,6 +1,15 @@
 import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createReadStream, existsSync, mkdirSync, statSync, unlinkSync, writeFileSync } from 'fs';
+import {
+  copyFileSync,
+  createReadStream,
+  existsSync,
+  mkdirSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'fs';
 import { basename, extname, join } from 'path';
 import { randomUUID } from 'crypto';
 import { STORAGE_NAMESPACE, StorageNamespace } from './storage.constants';
@@ -65,6 +74,37 @@ export class StorageService implements OnModuleInit {
     if (!buffer?.length) {
       throw new Error('Empty file buffer');
     }
+    const target = this.buildTargetPath(namespace, originalName, options);
+    writeFileSync(target.absolutePath, buffer);
+    return this.finishSave(namespace, target.storedName, target.absolutePath, buffer.length);
+  }
+
+  /**
+   * Move a Multer disk temp file into permanent storage without loading it into RAM.
+   */
+  saveFromPath(
+    namespace: StorageNamespace,
+    sourceAbsolutePath: string,
+    originalName: string,
+    options?: { keepOriginalName?: boolean; deleteSource?: boolean },
+  ): StoredFileResult {
+    if (!sourceAbsolutePath || !existsSync(sourceAbsolutePath)) {
+      throw new Error('Uploaded temp file is missing');
+    }
+    const sizeBytes = statSync(sourceAbsolutePath).size;
+    if (!sizeBytes) {
+      throw new Error('Empty uploaded file');
+    }
+    const target = this.buildTargetPath(namespace, originalName, options);
+    this.moveFile(sourceAbsolutePath, target.absolutePath, options?.deleteSource !== false);
+    return this.finishSave(namespace, target.storedName, target.absolutePath, sizeBytes);
+  }
+
+  private buildTargetPath(
+    namespace: StorageNamespace,
+    originalName: string,
+    options?: { keepOriginalName?: boolean },
+  ): { storedName: string; absolutePath: string } {
     const dir = this.ensureNamespace(namespace);
     const extension = extname(originalName || '').toLowerCase();
     const safeBase = basename(originalName || 'upload', extension)
@@ -73,12 +113,34 @@ export class StorageService implements OnModuleInit {
     const storedName = options?.keepOriginalName
       ? `${safeBase || 'upload'}${extension}`
       : `${randomUUID()}-${safeBase || 'upload'}${extension}`;
-    const absolutePath = join(dir, storedName);
-    writeFileSync(absolutePath, buffer);
+    return { storedName, absolutePath: join(dir, storedName) };
+  }
 
+  private moveFile(source: string, destination: string, deleteSource: boolean): void {
+    try {
+      renameSync(source, destination);
+      return;
+    } catch {
+      // Cross-device rename fails — copy then unlink.
+      copyFileSync(source, destination);
+      if (deleteSource) {
+        try {
+          unlinkSync(source);
+        } catch {
+          // ignore temp cleanup failure
+        }
+      }
+    }
+  }
+
+  private finishSave(
+    namespace: StorageNamespace,
+    storedName: string,
+    absolutePath: string,
+    sizeBytes: number,
+  ): StoredFileResult {
     const relativeKey = `${namespace}/${storedName}`;
     const publicKey = toPublicStorageKey(relativeKey);
-    const sizeBytes = buffer.length;
 
     this.logger.log(
       `storage.save namespace=${namespace} relativeKey=${relativeKey} ` +

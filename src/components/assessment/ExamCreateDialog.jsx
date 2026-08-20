@@ -44,6 +44,7 @@ export default function ExamCreateDialog({
   prefillQuestionId = null,
 }) {
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [duration, setDuration] = useState(String(DEFAULT_EXAM_RULE.duration_minutes));
   const [passPercent, setPassPercent] = useState(
     String(DEFAULT_EXAM_RULE.pass_score_percent),
@@ -60,6 +61,7 @@ export default function ExamCreateDialog({
   useEffect(() => {
     if (!open) return;
     setName('');
+    setDescription('');
     setError(null);
     const seedPart = emptyPart('test');
     if (prefillQuestionId) {
@@ -140,6 +142,7 @@ export default function ExamCreateDialog({
     try {
       const created = await api.assessment.createExam({
         name: name.trim(),
+        description: description.trim() || null,
         parts: parts.map((part) => ({
           part_kind: part.part_kind,
           title: part.title,
@@ -180,7 +183,7 @@ export default function ExamCreateDialog({
           </div>
         ) : (
           <div className="space-y-4 py-1">
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-muted-foreground">
               При старте попытки из каждого пула случайно выбирается указанное число элементов.
             </p>
 
@@ -190,6 +193,18 @@ export default function ExamCreateDialog({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="HSK 1 — март"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Описание</Label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Кратко: что сдавать и на что обратить внимание"
+                rows={3}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y min-h-[4.5rem]"
+                data-testid="exam-description-input"
               />
             </div>
 

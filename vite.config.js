@@ -1,6 +1,12 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import path from 'path'
+import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { join } from 'node:path'
+import {
+  computeLhPwaBuildId,
+  replaceBuildIdPlaceholder,
+} from './scripts/pwa-build-id.mjs'
 
 // IMPORTANT:
 // React ecosystem (react, react-dom, react-router, react-query)
@@ -25,9 +31,38 @@ function isReactCorePackage(id) {
   )
 }
 
+const LH_PWA_BUILD_ID = computeLhPwaBuildId(process.cwd())
+
+function longhuaPwaBuildIdPlugin(buildId) {
+  return {
+    name: 'longhua-pwa-build-id',
+    transformIndexHtml(html) {
+      return replaceBuildIdPlaceholder(html, buildId)
+    },
+    closeBundle() {
+      const dist = join(process.cwd(), 'dist')
+      for (const rel of ['sw.js', 'manifest.webmanifest', 'index.html']) {
+        const file = join(dist, rel)
+        if (!existsSync(file)) continue
+        const raw = readFileSync(file, 'utf8')
+        const next = replaceBuildIdPlaceholder(raw, buildId)
+        if (next !== raw) writeFileSync(file, next)
+      }
+      // Write diagnostic stamp for ops / contract tests.
+      writeFileSync(
+        join(dist, 'lh-pwa-build-id.json'),
+        `${JSON.stringify({ buildId, stampedAt: new Date().toISOString() }, null, 2)}\n`,
+      )
+    },
+  }
+}
+
 export default defineConfig({
   logLevel: 'error',
-  plugins: [react()],
+  define: {
+    'import.meta.env.VITE_LH_PWA_BUILD_ID': JSON.stringify(LH_PWA_BUILD_ID),
+  },
+  plugins: [react(), longhuaPwaBuildIdPlugin(LH_PWA_BUILD_ID)],
   resolve: {
     alias: {
       '@': path.resolve('./src'),

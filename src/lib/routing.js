@@ -37,7 +37,7 @@ const EXACT_ROUTE_ACCESS = {
   '/AdminPanel': ['admin'],
   '/Groups': ['admin'],
   '/Certificates': ['admin'],
-  '/Payments': ['admin'],
+  '/Payments': ['admin', 'teacher'],
   '/AdminAssessment': ['admin'],
   '/AssessmentAssignments': ['admin'],
   '/AssessmentAssignmentDetail': ['admin'],
@@ -45,7 +45,7 @@ const EXACT_ROUTE_ACCESS = {
   '/AssessmentResultDetail': ['admin'],
   '/Students': ['admin'],
   '/students': ['admin'],
-  '/StudentDetail': ['admin'],
+  '/StudentDetail': ['admin', 'teacher'],
   '/Attendance': ['admin'],
   '/LessonSeriesAdmin': ['admin'],
 
@@ -109,9 +109,9 @@ const EXACT_ROUTE_ACCESS = {
 const PREFIX_ROUTE_ACCESS = [
   { prefix: '/admin/tutors/', roles: ['admin'] },
   { prefix: '/Groups/', roles: ['admin'] },
-  { prefix: '/StudentDetail', roles: ['admin'] },
+  { prefix: '/StudentDetail', roles: ['admin', 'teacher'] },
   { prefix: '/lesson/', roles: ['admin', 'teacher', 'tutor', 'student', 'tutor_student'] },
-  { prefix: '/certificate/', roles: ['admin', 'teacher', 'tutor', 'student'] },
+  { prefix: '/certificate/', roles: ['admin', 'teacher', 'student'] },
 ];
 
 export function isOnboarding(user) {

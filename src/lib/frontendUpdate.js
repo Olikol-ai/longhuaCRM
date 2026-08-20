@@ -1,8 +1,6 @@
-/**
- * Production-grade frontend update recovery after Vite deploy.
- * UI copy lives in FrontendUpdateScreen — this module is logic + diagnostics only.
- */
 import { lazy } from 'react';
+import { getLhPwaBuildId } from './pwa/buildIdentity.js';
+import { shouldDeferAppReload } from './pwa/reloadGate.js';
 
 export const CHUNK_RELOAD_STORAGE_KEY = 'lh_chunk_auto_reload_at';
 export const FRONTEND_UPDATE_NAV_KEY = 'lh_frontend_update_nav';
@@ -26,8 +24,14 @@ export function extractChunkUrl(error) {
   return match ? match[0] : null;
 }
 
+/**
+ * SSOT build id: Vite-injected PWA build id, with chunk-hash fallback for diagnostics.
+ */
 export function getFrontendBuildId() {
-  if (typeof document === 'undefined') return 'unknown';
+  const stamped = getLhPwaBuildId();
+  if (stamped && stamped !== 'dev') return stamped;
+
+  if (typeof document === 'undefined') return stamped || 'unknown';
   try {
     const el = document.querySelector('script[type="module"][src*="/assets/index-"]');
     const src = el?.getAttribute('src') || '';
@@ -36,7 +40,7 @@ export function getFrontendBuildId() {
   } catch {
     /* ignore */
   }
-  return import.meta.env.PROD ? 'prod' : 'dev';
+  return stamped || (import.meta.env.PROD ? 'prod' : 'dev');
 }
 
 function cleanSearchParams(search) {
@@ -239,6 +243,15 @@ export function claimChunkAutoReload() {
   }
   sessionStorage.setItem(CHUNK_RELOAD_STORAGE_KEY, String(Date.now()));
   return true;
+}
+
+/**
+ * Auto reload is forbidden while a live video session is active.
+ * Callers should show deferred UI instead.
+ */
+export function claimChunkAutoReloadUnlessVideo() {
+  if (shouldDeferAppReload()) return false;
+  return claimChunkAutoReload();
 }
 
 /**

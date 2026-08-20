@@ -4,11 +4,12 @@ import { fetchChatAttachmentBlob } from '@/lib/chat-attachment-url';
 /**
  * Resolves a chat attachment to a temporary blob: URL with Bearer auth.
  * Revokes the object URL on change/unmount.
+ * When enabled=false, does not fetch and never creates a plaintext object URL.
  */
-export function useChatAttachmentObjectUrl(attachmentId) {
+export function useChatAttachmentObjectUrl(attachmentId, { enabled = true } = {}) {
   const [src, setSrc] = useState(null);
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(Boolean(attachmentId));
+  const [loading, setLoading] = useState(Boolean(attachmentId) && enabled);
 
   useEffect(() => {
     let cancelled = false;
@@ -17,7 +18,7 @@ export function useChatAttachmentObjectUrl(attachmentId) {
     setSrc(null);
     setError(null);
 
-    if (!attachmentId) {
+    if (!attachmentId || !enabled) {
       setLoading(false);
       return undefined;
     }
@@ -44,7 +45,7 @@ export function useChatAttachmentObjectUrl(attachmentId) {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [attachmentId]);
+  }, [attachmentId, enabled]);
 
   return { src, error, loading };
 }

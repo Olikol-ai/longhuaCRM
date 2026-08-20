@@ -1,11 +1,13 @@
 /**
  * Belarus / Russian UX formatters for Longhua Academy.
- * Currency: BYN. Dates: DD.MM.YYYY. Time: 24h.
+ * Currency: BYN (see formatBYN). Dates: DD.MM.YYYY. Time: 24h.
  */
 
-import { formatCurrency, parseMoneyAmount } from '@/lib/money';
+import { formatBYN } from '@/lib/money';
 
 export {
+  BYN_CODE,
+  formatBYN,
   formatCurrency,
   formatMoneyByn,
   parseMoneyAmount,
@@ -30,15 +32,11 @@ export function formatDateTime(value) {
   return `${formatDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** Hourly rate: "40 BYN/ч" */
+/** Hourly rate: "40 BYN/ч" — one currency, then /ч */
 export function formatHourlyRateShort(value) {
-  const n = parseMoneyAmount(value);
-  const formatted = new Intl.NumberFormat('ru-BY', {
-    maximumFractionDigits: 2,
-  }).format(n);
-  return `${formatted} BYN/ч`;
+  return `${formatBYN(value)}/ч`;
 }
 
 export function formatCurrencyAmount(value) {
-  return formatCurrency(value);
+  return formatBYN(value);
 }

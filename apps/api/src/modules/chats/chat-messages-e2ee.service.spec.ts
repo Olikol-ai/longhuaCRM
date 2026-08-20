@@ -31,6 +31,7 @@ describe('ChatMessagesService Direct E2EE', () => {
     };
     const presence = { isOnline: jest.fn().mockReturnValue(true) };
     const notifications = { create: jest.fn() };
+    const delivery = { fanoutToRecipient: jest.fn().mockResolvedValue([]) };
     const membershipSync = { addMember: jest.fn().mockResolvedValue({}) };
     const service = new ChatMessagesService(
       messageRepo as never,
@@ -39,6 +40,7 @@ describe('ChatMessagesService Direct E2EE', () => {
       access as never,
       presence as never,
       notifications as never,
+      delivery as never,
       membershipSync as never,
       undefined,
     );

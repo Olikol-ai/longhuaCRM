@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import LessonBalanceDisplay from "@/components/students/LessonBalanceDisplay";
 
 const DROPDOWN_Z = "z-[200]";
 const AVAILABLE_DEBOUNCE_MS = 400;
@@ -272,20 +273,20 @@ export default function LessonModal({
 
   const availablePanel = showAvailablePanel ? (
     <div className="rounded-xl border border-brand-gold/40 dark:border-brand-gold/30 bg-brand-gold-soft dark:bg-brand-gold-soft/40 p-4 text-sm">
-      <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3">Свободные преподаватели</h4>
+      <h4 className="text-sm font-semibold text-foreground mb-3">Свободные преподаватели</h4>
       {availableLoading ? (
-        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs">
+        <div className="flex items-center gap-2 text-muted-foreground text-xs">
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
           Проверяем расписание…
         </div>
       ) : availableError ? (
         <p className="text-xs text-amber-800">{availableError}</p>
       ) : availableTeachers.length === 0 ? (
-        <p className="text-sm text-slate-700 dark:text-slate-200">🔴 Нет свободных преподавателей на выбранное время.</p>
+        <p className="text-sm text-destructive">Нет свободных преподавателей на выбранное время.</p>
       ) : (
         <ul className="space-y-1.5">
           {availableTeachers.map((t) => (
-            <li key={t.id} className="text-sm text-slate-800 dark:text-slate-100">
+            <li key={t.id} className="text-sm text-foreground">
               🟢 {t.name}
             </li>
           ))}
@@ -310,13 +311,13 @@ export default function LessonModal({
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md md:max-w-3xl shadow-xl max-h-[90vh] flex flex-col z-[100]"
+        className="bg-card rounded-2xl w-full max-w-md md:max-w-3xl shadow-xl max-h-[90vh] flex flex-col z-[100]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
-          <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Запланировать урок</h3>
-          <button type="button" onClick={onClose} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
-            <X className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
+          <h3 className="text-base font-semibold text-foreground">Запланировать урок</h3>
+          <button type="button" onClick={onClose} className="p-1.5 hover:bg-muted rounded-lg">
+            <X className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
 
@@ -325,7 +326,7 @@ export default function LessonModal({
             <div className="flex-1 min-w-0 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Преподаватель *</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Преподаватель *</label>
                   <Select
                     value={form.teacher_id}
                     onValueChange={(value) => {
@@ -349,7 +350,7 @@ export default function LessonModal({
                 </div>
 
                 <div className="col-span-2">
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Тип урока *</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Тип урока *</label>
                   <Select
                     value={form.lesson_type}
                     onValueChange={(value) => {
@@ -375,7 +376,7 @@ export default function LessonModal({
                 {form.lesson_type === "individual" ? (
                   <>
                     <div className="col-span-2">
-                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Тип ученика *</label>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">Тип ученика *</label>
                       <Select
                         value={form.student_target_type}
                         onValueChange={(value) => {
@@ -398,7 +399,7 @@ export default function LessonModal({
                     </div>
                     {form.student_target_type === "contact" ? (
                       <div className="col-span-2">
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Личный ученик *</label>
+                        <label className="block text-xs font-medium text-muted-foreground mb-1">Личный ученик *</label>
                         <Select
                           value={form.teacher_student_contact_id}
                           onValueChange={(value) => set("teacher_student_contact_id", value)}
@@ -412,7 +413,9 @@ export default function LessonModal({
                             ) : (
                               activeContacts.map((s) => (
                                 <SelectItem key={s.id} value={s.id}>
-                                  {s.name} · баланс: {s.lesson_balance ?? s.lessonBalance ?? 0}
+                                  <span className="inline-flex items-center gap-1.5">
+                                    {s.name} · баланс: <LessonBalanceDisplay row={s} />
+                                  </span>
                                 </SelectItem>
                               ))
                             )}
@@ -421,7 +424,7 @@ export default function LessonModal({
                       </div>
                     ) : (
                       <div className="col-span-2">
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Ученик CRM *</label>
+                        <label className="block text-xs font-medium text-muted-foreground mb-1">Ученик CRM *</label>
                         <Select
                           value={form.primary_student_id}
                           onValueChange={(value) => set("primary_student_id", value)}
@@ -435,7 +438,9 @@ export default function LessonModal({
                             ) : (
                               activeStudents.map((s) => (
                                 <SelectItem key={s.id} value={s.id}>
-                                  {s.name} · баланс: {s.lesson_balance || 0}
+                                  <span className="inline-flex items-center gap-1.5">
+                                    {s.name} · баланс: <LessonBalanceDisplay row={s} />
+                                  </span>
                                 </SelectItem>
                               ))
                             )}
@@ -446,7 +451,7 @@ export default function LessonModal({
                   </>
                 ) : (
                   <div className="col-span-2">
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Группа *</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Группа *</label>
                     <Select
                       value={form.group_id}
                       onValueChange={(value) => set("group_id", value)}
@@ -471,14 +476,14 @@ export default function LessonModal({
                 )}
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Дата *</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Дата *</label>
                   <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40" />
+                    className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Время начала *</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Время начала *</label>
                   <input type="time" value={form.start_time} onChange={(e) => set("start_time", e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40" />
+                    className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40" />
                 </div>
                 <TeacherAvailabilityPanel
                   loading={scheduleLoading}
@@ -487,7 +492,7 @@ export default function LessonModal({
                   selectedDate={form.date}
                 />
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Длительность (мин)</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Длительность (мин)</label>
                   <Select
                     value={String(form.duration)}
                     onValueChange={(value) => set("duration", value)}
@@ -503,7 +508,7 @@ export default function LessonModal({
                   </Select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Формат</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Формат</label>
                   <Select
                     value={form.lesson_format}
                     onValueChange={(value) => set("lesson_format", value)}
@@ -519,10 +524,10 @@ export default function LessonModal({
                 </div>
                 {form.lesson_format === "online" && (
                   <div className="col-span-2">
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Ссылка на встречу</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Ссылка на встречу</label>
                     <input value={form.meeting_link} onChange={(e) => set("meeting_link", e.target.value)}
                       placeholder="https://zoom.us/j/... или meet.google.com/..."
-                      className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40" />
+                      className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40" />
                   </div>
                 )}
               </div>
@@ -530,22 +535,22 @@ export default function LessonModal({
               <div
                 onClick={() => setRecurring(!recurring)}
                 className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
-                  recurring ? "border-brand/40 bg-brand-soft dark:bg-brand-soft/30" : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  recurring ? "border-brand/40 bg-brand-soft dark:bg-brand-soft/30" : "border-border hover:bg-muted"
                 }`}
               >
-                <RefreshCw className={`w-4 h-4 ${recurring ? "text-brand" : "text-slate-400 dark:text-slate-500"}`} />
+                <RefreshCw className={`w-4 h-4 ${recurring ? "text-brand" : "text-muted-foreground"}`} />
                 <div>
-                  <p className={`text-xs font-semibold ${recurring ? "text-brand dark:text-brand" : "text-slate-600 dark:text-slate-300"}`}>Повторять каждую неделю</p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500">Автоматически создаёт уроки на 12 недель вперёд и продлевает серию</p>
+                  <p className={`text-xs font-semibold ${recurring ? "text-brand" : "text-muted-foreground"}`}>Повторять каждую неделю</p>
+                  <p className="text-[10px] text-muted-foreground">Автоматически создаёт уроки на 12 недель вперёд и продлевает серию</p>
                 </div>
-                <div className={`ml-auto w-4 h-4 rounded border-2 flex items-center justify-center ${recurring ? "border-brand bg-brand" : "border-slate-300 dark:border-slate-600"}`}>
+                <div className={`ml-auto w-4 h-4 rounded border-2 flex items-center justify-center ${recurring ? "border-brand bg-brand" : "border-border"}`}>
                   {recurring && <span className="text-white text-[8px] font-bold">✓</span>}
                 </div>
               </div>
 
               {recurring ? (
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
                     Дата окончания серии (необязательно)
                   </label>
                   <input
@@ -553,9 +558,9 @@ export default function LessonModal({
                     value={recurrenceUntil}
                     min={form.date || undefined}
                     onChange={(e) => setRecurrenceUntil(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
+                    className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
                   />
-                  <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+                  <p className="mt-1 text-[10px] text-muted-foreground">
                     Оставьте пустым, чтобы серия продолжалась без даты окончания
                   </p>
                 </div>
@@ -570,7 +575,7 @@ export default function LessonModal({
             {/* Desktop: side panel */}
             <div className="hidden md:block w-64 shrink-0">
               {availablePanel || (
-                <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-4 text-xs text-slate-400 dark:text-slate-500">
+                <div className="rounded-xl border border-dashed border-border bg-muted p-4 text-xs text-muted-foreground">
                   Выберите дату и время, чтобы увидеть свободных преподавателей.
                 </div>
               )}
@@ -578,8 +583,8 @@ export default function LessonModal({
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex-shrink-0">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg">Отмена</button>
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-border flex-shrink-0">
+          <button type="button" onClick={onClose} className="min-h-touch px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted rounded-lg">Отмена</button>
           <button type="button" onClick={handleSave}
             disabled={!canSubmit || saving}
             className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-40">

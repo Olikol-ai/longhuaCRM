@@ -73,10 +73,16 @@ describe('Students low-balance list (e2e)', () => {
       status: 'paused',
     });
 
+    const idDebt = await create({
+      name: `DebtNeg ${suffix}`,
+      status: 'active',
+    });
+
     await setBalance(id0, 0);
     await setBalance(id1, 1);
     await setBalance(id2, 2);
     await setBalance(id3, 3);
+    await setBalance(idDebt, -4);
     await setBalance(idInactive, 0);
     await setBalance(idPaused, 1);
 
@@ -93,9 +99,13 @@ describe('Students low-balance list (e2e)', () => {
     expect(ids.has(id0)).toBe(true);
     expect(ids.has(id1)).toBe(true);
     expect(ids.has(id2)).toBe(true);
+    expect(ids.has(idDebt)).toBe(true);
     expect(ids.has(id3)).toBe(false);
     expect(ids.has(idInactive)).toBe(false);
     expect(ids.has(idPaused)).toBe(false);
+
+    const rowDebt = listRes.body.find((row: { id: string }) => row.id === idDebt);
+    expect(rowDebt.lesson_balance ?? rowDebt.lessonBalance).toBe(-4);
 
     const row0 = listRes.body.find((row: { id: string }) => row.id === id0);
     expect(row0.name).toContain(`Low0 ${suffix}`);

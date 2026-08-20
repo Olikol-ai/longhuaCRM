@@ -5,6 +5,7 @@ import { format, parseISO } from "date-fns";
 import { resolvePaymentStudentLabel, resolveLessonStudentLabel } from "@/lib/studentLabels";
 import { resolveLessonTeacherLabel } from "@/lib/teacherLabels";
 import { parseMoneyAmount } from "@/lib/money";
+import { getLessonBalance } from "@/lib/lessonBalance";
 
 function exportCSV(filename, rows) {
   const blob = new Blob([rows.map(r => r.map(c => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n")], { type: "text/csv;charset=utf-8;\uFEFF" });
@@ -44,7 +45,7 @@ export default function ExportData() {
           ...students.map(s => {
             const teacher = teachers.find(t => t.id === s.assigned_teacher);
             return [s.id, s.name, s.email || "", s.phone || "", s.telegram_id || "",
-              s.status, s.lesson_balance || 0, teacher?.name || "", s.start_date || "", s.notes || ""];
+              s.status, getLessonBalance(s), teacher?.name || "", s.start_date || "", s.notes || ""];
           })
         ]);
         break;

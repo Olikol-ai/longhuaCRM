@@ -49,6 +49,11 @@ describe('SPA route ACL (menu is not security)', () => {
     assert.match(routing, /'\/ExamContent': \['admin', 'teacher'\]/);
     assert.doesNotMatch(routing, /AssessmentExamBlocks/);
     assert.doesNotMatch(routing, /AssessmentBanks/);
+    // Tutors must not open school certificates (API also forbids school students).
+    assert.match(
+      routing,
+      /prefix: '\/certificate\/', roles: \['admin', 'teacher', 'student'\]/,
+    );
   });
 
   it('denies tutors and tutor_students on HSK Academy and Exam Content', () => {

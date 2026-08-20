@@ -1,4 +1,5 @@
 import { assessment } from '@/api/assessment.api';
+import LearnerItemReview from '@/components/assessment/LearnerItemReview';
 import SpeakingAnswerPanel from '@/components/assessment/SpeakingAnswerPanel';
 import AuthenticatedAudio from '@/components/media/AuthenticatedAudio';
 import AuthenticatedVideo from '@/components/media/AuthenticatedVideo';
@@ -45,7 +46,7 @@ function ImageAttachment({ attachment }) {
     <img
       src={src}
       alt=""
-      className="mt-3 max-h-72 rounded-xl border border-slate-200 dark:border-slate-700 object-contain"
+      className="mt-3 max-h-72 rounded-xl border border-border object-contain"
     />
   );
 }
@@ -58,7 +59,7 @@ function VideoAttachment({ attachment }) {
   return (
     <AuthenticatedVideo
       src={src}
-      className="mt-3 w-full max-w-full max-h-72 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 object-contain"
+      className="mt-3 w-full max-w-full max-h-72 rounded-xl border border-border bg-muted dark:bg-slate-900 object-contain"
     />
   );
 }
@@ -72,6 +73,7 @@ export default function QuestionCard({
   onTextChange,
   onSpeakingUpload,
   readOnly = false,
+  itemReview = null,
 }) {
   if (!question) return null;
 
@@ -86,26 +88,26 @@ export default function QuestionCard({
 
   return (
     <div
-      className="learner-content rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/80 p-4 sm:p-6 space-y-4"
+      className="learner-content rounded-2xl border border-border bg-card/80 p-4 sm:p-6 space-y-4"
       data-testid="question-card"
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="learner-meta font-medium text-brand dark:text-brand">
           Вопрос {index + 1}
         </span>
-        <span className="learner-meta rounded-full px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+        <span className="learner-meta rounded-full px-2 py-0.5 bg-muted text-muted-foreground">
           {TYPE_LABEL[type] || 'Вопрос'}
         </span>
         {question.points != null && (
-          <span className="learner-meta text-slate-400">{question.points} балл(ов)</span>
+          <span className="learner-meta text-muted-foreground">{question.points} балл(ов)</span>
         )}
       </div>
 
       {question.section_title ? (
-        <p className="learner-meta text-slate-500 dark:text-slate-400">{question.section_title}</p>
+        <p className="learner-meta text-muted-foreground">{question.section_title}</p>
       ) : null}
 
-      <p className="learner-stem text-slate-900 dark:text-white">
+      <p className="learner-stem text-foreground">
         {question.stem}
       </p>
 
@@ -146,7 +148,7 @@ export default function QuestionCard({
                 className={`learner-option-row flex items-start gap-3 rounded-xl border cursor-pointer transition-colors ${
                   checked
                     ? 'border-brand bg-brand-soft dark:bg-brand-soft/40 dark:border-brand/40'
-                    : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                    : 'border-border hover:bg-muted/60'
                 }`}
               >
                 <input
@@ -156,7 +158,7 @@ export default function QuestionCard({
                   checked={checked}
                   onChange={() => onSingleChoice?.(qid, oid)}
                 />
-                <span className="learner-option text-slate-800 dark:text-slate-100 min-w-0">
+                <span className="learner-option text-foreground min-w-0">
                   {optionText(opt)}
                 </span>
               </label>
@@ -167,7 +169,7 @@ export default function QuestionCard({
 
       {type === 'multiple_choice' && (
         <fieldset className="learner-options" disabled={readOnly}>
-          <legend className="learner-meta text-slate-500 dark:text-slate-400 mb-1">
+          <legend className="learner-meta text-muted-foreground mb-1">
             Можно выбрать несколько вариантов
           </legend>
           {options.map((opt) => {
@@ -179,7 +181,7 @@ export default function QuestionCard({
                 className={`learner-option-row flex items-start gap-3 rounded-xl border cursor-pointer transition-colors ${
                   checked
                     ? 'border-brand bg-brand-soft dark:bg-brand-soft/40 dark:border-brand/40'
-                    : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                    : 'border-border hover:bg-muted/60'
                 }`}
               >
                 <input
@@ -188,7 +190,7 @@ export default function QuestionCard({
                   checked={checked}
                   onChange={() => onToggleMultiple?.(qid, oid)}
                 />
-                <span className="learner-option text-slate-800 dark:text-slate-100 min-w-0">
+                <span className="learner-option text-foreground min-w-0">
                   {optionText(opt)}
                 </span>
               </label>
@@ -201,7 +203,7 @@ export default function QuestionCard({
         <div>
           <label
             htmlFor={`text-${qid}`}
-            className="block learner-meta text-slate-500 dark:text-slate-400 mb-1.5"
+            className="block learner-meta text-muted-foreground mb-1.5"
           >
             {type === 'translation' ? 'Развёрнутый ответ' : 'Ваш ответ'}
           </label>
@@ -209,7 +211,7 @@ export default function QuestionCard({
             id={`text-${qid}`}
             rows={textRows}
             disabled={readOnly}
-            className="learner-body w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand"
+            className="learner-body w-full rounded-xl border border-border bg-white px-3 py-2.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand"
             placeholder="Введите ответ…"
             value={text}
             onChange={(e) => onTextChange?.(qid, e.target.value)}
@@ -225,6 +227,8 @@ export default function QuestionCard({
           onUpload={onSpeakingUpload ? (file, durationMs) => onSpeakingUpload(qid, file, durationMs) : undefined}
         />
       )}
+
+      <LearnerItemReview review={itemReview} />
     </div>
   );
 }

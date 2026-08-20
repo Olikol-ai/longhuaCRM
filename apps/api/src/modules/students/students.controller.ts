@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   UseGuards,
@@ -38,15 +39,31 @@ export class StudentsController {
     return this.studentsService.findLowBalance();
   }
 
+  /**
+   * Students for the Payments picker.
+   * Admin: all school students. Teacher: assigned students.
+   * Never filtered by who created the card.
+   * Must be declared before @Get(':id') — otherwise Nest treats the path
+   * as a student id and PostgreSQL throws on invalid UUID (HTTP 500).
+   */
+  @Get('payment-options')
+  @Roles('admin', 'teacher')
+  findPaymentOptions(@CurrentUser() user: JwtPayload) {
+    return this.studentsService.findPaymentOptions(user);
+  }
+
   @Get(':id')
-  findById(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+  findById(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.studentsService.findById(user, id);
   }
 
   @Post()
-  @Roles('admin')
-  create(@Body() dto: CreateStudentDto) {
-    return this.studentsService.create(dto);
+  @Roles('admin', 'teacher')
+  create(@CurrentUser() user: JwtPayload, @Body() dto: CreateStudentDto) {
+    return this.studentsService.create(user, dto);
   }
 
   @Post('filter')
@@ -58,7 +75,7 @@ export class StudentsController {
   @Roles('admin', 'student')
   update(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateStudentDto,
   ) {
     return this.studentsService.update(user, id, dto);
@@ -66,7 +83,7 @@ export class StudentsController {
 
   @Delete(':id')
   @Roles('admin')
-  delete(@Param('id') id: string) {
+  delete(@Param('id', ParseUUIDPipe) id: string) {
     return this.studentsService.delete(id);
   }
 }

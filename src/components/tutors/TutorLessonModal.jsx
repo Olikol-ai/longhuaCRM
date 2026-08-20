@@ -15,6 +15,7 @@ import { Loader2, X } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { toLessonWritePayload } from '@/lib/lessonPayload';
 import { createPageUrl } from '@/utils';
+import LessonBalanceDisplay from '@/components/students/LessonBalanceDisplay';
 
 const FALLBACK_DURATIONS = [30, 60, 90, 120];
 
@@ -169,10 +170,10 @@ export default function TutorLessonModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4">
-      <div className="w-full sm:max-w-lg bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 max-h-[92vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Новое занятие</h2>
-          <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+      <div className="w-full sm:max-w-lg bg-card rounded-t-2xl sm:rounded-2xl shadow-xl border border-border max-h-[92vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="text-base font-semibold text-foreground">Новое занятие</h2>
+          <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-muted">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -181,7 +182,7 @@ export default function TutorLessonModal({
           <div className="space-y-2">
             <Label>Личный ученик *</Label>
             {activeStudents.length === 0 ? (
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-muted-foreground">
                 Сначала добавьте запись в{' '}
                 <Link
                   to={createPageUrl('TutorStudents')}
@@ -208,7 +209,9 @@ export default function TutorLessonModal({
                   <SelectItem value="none">Выбрать ученика</SelectItem>
                   {activeStudents.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
-                      {s.name} · баланс: {s.lesson_balance ?? s.lessonBalance ?? 0}
+                      <span className="inline-flex items-center gap-1.5">
+                        {s.name} · баланс: <LessonBalanceDisplay row={s} />
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>

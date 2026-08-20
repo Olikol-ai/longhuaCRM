@@ -33,6 +33,23 @@ describe('schoolSchedule filter', () => {
     assert.match(calendar, /Показать завершённые занятия/);
     assert.match(calendar, /showCompletedInList/);
   });
+
+  it('admin can open existing lessons for edit (click / double-click / Изменить)', () => {
+    const calendar = readFileSync(
+      join(__dirname, '..', 'components', 'schedule', 'SchoolScheduleCalendar.jsx'),
+      'utf8',
+    );
+    const detail = readFileSync(
+      join(__dirname, '..', 'components', 'schedule', 'LessonDetailModal.jsx'),
+      'utf8',
+    );
+    assert.match(calendar, /onDoubleClick/);
+    assert.match(calendar, /isAdmin \|\| !showQuickActions/);
+    assert.match(calendar, /openLessonDetails\(lesson\)/);
+    assert.match(detail, /lesson-detail-edit|Изменить/);
+    assert.match(detail, /student_target_type/);
+    assert.match(detail, /teacher_student_contact_id/);
+  });
 });
 
 describe('tutor workspace routes source', () => {

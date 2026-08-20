@@ -153,6 +153,13 @@ export class CreateExamDto {
   @IsString()
   name!: string;
 
+  @ApiPropertyOptional({
+    description: 'Learner-facing exam description shown before start',
+  })
+  @IsOptional()
+  @IsString()
+  description?: string | null;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsDateString()

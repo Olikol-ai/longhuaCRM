@@ -34,7 +34,7 @@ export default function AdminPanel() {
   );
 
   return (
-    <div className="flex flex-col h-full min-h-screen bg-background">
+    <div className="flex flex-col h-full bg-background">
       <div className="bg-card border-b border-border px-3 lg:px-6 overflow-x-auto scrollbar-thin">
         <div className="flex gap-0.5 py-1 min-w-max lg:gap-1 lg:py-1.5">
           {TABS.map((tab) => {

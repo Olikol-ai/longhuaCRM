@@ -370,7 +370,7 @@ export default function HskAcademyTake() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [questions.length, currentId, index]);
 
   const mm = remaining == null ? '—' : String(Math.floor(remaining / 60)).padStart(2, '0');

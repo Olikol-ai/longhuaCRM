@@ -105,7 +105,7 @@ export default function ExamContentBank() {
   useEffect(() => {
     if (!versionId) return;
     reload().catch((err) => setError(userFacingError(err)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [versionId, levelId, sectionKey, status, hasAudio, difficulty, hasVocab]);
 
   const linkAudioToGroup = async (groupId) => {

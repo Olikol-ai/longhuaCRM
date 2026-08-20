@@ -24,7 +24,7 @@ import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { JwtPayload } from '../../auth/auth.service';
-import { ChatDirectoryQueryDto, CreateBlockDto, CreateCrmCardDto, CreateDirectChatDto, CreateDmRequestDto, CreateGroupChatDto, CreateMessageDto, InviteMembersDto, ListDmRequestsQueryDto, ListMessagesDto, MarkReadDto, UpdateChatProfileDto, UpdateDmPrivacyDto, UpdateMessageDto, UploadAttachmentDto } from '../dto/chats.dto';
+import { ChatDirectoryQueryDto, CreateBlockDto, CreateCrmCardDto, CreateDirectChatDto, CreateDmRequestDto, CreateGroupChatDto, CreateMessageDto, InviteMembersDto, ListDmRequestsQueryDto, ListMessagesDto, MarkReadDto, UpdateChatMemberPrefsDto, UpdateChatProfileDto, UpdateDmPrivacyDto, UpdateMessageDto, UploadAttachmentDto } from '../dto/chats.dto';
 import { ChatAttachmentKind, DirectChatRequestStatus, DmPrivacyPolicy } from '../enums/chat.enums';
 import {
   ChatAttachmentsService,
@@ -239,6 +239,25 @@ export class ChatsController {
     return this.chats.hideMembership(actor, chatId);
   }
 
+  @Patch(':chatId/member-prefs')
+  updateMemberPrefs(
+    @CurrentUser() actor: JwtPayload,
+    @Param('chatId') chatId: string,
+    @Body() dto: UpdateChatMemberPrefsDto,
+  ) {
+    return this.chats.updateMemberPrefs(actor, chatId, dto);
+  }
+
+  @Post(':chatId/archive')
+  archiveChat(@CurrentUser() actor: JwtPayload, @Param('chatId') chatId: string) {
+    return this.chats.archiveChat(actor, chatId);
+  }
+
+  @Post(':chatId/unarchive')
+  unarchiveChat(@CurrentUser() actor: JwtPayload, @Param('chatId') chatId: string) {
+    return this.chats.unarchiveChat(actor, chatId);
+  }
+
   @Get(':chatId/members')
   members(@CurrentUser() actor: JwtPayload, @Param('chatId') chatId: string) {
     return this.chats.listMembers(actor, chatId);
@@ -270,6 +289,11 @@ export class ChatsController {
     @Body() dto: MarkReadDto,
   ) {
     return this.chats.markRead(actor, chatId, dto.messageId ?? null);
+  }
+
+  @Post(':chatId/unread')
+  markUnread(@CurrentUser() actor: JwtPayload, @Param('chatId') chatId: string) {
+    return this.chats.markUnread(actor, chatId);
   }
 
   @Get(':chatId/messages')

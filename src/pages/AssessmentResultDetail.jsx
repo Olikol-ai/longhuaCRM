@@ -57,47 +57,47 @@ export default function AssessmentResultDetail() {
       <div>
         <Link
           to={createPageUrl('AssessmentResults')}
-          className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
+          className="text-xs text-muted-foreground hover:text-brand dark:hover:text-brand"
         >
           ← Результаты
         </Link>
         <div className="flex flex-wrap items-center gap-2 mt-1">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+          <h1 className="text-2xl font-bold text-foreground">
             {exam?.name || 'Результат экзамена'}
           </h1>
           <ResultStatusBadge status={result.status} />
         </div>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           {studentName} · попытка #{result.attempt_number}
         </p>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card className="p-4">
-          <p className="text-xs text-slate-500">Балл</p>
-          <p className="text-xl font-semibold text-slate-900 dark:text-white mt-1">
+          <p className="text-xs text-muted-foreground">Балл</p>
+          <p className="text-xl font-semibold text-foreground mt-1">
             {result.score}
-            <span className="text-sm font-normal text-slate-400">
+            <span className="text-sm font-normal text-muted-foreground">
               {' '}
               / {result.max_score}
             </span>
           </p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs text-slate-500">Процент</p>
-          <p className="text-xl font-semibold text-slate-900 dark:text-white mt-1">
+          <p className="text-xs text-muted-foreground">Процент</p>
+          <p className="text-xl font-semibold text-foreground mt-1">
             {result.percent != null ? `${Number(result.percent).toFixed(0)}%` : '—'}
           </p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs text-slate-500">Длительность</p>
-          <p className="text-xl font-semibold text-slate-900 dark:text-white mt-1">
+          <p className="text-xs text-muted-foreground">Длительность</p>
+          <p className="text-xl font-semibold text-foreground mt-1">
             {formatDurationSeconds(result.duration)}
           </p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs text-slate-500">Оценка</p>
-          <p className="text-sm font-medium text-slate-800 dark:text-slate-100 mt-1.5">
+          <p className="text-xs text-muted-foreground">Оценка</p>
+          <p className="text-sm font-medium text-foreground mt-1.5">
             {EVALUATION_TYPE_LABEL[result.evaluation_type] ||
               result.evaluation_type ||
               '—'}
@@ -105,23 +105,23 @@ export default function AssessmentResultDetail() {
         </Card>
       </div>
 
-      <Card className="p-4 sm:p-5 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+      <Card className="p-4 sm:p-5 space-y-2 text-sm text-muted-foreground dark:text-slate-300">
         <p>
-          <span className="text-slate-400">Начало: </span>
+          <span className="text-muted-foreground">Начало: </span>
           {formatDateTime(result.started_at)}
         </p>
         <p>
-          <span className="text-slate-400">Окончание: </span>
+          <span className="text-muted-foreground">Окончание: </span>
           {formatDateTime(result.finished_at)}
         </p>
       </Card>
 
       <Card className="p-4 sm:p-5 space-y-3">
-        <h2 className="font-semibold text-slate-900 dark:text-white">
+        <h2 className="font-semibold text-foreground">
           Разбивка по секциям
         </h2>
         {breakdowns.length === 0 ? (
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-muted-foreground">
             Детализация по секциям недоступна для этого результата
           </p>
         ) : (

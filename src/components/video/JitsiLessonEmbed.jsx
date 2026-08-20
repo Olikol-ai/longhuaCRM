@@ -5,10 +5,18 @@ import {
   buildJitsiInterfaceConfigOverwrite,
   coalesceLivePresence,
   loadJitsiExternalApi,
+  mapLinkQualityScore,
+  mapVideoConferenceError,
   normalizeVideoDisplayName,
   parseJitsiDomain,
   resizeJitsiEmbed,
 } from '@/lib/lesson-video';
+import {
+  isTransientVideoError,
+  videoDiag,
+  videoDiagError,
+  videoDiagWarn,
+} from '@/lib/video-diagnostics';
 
 /**
  * Embeds a lesson via JitsiMeetExternalAPI.
@@ -16,6 +24,9 @@ import {
  *
  * Conference identity (domain + room) mounts once. JWT / displayName / subject
  * updates must NOT dispose+recreate the iframe (that was breaking the UI).
+ *
+ * On unmount every listener, timer and ResizeObserver must be cleared so
+ * hangup/leave never leaks WebRTC callbacks into a disposed conference.
  */
 const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
   {
@@ -37,6 +48,8 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     onConnectionStatus,
     onParticipantCount,
     onPresenceChange,
+    onScreenSharingChanged,
+    onLinkQualityChanged,
   },
   ref,
 ) {
@@ -57,11 +70,13 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
   const onConnectionStatusRef = useRef(onConnectionStatus);
   const onParticipantCountRef = useRef(onParticipantCount);
   const onPresenceChangeRef = useRef(onPresenceChange);
+  const onScreenSharingChangedRef = useRef(onScreenSharingChanged);
+  const onLinkQualityChangedRef = useRef(onLinkQualityChanged);
   /** @type {React.MutableRefObject<Map<string, object>>} */
   const presenceMapRef = useRef(new Map());
   const [booting, setBooting] = useState(true);
+  const videoMutedRef = useRef(false);
 
-  // Keep latest props for listeners without re-creating the conference.
   useEffect(() => {
     displayNameRef.current = displayName;
     subjectRef.current = subject;
@@ -76,6 +91,8 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     onConnectionStatusRef.current = onConnectionStatus;
     onParticipantCountRef.current = onParticipantCount;
     onPresenceChangeRef.current = onPresenceChange;
+    onScreenSharingChangedRef.current = onScreenSharingChanged;
+    onLinkQualityChangedRef.current = onLinkQualityChanged;
   }, [
     displayName,
     subject,
@@ -90,9 +107,10 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     onConnectionStatus,
     onParticipantCount,
     onPresenceChange,
+    onScreenSharingChanged,
+    onLinkQualityChanged,
   ]);
 
-  // Apply identity changes to the live conference — never remount for this.
   useEffect(() => {
     const api = apiRef.current;
     if (!api || !joinedOnceRef.current) return;
@@ -127,38 +145,67 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     },
   }));
 
-  // Mount conference once per domain + room (+ script URL). JWT is snapshotted at boot.
   useEffect(() => {
     let cancelled = false;
     let bootTimeout = null;
+    let syncInterval = null;
+    /** @type {Array<[string, Function]>} */
+    const boundListeners = [];
     joinedOnceRef.current = false;
     presenceMapRef.current = new Map();
     setBooting(true);
     onConnectionStatusRef.current?.('connecting');
     onPresenceChangeRef.current?.([]);
+    onLinkQualityChangedRef.current?.('unknown', null);
 
     const host = domain || parseJitsiDomain(roomUrl);
     const name = roomName || '';
     const bootJwt = bootJwtRef.current || jwt;
 
+    videoDiag('connect_start', {
+      host,
+      room: name,
+      hasJwt: Boolean(bootJwt),
+    });
+
     if (!host || !name || !containerRef.current) return undefined;
 
     if (!bootJwt) {
-      onErrorRef.current?.(new Error('Нет токена доступа к видеоконференции'));
+      videoDiagError('missing_jwt', { host, room: name });
+      onErrorRef.current?.(
+        Object.assign(new Error('Нет токена доступа к видеоконференции'), {
+          code: 'missing_jwt',
+          fatal: true,
+        }),
+      );
       onConnectionStatusRef.current?.('failed');
       setBooting(false);
       return undefined;
     }
 
-    // Capture JWT for this mount only — later prop jwt changes must not re-run this effect.
     bootJwtRef.current = bootJwt;
+
+    const listen = (api, event, handler) => {
+      api.addListener(event, handler);
+      boundListeners.push([event, handler]);
+    };
+
+    const detachAll = (api) => {
+      for (const [event, handler] of boundListeners) {
+        try {
+          api?.removeListener?.(event, handler);
+        } catch {
+          // ignore
+        }
+      }
+      boundListeners.length = 0;
+    };
 
     (async () => {
       try {
         const JitsiMeetExternalAPI = await loadJitsiExternalApi(host, externalApiUrl);
         if (cancelled || !containerRef.current) return;
 
-        // Dispose any stale instance before creating one (StrictMode / fast remount).
         try {
           apiRef.current?.dispose?.();
         } catch {
@@ -238,21 +285,34 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
             accumulatedMs: row.accumulatedMs || 0,
             crmUserId: row.crmUserId || null,
             email: row.email || null,
+            audioMuted: row.audioMuted ?? null,
+            videoMuted: row.videoMuted ?? null,
+            screenSharing: Boolean(row.screenSharing),
+            connectionQuality: row.connectionQuality ?? null,
+            linkQuality: row.linkQuality || null,
+            reconnecting: Boolean(row.reconnecting),
+            handRaised: Boolean(row.handRaised),
           }));
           onPresenceChangeRef.current?.(coalesceLivePresence(raw));
         };
 
+        const patchPresence = (id, patch) => {
+          if (!id) return;
+          const existing = presenceMapRef.current.get(id);
+          if (!existing) return;
+          presenceMapRef.current.set(id, { ...existing, ...patch });
+          emitPresence();
+        };
+
         const findExistingPresenceKey = (id, displayNameValue, extras = {}) => {
           if (presenceMapRef.current.has(id)) return id;
-          const crmUserId = String(extras.crmUserId || '').trim();
+          const crmId = String(extras.crmUserId || '').trim();
           const email = String(extras.email || '')
             .trim()
             .toLowerCase();
           const nameKey = normalizeVideoDisplayName(displayNameValue);
           for (const [pid, row] of presenceMapRef.current.entries()) {
-            if (crmUserId && row.crmUserId && row.crmUserId === crmUserId) {
-              return pid;
-            }
+            if (crmId && row.crmUserId && row.crmUserId === crmId) return pid;
             if (email && row.email && String(row.email).toLowerCase() === email) {
               return pid;
             }
@@ -287,6 +347,13 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
               displayName: label,
               crmUserId: extras.crmUserId || existing.crmUserId || null,
               email: extras.email || existing.email || null,
+              audioMuted:
+                extras.audioMuted ?? existing.audioMuted ?? null,
+              videoMuted:
+                extras.videoMuted ?? existing.videoMuted ?? null,
+              screenSharing:
+                extras.screenSharing ?? existing.screenSharing ?? false,
+              reconnecting: false,
             });
           } else {
             presenceMapRef.current.set(id, {
@@ -299,6 +366,13 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
               accumulatedMs: existing?.accumulatedMs || 0,
               crmUserId: extras.crmUserId || existing?.crmUserId || null,
               email: extras.email || existing?.email || null,
+              audioMuted: extras.audioMuted ?? existing?.audioMuted ?? null,
+              videoMuted: extras.videoMuted ?? existing?.videoMuted ?? null,
+              screenSharing:
+                extras.screenSharing ?? existing?.screenSharing ?? false,
+              connectionQuality: existing?.connectionQuality ?? null,
+              linkQuality: existing?.linkQuality || 'unknown',
+              reconnecting: false,
             });
           }
           emitPresence();
@@ -319,8 +393,31 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
             leftAt: now,
             sessionStart: null,
             accumulatedMs: (existing.accumulatedMs || 0) + sessionMs,
+            screenSharing: false,
+            reconnecting: false,
+            linkQuality: null,
           });
           emitPresence();
+        };
+
+        const readMuteFlags = (row) => {
+          const audioMuted =
+            row?.muted ??
+            row?.audioMuted ??
+            row?.isAudioMuted ??
+            row?.audioMutedStatus;
+          const videoMuted =
+            row?.videoMuted ?? row?.isVideoMuted ?? row?.videoMutedStatus;
+          return {
+            audioMuted:
+              audioMuted === undefined || audioMuted === null
+                ? null
+                : Boolean(audioMuted),
+            videoMuted:
+              videoMuted === undefined || videoMuted === null
+                ? null
+                : Boolean(videoMuted),
+          };
         };
 
         const syncParticipants = () => {
@@ -339,7 +436,13 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
               const pid = row?.participantId || row?.id;
               if (!pid) continue;
               seen.add(pid);
-              markOnline(pid, row.displayName || row.formattedDisplayName);
+              const flags = readMuteFlags(row);
+              markOnline(pid, row.displayName || row.formattedDisplayName, {
+                ...flags,
+                screenSharing: Boolean(
+                  row?.sharingScreen || row?.isSharingScreen || row?.screenSharing,
+                ),
+              });
             }
             for (const [pid, row] of presenceMapRef.current.entries()) {
               if (!seen.has(pid) && row.online) markOffline(pid);
@@ -349,31 +452,98 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           }
         };
 
-        const reportLeave = () => {
+        const reportLeave = (reason = 'left') => {
+          videoDiag('conference_left', { reason, joined: joinedOnceRef.current });
           if (!joinedOnceRef.current) return;
           onConnectionStatusRef.current?.('idle');
+          onLinkQualityChangedRef.current?.('unknown', null);
           onLeftRef.current?.();
         };
 
-        const reportError = (err) => {
+        /**
+         * Fatal → notify parent to end/remount.
+         * Transient network flaps → soft reconnect UI only (Jitsi recovers itself).
+         */
+        const reportError = (err, source = 'error') => {
           if (cancelled) return;
+          const mapped = mapVideoConferenceError(err);
+          const transient = isTransientVideoError(err) && joinedOnceRef.current;
+          const stack =
+            err instanceof Error
+              ? err.stack
+              : typeof err === 'object' && err?.stack
+                ? String(err.stack)
+                : undefined;
+
+          if (transient) {
+            videoDiagWarn('conference_error_transient', {
+              source,
+              code: mapped.code,
+              message: mapped.description,
+              raw: String(
+                typeof err === 'string'
+                  ? err
+                  : err?.message || err?.error || err?.code || '',
+              ).slice(0, 300),
+            });
+            setBooting(false);
+            onConnectionStatusRef.current?.('reconnecting');
+            onLinkQualityChangedRef.current?.('lost', 0);
+            onErrorRef.current?.(
+              Object.assign(new Error(mapped.description), {
+                title: mapped.title,
+                code: mapped.code,
+                fatal: false,
+                transient: true,
+                source,
+              }),
+            );
+            return;
+          }
+
+          videoDiagError('conference_error_fatal', {
+            source,
+            code: mapped.code,
+            message: mapped.description,
+            stack: stack ? String(stack).slice(0, 800) : undefined,
+            raw: String(
+              typeof err === 'string'
+                ? err
+                : err?.message || err?.error || err?.code || '',
+            ).slice(0, 300),
+          });
           setBooting(false);
           onConnectionStatusRef.current?.('failed');
-          const message =
-            typeof err === 'string'
-              ? err
-              : err?.message || err?.error || 'Не удалось подключиться к видеоконференции';
-          onErrorRef.current?.(new Error(String(message)));
+          onLinkQualityChangedRef.current?.('lost', 0);
+          onErrorRef.current?.(
+            Object.assign(new Error(mapped.description), {
+              title: mapped.title,
+              code: mapped.code,
+              fatal: true,
+              transient: false,
+              source,
+            }),
+          );
         };
 
-        api.addListener('videoConferenceJoined', (e) => {
+        listen(api, 'videoConferenceJoined', (e) => {
           joinedOnceRef.current = true;
           setBooting(false);
           onConnectionStatusRef.current?.('connected');
+          videoDiag('conference_joined', {
+            participantId: e?.id || api.getMyUserId?.() || null,
+            room: name,
+          });
           resizeJitsiEmbed(api, containerRef.current, {
             crmTheme: crmThemeRef.current,
           });
           applyIdentity();
+          // Prefer stage + filmstrip (Zoom-like), never tile grid as default.
+          try {
+            api.executeCommand('setTileView', false);
+          } catch {
+            // ignore
+          }
           const localId = e?.id || api.getMyUserId?.();
           const localExtras = {
             crmUserId: crmUserIdRef.current || null,
@@ -403,54 +573,97 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           syncParticipants();
           onJoinedRef.current?.();
         });
-        api.addListener('readyToClose', reportLeave);
-        api.addListener('videoConferenceLeft', reportLeave);
-        api.addListener('connectionFailed', (e) => {
-          reportError(e?.message || e?.error || 'Ошибка соединения с видеосервером');
+        listen(api, 'readyToClose', () => reportLeave('readyToClose'));
+        listen(api, 'videoConferenceLeft', () => reportLeave('videoConferenceLeft'));
+        listen(api, 'connectionFailed', (e) => {
+          reportError(
+            e?.message || e?.error || 'Ошибка соединения с видеосервером',
+            'connectionFailed',
+          );
         });
-        api.addListener('conferenceFailed', (e) => {
-          reportError(e?.error || e?.message || 'Не удалось войти в конференцию');
+        listen(api, 'conferenceFailed', (e) => {
+          reportError(
+            e?.error || e?.message || 'Не удалось войти в конференцию',
+            'conferenceFailed',
+          );
         });
-        api.addListener('errorOccurred', (e) => {
-          reportError(e?.error?.message || e?.message || 'Ошибка видеоконференции');
+        listen(api, 'errorOccurred', (e) => {
+          reportError(
+            e?.error?.message || e?.message || 'Ошибка видеоконференции',
+            'errorOccurred',
+          );
         });
-        api.addListener('audioMuteStatusChanged', (e) => {
-          onAudioMuteChangedRef.current?.(Boolean(e?.muted));
+        listen(api, 'audioMuteStatusChanged', (e) => {
+          const muted = Boolean(e?.muted);
+          onAudioMuteChangedRef.current?.(muted);
+          const pid = e?.id || e?.participantId || api.getMyUserId?.();
+          patchPresence(pid, { audioMuted: muted });
         });
-        api.addListener('videoMuteStatusChanged', (e) => {
-          onVideoMuteChangedRef.current?.(Boolean(e?.muted));
+        listen(api, 'videoMuteStatusChanged', (e) => {
+          const muted = Boolean(e?.muted);
+          videoMutedRef.current = muted;
+          onVideoMuteChangedRef.current?.(muted);
+          const pid = e?.id || e?.participantId || api.getMyUserId?.();
+          patchPresence(pid, { videoMuted: muted });
         });
-        api.addListener('participantJoined', (e) => {
+        listen(api, 'screenSharingStatusChanged', (e) => {
+          const on = Boolean(e?.on);
+          const details = e?.details || e?.data || {};
+          const sourceType =
+            details.sourceType ||
+            details.desktopSharingSourceType ||
+            e?.sourceType ||
+            null;
+          videoDiag('screen_share', { on, sourceType });
+          onScreenSharingChangedRef.current?.(on, {
+            sourceType,
+            details,
+          });
+          const pid = e?.id || e?.participantId || api.getMyUserId?.();
+          patchPresence(pid, { screenSharing: on });
+          if (on) {
+            try {
+              api.executeCommand('setTileView', false);
+            } catch {
+              // ignore
+            }
+          }
+        });
+        listen(api, 'raiseHandUpdated', (e) => {
+          const pid = e?.id || e?.participantId;
+          if (!pid) return;
+          const raised =
+            e?.handRaised === true ||
+            e?.raised === true ||
+            Number(e?.handRaised) > 0;
+          patchPresence(pid, { handRaised: raised });
+        });
+        listen(api, 'participantJoined', (e) => {
+          videoDiag('participant_joined', {
+            id: e?.id || null,
+            displayName: e?.displayName || null,
+          });
           markOnline(e?.id, e?.displayName);
           syncParticipants();
         });
-        api.addListener('participantLeft', (e) => {
+        listen(api, 'participantLeft', (e) => {
+          videoDiag('participant_left', { id: e?.id || null });
           markOffline(e?.id);
           syncParticipants();
         });
-        api.addListener('participantPropertyChanged', (e) => {
+        listen(api, 'participantPropertyChanged', (e) => {
           const pid = e?.id || e?.participantId;
           if (!pid) return;
           const key = e?.property || e?.key;
           const value = e?.newValue ?? e?.value;
-          const existing = presenceMapRef.current.get(pid);
-          if (!existing) return;
           if (key === 'crmUserId' && value) {
-            presenceMapRef.current.set(pid, {
-              ...existing,
-              crmUserId: String(value),
-            });
-            emitPresence();
+            patchPresence(pid, { crmUserId: String(value) });
           }
           if (key === 'crmEmail' && value) {
-            presenceMapRef.current.set(pid, {
-              ...existing,
-              email: String(value).toLowerCase(),
-            });
-            emitPresence();
+            patchPresence(pid, { email: String(value).toLowerCase() });
           }
         });
-        api.addListener('displayNameChange', (e) => {
+        listen(api, 'displayNameChange', (e) => {
           const pid = e?.id;
           if (!pid) return;
           const existing = presenceMapRef.current.get(pid);
@@ -458,20 +671,86 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
             markOnline(pid, e?.displayname || e?.displayName);
             return;
           }
-          presenceMapRef.current.set(pid, {
-            ...existing,
+          patchPresence(pid, {
             displayName: e?.displayname || e?.displayName || existing.displayName,
           });
-          emitPresence();
         });
-        api.addListener('connectionInterrupted', () => {
+        listen(api, 'connectionInterrupted', () => {
+          videoDiagWarn('connection_interrupted', {
+            room: name,
+            visibility: document.visibilityState,
+            online: navigator.onLine,
+          });
           onConnectionStatusRef.current?.('reconnecting');
+          onLinkQualityChangedRef.current?.('lost', 0);
+          const localId = api.getMyUserId?.();
+          if (localId) {
+            patchPresence(localId, {
+              reconnecting: true,
+              linkQuality: 'lost',
+              connectionQuality: 0,
+            });
+          }
         });
-        api.addListener('connectionRestored', () => {
-          onConnectionStatusRef.current?.(joinedOnceRef.current ? 'connected' : 'connecting');
+        listen(api, 'connectionRestored', () => {
+          videoDiag('connection_restored', {
+            room: name,
+            visibility: document.visibilityState,
+          });
+          onConnectionStatusRef.current?.(
+            joinedOnceRef.current ? 'connected' : 'connecting',
+          );
+          const localId = api.getMyUserId?.();
+          if (localId) {
+            patchPresence(localId, { reconnecting: false });
+          }
+        });
+        listen(api, 'connectionQualityChanged', (e) => {
+          const score = Number(e?.connectionQuality);
+          const quality = mapLinkQualityScore(score);
+          const localId = api.getMyUserId?.();
+          const pid = e?.userID || e?.id || e?.participantId || localId;
+          const isLocal =
+            !e?.userID && !e?.id
+              ? true
+              : pid === localId || e?.userID === localId || e?.id === localId;
+          if (pid) {
+            patchPresence(pid, {
+              connectionQuality: Number.isFinite(score) ? score : null,
+              linkQuality: quality,
+              reconnecting: quality === 'lost',
+            });
+          }
+          if (isLocal) {
+            onLinkQualityChangedRef.current?.(quality, score);
+            if (quality === 'lost') {
+              onConnectionStatusRef.current?.('reconnecting');
+            } else if (quality === 'poor' || quality === 'fair') {
+              onConnectionStatusRef.current?.('degraded');
+            }
+          }
+        });
+        listen(api, 'participantConnectionStatusChanged', (e) => {
+          const pid = e?.id || e?.participantId;
+          if (!pid) return;
+          const status = String(e?.connectionStatus || e?.status || '').toLowerCase();
+          if (status === 'interrupted' || status === 'inactive') {
+            patchPresence(pid, {
+              reconnecting: true,
+              linkQuality: 'fair',
+            });
+          } else if (status === 'active' || status === 'restoring') {
+            patchPresence(pid, {
+              reconnecting: status === 'restoring',
+              linkQuality: status === 'restoring' ? 'fair' : 'good',
+            });
+          }
         });
 
         applyIdentity();
+        syncInterval = window.setInterval(() => {
+          if (!cancelled && joinedOnceRef.current) syncParticipants();
+        }, 5000);
         bootTimeout = window.setTimeout(() => {
           if (!cancelled) setBooting(false);
         }, 12_000);
@@ -487,32 +766,37 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     return () => {
       cancelled = true;
       if (bootTimeout) window.clearTimeout(bootTimeout);
+      if (syncInterval) window.clearInterval(syncInterval);
+      const api = apiRef.current;
+      detachAll(api);
       try {
-        apiRef.current?.dispose?.();
+        api?.dispose?.();
       } catch {
         // ignore
       }
       apiRef.current = null;
       presenceMapRef.current = new Map();
       onPresenceChangeRef.current?.([]);
+      onLinkQualityChangedRef.current?.('unknown', null);
       if (containerRef.current) containerRef.current.innerHTML = '';
     };
     // Intentionally omit jwt / displayName / subject — remounting on those broke the UI.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- room identity only
+     
   }, [domain, roomName, roomUrl, externalApiUrl]);
 
-  // Viewport / container size → resize only (rail open/close, orientation).
   useEffect(() => {
     const node = containerRef.current;
     if (!node) return undefined;
 
+    let orientationTimer = null;
     const reflow = () =>
       resizeJitsiEmbed(apiRef.current, containerRef.current, {
         crmTheme: crmThemeRef.current,
       });
     const onResize = () => reflow();
     const onOrientation = () => {
-      window.setTimeout(reflow, 250);
+      if (orientationTimer) window.clearTimeout(orientationTimer);
+      orientationTimer = window.setTimeout(reflow, 250);
     };
 
     window.addEventListener('resize', onResize);
@@ -530,11 +814,11 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
       window.removeEventListener('resize', onResize);
       window.removeEventListener('orientationchange', onOrientation);
       vv?.removeEventListener?.('resize', onResize);
+      if (orientationTimer) window.clearTimeout(orientationTimer);
       observer?.disconnect?.();
     };
   }, [domain, roomName]);
 
-  // Keep iframe color-scheme in sync with CRM theme without remounting Jitsi.
   useEffect(() => {
     const next = crmTheme === 'dark' ? 'dark' : 'light';
     crmThemeRef.current = next;
@@ -545,6 +829,71 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
       // ignore
     }
   }, [crmTheme]);
+
+  // Visibility / network soft recovery — never remount the conference.
+  useEffect(() => {
+    let onlineTimer = null;
+    const onVisibility = () => {
+      videoDiag('visibility', { state: document.visibilityState });
+      if (document.visibilityState !== 'visible') return;
+      const api = apiRef.current;
+      if (!api || !joinedOnceRef.current) return;
+      resizeJitsiEmbed(api, containerRef.current, {
+        crmTheme: crmThemeRef.current,
+      });
+    };
+    const onOnline = () => {
+      if (!joinedOnceRef.current) return;
+      videoDiagWarn('browser_online', { joined: true });
+      onConnectionStatusRef.current?.('reconnecting');
+      onLinkQualityChangedRef.current?.('fair', null);
+      if (onlineTimer) window.clearTimeout(onlineTimer);
+      onlineTimer = window.setTimeout(() => {
+        if (joinedOnceRef.current) {
+          onConnectionStatusRef.current?.('connected');
+        }
+      }, 1200);
+    };
+    const onOffline = () => {
+      if (!joinedOnceRef.current) return;
+      videoDiagWarn('browser_offline', { joined: true });
+      onConnectionStatusRef.current?.('reconnecting');
+      onLinkQualityChangedRef.current?.('lost', 0);
+    };
+    // Hot-plug mic/cam/Bluetooth — Jitsi picks devices up; we only reflow chrome.
+    const onDeviceChange = () => {
+      if (!joinedOnceRef.current) return;
+      resizeJitsiEmbed(apiRef.current, containerRef.current, {
+        crmTheme: crmThemeRef.current,
+      });
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    window.addEventListener('focus', onVisibility);
+    try {
+      navigator.mediaDevices?.addEventListener?.('devicechange', onDeviceChange);
+    } catch {
+      // ignore
+    }
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+      window.removeEventListener('focus', onVisibility);
+      if (onlineTimer) window.clearTimeout(onlineTimer);
+      try {
+        navigator.mediaDevices?.removeEventListener?.(
+          'devicechange',
+          onDeviceChange,
+        );
+      } catch {
+        // ignore
+      }
+    };
+  }, []);
 
   return (
     <div
@@ -559,12 +908,14 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
       />
       {booting ? (
         <div
-          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/90 text-white"
+          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/90 text-white animate-in fade-in-0 duration-200"
           data-testid="lesson-video-connecting"
         >
           <Loader2 className="h-8 w-8 animate-spin text-brand" />
           <p className="text-sm font-medium">Подключение к видеоконференции…</p>
-          <p className="text-xs text-white/60">Подождите, идёт установка защищённого канала</p>
+          <p className="text-xs text-white/60">
+            Подождите, идёт установка защищённого канала
+          </p>
         </div>
       ) : null}
     </div>

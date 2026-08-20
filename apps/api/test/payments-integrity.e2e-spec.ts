@@ -103,11 +103,11 @@ describeE2E('Payments integrity (e2e)', () => {
     expect(blocked.status).toBe(400);
   });
 
-  it('prevents payment reversal that would make balance negative', async () => {
+  it('allows payment reversal that makes balance negative (debt)', async () => {
     const studentRes = await api(app)
       .post('/api/students')
       .set(authHeader(adminToken))
-      .send({ name: `Balance Guard ${randomUUID().slice(0, 8)}`, lessonBalance: 0 })
+      .send({ name: `Balance Debt ${randomUUID().slice(0, 8)}`, lessonBalance: 0 })
       .expect(201);
 
     const paymentRes = await api(app)
@@ -127,11 +127,20 @@ describeE2E('Payments integrity (e2e)', () => {
       .send({ lessonBalance: 2 })
       .expect(200);
 
-    const blocked = await api(app)
+    const reversed = await api(app)
       .patch(`/api/payments/${paymentRes.body.id}`)
       .set(authHeader(adminToken))
       .send({ lessonsAdded: 0 });
 
-    expect(blocked.status).toBe(400);
+    expect(reversed.status).toBe(200);
+    expect(reversed.body.lessonsAdded).toBe(0);
+
+    const studentAfter = await api(app)
+      .get(`/api/students/${studentRes.body.id}`)
+      .set(authHeader(adminToken))
+      .expect(200);
+
+    // 2 − 5 = −3 (debt allowed)
+    expect(studentAfter.body.lessonBalance).toBe(-3);
   });
 });

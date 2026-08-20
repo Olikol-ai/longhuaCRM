@@ -38,14 +38,14 @@ export default function ExamCompletionScreen({ result, examTitle, onBack }) {
       className="min-h-[60vh] flex items-center justify-center p-4 sm:p-8"
       data-testid="exam-completion-screen"
     >
-      <div className="w-full max-w-lg rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg p-6 sm:p-10 text-center space-y-5">
+      <div className="w-full max-w-lg rounded-3xl border border-border bg-card shadow-lg p-6 sm:p-10 text-center space-y-5">
         <div className="flex justify-center">{icon}</div>
         <div className="space-y-2">
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
             {title}
           </h1>
           {examTitle ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400">{examTitle}</p>
+            <p className="text-sm text-muted-foreground">{examTitle}</p>
           ) : null}
           <p
             className={`text-lg font-medium ${
@@ -62,18 +62,18 @@ export default function ExamCompletionScreen({ result, examTitle, onBack }) {
 
         {showScore && (
           <div className="grid grid-cols-2 gap-3 text-left">
-            <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/80 p-4">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Балл</p>
-              <p className="text-xl font-semibold text-slate-900 dark:text-white mt-1">
+            <div className="rounded-2xl bg-muted/80 p-4">
+              <p className="text-xs text-muted-foreground">Балл</p>
+              <p className="text-xl font-semibold text-foreground mt-1">
                 {score ?? '—'}
                 {maxScore != null ? (
-                  <span className="text-sm font-normal text-slate-400"> / {maxScore}</span>
+                  <span className="text-sm font-normal text-muted-foreground"> / {maxScore}</span>
                 ) : null}
               </p>
             </div>
-            <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/80 p-4">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Процент</p>
-              <p className="text-xl font-semibold text-slate-900 dark:text-white mt-1">
+            <div className="rounded-2xl bg-muted/80 p-4">
+              <p className="text-xs text-muted-foreground">Процент</p>
+              <p className="text-xl font-semibold text-foreground mt-1">
                 {percent != null ? `${Number(percent).toFixed(0)}%` : '—'}
               </p>
             </div>

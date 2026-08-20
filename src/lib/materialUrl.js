@@ -1,4 +1,15 @@
 import { apiFetch, getToken } from '@/api/http';
+import { OfflineMutationError } from '@/lib/offline/offlineGuard';
+import { isOfflineMode } from '@/lib/offline/offlineStatus';
+import { OFFLINE_OPEN_FILE_MESSAGE } from '@/lib/offline/constants';
+import {
+  CANVA_ACCESS_NOTICE,
+  classifyMaterialOpenUrl,
+  describeMaterialOpen,
+  isCanvaMaterial,
+  isExternalLinkMaterial,
+  storedMaterialUrl,
+} from '@/lib/materialMeta';
 
 /**
  * Sync helper for display/links.
@@ -6,24 +17,9 @@ import { apiFetch, getToken } from '@/api/http';
  * use resolveMaterialOpenUrl() before opening.
  */
 export function getMaterialUrl(material) {
-  const external = String(material?.external_link ?? '').trim();
-  if (external) {
-    return normalizeHttpUrl(external);
-  }
-  const fileUrl = String(material?.file_url ?? '').trim();
-  if (!fileUrl) return '#';
-  if (fileUrl.startsWith('/api/files/signed/')) return fileUrl;
-  if (/^https?:\/\//i.test(fileUrl)) return fileUrl;
-  // Stored upload path — not directly openable in SPA mode
-  return fileUrl;
-}
-
-function normalizeHttpUrl(url) {
-  const value = String(url || '').trim();
-  if (!value) return '#';
-  if (/^https?:\/\//i.test(value)) return value;
-  if (value.startsWith('/')) return value;
-  return `https://${value}`;
+  const classified = classifyMaterialOpenUrl(storedMaterialUrl(material));
+  if (classified.openUrl) return classified.openUrl;
+  return '#';
 }
 
 function isDirectOpenableUrl(url) {
@@ -33,16 +29,24 @@ function isDirectOpenableUrl(url) {
   return false;
 }
 
+function logMaterialOpenDiagnostics(material, extras = {}) {
+  const info = describeMaterialOpen(material, extras);
+  // Safe fields only — never tokens, cookies, or the full URL.
+  console.info('[materials.open]', info);
+  return info;
+}
+
 /**
  * Resolve a URL that actually opens the material (signed API file or external link).
+ * Canva / other http(s) links are returned as stored — never rewritten per user.
  */
 export async function resolveMaterialOpenUrl(material) {
-  const external = String(material?.external_link ?? '').trim();
-  if (external) {
-    return normalizeHttpUrl(external);
+  const classified = classifyMaterialOpenUrl(storedMaterialUrl(material));
+  if (classified.kind === 'external-canva' || classified.kind === 'external-http') {
+    return classified.openUrl;
   }
 
-  const fileUrl = String(material?.file_url ?? '').trim();
+  const fileUrl = classified.openUrl || storedMaterialUrl(material);
   if (isDirectOpenableUrl(fileUrl)) {
     return fileUrl;
   }
@@ -59,14 +63,35 @@ export async function resolveMaterialOpenUrl(material) {
   return signed;
 }
 
+async function notifyCanvaAccessModel(material) {
+  if (!isCanvaMaterial(material)) return;
+  try {
+    const { toast } = await import('@/components/ui/use-toast');
+    toast({
+      title: 'Эта ссылка открывается в Canva',
+      description:
+        'Longhua выдаёт доступ к материалу. Если Canva не предоставила доступ к этому материалу, попросите владельца дизайна предоставить вам доступ.',
+    });
+  } catch {
+    // Toast is optional; opening the URL still proceeds.
+  }
+}
+
 /**
  * Open material in a new tab.
  *
  * Signed URLs embed auth in the path — the browser navigates/streams immediately.
  * Do NOT fetch+blob the whole file first (that blocked UI for large PDFs for minutes).
  * Do NOT await chat/unread/socket work — materials open independently of Layout badge sync.
+ * Do NOT proxy Canva through Longhua. External URLs are opened as stored.
  */
 export async function openMaterial(material) {
+  if (isOfflineMode() || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
+    throw new OfflineMutationError(OFFLINE_OPEN_FILE_MESSAGE);
+  }
+
+  logMaterialOpenDiagnostics(material);
+
   // Keep a handle to the blank tab. Avoid "noopener" on the initial open —
   // modern browsers return null with noopener, which forced a second open after
   // the signed-URL round-trip and delayed navigation.
@@ -79,6 +104,7 @@ export async function openMaterial(material) {
 
   try {
     const url = await resolveMaterialOpenUrl(material);
+    await notifyCanvaAccessModel(material);
 
     if (popup && !popup.closed) {
       popup.location.replace(url);
@@ -98,6 +124,9 @@ export async function openMaterial(material) {
     }
     const message = String(err?.message || '');
     const status = Number(err?.status || 0);
+    if (isCanvaMaterial(material)) {
+      throw new Error(CANVA_ACCESS_NOTICE);
+    }
     if (
       status === 404
       || /Файл был удалён или недоступен/i.test(message)
@@ -111,6 +140,13 @@ export async function openMaterial(material) {
 
 /** Fetch material file as blob (download only — open uses streaming navigation). */
 export async function downloadMaterialFile(material, filename) {
+  if (isExternalLinkMaterial(material) || isCanvaMaterial(material)) {
+    throw new Error(
+      isCanvaMaterial(material)
+        ? CANVA_ACCESS_NOTICE
+        : 'Это внешняя ссылка. Откройте её, а не скачивайте как файл.',
+    );
+  }
   const url = await resolveMaterialOpenUrl(material);
   const token = getToken();
   const headers = {};

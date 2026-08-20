@@ -23,6 +23,10 @@ export class AssessmentExamEntity {
   @Column({ type: 'text' })
   name: string;
 
+  /** Learner-facing description shown before starting the exam. */
+  @Column({ type: 'text', nullable: true })
+  description: string | null;
+
   @Index('IDX_ASSESSMENT_EXAMS_STATUS')
   @Column({ type: 'varchar', length: 32, default: ContentLifecycleStatus.Draft })
   status: ContentLifecycleStatus;

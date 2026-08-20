@@ -1,4 +1,7 @@
-import { IsInt, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsInt, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+
+/** Max length aligned with practical folder titles (DB column is text). */
+export const MATERIAL_FOLDER_NAME_MAX_LENGTH = 255;
 
 export class UpdateMaterialFolderDto {
   @IsOptional()
@@ -11,6 +14,7 @@ export class UpdateMaterialFolderDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(MATERIAL_FOLDER_NAME_MAX_LENGTH)
   name?: string;
 
   @IsOptional()

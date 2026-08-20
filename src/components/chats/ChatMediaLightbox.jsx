@@ -1,6 +1,6 @@
 import { Download, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { IconButton } from '@/design-system';
 import { cn } from '@/lib/utils';
 
 /**
@@ -61,7 +61,7 @@ export default function ChatMediaLightbox({
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex flex-col bg-black/90 text-white"
+      className="lh-chat-lightbox fixed inset-0 z-[80] flex flex-col bg-black/92 text-white"
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -71,48 +71,32 @@ export default function ChatMediaLightbox({
     >
       <header className="flex items-center gap-2 px-3 py-2 safe-pt">
         <p className="min-w-0 flex-1 truncate text-sm font-medium">{title}</p>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="min-h-11 min-w-11 text-white hover:bg-white/10"
+        <IconButton
+          label="Уменьшить"
+          className="text-white hover:bg-white/10"
           onClick={() => setZoom((z) => Math.max(0.5, Number((z - 0.25).toFixed(2))))}
-          aria-label="Уменьшить"
         >
-          <ZoomOut className="h-5 w-5" />
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="min-h-11 min-w-11 text-white hover:bg-white/10"
+          <ZoomOut />
+        </IconButton>
+        <IconButton
+          label="Увеличить"
+          className="text-white hover:bg-white/10"
           onClick={() => setZoom((z) => Math.min(3, Number((z + 0.25).toFixed(2))))}
-          aria-label="Увеличить"
         >
-          <ZoomIn className="h-5 w-5" />
-        </Button>
+          <ZoomIn />
+        </IconButton>
         {onDownload ? (
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="min-h-11 min-w-11 text-white hover:bg-white/10"
+          <IconButton
+            label="Скачать"
+            className="text-white hover:bg-white/10"
             onClick={() => onDownload(item)}
-            aria-label="Скачать"
           >
-            <Download className="h-5 w-5" />
-          </Button>
+            <Download />
+          </IconButton>
         ) : null}
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="min-h-11 min-w-11 text-white hover:bg-white/10"
-          onClick={onClose}
-          aria-label="Закрыть"
-        >
-          <X className="h-5 w-5" />
-        </Button>
+        <IconButton label="Закрыть" className="text-white hover:bg-white/10" onClick={onClose}>
+          <X />
+        </IconButton>
       </header>
 
       <div
@@ -135,7 +119,7 @@ export default function ChatMediaLightbox({
           src={item.src}
           alt={title}
           className={cn(
-            'max-h-full max-w-full object-contain transition-transform duration-150 select-none',
+            'lh-chat-lightbox__img max-h-full max-w-full object-contain transition-transform duration-200 ease-out select-none',
           )}
           style={{ transform: `scale(${zoom})` }}
           draggable={false}

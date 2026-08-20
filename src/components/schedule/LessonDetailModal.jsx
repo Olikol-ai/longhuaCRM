@@ -6,6 +6,10 @@ import LessonAttendancePanel from "@/components/groups/LessonAttendancePanel";
 import EditLessonStudentsModal from "@/components/schedule/EditLessonStudentsModal";
 import RecurrenceApplyScopeDialog from "@/components/schedule/RecurrenceApplyScopeDialog";
 import {
+  lessonBelongsToSeries,
+  statusChangeDialogTitle,
+} from "@/lib/lessonSeriesScope";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -37,9 +41,9 @@ const statusColors = {
 };
 
 const fieldLabelClass =
-  "text-[11px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500";
+  "text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
 const fieldValueClass =
-  "text-sm font-medium text-slate-800 dark:text-slate-100 break-words [overflow-wrap:anywhere]";
+  "text-sm font-medium text-foreground break-words [overflow-wrap:anywhere]";
 const actionBtnBase =
   "inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors text-center whitespace-normal leading-snug";
 
@@ -55,15 +59,6 @@ function DetailField({ label, children, icon: Icon }) {
   );
 }
 
-function lessonBelongsToSeries(lesson) {
-  return Boolean(
-    lesson?.recurrence_series_id ||
-      lesson?.recurrenceSeriesId ||
-      lesson?.is_recurring ||
-      lesson?.isRecurring,
-  );
-}
-
 function seriesUntilFromLesson(lesson) {
   const series = lesson?.recurrence_series || lesson?.recurrenceSeries || null;
   const raw =
@@ -72,6 +67,21 @@ function seriesUntilFromLesson(lesson) {
     lesson?.recurrence_until ||
     "";
   return raw ? String(raw).slice(0, 10) : "";
+}
+
+function contactIdFromLesson(lesson) {
+  return (
+    lesson?.primary_teacher_student_contact_id ||
+    lesson?.primaryTeacherStudentContactId ||
+    lesson?.teacher_student_contact_id ||
+    lesson?.teacherStudentContactId ||
+    ""
+  );
+}
+
+function resolveStudentTargetType(lesson) {
+  if (contactIdFromLesson(lesson)) return "contact";
+  return "crm";
 }
 
 export default function LessonDetailModal({
@@ -91,16 +101,26 @@ export default function LessonDetailModal({
 }) {
   const initialInSeries = lessonBelongsToSeries(lesson);
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ ...lesson });
+  const [form, setForm] = useState({
+    ...lesson,
+    student_target_type: resolveStudentTargetType(lesson),
+    primary_student_id:
+      lesson.primary_student_id || lesson.student_id || lesson.primaryStudentId || "",
+    teacher_student_contact_id: contactIdFromLesson(lesson),
+  });
   const [recurring, setRecurring] = useState(initialInSeries);
   const [recurrenceUntil, setRecurrenceUntil] = useState(seriesUntilFromLesson(lesson));
   const [confirmAttendance, setConfirmAttendance] = useState(null);
   const [attendanceBusy, setAttendanceBusy] = useState(false);
   const [editingStudents, setEditingStudents] = useState(false);
   const [scopeDialogOpen, setScopeDialogOpen] = useState(false);
+  const [scopeDialogMode, setScopeDialogMode] = useState("edit");
   const [applyScope, setApplyScope] = useState("this");
   const [pendingPayload, setPendingPayload] = useState(null);
+  const [pendingDelete, setPendingDelete] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -112,9 +132,17 @@ export default function LessonDetailModal({
   const canChangeStudents = Boolean(isAdmin || isTeacher || isTutor);
   const wasInSeries = lessonBelongsToSeries(lesson);
 
+  const activeContacts = (Array.isArray(contacts) ? contacts : []).filter(
+    (c) => c.status !== "inactive",
+  );
+  const activeStudents = (Array.isArray(students) ? students : []).filter(
+    (s) => s.status !== "inactive",
+  );
+
   const buildUpdatePayload = () => {
     const primaryStudentId =
       form.primary_student_id || form.student_id || "";
+    const contactId = form.teacher_student_contact_id || "";
 
     const base =
       isTeacher && !isAdmin
@@ -139,7 +167,9 @@ export default function LessonDetailModal({
             lesson_type: isGroupLesson ? "group" : "individual",
             ...(isGroupLesson
               ? { group_id: form.group_id || lesson.group_id }
-              : { primary_student_id: primaryStudentId }),
+              : form.student_target_type === "contact"
+                ? { teacher_student_contact_id: contactId }
+                : { primary_student_id: primaryStudentId }),
           };
 
     return {
@@ -158,20 +188,42 @@ export default function LessonDetailModal({
   const handleSave = () => {
     const primaryStudentId =
       form.primary_student_id || form.student_id || "";
-    if (!isGroupLesson && !primaryStudentId && isAdmin) {
-      alert("Выберите ученика для индивидуального урока");
-      return;
+    if (!isGroupLesson && isAdmin) {
+      if (form.student_target_type === "contact" && !form.teacher_student_contact_id) {
+        alert("Выберите ученика преподавателя");
+        return;
+      }
+      if (form.student_target_type !== "contact" && !primaryStudentId) {
+        alert("Выберите ученика для индивидуального урока");
+        return;
+      }
     }
 
     const payload = buildUpdatePayload();
+
     if (needsScopePrompt(payload)) {
       setPendingPayload(payload);
       setApplyScope("this");
+      setScopeDialogMode(
+        payload.status === "cancelled" ? "status" : "edit",
+      );
       setScopeDialogOpen(true);
       return;
     }
 
     void submitUpdate(payload);
+  };
+
+  const requestStatusChange = (status, extra = {}) => {
+    const payload = { status, ...extra };
+    if (wasInSeries) {
+      setPendingPayload(payload);
+      setApplyScope("this");
+      setScopeDialogMode("status");
+      setScopeDialogOpen(true);
+      return;
+    }
+    void submitUpdate(payload, "this");
   };
 
   const submitUpdate = async (payload, scope) => {
@@ -187,10 +239,39 @@ export default function LessonDetailModal({
       setEditing(false);
       setScopeDialogOpen(false);
       setPendingPayload(null);
+      setPendingDelete(false);
     } catch {
       // Parent shows error toast / alert
     } finally {
       setSaving(false);
+    }
+  };
+
+  const requestDelete = () => {
+    if (!onDelete) return;
+    if (wasInSeries) {
+      setPendingPayload(null);
+      setPendingDelete(true);
+      setApplyScope("this");
+      setScopeDialogMode("delete");
+      setScopeDialogOpen(true);
+      return;
+    }
+    setConfirmDeleteOpen(true);
+  };
+
+  const executeDelete = async (scope = "this") => {
+    if (!onDelete) return;
+    setDeleting(true);
+    try {
+      await onDelete(lesson.id, scope);
+      setScopeDialogOpen(false);
+      setPendingDelete(false);
+      setConfirmDeleteOpen(false);
+    } catch {
+      // Parent shows error toast
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -216,10 +297,16 @@ export default function LessonDetailModal({
     form.primary_student_id || form.student_id || lesson.primary_student_id || lesson.student_id || "";
 
   const shellClass =
-    "@container bg-white dark:bg-slate-900 rounded-2xl w-full max-w-[min(100%,28rem)] sm:max-w-lg shadow-xl max-h-[min(90vh,100%)] flex flex-col min-w-0 overflow-hidden";
+    "@container bg-card rounded-2xl w-full max-w-[min(100%,28rem)] sm:max-w-lg shadow-xl max-h-[min(90vh,100%)] flex flex-col min-w-0 overflow-hidden";
 
   const openEditing = () => {
-    setForm({ ...lesson });
+    setForm({
+      ...lesson,
+      student_target_type: resolveStudentTargetType(lesson),
+      primary_student_id:
+        lesson.primary_student_id || lesson.student_id || lesson.primaryStudentId || "",
+      teacher_student_contact_id: contactIdFromLesson(lesson),
+    });
     setRecurring(lessonBelongsToSeries(lesson));
     setRecurrenceUntil(seriesUntilFromLesson(lesson));
     setEditing(true);
@@ -230,27 +317,27 @@ export default function LessonDetailModal({
       <>
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
           <div className={`${shellClass} rounded-b-none sm:rounded-2xl mt-auto sm:mt-0`}>
-            <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex-shrink-0 min-w-0">
-              <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100 min-w-0 break-words">
+            <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-border flex-shrink-0 min-w-0">
+              <h3 className="text-base font-semibold text-foreground min-w-0 break-words">
                 {isTeacher && !isAdmin ? "Изменить занятие" : "Редактировать урок"}
               </h3>
               <button
                 type="button"
                 onClick={() => setEditing(false)}
-                className="p-1.5 shrink-0 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                className="p-1.5 shrink-0 hover:bg-muted rounded-lg"
               >
-                <X className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                <X className="w-4 h-4 text-muted-foreground" />
               </button>
             </div>
             <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 min-w-0 overscroll-contain">
               <div className="grid grid-cols-1 gap-4 min-w-0">
                 {isAdmin && (
                   <div className="min-w-0">
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Преподаватель</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Преподаватель</label>
                     <select
                       value={form.teacher_id}
                       onChange={(e) => set("teacher_id", e.target.value)}
-                      className="w-full min-w-0 px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
+                      className="w-full min-w-0 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
                     >
                       {teachers.map((t) => (
                         <option key={t.id} value={t.id}>{t.name}</option>
@@ -262,53 +349,99 @@ export default function LessonDetailModal({
                   <div className="min-w-0">
                     {isGroupLesson ? (
                       <>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Группа</label>
-                        <p className="text-sm text-slate-700 dark:text-slate-200 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/60 break-words [overflow-wrap:anywhere]">
+                        <label className="block text-xs font-medium text-muted-foreground mb-1">Группа</label>
+                        <p className="text-sm text-foreground px-3 py-2 border border-border rounded-lg bg-muted break-words [overflow-wrap:anywhere]">
                           Групповой урок — состав учеников берётся из группы
                         </p>
                       </>
                     ) : (
                       <>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Ученик *</label>
+                        <label className="block text-xs font-medium text-muted-foreground mb-1">
+                          Тип ученика *
+                        </label>
                         <select
-                          value={currentStudentId}
-                          onChange={(e) => set("primary_student_id", e.target.value)}
-                          className="w-full min-w-0 px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
+                          value={form.student_target_type || "crm"}
+                          onChange={(e) => {
+                            setForm((f) => ({
+                              ...f,
+                              student_target_type: e.target.value,
+                              primary_student_id: "",
+                              teacher_student_contact_id: "",
+                            }));
+                          }}
+                          className="w-full min-w-0 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40 mb-3"
+                          data-testid="lesson-edit-student-target-type"
                         >
-                          <option value="">Выбрать ученика</option>
-                          {students.filter((s) => s.status !== "inactive").map((s) => (
-                            <option key={s.id} value={s.id}>{s.name}</option>
-                          ))}
+                          <option value="crm">Ученик школы</option>
+                          <option value="contact">Ученик преподавателя</option>
                         </select>
+                        {form.student_target_type === "contact" ? (
+                          <>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1">
+                              Ученик преподавателя *
+                            </label>
+                            <select
+                              value={form.teacher_student_contact_id || ""}
+                              onChange={(e) => set("teacher_student_contact_id", e.target.value)}
+                              className="w-full min-w-0 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
+                              data-testid="lesson-edit-contact-select"
+                            >
+                              <option value="">Выбрать из списка</option>
+                              {activeContacts.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name}
+                                  {c.phone ? ` · ${c.phone}` : ""}
+                                </option>
+                              ))}
+                            </select>
+                          </>
+                        ) : (
+                          <>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1">
+                              Ученик школы *
+                            </label>
+                            <select
+                              value={currentStudentId}
+                              onChange={(e) => set("primary_student_id", e.target.value)}
+                              className="w-full min-w-0 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
+                              data-testid="lesson-edit-student-select"
+                            >
+                              <option value="">Выбрать ученика</option>
+                              {activeStudents.map((s) => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                              ))}
+                            </select>
+                          </>
+                        )}
                       </>
                     )}
                   </div>
                 )}
                 <div className="grid grid-cols-1 @[22rem]:grid-cols-2 gap-4 min-w-0">
                   <div className="min-w-0">
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Дата</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Дата</label>
                     <input
                       type="date"
                       value={form.date}
                       onChange={(e) => set("date", e.target.value)}
-                      className="w-full min-w-0 px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
+                      className="w-full min-w-0 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
                     />
                   </div>
                   <div className="min-w-0">
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Время начала</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Время начала</label>
                     <input
                       type="time"
                       value={String(form.start_time || "").slice(0, 5)}
                       onChange={(e) => set("start_time", e.target.value)}
-                      className="w-full min-w-0 px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
+                      className="w-full min-w-0 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
                     />
                   </div>
                   <div className="min-w-0">
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Длительность (мин)</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Длительность (мин)</label>
                     <select
                       value={form.duration}
                       onChange={(e) => set("duration", +e.target.value)}
-                      className="w-full min-w-0 px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
+                      className="w-full min-w-0 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
                     >
                       {[30, 45, 60, 90, 120].map((d) => (
                         <option key={d} value={d}>{d} мин</option>
@@ -316,21 +449,21 @@ export default function LessonDetailModal({
                     </select>
                   </div>
                   <div className="min-w-0">
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Кабинет</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Кабинет</label>
                     <input
                       value={form.room || ""}
                       onChange={(e) => set("room", e.target.value)}
                       placeholder="Например, 204"
-                      className="w-full min-w-0 px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
+                      className="w-full min-w-0 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
                     />
                   </div>
                   {isAdmin && (
                     <div className="min-w-0">
-                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Статус</label>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">Статус</label>
                       <select
                         value={form.status}
                         onChange={(e) => set("status", e.target.value)}
-                        className="w-full min-w-0 px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
+                        className="w-full min-w-0 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
                       >
                         {Object.entries(STATUS_LABELS).map(([v, l]) => (
                           <option key={v} value={v}>{l}</option>
@@ -340,11 +473,11 @@ export default function LessonDetailModal({
                   )}
                   {isAdmin && (
                     <div className="min-w-0">
-                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Формат</label>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">Формат</label>
                       <select
                         value={form.lesson_format || "online"}
                         onChange={(e) => set("lesson_format", e.target.value)}
-                        className="w-full min-w-0 px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
+                        className="w-full min-w-0 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
                       >
                         <option value="online">Дистанционное</option>
                         <option value="offline">Очное</option>
@@ -353,21 +486,21 @@ export default function LessonDetailModal({
                   )}
                 </div>
                 <div className="min-w-0">
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Ссылка на онлайн-занятие</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Ссылка на онлайн-занятие</label>
                   <input
                     value={form.meeting_link || ""}
                     onChange={(e) => set("meeting_link", e.target.value)}
                     placeholder="Ссылка на Zoom, Google Meet или Teams"
-                    className="w-full min-w-0 px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
+                    className="w-full min-w-0 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
                   />
                 </div>
                 <div className="min-w-0">
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Комментарий</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Комментарий</label>
                   <textarea
                     value={form.notes || ""}
                     onChange={(e) => set("notes", e.target.value)}
                     rows={3}
-                    className="w-full min-w-0 px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40 resize-y"
+                    className="w-full min-w-0 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40 resize-y"
                   />
                 </div>
 
@@ -376,15 +509,15 @@ export default function LessonDetailModal({
                   className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
                     recurring
                       ? "border-brand/40 bg-brand-soft dark:bg-brand-soft/30"
-                      : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      : "border-border hover:bg-muted"
                   }`}
                 >
-                  <RefreshCw className={`w-4 h-4 ${recurring ? "text-brand" : "text-slate-400 dark:text-slate-500"}`} />
+                  <RefreshCw className={`w-4 h-4 ${recurring ? "text-brand" : "text-muted-foreground"}`} />
                   <div className="min-w-0">
-                    <p className={`text-xs font-semibold ${recurring ? "text-brand" : "text-slate-600 dark:text-slate-300"}`}>
+                    <p className={`text-xs font-semibold ${recurring ? "text-brand" : "text-muted-foreground"}`}>
                       Повторять каждую неделю
                     </p>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                    <p className="text-[10px] text-muted-foreground">
                       {wasInSeries
                         ? "Урок относится к еженедельной серии"
                         : "Создать еженедельную серию от этого урока"}
@@ -392,7 +525,7 @@ export default function LessonDetailModal({
                   </div>
                   <div
                     className={`ml-auto w-4 h-4 rounded border-2 flex items-center justify-center ${
-                      recurring ? "border-brand bg-brand" : "border-slate-300 dark:border-slate-600"
+                      recurring ? "border-brand bg-brand" : "border-border"
                     }`}
                   >
                     {recurring ? <span className="text-white text-[8px] font-bold">✓</span> : null}
@@ -401,7 +534,7 @@ export default function LessonDetailModal({
 
                 {recurring ? (
                   <div className="min-w-0">
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">
                       Дата окончания серии (необязательно)
                     </label>
                     <input
@@ -409,17 +542,17 @@ export default function LessonDetailModal({
                       value={recurrenceUntil}
                       min={form.date || undefined}
                       onChange={(e) => setRecurrenceUntil(e.target.value)}
-                      className="w-full min-w-0 px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
+                      className="w-full min-w-0 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
                     />
                   </div>
                 ) : null}
               </div>
             </div>
-            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 px-4 sm:px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex-shrink-0">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 px-4 sm:px-6 py-4 border-t border-border flex-shrink-0">
               <button
                 type="button"
                 onClick={() => setEditing(false)}
-                className={`${actionBtnBase} text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 sm:w-auto sm:min-w-[6.5rem]`}
+                className={`${actionBtnBase} text-muted-foreground hover:bg-muted sm:w-auto sm:min-w-[6.5rem]`}
               >
                 Отмена
               </button>
@@ -437,13 +570,33 @@ export default function LessonDetailModal({
 
         <RecurrenceApplyScopeDialog
           open={scopeDialogOpen}
+          mode={scopeDialogMode}
           value={applyScope}
           onChange={setApplyScope}
+          title={
+            scopeDialogMode === "status"
+              ? statusChangeDialogTitle(pendingPayload?.status)
+              : scopeDialogMode === "delete"
+                ? "Удалить занятие"
+                : undefined
+          }
+          confirmLabel={
+            scopeDialogMode === "delete"
+              ? "Удалить"
+              : scopeDialogMode === "status" && pendingPayload?.status === "cancelled"
+                ? "Отменить"
+                : "Применить"
+          }
           onCancel={() => {
             setScopeDialogOpen(false);
             setPendingPayload(null);
+            setPendingDelete(false);
           }}
           onConfirm={() => {
+            if (scopeDialogMode === "delete" || pendingDelete) {
+              void executeDelete(applyScope);
+              return;
+            }
             if (!pendingPayload) return;
             void submitUpdate(pendingPayload, applyScope);
           }}
@@ -456,7 +609,7 @@ export default function LessonDetailModal({
     <>
       <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
         <div className={`${shellClass} rounded-b-none sm:rounded-2xl mt-auto sm:mt-0`} role="dialog" aria-modal="true">
-          <div className="flex flex-wrap items-start justify-between gap-3 px-4 sm:px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex-shrink-0 min-w-0">
+          <div className="flex flex-wrap items-start justify-between gap-3 px-4 sm:px-5 py-4 border-b border-border flex-shrink-0 min-w-0">
             <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
               <span
                 className={`text-xs font-bold uppercase px-2.5 py-1 rounded-lg max-w-full break-words ${statusColors[lesson.status] || statusColors.planned}`}
@@ -473,22 +626,27 @@ export default function LessonDetailModal({
                 {FORMAT_LABELS[lesson.lesson_format] || "Дистанционное"}
               </span>
             </div>
-            <div className="flex gap-1 shrink-0 ml-auto">
-              {(isAdmin || (isTeacher && lesson.status === "planned")) && (
+            <div className="flex flex-wrap items-center gap-1.5 shrink-0 ml-auto">
+              {(isAdmin || (isTeacher && lesson.status === "planned") || isTutor) && (
                 <button
                   type="button"
                   onClick={openEditing}
-                  className="p-2 hover:bg-brand-soft hover:text-brand text-slate-400 dark:text-slate-500 rounded-lg"
-                  title="Перенести / изменить"
+                  data-testid="lesson-detail-edit"
+                  className="inline-flex items-center gap-1.5 min-h-9 px-3 py-1.5 text-sm font-medium rounded-lg bg-brand-soft text-brand hover:bg-brand-muted dark:bg-brand-soft/40"
+                  title="Изменить параметры урока"
                 >
                   <Edit2 className="w-4 h-4" />
+                  Изменить
                 </button>
               )}
-              {isAdmin && (
+              {isAdmin && typeof onDelete === "function" && (
                 <button
                   type="button"
-                  onClick={() => onDelete(lesson.id)}
-                  className="p-2 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/40 text-slate-400 dark:text-slate-500 rounded-lg"
+                  onClick={requestDelete}
+                  data-testid="lesson-detail-delete"
+                  disabled={deleting}
+                  className="p-2 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/40 text-muted-foreground rounded-lg disabled:opacity-40"
+                  title="Удалить урок"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -496,7 +654,8 @@ export default function LessonDetailModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-lg"
+                className="p-2 hover:bg-muted text-muted-foreground rounded-lg"
+                title="Закрыть"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -504,7 +663,7 @@ export default function LessonDetailModal({
           </div>
 
           <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 min-w-0 overscroll-contain">
-            <section className="grid grid-cols-1 gap-3 min-w-0 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40 p-3 sm:p-4">
+            <section className="grid grid-cols-1 gap-3 min-w-0 rounded-xl border border-border bg-muted/80 p-3 sm:p-4">
               <DetailField label="Дата" icon={Calendar}>
                 {lesson.date}
               </DetailField>
@@ -516,7 +675,7 @@ export default function LessonDetailModal({
               </DetailField>
             </section>
 
-            <section className="grid grid-cols-1 gap-3 min-w-0 rounded-xl border border-slate-100 dark:border-slate-800 p-3 sm:p-4">
+            <section className="grid grid-cols-1 gap-3 min-w-0 rounded-xl border border-border p-3 sm:p-4">
               <DetailField label="Преподаватель">
                 {resolveLessonTeacherLabel(lesson, teachers)}
               </DetailField>
@@ -530,7 +689,7 @@ export default function LessonDetailModal({
                     ))}
                   </ul>
                 ) : (
-                  <span className="text-slate-400 dark:text-slate-500 font-normal">—</span>
+                  <span className="text-muted-foreground font-normal">—</span>
                 )}
               </DetailField>
               {canChangeStudents ? (
@@ -567,9 +726,9 @@ export default function LessonDetailModal({
             ) : null}
 
             {lesson.notes ? (
-              <section className="min-w-0 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40 p-3 sm:p-4">
+              <section className="min-w-0 rounded-xl border border-border bg-muted/80 p-3 sm:p-4">
                 <DetailField label="Комментарий">
-                  <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] font-normal text-slate-700 dark:text-slate-200">
+                  <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] font-normal text-foreground">
                     {lesson.notes}
                   </p>
                 </DetailField>
@@ -589,7 +748,7 @@ export default function LessonDetailModal({
             ) : null}
 
             {showAttendance ? (
-              <section className="min-w-0 border-t border-slate-100 dark:border-slate-800 pt-4">
+              <section className="min-w-0 border-t border-border pt-4">
                 <LessonAttendancePanel
                   lessonId={lesson.id}
                   students={students}
@@ -601,7 +760,7 @@ export default function LessonDetailModal({
           </div>
 
           {canMarkAttendance ? (
-            <div className="flex flex-col gap-2 px-4 sm:px-5 py-4 border-t border-slate-100 dark:border-slate-800 flex-shrink-0 min-w-0">
+            <div className="flex flex-col gap-2 px-4 sm:px-5 py-4 border-t border-border flex-shrink-0 min-w-0">
               <div className="flex flex-col gap-2 @[26rem]:flex-row @[26rem]:flex-wrap">
                 <button
                   type="button"
@@ -622,7 +781,7 @@ export default function LessonDetailModal({
               </div>
               <button
                 type="button"
-                onClick={() => onUpdate(lesson.id, { status: "cancelled" })}
+                onClick={() => requestStatusChange("cancelled")}
                 className={`${actionBtnBase} bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-950/70`}
               >
                 <XCircle className="w-4 h-4 shrink-0" />
@@ -632,11 +791,11 @@ export default function LessonDetailModal({
           ) : null}
 
           {showAdminStatusActions ? (
-            <div className="flex flex-col gap-2 px-4 sm:px-5 py-4 border-t border-slate-100 dark:border-slate-800 flex-shrink-0 min-w-0">
+            <div className="flex flex-col gap-2 px-4 sm:px-5 py-4 border-t border-border flex-shrink-0 min-w-0">
               <div className="flex flex-col gap-2 @[26rem]:flex-row @[26rem]:flex-wrap">
                 <button
                   type="button"
-                  onClick={() => onUpdate(lesson.id, { status: "completed" })}
+                  onClick={() => requestStatusChange("completed")}
                   className={`${actionBtnBase} @[26rem]:flex-1 @[26rem]:min-w-[8.5rem] bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/70`}
                 >
                   <CheckCircle2 className="w-4 h-4 shrink-0" />
@@ -644,7 +803,7 @@ export default function LessonDetailModal({
                 </button>
                 <button
                   type="button"
-                  onClick={() => onUpdate(lesson.id, { status: "cancelled" })}
+                  onClick={() => requestStatusChange("cancelled")}
                   className={`${actionBtnBase} @[26rem]:flex-1 @[26rem]:min-w-[8.5rem] bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-950/70`}
                 >
                   <XCircle className="w-4 h-4 shrink-0" />
@@ -653,7 +812,7 @@ export default function LessonDetailModal({
                 {isGroupLesson ? (
                   <button
                     type="button"
-                    onClick={() => onUpdate(lesson.id, { status: "missed" })}
+                    onClick={() => requestStatusChange("missed")}
                     className={`${actionBtnBase} @[26rem]:flex-1 @[26rem]:min-w-[8.5rem] bg-orange-50 text-orange-600 hover:bg-orange-100 dark:bg-orange-950/40 dark:text-orange-400 dark:hover:bg-orange-950/70`}
                   >
                     <XCircle className="w-4 h-4 shrink-0" />
@@ -664,7 +823,7 @@ export default function LessonDetailModal({
               {isGroupLesson ? (
                 <button
                   type="button"
-                  onClick={() => onUpdate(lesson.id, { status: "missed_no_notice" })}
+                  onClick={() => requestStatusChange("missed_no_notice")}
                   className={`${actionBtnBase} bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900 dark:hover:bg-red-950/70`}
                 >
                   <XCircle className="w-4 h-4 shrink-0" />
@@ -675,6 +834,77 @@ export default function LessonDetailModal({
           ) : null}
         </div>
       </div>
+
+      <RecurrenceApplyScopeDialog
+        open={scopeDialogOpen}
+        mode={scopeDialogMode}
+        value={applyScope}
+        onChange={setApplyScope}
+        title={
+          scopeDialogMode === "status"
+            ? statusChangeDialogTitle(pendingPayload?.status)
+            : scopeDialogMode === "delete"
+              ? "Удалить занятие"
+              : undefined
+        }
+        confirmLabel={
+          scopeDialogMode === "delete"
+            ? "Удалить"
+            : scopeDialogMode === "status" && pendingPayload?.status === "cancelled"
+              ? "Отменить"
+              : "Применить"
+        }
+        onCancel={() => {
+          setScopeDialogOpen(false);
+          setPendingPayload(null);
+          setPendingDelete(false);
+        }}
+        onConfirm={() => {
+          if (scopeDialogMode === "delete" || pendingDelete) {
+            void executeDelete(applyScope);
+            return;
+          }
+          if (!pendingPayload) return;
+          void submitUpdate(pendingPayload, applyScope);
+        }}
+      />
+
+      <AlertDialog
+        open={confirmDeleteOpen}
+        onOpenChange={(open) => !deleting && !open && setConfirmDeleteOpen(false)}
+      >
+        <AlertDialogContent className="max-w-[min(100%,24rem)] mx-4">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="break-words [overflow-wrap:anywhere]">
+              Удалить занятие?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Это действие нельзя отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2">
+            <AlertDialogCancel disabled={deleting} className="w-full sm:w-auto">
+              Отмена
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              onClick={(e) => {
+                e.preventDefault();
+                void executeDelete("this");
+              }}
+              className="w-full sm:w-auto bg-red-600 hover:bg-red-700"
+            >
+              {deleting ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Удаление…
+                </span>
+              ) : (
+                "Удалить"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog
         open={Boolean(confirmAttendance)}

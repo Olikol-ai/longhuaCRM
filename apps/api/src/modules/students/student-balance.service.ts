@@ -9,12 +9,16 @@ import { StudentEntity } from './entities/student.entity';
 const BALANCE_DEDUCT_STATUSES = new Set(['completed', 'missed_no_notice']);
 
 /**
- * Lesson participants for balance (SSOT):
+ * School Student lesson balance (SSOT for CRM payments / school lessons / teacher-linked pupils).
+ *
+ * Lesson participants for balance:
  * - individual → lesson.primaryStudentId
  * - group → group_members (LessonStudent sync target)
  *
  * attendance_records are used only as the idempotency lock (balance_deducted),
  * never as the source of which students to charge.
+ *
+ * Teacher notebook contacts do not store academic balance — only this table does.
  */
 @Injectable()
 export class StudentBalanceService {
@@ -77,7 +81,7 @@ export class StudentBalanceService {
           continue;
         }
 
-        student.lessonBalance = Math.max(0, (student.lessonBalance ?? 0) - 1);
+        student.lessonBalance = (student.lessonBalance ?? 0) - 1;
         await studentRepo.save(student);
       }
     };

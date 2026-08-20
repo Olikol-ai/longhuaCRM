@@ -2,17 +2,21 @@ import React, { useState, useEffect, useRef } from "react";
 import { api } from '@/api';
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { Calendar, BookOpen, GraduationCap, Video, Clock, Loader2, Plus, ChevronDown, ChevronUp, List, Sun, Moon } from "lucide-react";
+import { Calendar, BookOpen, GraduationCap, Video, Clock, Loader2, Plus, ChevronDown, ChevronUp, List } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, EmptyState } from "@/design-system";
 import StatCard from "@/components/dashboard/StatCard";
 import TopUpModal from "@/components/student/TopUpModal";
 import { useAuth } from "@/lib/AuthContext";
 import { formatWelcomeGreeting, getGreetingName } from "@/lib/display-name";
-import { useTheme } from "@/lib/ThemeContext";
 import { resolveAssignedTeacherLabel, resolveLessonTeacherLabel } from "@/lib/teacherLabels";
 import { isOnlineLesson, lessonVideoPath } from "@/lib/lesson-video";
+import { getLessonBalance, lessonBalanceStatColor } from "@/lib/lessonBalance";
+import LessonBalanceDisplay from "@/components/students/LessonBalanceDisplay";
+import { OfflineSnapshotBanner } from "@/components/pwa/OfflineSnapshotBanner";
+import { OFFLINE_RESOURCES, putSnapshot, readWithOfflineFallback } from "@/lib/offline";
+import { offlineStaleCaption } from "@/lib/offline/formatUpdatedAt";
 
 const STATUS_LABELS = {
   planned: "Запланировано",
@@ -41,7 +45,7 @@ export default function StudentDashboard() {
   const [upcomingExpanded, setUpcomingExpanded] = useState(true);
   const [viewMode, setViewMode] = useState("list"); // "list" | "calendar"
   const [sortAsc, setSortAsc] = useState(true);
-  const { theme, toggleTheme } = useTheme();
+  const [offlineMeta, setOfflineMeta] = useState({ fromCache: false, updatedAt: null, missing: false });
   const refreshedSessionRef = useRef(false);
 
   useEffect(() => {
@@ -63,27 +67,65 @@ export default function StudentDashboard() {
 
   const loadData = async () => {
     if (!user) return;
-    const [myStudents, allLessons, allTeachers] = await Promise.all([
-      api.students.filter({ user_id: user.id }),
-      api.lessons.list("-date", 200),
-      api.teachers.list(),
-    ]);
-    const s = myStudents[0] || null;
-    setStudent(s);
-    setTeachers(allTeachers);
-    if (s) {
-      setLessons(allLessons.filter((l) =>
-        l.primary_student_id === s.id ||
-        l.student_id === s.id ||
-        (l.student_ids || []).includes(s.id)
-      ));
-      if (s.assigned_teacher) {
-        setTeacher(allTeachers.find((t) => t.id === s.assigned_teacher));
-      } else {
-        setTeacher(null);
+    try {
+      const result = await readWithOfflineFallback({
+        userId: user.id,
+        role: user.role || 'student',
+        resource: OFFLINE_RESOURCES.SCHEDULE,
+        resourceKey: 'student_dashboard',
+        fetcher: async () => {
+          const [myStudents, allLessons, allTeachers] = await Promise.all([
+            api.students.filter({ user_id: user.id }),
+            api.lessons.list("-date", 200),
+            api.teachers.list(),
+          ]);
+          const s = myStudents[0] || null;
+          const filtered = s
+            ? allLessons.filter((l) =>
+                l.primary_student_id === s.id ||
+                l.student_id === s.id ||
+                (l.student_ids || []).includes(s.id)
+              )
+            : [];
+          return {
+            student: s,
+            lessons: filtered,
+            teachers: allTeachers,
+            teacher: s?.assigned_teacher
+              ? allTeachers.find((t) => t.id === s.assigned_teacher) || null
+              : null,
+          };
+        },
+      });
+      setOfflineMeta({
+        fromCache: result.fromCache,
+        updatedAt: result.updatedAt,
+        missing: result.missing,
+      });
+      const payload = result.data || {};
+      setStudent(payload.student || null);
+      setLessons(payload.lessons || []);
+      setTeachers(payload.teachers || []);
+      setTeacher(payload.teacher || null);
+      if (payload.student) {
+        await putSnapshot({
+          userId: user.id,
+          role: user.role || 'student',
+          resource: OFFLINE_RESOURCES.BALANCE,
+          resourceKey: 'lesson_balance',
+          data: {
+            lesson_balance: getLessonBalance(payload.student),
+            student_id: payload.student.id,
+          },
+        });
       }
+    } catch {
+      setStudent(null);
+      setLessons([]);
+      setOfflineMeta({ fromCache: false, updatedAt: null, missing: true });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   if (loading || isLoadingAuth) {
@@ -97,8 +139,8 @@ export default function StudentDashboard() {
   if (!student) {
     return (
       <div className="p-4 sm:p-6 lg:p-8 text-center py-20">
-        <p className="text-slate-500 dark:text-slate-400">Профиль ученика не найден для вашего аккаунта.</p>
-        <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">Обратитесь к администратору.</p>
+        <p className="text-muted-foreground">Профиль ученика не найден для вашего аккаунта.</p>
+        <p className="text-xs text-muted-foreground mt-2">Обратитесь к администратору.</p>
       </div>
     );
   }
@@ -125,43 +167,52 @@ export default function StudentDashboard() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
+      <OfflineSnapshotBanner
+        fromCache={offlineMeta.fromCache}
+        updatedAt={offlineMeta.updatedAt}
+        missing={offlineMeta.missing}
+        emptyLabel="Данные пока недоступны без подключения"
+        className="mb-4"
+      />
       {/* Header */}
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+          <h1 className="text-2xl font-bold text-foreground">
             {formatWelcomeGreeting(
               getGreetingName(student) ? student : getGreetingName(user) ? user : null,
-            )}{' '}
-            👋
+            )}
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             {format(new Date(), "EEEE, d MMMM yyyy", { locale: ru })}
           </p>
+          {offlineMeta.fromCache && offlineMeta.updatedAt ? (
+            <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+              Баланс: {offlineStaleCaption(offlineMeta.updatedAt)}
+            </p>
+          ) : null}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <button onClick={toggleTheme}
-            className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-            title="Сменить тему">
-            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </button>
-          <button
-            onClick={() => setShowTopUp(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
-          >
+          <Button intent="primary" onClick={() => setShowTopUp(true)}>
             <Plus className="h-4 w-4" />
             Пополнить баланс
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <StatCard
-          title="Баланс уроков"
-          value={student.lesson_balance || 0}
-          icon={BookOpen}
-          color={(student.lesson_balance || 0) <= 2 ? "rose" : "emerald"}
-        />
+        {(() => {
+          const balance = getLessonBalance(student);
+          return (
+            <StatCard
+              title="Баланс уроков"
+              value={<LessonBalanceDisplay balance={balance} />}
+              icon={BookOpen}
+              color={lessonBalanceStatColor(balance)}
+              subtitle={balance < 0 ? "Задолженность перед школой" : undefined}
+            />
+          );
+        })()}
         <StatCard title="Предстоящие уроки" value={upcoming.length} icon={Calendar} color="brand" />
         <StatCard title="Завершённые уроки" value={completedCount} icon={Clock} color="muted" />
       </div>
@@ -172,12 +223,12 @@ export default function StudentDashboard() {
           <GraduationCap className="h-6 w-6 text-amber-600 dark:text-amber-400" />
         </div>
         <div>
-          <p className="text-xs text-slate-400 dark:text-slate-500">Ваш преподаватель</p>
-          <p className="text-lg font-semibold text-slate-900 dark:text-white">
+          <p className="text-xs text-muted-foreground">Ваш преподаватель</p>
+          <p className="text-lg font-semibold text-foreground">
             {resolveAssignedTeacherLabel(student.assigned_teacher, teachers)}
           </p>
           {teacher?.specializations && (
-            <p className="text-xs text-slate-500 dark:text-slate-400">{teacher.specializations}</p>
+            <p className="text-xs text-muted-foreground">{teacher.specializations}</p>
           )}
         </div>
       </Card>
@@ -189,11 +240,11 @@ export default function StudentDashboard() {
             className="flex items-center gap-2 group"
             onClick={() => setUpcomingExpanded((v) => !v)}
           >
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Предстоящие уроки</h2>
+            <h2 className="text-lg font-semibold text-foreground">Предстоящие уроки</h2>
             {upcomingExpanded ? (
-              <ChevronUp className="h-4 w-4 text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-400" />
+              <ChevronUp className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
             ) : (
-              <ChevronDown className="h-4 w-4 text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-400" />
+              <ChevronDown className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
             )}
           </button>
 
@@ -209,16 +260,22 @@ export default function StudentDashboard() {
                 {sortAsc ? "↑ Сначала ближайшие" : "↓ Сначала дальние"}
               </Button>
               {/* View toggle */}
-              <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+              <div className="flex gap-1 bg-muted rounded-lg p-1" role="group" aria-label="Вид списка">
                 <button
+                  type="button"
                   onClick={() => setViewMode("list")}
-                  className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-white dark:bg-slate-900 shadow-sm text-brand dark:text-brand" : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400"}`}
+                  aria-pressed={viewMode === "list"}
+                  aria-label="Список"
+                  className={`min-h-touch min-w-touch inline-flex items-center justify-center rounded-md transition-colors ${viewMode === "list" ? "bg-card shadow-sm text-brand" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   <List className="h-3.5 w-3.5" />
                 </button>
                 <button
+                  type="button"
                   onClick={() => setViewMode("calendar")}
-                  className={`p-1.5 rounded-md transition-colors ${viewMode === "calendar" ? "bg-white dark:bg-slate-900 shadow-sm text-brand dark:text-brand" : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400"}`}
+                  aria-pressed={viewMode === "calendar"}
+                  aria-label="Календарь"
+                  className={`min-h-touch min-w-touch inline-flex items-center justify-center rounded-md transition-colors ${viewMode === "calendar" ? "bg-card shadow-sm text-brand" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   <Calendar className="h-3.5 w-3.5" />
                 </button>
@@ -230,9 +287,8 @@ export default function StudentDashboard() {
         {upcomingExpanded && (
           <>
             {upcoming.length === 0 ? (
-              <Card className="p-8 text-center border-dashed">
-                <Calendar className="h-8 w-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                <p className="text-sm text-slate-500 dark:text-slate-400">Предстоящих уроков нет</p>
+              <Card className="border-dashed">
+                <EmptyState preset="lessons" title="Предстоящих уроков нет" icon={Calendar} />
               </Card>
             ) : viewMode === "list" ? (
               <div className="space-y-3">
@@ -252,16 +308,16 @@ export default function StudentDashboard() {
                           </p>
                         </div>
                         <div>
-                          <p className="font-semibold text-slate-900 dark:text-white">{lesson.start_time}</p>
-                          <p className="text-sm text-slate-600 dark:text-slate-400">{resolveLessonTeacherLabel(lesson, teachers)}</p>
-                          <p className="text-xs text-slate-400 dark:text-slate-500">{lesson.duration || 60} мин</p>
-                          {lesson.notes && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{lesson.notes}</p>}
+                          <p className="font-semibold text-foreground">{lesson.start_time}</p>
+                          <p className="text-sm text-muted-foreground">{resolveLessonTeacherLabel(lesson, teachers)}</p>
+                          <p className="text-xs text-muted-foreground">{lesson.duration || 60} мин</p>
+                          {lesson.notes && <p className="text-xs text-muted-foreground mt-1">{lesson.notes}</p>}
                         </div>
                       </div>
                       {isOnlineLesson(lesson) && (
                         <a
                           href={lessonVideoPath(lesson.id)}
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-brand-soft dark:bg-brand-soft/40 text-brand dark:text-brand rounded-xl text-sm font-medium hover:bg-brand-muted dark:hover:bg-brand-soft/60 transition-colors shrink-0"
+                          className="inline-flex min-h-touch items-center gap-2 px-4 py-2 bg-brand-soft dark:bg-brand-soft/40 text-brand rounded-xl text-sm font-medium hover:bg-brand-muted dark:hover:bg-brand-soft/60 transition-colors shrink-0"
                         >
                           <Video className="h-4 w-4" />
                           Войти в видеоурок
@@ -280,21 +336,21 @@ export default function StudentDashboard() {
                       <div className="h-8 w-8 rounded-full bg-brand flex items-center justify-center text-white text-xs font-bold">
                         {format(new Date(dateStr), "d")}
                       </div>
-                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 capitalize">
+                      <p className="text-sm font-semibold text-foreground capitalize">
                         {format(new Date(dateStr), "EEEE, d MMMM", { locale: ru })}
                       </p>
-                      <div className="flex-1 h-px bg-slate-100 dark:bg-slate-800" />
+                      <div className="flex-1 h-px bg-muted" />
                     </div>
                     <div className="ml-11 space-y-2">
                       {dayLessons.map((lesson) => (
-                        <div key={lesson.id} className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-brand/30 hover:shadow-sm transition-all">
+                        <div key={lesson.id} className="flex items-center gap-3 p-3 bg-card rounded-xl border border-border hover:border-brand/30 hover:shadow-sm transition-all">
                           <div className="w-14 text-center">
-                            <p className="text-sm font-bold text-slate-900 dark:text-white">{lesson.start_time}</p>
-                            <p className="text-[10px] text-slate-400 dark:text-slate-500">{lesson.duration || 60} мин</p>
+                            <p className="text-sm font-bold text-foreground">{lesson.start_time}</p>
+                            <p className="text-[10px] text-muted-foreground">{lesson.duration || 60} мин</p>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{resolveLessonTeacherLabel(lesson, teachers)}</p>
-                            {lesson.notes && <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{lesson.notes}</p>}
+                            <p className="text-sm font-medium text-foreground">{resolveLessonTeacherLabel(lesson, teachers)}</p>
+                            {lesson.notes && <p className="text-xs text-muted-foreground truncate">{lesson.notes}</p>}
                           </div>
                           {isOnlineLesson(lesson) && (
                             <a
@@ -316,7 +372,7 @@ export default function StudentDashboard() {
       </div>
 
       {/* Lesson History */}
-      <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">История уроков</h2>
+      <h2 className="text-lg font-semibold text-foreground mb-4">История уроков</h2>
       <div className="space-y-2">
         {lessons
           .filter((l) => l.status === "completed" || l.status === "cancelled" || l.status === "missed")
@@ -325,20 +381,20 @@ export default function StudentDashboard() {
           .map((lesson) => (
             <div
               key={lesson.id}
-              className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/70 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
+              className="flex items-center justify-between p-3 bg-card rounded-xl border border-border hover:border-border transition-colors"
             >
               <div className="flex items-center gap-3">
                 <div className={`h-2 w-2 rounded-full ${lesson.status === "completed" ? "bg-emerald-500" : lesson.status === "missed" ? "bg-orange-400" : "bg-red-400"}`} />
                 <div>
-                  <p className="text-sm font-medium text-slate-900 dark:text-white">
+                  <p className="text-sm font-medium text-foreground">
                     {format(new Date(lesson.date), "d MMMM yyyy", { locale: ru })} · {lesson.start_time}
                   </p>
-                  <p className="text-xs text-slate-400 dark:text-slate-500">{resolveLessonTeacherLabel(lesson, teachers)}</p>
+                  <p className="text-xs text-muted-foreground">{resolveLessonTeacherLabel(lesson, teachers)}</p>
                 </div>
               </div>
               <Badge
                 variant="outline"
-                className={STATUS_COLORS[lesson.status] || "bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400"}
+                className={STATUS_COLORS[lesson.status] || "bg-muted text-muted-foreground"}
               >
                 {STATUS_LABELS[lesson.status] || 'Статус неизвестен'}
               </Badge>

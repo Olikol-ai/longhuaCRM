@@ -18,6 +18,12 @@ export class UpdateExamDto {
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @ValidateIf((_, value) => value !== null && value !== undefined)
+  @IsString()
+  description?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null && value !== undefined)
   @IsDateString()
   available_from?: string | null;
 

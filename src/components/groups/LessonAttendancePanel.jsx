@@ -80,18 +80,18 @@ export default function LessonAttendancePanel({
   return (
     <div className={`space-y-2 ${compact ? "" : "mt-2"}`}>
       {!compact && (
-        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Посещаемость</p>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Посещаемость</p>
       )}
       {rows.map((row) => (
         <div
           key={row.id}
-          className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-3 py-2.5 min-w-0"
+          className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-border bg-muted px-3 py-2.5 min-w-0"
         >
           <div className="min-w-0 flex-1 basis-[10rem]">
-            <p className="text-sm font-medium text-slate-800 dark:text-slate-100 break-words [overflow-wrap:anywhere]">
+            <p className="text-sm font-medium text-foreground break-words [overflow-wrap:anywhere]">
               {row.student_name ?? row.studentName ?? "—"}
             </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 break-words">
+            <p className="text-xs text-muted-foreground break-words">
               {!isGroupLesson && row.attendance_status === "attended"
                 ? null
                 : STATUS_LABELS[row.attendance_status] || row.attendance_status}
@@ -102,7 +102,7 @@ export default function LessonAttendancePanel({
               <button
                 type="button"
                 onClick={() => mark(row.id, "present")}
-                className="inline-flex min-h-8 min-w-8 items-center justify-center gap-1 rounded-md border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 px-2 py-1 text-[11px] text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                className="inline-flex min-h-8 min-w-8 items-center justify-center gap-1 rounded-md border border-emerald-200 dark:border-emerald-800 bg-card px-2 py-1 text-[11px] text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
                 title="Присутствовал"
               >
                 <Check className="h-3 w-3" />
@@ -110,7 +110,7 @@ export default function LessonAttendancePanel({
               <button
                 type="button"
                 onClick={() => mark(row.id, "absent")}
-                className="inline-flex min-h-8 min-w-8 items-center justify-center gap-1 rounded-md border border-red-200 dark:border-red-800 bg-white dark:bg-slate-900 px-2 py-1 text-[11px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
+                className="inline-flex min-h-8 min-w-8 items-center justify-center gap-1 rounded-md border border-red-200 dark:border-red-800 bg-card px-2 py-1 text-[11px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
                 title="Отсутствовал"
               >
                 <X className="h-3 w-3" />
@@ -118,7 +118,7 @@ export default function LessonAttendancePanel({
               <button
                 type="button"
                 onClick={() => mark(row.id, "excused")}
-                className="inline-flex min-h-8 min-w-8 items-center justify-center gap-1 rounded-md border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900 px-2 py-1 text-[11px] text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                className="inline-flex min-h-8 min-w-8 items-center justify-center gap-1 rounded-md border border-amber-200 dark:border-amber-800 bg-card px-2 py-1 text-[11px] text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40"
                 title="Уважительная причина"
               >
                 <AlertTriangle className="h-3 w-3" />
@@ -127,12 +127,12 @@ export default function LessonAttendancePanel({
           ) : (
             !isGroupLesson ? (
               row.attendance_status === "attended" ? (
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 shrink-0">
+                <p className="text-[11px] text-muted-foreground shrink-0">
                   ✓ Присутствовал
                 </p>
               ) : null
             ) : (
-              <p className="text-[11px] text-slate-400 dark:text-slate-500 shrink-0">Зафиксировано</p>
+              <p className="text-[11px] text-muted-foreground shrink-0">Зафиксировано</p>
             )
           )}
         </div>

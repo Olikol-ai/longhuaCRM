@@ -1,176 +1,132 @@
 # Deployment
 
-Production-развёртывание LonghuaCRM: один контейнер приложения + PostgreSQL.
+Canonical path on this host (`/opt/longhuaCRM`): **bare metal + `./deploy.sh`** for updates, **`systemd` + `screen` + `npm run dev`** for runtime/autostart.
 
-## Вариант A: Docker Compose (рекомендуется)
+`docker-compose.prod.yml` is the packaged alternative for a greenfield Docker VM. Do not run both against the same PostgreSQL data. Do **not** put PostgreSQL into Docker on this host.
 
-### 1. Подготовка сервера
+## Runtime vs deploy
 
-- Linux VM с Docker и Docker Compose
-- Домен с DNS на сервер
-- SSL через reverse proxy (nginx / Caddy / Traefik)
+| Concern | Command | Runs on reboot? |
+|---------|---------|-----------------|
+| **Deploy** (pull, backup, migrate, build, restart) | `./deploy.sh` | No |
+| **Runtime / autostart** | `systemd` `longhua.service` → `screen -S longhua` → `npm run dev` | Yes |
 
-### 2. Конфигурация
+### What `npm run dev` starts
 
-```bash
-cp .env.example .env
-```
-
-Обязательно задать:
-
-```env
-NODE_ENV=production
-JWT_SECRET=<long-random-secret>
-ADMIN_PASSWORD=<strong-password>
-APP_PUBLIC_URL=https://crm.example.com
-CORS_ORIGINS=https://crm.example.com
-DATABASE_URL=postgresql://...   # или через compose vars
-TRUST_PROXY=true
-MAIL_HOST=...
-TELEGRAM_WEBHOOK_URL=https://crm.example.com/api/webhooks/telegram
-TELEGRAM_WEBHOOK_SECRET=<secret>
-```
-
-### 3. Сборка и запуск
+Canonical launcher in `package.json`:
 
 ```bash
-docker compose -f docker-compose.prod.yml up -d --build
+concurrently "npm run dev:server" "npm run dev:client" "npm run tunnel"
 ```
 
-Контейнер `longhua-app` слушает порт 3001. Nginx проксирует 443 → 3001.
+- **backend** — Nest (`start:dev`) after migrations  
+- **frontend** — Vite on `:5173` (proxies `/api` → `:3001`)  
+- **tunnel** — `scripts/run-cloudflare-tunnel.sh` → existing `cloudflared tunnel run --token …`
 
-### 4. Миграции
+Do not start a second backend, Vite, or tunnel outside this launcher.
 
-Миграции применяются **автоматически при старте API** (`migrationsRun: true` в `app.module.ts`), если не задан `E2E_SYNC_SCHEMA=true`.
+`NODE_ENV` comes from `.env` (not forced to `production`). Secrets are not rewritten by autostart.
 
-Дополнительно перед первым деплоем (рекомендуется):
+### Install / refresh autostart
 
 ```bash
-npm run migration:run
+cd /opt/longhuaCRM
+sudo ./scripts/install-longhua-systemd.sh
 ```
 
-Или внутри контейнера:
+Useful commands:
 
 ```bash
-docker exec longhua-app npm run migration:run --prefix apps/api
+systemctl status longhua
+journalctl -u longhua -f
+screen -ls
+screen -r longhua
+curl -fsS http://127.0.0.1:3001/api/health/live
+curl -fsS http://127.0.0.1:3001/api/health/ready
 ```
 
-При обновлении версии: backup БД → deploy → проверить логи на успешный migration run.
+### Power-loss recovery (BIOS + Ubuntu)
 
-### 5. Health checks
+Linux **cannot** power on a machine that is fully off. For “lights restored → PC boots → Longhua up”:
 
-- Liveness: `GET /api/health/live`
-- Readiness: `GET /api/health/ready`
+1. In **BIOS/UEFI**, set **Restore AC Power Loss = Power On** (names vary: *AC Power Recovery*, *After Power Loss*, *Restore on AC/Power Loss*).
+2. Ubuntu boots.
+3. `systemd` starts `longhua.service`.
+4. Screen `longhua` runs `npm run dev`.
 
-Настроить в load balancer / k8s probes.
+Without the BIOS setting, Ubuntu (and Longhua) stay off until someone presses the power button.
 
-## Обновление сервера (bare metal + screen)
+## Canonical: `./deploy.sh`
 
-Для стенда `/opt/longhuaCRM` на ветке `refactor/nestjs` используйте корневой скрипт:
+Order:
+
+1. Preflight (directory, branch, dirty tree)
+2. `systemctl stop longhua` (if installed) + stop screen / Longhua processes
+3. `git pull`
+4. `npm install`
+5. **Backup** (`scripts/backup-db.sh`, `BACKUP_REQUIRED=1` by default)
+6. **Migration**
+7. **Build** API + client
+8. `systemctl start longhua` → `npm run dev` in screen `longhua`
+9. Health **live** then **ready**
 
 ```bash
 cd /opt/longhuaCRM
 ./deploy.sh
 ```
 
-Что делает `deploy.sh`:
-
-1. Проверяет каталог и ветку `refactor/nestjs`
-2. Останавливает только процессы LongHuaCRM (не трогает RocketChat / WeKan)
-3. `git fetch` + `git pull` (при локальных изменениях — стоп)
-4. `npm install` (root + `apps/api`)
-5. `npm run migration:run --prefix apps/api`
-6. `npm run build:api` и `npm run build:client`
-7. Запуск `npm run dev` в `screen -S longhua` (без дублей сессии)
-8. Проверка порта `3001` и `GET /api/health/live`
-9. Лог в `logs/deploy.log`
-
-Dry-run (без изменений):
+Dry-run:
 
 ```bash
-CRM_DIR="$(pwd)" ./deploy.sh --dry-run
+./deploy.sh --dry-run
 ```
 
-Переменные: `CRM_DIR`, `BRANCH`, `SCREEN_NAME`, `API_PORT`, `HEALTH_URL` (см. `.env.example`).
+Environment:
 
-## Вариант B: Bare metal / PM2
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `BACKUP_REQUIRED` | `1` | Abort if backup cannot run |
+| `SKIP_PRE_MIGRATION_BACKUP` | unset | Emergency only; incompatible with `BACKUP_REQUIRED=1` |
+| `HEALTH_LIVE_URL` | `http://127.0.0.1:3001/api/health/live` | Liveness |
+| `HEALTH_URL` | `http://127.0.0.1:3001/api/health/ready` | Readiness (DB) |
+
+## Restore
+
+Custom-format dump from `scripts/backup-db.sh`:
 
 ```bash
-npm ci
-cd apps/api && npm ci && cd ../..
-npm run build
-npm run migration:run
-NODE_ENV=production node apps/api/dist/main.js
+./scripts/restore-db.sh backups/pre-deploy/longhua-YYYYMMDD-HHMMSS.dump
 ```
 
-Frontend собирается в `dist/`, API раздаёт его при `SERVE_FRONTEND=true`.
-
-PM2 example:
+Gzipped SQL dump from `scripts/postgres-backup.sh` (Docker postgres): restore into a **temporary** database first:
 
 ```bash
-pm2 start apps/api/dist/main.js --name longhua-api
-pm2 save
+./scripts/postgres-restore-test.sh /mnt/storage/backups/postgres/longhua_backup_....sql.gz
 ```
 
-## Reverse proxy (nginx)
+`--clean` overwrite of production: only after a fresh backup. See `scripts/restore-db.sh`.
 
-```nginx
-server {
-  listen 443 ssl;
-  server_name crm.example.com;
-
-  location / {
-    proxy_pass http://127.0.0.1:3001;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
-}
-```
-
-Установить `TRUST_PROXY=true` в `.env`.
-
-## PostgreSQL
-
-- Dev: `docker-compose.yml`
-- Production: managed PostgreSQL (RDS, Supabase, etc.) или контейнер из `docker-compose.prod.yml`
-- Регулярный backup: cron + `scripts/backup-db.sh`
+## Daily backup
 
 ```cron
-0 3 * * * cd /opt/longhua && ./scripts/backup-db.sh --docker
+0 3 * * * /opt/longhuaCRM/scripts/postgres-backup.sh
 ```
 
-## Восстановление БД
+or, if postgres is not in Docker:
+
+```cron
+0 3 * * * cd /opt/longhuaCRM && ./scripts/backup-db.sh
+```
+
+Retention: `postgres-backup.sh` keeps 30 verified dumps.
+
+## Alternative: Docker Compose (new VM only)
+
+Required env (no defaults): `JWT_SECRET`, `POSTGRES_PASSWORD`, `APP_PUBLIC_URL`, `ADMIN_EMAIL`.
 
 ```bash
-./scripts/restore-db.sh --docker backups/longhua-YYYYMMDD.dump
+cp .env.example .env
+docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-**Внимание:** `--clean` удаляет существующие объекты. Делать только на staging или после полного backup.
-
-## Файлы uploads
-
-Volume `uploads_data` в docker-compose.prod. При bare metal — persistent directory `uploads/`.
-
-## Rollback деплоя
-
-1. Остановить app: `docker compose -f docker-compose.prod.yml down`
-2. Checkout предыдущего git tag/commit
-3. Rebuild и up
-4. При необходимости: `migration:revert` (если новая миграция несовместима) или restore DB
-
-## SSL
-
-Терминация SSL на reverse proxy. API работает по HTTP внутри private network.
-
-## Мониторинг
-
-- Health endpoints для uptime
-- Логи: `docker logs longhua-app -f`
-- PostgreSQL metrics (connections, slow queries)
-
-## Выпуск новой версии
-
-См. [Release-Checklist.md](./Release-Checklist.md).
+Do not use this compose stack on the current bare-metal host alongside the existing PostgreSQL.

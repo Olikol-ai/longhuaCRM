@@ -35,6 +35,17 @@ describe('material file open integrity', () => {
     assert.match(app, /StorageModule/);
   });
 
+  it('does not sign or proxy external Canva/http material URLs', () => {
+    const service = read('apps/api/src/modules/files/secure-files.service.ts');
+    const util = read('apps/api/src/modules/files/material-open-url.util.ts');
+    assert.match(util, /external-canva/);
+    assert.match(util, /isExternalMaterialUrl/);
+    assert.match(service, /classifyMaterialFileUrl/);
+    assert.match(service, /external-canva/);
+    assert.match(service, /isExternalMaterialUrl/);
+    assert.doesNotMatch(service, /\/api\/canva/);
+  });
+
   it('uses shared uploads-root without cwd fallbacks', () => {
     const uploads = read('apps/api/src/common/storage/uploads-root.ts');
     assert.match(uploads, /UPLOADS_DIR/);

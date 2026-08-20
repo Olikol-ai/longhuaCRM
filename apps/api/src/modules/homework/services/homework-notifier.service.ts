@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
+import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
+import { NotificationDeliveryService } from '../../notifications/notification-delivery.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { TelegramService } from '../../telegram/telegram.service';
 import { UserEntity } from '../../users/entities/user.entity';
@@ -20,6 +22,7 @@ export class HomeworkNotifierService {
 
   constructor(
     private readonly notifications: NotificationsService,
+    private readonly delivery: NotificationDeliveryService,
     private readonly telegram: TelegramService,
     private readonly config: ConfigService,
     @InjectRepository(UserEntity)
@@ -70,16 +73,18 @@ export class HomeworkNotifierService {
       const title = 'Новое домашнее задание';
       const body = `Вам назначено домашнее задание «${homework.title}».`;
       const link = `${this.appBaseUrl()}/HomeworkViewer?assignmentId=${assignment.id}`;
+      const eventId = randomUUID();
 
-      await this.notifications.create({
-        userId: learner.userId,
-        channel: 'in_app',
-        type: 'homework_assigned',
+      await this.delivery.fanoutToRecipient({
+        eventId,
+        eventType: 'homework.assigned',
+        recipientId: learner.userId,
         title,
         body,
-        status: 'sent',
         referenceType: 'homework_assignment',
         referenceId: assignment.id,
+        payload: { assignmentId: assignment.id },
+        channels: ['in_app', 'web_push'],
       });
 
       const user = await this.users.findOne({ where: { id: learner.userId } });
@@ -88,6 +93,17 @@ export class HomeworkNotifierService {
           user.telegramId,
           `${title}\n\n${body}\n\nОткрыть: ${link}`,
         );
+        await this.notifications.create({
+          userId: learner.userId,
+          channel: 'telegram',
+          type: 'homework_assigned',
+          title,
+          body,
+          status: 'sent',
+          referenceType: 'homework_assignment',
+          referenceId: assignment.id,
+          eventId,
+        });
       }
     } catch (err) {
       this.logger.warn(
@@ -108,16 +124,18 @@ export class HomeworkNotifierService {
       const title = 'Домашнее задание выполнено';
       const body = `Ученик ${studentName} выполнил домашнее задание «${homework.title}».`;
       const link = `${this.appBaseUrl()}/HomeworkResults?assignmentId=${assignment.id}`;
+      const eventId = randomUUID();
 
-      await this.notifications.create({
-        userId: teacherUserId,
-        channel: 'in_app',
-        type: 'homework_submitted',
+      await this.delivery.fanoutToRecipient({
+        eventId,
+        eventType: 'homework.submitted',
+        recipientId: teacherUserId,
         title,
-        body: `${body} Результат: ${result.percent}%`,
-        status: 'sent',
+        body,
         referenceType: 'homework_assignment',
         referenceId: assignment.id,
+        payload: { assignmentId: assignment.id },
+        channels: ['in_app', 'web_push'],
       });
 
       const user = await this.users.findOne({ where: { id: teacherUserId } });
@@ -126,6 +144,17 @@ export class HomeworkNotifierService {
           user.telegramId,
           `${title}\n\n${body}\nБаллы: ${result.score}/${result.maxScore} (${result.percent}%)\n\nОткрыть: ${link}`,
         );
+        await this.notifications.create({
+          userId: teacherUserId,
+          channel: 'telegram',
+          type: 'homework_submitted',
+          title,
+          body,
+          status: 'sent',
+          referenceType: 'homework_assignment',
+          referenceId: assignment.id,
+          eventId,
+        });
       }
     } catch (err) {
       this.logger.warn(
@@ -145,16 +174,18 @@ export class HomeworkNotifierService {
       const title = 'Домашнее задание проверено';
       const body = `Домашнее задание «${homework.title}» проверено. Результат: ${result.percent}%.`;
       const link = `${this.appBaseUrl()}/HomeworkViewer?assignmentId=${assignment.id}`;
+      const eventId = randomUUID();
 
-      await this.notifications.create({
-        userId: learner.userId,
-        channel: 'in_app',
-        type: 'homework_reviewed',
+      await this.delivery.fanoutToRecipient({
+        eventId,
+        eventType: 'homework.graded',
+        recipientId: learner.userId,
         title,
         body,
-        status: 'sent',
         referenceType: 'homework_assignment',
         referenceId: assignment.id,
+        payload: { assignmentId: assignment.id },
+        channels: ['in_app', 'web_push'],
       });
 
       const user = await this.users.findOne({ where: { id: learner.userId } });
@@ -163,6 +194,17 @@ export class HomeworkNotifierService {
           user.telegramId,
           `${title}\n\n${body}\n\nОткрыть: ${link}`,
         );
+        await this.notifications.create({
+          userId: learner.userId,
+          channel: 'telegram',
+          type: 'homework_reviewed',
+          title,
+          body,
+          status: 'sent',
+          referenceType: 'homework_assignment',
+          referenceId: assignment.id,
+          eventId,
+        });
       }
     } catch (err) {
       this.logger.warn(

@@ -88,10 +88,34 @@ export class ChatMembershipSyncService {
     const subjectChats = await this.chatRepo.find({ where: { kind: ChatKind.Subject } });
     for (const chat of subjectChats) {
       if (!chat.subjectId || desired.has(chat.subjectId)) continue;
-      await this.memberRepo.delete({ chatId: chat.id, userId });
+      // Entitlement ended — drop empty memberships only.
+      // NEVER wipe rows that hold list prefs (archive/pin/mute/favorite/hidden):
+      // admins often archive subject chats they see via ACL without a subject
+      // entitlement; listChats → ensureForUser must not erase chat_members.archived_at.
+      await this.removeSubjectMembershipUnlessPrefs(chat.id, userId);
     }
 
     return [...desired];
+  }
+
+  /**
+   * Remove subject-chat membership after entitlement loss, but keep the row when
+   * it carries per-user list prefs (SSOT for archive/pin/mute/favorite/hide).
+   */
+  async removeSubjectMembershipUnlessPrefs(chatId: string, userId: string): Promise<void> {
+    const member = await this.memberRepo.findOne({ where: { chatId, userId } });
+    if (!member) return;
+    const hasStickyState = Boolean(
+      member.archivedAt ||
+        member.pinnedAt ||
+        member.favoritedAt ||
+        member.mutedUntil ||
+        member.hiddenAt ||
+        member.lastReadMessageId ||
+        member.lastReadAt,
+    );
+    if (hasStickyState) return;
+    await this.memberRepo.delete({ chatId, userId });
   }
 
   async syncSubjectChatsForStudent(studentId: string): Promise<void> {
@@ -355,6 +379,9 @@ export class ChatMembershipSyncService {
       role,
       lastReadMessageId: null,
       mutedUntil: null,
+      archivedAt: null,
+      pinnedAt: null,
+      favoritedAt: null,
       hiddenAt: null,
     });
   }

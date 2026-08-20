@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import {
   IsEmail,
   IsEnum,
@@ -5,7 +6,6 @@ import {
   IsOptional,
   IsString,
   IsUUID,
-  Min,
   ValidateIf,
 } from 'class-validator';
 import { StudentStatus } from '../entities/student.entity';
@@ -13,6 +13,8 @@ import { StudentStatus } from '../entities/student.entity';
 /**
  * Empty strings from the FE are treated as “omit / clear” via ValidateIf,
  * so @IsEmail / @IsUUID do not reject "".
+ *
+ * lessonBalance may be negative (student debt). Never constrain with a non-negative minimum.
  */
 export class UpdateStudentDto {
   @IsOptional()
@@ -57,8 +59,8 @@ export class UpdateStudentDto {
   assignedTutorId?: string | null;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
-  @Min(0)
   lessonBalance?: number;
 
   @IsOptional()

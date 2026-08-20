@@ -8,9 +8,30 @@ import { useTheme } from "@/lib/ThemeContext";
 import { getRoleBadgeClass, getRoleLabel } from "@/lib/locale-by";
 import { createPageUrl } from "@/utils";
 import AvatarEditor from "@/components/user/AvatarEditor";
+import ChangePasswordSection from "@/components/settings/ChangePasswordSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
+import {
+  enableWebPush,
+  fetchWebPushStatus,
+  getNotificationPermission,
+} from "@/lib/pwa/pushClient";
+import {
+  fetchNotificationPreferences,
+  updateNotificationPreference,
+} from "@/lib/pwa/notificationsApi";
+
+const NOTIF_CATEGORIES = [
+  { id: 'messages', label: 'Сообщения' },
+  { id: 'lessons', label: 'Занятия' },
+  { id: 'homework', label: 'Домашние задания' },
+  { id: 'materials', label: 'Материалы' },
+  { id: 'payments', label: 'Платежи' },
+  { id: 'certificates', label: 'Сертификаты' },
+  { id: 'exams', label: 'Экзамены' },
+  { id: 'system', label: 'Системные' },
+];
 
 const DM_POLICIES = [
   { value: 'all_registered', label: 'Все зарегистрированные' },
@@ -61,6 +82,20 @@ export default function Settings() {
   const [blocks, setBlocks] = useState([]);
   const [blockQuery, setBlockQuery] = useState('');
   const [blockCandidates, setBlockCandidates] = useState([]);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushPermission, setPushPermission] = useState('default');
+  const [pushConfigured, setPushConfigured] = useState(null);
+  const [notifPrefs, setNotifPrefs] = useState([]);
+
+  useEffect(() => {
+    void getNotificationPermission().then(setPushPermission);
+    void fetchWebPushStatus()
+      .then((status) => setPushConfigured(Boolean(status.configured)))
+      .catch(() => setPushConfigured(false));
+    void fetchNotificationPreferences()
+      .then((rows) => setNotifPrefs(Array.isArray(rows) ? rows : []))
+      .catch(() => setNotifPrefs([]));
+  }, []);
 
   useEffect(() => {
     void chatsApi.getPrivacy()
@@ -204,6 +239,104 @@ export default function Settings() {
           </div>
         </div>
       )}
+
+      {user ? <ChangePasswordSection /> : null}
+
+      <div
+        className="bg-card rounded-2xl border border-border p-4 sm:p-6 space-y-4 mt-6 min-w-0 max-w-full overflow-hidden"
+        data-testid="settings-notifications"
+      >
+        <h3 className={`text-sm font-semibold text-foreground ${longTextClass}`}>
+          Уведомления
+        </h3>
+        <p className={`text-xs text-muted-foreground ${longTextClass}`}>
+          Уведомления в приложении работают всегда. Системные Push-уведомления
+          браузера включаются отдельно и только если сервер их поддерживает.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Статус разрешения: <span className="font-medium text-foreground">{pushPermission}</span>
+        </p>
+        {pushConfigured === false ? (
+          <p className="text-xs text-muted-foreground">
+            Web Push на сервере не настроен. In-app уведомления и Telegram продолжают работать.
+          </p>
+        ) : (
+          <Button
+            className="w-full sm:w-auto min-h-11"
+            disabled={pushBusy || pushPermission === 'unsupported' || pushConfigured !== true}
+            onClick={async () => {
+              setPushBusy(true);
+              try {
+                await enableWebPush({ deviceLabel: 'settings' });
+                setPushPermission(await getNotificationPermission());
+                toast({ title: 'Уведомления включены' });
+              } catch (err) {
+                toast({
+                  title: 'Не удалось включить уведомления',
+                  description: err?.message || 'Попробуйте ещё раз',
+                  variant: 'destructive',
+                });
+              } finally {
+                setPushBusy(false);
+              }
+            }}
+          >
+            {pushBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Включить уведомления
+          </Button>
+        )}
+
+        <div className="space-y-3 pt-2 border-t border-border">
+          {NOTIF_CATEGORIES.map((cat) => {
+            const pref = notifPrefs.find((row) => row.category === cat.id) || {
+              pushEnabled: true,
+              inAppEnabled: true,
+              telegramEnabled: true,
+            };
+            const locked = cat.id === 'system';
+            return (
+              <div key={cat.id} className="rounded-xl border border-border p-3 space-y-2">
+                <p className="text-sm font-medium">{cat.label}</p>
+                <div className="flex flex-wrap gap-3 text-xs">
+                  {[
+                    { key: 'pushEnabled', label: 'Push' },
+                    { key: 'inAppEnabled', label: 'В приложении' },
+                    { key: 'telegramEnabled', label: 'Telegram' },
+                  ].map((ch) => (
+                    <label key={ch.key} className="inline-flex items-center gap-1.5 min-h-11">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(pref[ch.key])}
+                        disabled={locked && ch.key !== 'telegramEnabled'}
+                        onChange={async (e) => {
+                          const next = {
+                            category: cat.id,
+                            [ch.key]: e.target.checked,
+                          };
+                          try {
+                            const saved = await updateNotificationPreference(next);
+                            setNotifPrefs((prev) => {
+                              const rest = prev.filter((row) => row.category !== cat.id);
+                              return [...rest, saved];
+                            });
+                          } catch (err) {
+                            toast({
+                              title: 'Не удалось сохранить',
+                              description: err?.message,
+                              variant: 'destructive',
+                            });
+                          }
+                        }}
+                      />
+                      {ch.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="bg-card rounded-2xl border border-border p-4 sm:p-6 space-y-4 mt-6 min-w-0 max-w-full overflow-hidden">
         <h3 className={`text-sm font-semibold text-foreground ${longTextClass}`}>

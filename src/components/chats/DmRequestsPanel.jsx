@@ -1,12 +1,22 @@
 import { useEffect, useState } from 'react';
+import { X } from 'lucide-react';
 import { chatsApi } from '@/api/chats.api';
-import { Button } from '@/components/ui/button';
+import { Button, EmptyState, IconButton } from '@/design-system';
 import { toast } from '@/components/ui/use-toast';
 import { displayUserName, pickField } from '@/lib/chat-normalize';
 
 /**
- * Incoming / outgoing DM requests panel.
+ * Incoming / outgoing DM requests panel (desktop aside + mobile sheet body).
+ * Close control uses Design System IconButton so the X stays inside the hit target.
  */
+function requestStatusLabel(status) {
+  if (status === 'pending') return 'Ожидает ответа';
+  if (status === 'accepted') return 'Принят';
+  if (status === 'declined') return 'Отклонён';
+  if (status === 'cancelled') return 'Отменён';
+  return status || '';
+}
+
 export default function DmRequestsPanel({ open, onClose, onAccepted }) {
   const [tab, setTab] = useState('incoming');
   const [incoming, setIncoming] = useState([]);
@@ -38,24 +48,34 @@ export default function DmRequestsPanel({ open, onClose, onAccepted }) {
   const rows = tab === 'incoming' ? incoming : outgoing;
 
   return (
-    <div className="flex h-full min-h-0 flex-col border-l border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border px-3 py-3">
-        <h2 className="text-sm font-semibold">Запросы на переписку</h2>
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          Закрыть
-        </Button>
-      </div>
-      <div className="flex gap-1 border-b border-border px-2 py-2">
+    <div
+      className="flex h-full min-h-0 flex-col overflow-hidden bg-card"
+      data-testid="dm-requests-panel"
+    >
+      <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
+        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight">
+          Запросы на переписку
+        </h2>
+        <IconButton
+          label="Закрыть"
+          onClick={onClose}
+          className="shrink-0"
+          data-testid="dm-requests-close"
+        >
+          <X />
+        </IconButton>
+      </header>
+      <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-border px-2 py-2">
         <Button
           size="sm"
-          variant={tab === 'incoming' ? 'default' : 'ghost'}
+          intent={tab === 'incoming' ? 'primary' : 'ghost'}
           onClick={() => setTab('incoming')}
         >
           Входящие
         </Button>
         <Button
           size="sm"
-          variant={tab === 'outgoing' ? 'default' : 'ghost'}
+          intent={tab === 'outgoing' ? 'primary' : 'ghost'}
           onClick={() => setTab('outgoing')}
         >
           Исходящие
@@ -64,7 +84,11 @@ export default function DmRequestsPanel({ open, onClose, onAccepted }) {
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
         {loading ? <p className="text-sm text-muted-foreground">Загрузка…</p> : null}
         {!loading && !rows.length ? (
-          <p className="text-sm text-muted-foreground">Нет запросов</p>
+          <EmptyState
+            preset="generic"
+            title="Нет запросов"
+            description="Новые запросы на переписку появятся здесь."
+          />
         ) : null}
         {rows.map((req) => {
           const peer =
@@ -72,16 +96,16 @@ export default function DmRequestsPanel({ open, onClose, onAccepted }) {
               ? pickField(req, 'fromUser', 'from_user')
               : pickField(req, 'toUser', 'to_user');
           return (
-            <div key={req.id} className="rounded-lg border border-border p-3 space-y-2">
+            <div key={req.id} className="space-y-2 rounded-2xl bg-muted/35 px-3 py-3">
               <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-medium">{displayUserName(peer)}</p>
-                  <p className="text-xs text-muted-foreground">{req.status}</p>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{displayUserName(peer)}</p>
+                  <p className="text-xs text-muted-foreground">{requestStatusLabel(req.status)}</p>
                 </div>
               </div>
               {req.message ? <p className="text-sm text-muted-foreground">{req.message}</p> : null}
               {tab === 'incoming' && req.status === 'pending' ? (
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     size="sm"
                     onClick={async () => {
@@ -103,7 +127,7 @@ export default function DmRequestsPanel({ open, onClose, onAccepted }) {
                   </Button>
                   <Button
                     size="sm"
-                    variant="outline"
+                    intent="outline"
                     onClick={async () => {
                       try {
                         await chatsApi.declineDmRequest(req.id);
@@ -125,7 +149,7 @@ export default function DmRequestsPanel({ open, onClose, onAccepted }) {
               {tab === 'outgoing' && req.status === 'pending' ? (
                 <Button
                   size="sm"
-                  variant="outline"
+                  intent="outline"
                   onClick={async () => {
                     try {
                       await chatsApi.cancelDmRequest(req.id);

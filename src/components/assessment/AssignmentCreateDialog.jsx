@@ -18,8 +18,20 @@ import {
   fromDatetimeLocalValue,
 } from '@/lib/assessment-admin';
 import { unwrapItems } from '@/lib/assessment-ui';
+import { userFacingError } from '@/lib/userFacingError';
 
-export default function AssignmentCreateDialog({ open, onOpenChange, onCreated }) {
+/**
+ * Assign a published exam.
+ * @param {'admin'|'teacher'} [mode='admin']
+ *   teacher — simplified: own students + published exams only (no technical overrides)
+ */
+export default function AssignmentCreateDialog({
+  open,
+  onOpenChange,
+  onCreated,
+  mode = 'admin',
+}) {
+  const teacherMode = mode === 'teacher';
   const [exams, setExams] = useState([]);
   const [students, setStudents] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -53,23 +65,39 @@ export default function AssignmentCreateDialog({ open, onOpenChange, onCreated }
     setRuleOverrideId('');
     setLoadingMeta(true);
 
-    Promise.all([
+    const loaders = [
       api.assessment.listExams({ status: 'published', limit: 200 }),
       api.students.list().catch(() => []),
-      api.groups.list().catch(() => []),
-      api.courses.list().catch(() => []),
-    ])
-      .then(([examsPayload, studentsPayload, groupsPayload, coursesPayload]) => {
+    ];
+    if (!teacherMode) {
+      loaders.push(api.groups.list().catch(() => []));
+      loaders.push(api.courses.list().catch(() => []));
+    }
+
+    Promise.all(loaders)
+      .then((payloads) => {
+        const [examsPayload, studentsPayload, groupsPayload, coursesPayload] = payloads;
         const published = unwrapItems(examsPayload);
         setExams(published);
         setExamId(published[0]?.id || '');
-        setStudents(Array.isArray(studentsPayload) ? studentsPayload : unwrapItems(studentsPayload));
-        setGroups(Array.isArray(groupsPayload) ? groupsPayload : unwrapItems(groupsPayload));
-        setCourses(Array.isArray(coursesPayload) ? coursesPayload : unwrapItems(coursesPayload));
+        setStudents(
+          Array.isArray(studentsPayload) ? studentsPayload : unwrapItems(studentsPayload),
+        );
+        if (!teacherMode) {
+          setGroups(
+            Array.isArray(groupsPayload) ? groupsPayload : unwrapItems(groupsPayload),
+          );
+          setCourses(
+            Array.isArray(coursesPayload) ? coursesPayload : unwrapItems(coursesPayload),
+          );
+        } else {
+          setGroups([]);
+          setCourses([]);
+        }
       })
-      .catch((err) => setError(err?.message || 'Не удалось загрузить данные'))
+      .catch((err) => setError(userFacingError(err, 'Не удалось загрузить данные')))
       .finally(() => setLoadingMeta(false));
-  }, [open]);
+  }, [open, teacherMode]);
 
   useEffect(() => {
     setTargetId('');
@@ -77,10 +105,12 @@ export default function AssignmentCreateDialog({ open, onOpenChange, onCreated }
 
   const targetOptions = useMemo(() => {
     if (targetType === 'student') {
-      return students.map((s) => ({
-        id: s.id,
-        label: displayPersonName(s),
-      }));
+      return students
+        .filter((s) => s.status !== 'inactive')
+        .map((s) => ({
+          id: s.id,
+          label: displayPersonName(s),
+        }));
     }
     if (targetType === 'group') {
       return groups.map((g) => ({ id: g.id, label: g.name || g.id }));
@@ -94,13 +124,17 @@ export default function AssignmentCreateDialog({ open, onOpenChange, onCreated }
     return [];
   }, [targetType, students, groups, courses]);
 
+  const targetTypeOptions = teacherMode
+    ? ASSIGNMENT_TARGET_OPTIONS.filter((t) => t === 'student' || t === 'group')
+    : ASSIGNMENT_TARGET_OPTIONS;
+
   const handleCreate = async () => {
     if (!examId) {
       setError('Выберите опубликованный экзамен');
       return;
     }
     if (!targetId.trim()) {
-      setError('Выберите или укажите получателя');
+      setError(teacherMode ? 'Выберите ученика' : 'Выберите или укажите получателя');
       return;
     }
     setSaving(true);
@@ -115,7 +149,7 @@ export default function AssignmentCreateDialog({ open, onOpenChange, onCreated }
       const to = fromDatetimeLocalValue(validTo);
       if (from) body.valid_from = from;
       if (to) body.valid_to = to;
-      if (ruleOverrideId.trim()) {
+      if (!teacherMode && ruleOverrideId.trim()) {
         body.assessment_rule_override_id = ruleOverrideId.trim();
       }
 
@@ -123,7 +157,9 @@ export default function AssignmentCreateDialog({ open, onOpenChange, onCreated }
       onCreated?.(created);
       onOpenChange(false);
     } catch (err) {
-      setError(err?.message || 'Не удалось создать назначение');
+      setError(
+        userFacingError(err, 'Не удалось создать назначение'),
+      );
     } finally {
       setSaving(false);
     }
@@ -131,9 +167,15 @@ export default function AssignmentCreateDialog({ open, onOpenChange, onCreated }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="sm:max-w-lg max-h-[90vh] overflow-y-auto"
+        data-testid="assignment-create-dialog"
+        data-mode={mode}
+      >
         <DialogHeader>
-          <DialogTitle>Новое назначение экзамена</DialogTitle>
+          <DialogTitle>
+            {teacherMode ? 'Назначить экзамен' : 'Новое назначение экзамена'}
+          </DialogTitle>
         </DialogHeader>
 
         {loadingMeta ? (
@@ -142,12 +184,80 @@ export default function AssignmentCreateDialog({ open, onOpenChange, onCreated }
           </div>
         ) : (
           <div className="space-y-4 py-1">
+            {teacherMode ? (
+              <p className="text-xs text-muted-foreground">
+                Выберите ученика и опубликованный экзамен. Назначение сразу появится у ученика.
+              </p>
+            ) : null}
+
             <div className="space-y-1.5">
-              <Label>Экзамен (опубликованный)</Label>
+              <Label>{teacherMode ? '1. Ученик' : 'Тип получателя'}</Label>
+              {teacherMode ? (
+                <select
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  value={targetId}
+                  onChange={(e) => {
+                    setTargetType('student');
+                    setTargetId(e.target.value);
+                  }}
+                  data-testid="assign-student-select"
+                >
+                  <option value="">Выберите ученика…</option>
+                  {targetOptions.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <select
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    value={targetType}
+                    onChange={(e) => setTargetType(e.target.value)}
+                  >
+                    {targetTypeOptions.map((t) => (
+                      <option key={t} value={t}>
+                        {ASSIGNMENT_TARGET_LABEL[t]}
+                      </option>
+                    ))}
+                  </select>
+                  {targetType === 'corporate_group' ? (
+                    <Input
+                      value={targetId}
+                      onChange={(e) => setTargetId(e.target.value)}
+                      placeholder="ID корпоративной группы"
+                    />
+                  ) : (
+                    <select
+                      className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                      value={targetId}
+                      onChange={(e) => setTargetId(e.target.value)}
+                    >
+                      <option value="">Выберите…</option>
+                      {targetOptions.map((opt) => (
+                        <option key={opt.id} value={opt.id}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
+              {teacherMode && targetOptions.length === 0 ? (
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  Нет доступных учеников для назначения
+                </p>
+              ) : null}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>{teacherMode ? '2. Экзамен' : 'Экзамен (опубликованный)'}</Label>
               <select
                 className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
                 value={examId}
                 onChange={(e) => setExamId(e.target.value)}
+                data-testid="assign-exam-select"
               >
                 <option value="">Выберите экзамен</option>
                 {exams.map((e) => (
@@ -164,65 +274,19 @@ export default function AssignmentCreateDialog({ open, onOpenChange, onCreated }
             </div>
 
             {examRule && (
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-3 text-xs text-slate-600 dark:text-slate-300 space-y-1">
-                <p className="font-medium text-slate-800 dark:text-slate-100">
-                  Правило экзамена
-                </p>
+              <div className="rounded-xl border border-border bg-muted/50 p-3 text-xs text-muted-foreground dark:text-slate-300 space-y-1">
+                <p className="font-medium text-foreground">Условия экзамена</p>
                 <p>
                   Время: {examRule.duration_minutes ?? '—'} мин · Попыток:{' '}
                   {examRule.max_attempts ?? '—'} · Проходной:{' '}
                   {examRule.pass_score_percent ?? '—'}%
-                </p>
-                <p className="text-slate-400">
-                  Лимит попыток задаётся в правилах экзамена (не отдельным полем
-                  назначения).
                 </p>
               </div>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Тип получателя</Label>
-                <select
-                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
-                  value={targetType}
-                  onChange={(e) => setTargetType(e.target.value)}
-                >
-                  {ASSIGNMENT_TARGET_OPTIONS.map((t) => (
-                    <option key={t} value={t}>
-                      {ASSIGNMENT_TARGET_LABEL[t]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Кому</Label>
-                {targetType === 'corporate_group' ? (
-                  <Input
-                    value={targetId}
-                    onChange={(e) => setTargetId(e.target.value)}
-                    placeholder="ID корпоративной группы"
-                  />
-                ) : (
-                  <select
-                    className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
-                    value={targetId}
-                    onChange={(e) => setTargetId(e.target.value)}
-                  >
-                    <option value="">Выберите…</option>
-                    {targetOptions.map((opt) => (
-                      <option key={opt.id} value={opt.id}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Действует с</Label>
+                <Label>{teacherMode ? '3. Срок с (необязательно)' : 'Действует с'}</Label>
                 <Input
                   type="datetime-local"
                   value={validFrom}
@@ -230,7 +294,7 @@ export default function AssignmentCreateDialog({ open, onOpenChange, onCreated }
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Действует до</Label>
+                <Label>{teacherMode ? 'Срок до (необязательно)' : 'Действует до'}</Label>
                 <Input
                   type="datetime-local"
                   value={validTo}
@@ -239,14 +303,16 @@ export default function AssignmentCreateDialog({ open, onOpenChange, onCreated }
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label>Переопределение правила (необязательно)</Label>
-              <Input
-                value={ruleOverrideId}
-                onChange={(e) => setRuleOverrideId(e.target.value)}
-                placeholder="ID правила, если нужен другой набор"
-              />
-            </div>
+            {!teacherMode ? (
+              <div className="space-y-1.5">
+                <Label>Переопределение правила (необязательно)</Label>
+                <Input
+                  value={ruleOverrideId}
+                  onChange={(e) => setRuleOverrideId(e.target.value)}
+                  placeholder="ID правила, если нужен другой набор"
+                />
+              </div>
+            ) : null}
 
             {error && (
               <p className="text-sm text-rose-600 dark:text-rose-400" role="alert">
@@ -264,11 +330,12 @@ export default function AssignmentCreateDialog({ open, onOpenChange, onCreated }
             className="bg-primary hover:bg-primary/90"
             onClick={handleCreate}
             disabled={saving || loadingMeta || exams.length === 0}
+            data-testid="assign-exam-confirm"
           >
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Создание…
+                Назначение…
               </>
             ) : (
               'Назначить'

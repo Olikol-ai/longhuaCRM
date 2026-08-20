@@ -30,6 +30,7 @@ import { PendingRegistrationService } from './pending-registration.service';
 import { VerificationEmailService } from './verification-email.service';
 
 import { JwtStrategy } from './jwt.strategy';
+import { resolveJwtSecret } from '../../config/jwt-secret.util';
 
 
 
@@ -45,7 +46,7 @@ import { JwtStrategy } from './jwt.strategy';
 
       useFactory: (config: ConfigService) => ({
 
-        secret: config.get<string>('jwt.secret') ?? 'longhua-dev-secret-change-in-production',
+        secret: resolveJwtSecret(config),
 
         signOptions: {
 

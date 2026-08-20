@@ -1,15 +1,11 @@
-import {
-  IsEmail,
-  IsEnum,
-  IsInt,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Min,
-} from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEmail, IsEnum, IsInt, IsOptional, IsString, IsUUID } from 'class-validator';
 import { IsRequiredText } from '../../../common/validators/is-required-text.decorator';
 import { StudentStatus } from '../entities/student.entity';
 
+/**
+ * lessonBalance may be negative (student debt). Never constrain with a non-negative minimum.
+ */
 export class CreateStudentDto {
   @IsRequiredText()
   name!: string;
@@ -47,8 +43,8 @@ export class CreateStudentDto {
   assignedTutorId?: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
-  @Min(0)
   lessonBalance?: number;
 
   @IsOptional()

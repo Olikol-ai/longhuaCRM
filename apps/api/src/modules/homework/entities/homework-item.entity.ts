@@ -44,6 +44,7 @@ export class HomeworkItemEntity {
   @Column({ type: 'text' })
   stem: string;
 
+  /** Task metadata only (1–5). Never used as a homework grading multiplier. */
   @Column({ type: 'int', default: 1 })
   difficulty: number;
 

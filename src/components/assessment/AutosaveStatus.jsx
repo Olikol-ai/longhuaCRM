@@ -5,7 +5,7 @@ const MAP = {
   saving: {
     icon: Loader2,
     text: 'Сохранение…',
-    className: 'text-slate-500 dark:text-slate-400',
+    className: 'text-muted-foreground',
     spin: true,
   },
   saved: {

@@ -4,15 +4,11 @@ import { api } from '@/api';
 import { useAuth } from '@/lib/AuthContext';
 import { ArrowLeft, Download, Loader2, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/components/ui/use-toast';
-
-const STATUS_LABEL = {
-  draft: 'Черновик',
-  issued: 'Выдан',
-  sent: 'Отправлен',
-  duplicate: 'Дубликат',
-  revoked: 'Отозван',
-};
+import CertificateStatusBadge, {
+  CERTIFICATE_STATUS_LABEL,
+} from '@/components/certificates/CertificateStatusBadge';
 
 /**
  * Certificate view: for issued/sent/duplicate shows A4 PDF in-browser.
@@ -166,17 +162,17 @@ export default function CertificateView() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100 dark:bg-slate-950">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-700 dark:text-slate-300" />
+      <div className="flex min-h-[50vh] items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-brand" />
       </div>
     );
   }
 
   if ((error && !cert) || !cert) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-100 p-6 dark:bg-slate-950">
-        <p className="text-slate-600 dark:text-slate-400">{error || 'Сертификат не найден'}</p>
-        <Button asChild variant="outline">
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 bg-background p-6 text-center">
+        <p className="text-muted-foreground">{error || 'Сертификат не найден'}</p>
+        <Button asChild variant="outline" className="min-h-10">
           <Link to={backPath}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Назад
           </Link>
@@ -186,22 +182,26 @@ export default function CertificateView() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 dark:bg-slate-950 sm:p-8">
-      <div className="mx-auto mb-5 flex max-w-5xl flex-wrap items-center gap-2 print:hidden">
-        <Button asChild variant="outline" size="sm" className="bg-white/80 dark:bg-slate-900/80">
+    <div className="min-h-[100dvh] bg-background p-3 sm:p-6 lg:p-8 min-w-0 overflow-x-hidden">
+      <div className="mx-auto mb-4 flex max-w-5xl flex-col gap-3 sm:mb-5 sm:flex-row sm:flex-wrap sm:items-center print:hidden">
+        <Button asChild variant="outline" size="sm" className="min-h-10 w-full sm:w-auto">
           <Link to={backPath}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Назад
           </Link>
         </Button>
-        {canPdf && (
-          <>
+        {canPdf ? (
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
             <Button
               size="sm"
               onClick={handleDownload}
               disabled={downloading || pdfLoading}
-              className="gap-2 bg-slate-900 text-white hover:bg-slate-800"
+              className="gap-2 min-h-10 flex-1 sm:flex-none"
             >
-              {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {downloading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
               Скачать PDF
             </Button>
             <Button
@@ -209,73 +209,86 @@ export default function CertificateView() {
               variant="secondary"
               onClick={handlePrint}
               disabled={!pdfUrl || pdfLoading}
-              className="gap-2 bg-white/90 dark:bg-slate-900/90"
+              className="gap-2 min-h-10 flex-1 sm:flex-none"
             >
               <Printer className="h-4 w-4" />
               Печать
             </Button>
-          </>
-        )}
+          </div>
+        ) : null}
       </div>
 
       {canPdf ? (
-        <div className="mx-auto max-w-5xl">
-          {pdfLoading && (
+        <div className="mx-auto max-w-5xl min-w-0">
+          {pdfLoading ? (
             <div className="flex justify-center py-24">
-              <Loader2 className="h-8 w-8 animate-spin text-slate-700 dark:text-slate-300" />
+              <Loader2 className="h-8 w-8 animate-spin text-brand" />
             </div>
-          )}
-          {error && !pdfUrl && !pdfLoading && (
-            <p className="py-12 text-center text-red-600">{error}</p>
-          )}
-          {pdfUrl && (
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white p-2 shadow-xl sm:p-3">
-              <iframe
-                ref={iframeRef}
-                title={`Сертификат ${cert.registration_number}`}
-                src={pdfUrl}
-                className="w-full rounded-xl bg-white"
-                style={{ height: 'calc(100vh - 9rem)', minHeight: '760px' }}
-                data-testid="certificate-pdf-frame"
-              />
-            </div>
-          )}
-          <p className="mx-auto mt-5 max-w-2xl text-center text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 print:hidden">
+          ) : null}
+          {error && !pdfUrl && !pdfLoading ? (
+            <p className="py-12 text-center text-destructive">{error}</p>
+          ) : null}
+          {pdfUrl ? (
+            <Card className="overflow-hidden shadow-sm">
+              <CardContent className="p-2 sm:p-3">
+                <iframe
+                  ref={iframeRef}
+                  title={`Сертификат ${cert.registration_number}`}
+                  src={pdfUrl}
+                  className="w-full rounded-lg bg-white border border-border"
+                  style={{ height: 'calc(100dvh - 10rem)', minHeight: '560px' }}
+                  data-testid="certificate-pdf-frame"
+                />
+              </CardContent>
+            </Card>
+          ) : null}
+          <p className="mx-auto mt-5 max-w-2xl text-center text-[11px] leading-relaxed text-muted-foreground print:hidden">
             Данный сертификат не является сертификатом государственного образца и не
             предоставляет преимуществ, предусмотренных законодательством.
           </p>
         </div>
       ) : (
-        <article
-          className="relative mx-auto max-w-3xl overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 shadow-xl"
+        <Card
+          className="relative mx-auto max-w-3xl overflow-hidden shadow-sm"
           data-testid="certificate-view"
         >
-          <div className="absolute inset-x-10 top-6 h-px bg-rose-800" />
-          <div className="flex flex-col items-center px-8 py-14 text-center sm:px-14 sm:py-16">
-            <p className="mb-1 text-[11px] font-semibold tracking-[0.35em] text-rose-800">
+          <CardContent className="flex flex-col items-center px-6 py-12 text-center sm:px-12 sm:py-16">
+            <p className="mb-1 text-[11px] font-semibold tracking-[0.35em] text-brand">
               LONGHUA
             </p>
-            <p className="mb-8 text-[10px] tracking-[0.28em] text-slate-500 dark:text-slate-400">
+            <p className="mb-6 text-[10px] tracking-[0.28em] text-muted-foreground">
               CHINESE LANGUAGE SCHOOL
             </p>
-            <h1 className="mb-3 text-3xl font-semibold tracking-[0.12em] text-slate-900 dark:text-slate-100 sm:text-4xl">
+            <h1 className="mb-3 text-2xl font-semibold tracking-[0.08em] text-foreground sm:text-3xl">
               СЕРТИФИКАТ
             </h1>
-            <p className="mb-8 text-sm text-slate-500 dark:text-slate-400">
-              PDF будет доступен после выдачи — {STATUS_LABEL[cert.status] || cert.status}
+            <div className="mb-8">
+              <CertificateStatusBadge status={cert.status} />
+            </div>
+            <p className="mb-8 max-w-md text-sm text-muted-foreground">
+              PDF будет доступен после выдачи —{' '}
+              {CERTIFICATE_STATUS_LABEL[cert.status] || cert.status}
             </p>
-            <div className="mb-6 w-full max-w-md rounded-xl border border-slate-200 dark:border-slate-700 bg-white px-6 py-5">
-              <p className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+            <div className="mb-6 w-full max-w-md rounded-xl border border-border bg-muted/40 px-6 py-5 min-w-0">
+              <p
+                className="text-xl font-semibold text-foreground break-words"
+                title={studentName || undefined}
+              >
                 {studentName || '—'}
               </p>
             </div>
-            <p className="mb-2 text-sm text-slate-500 dark:text-slate-400">курс</p>
-            <p className="mb-8 text-lg font-semibold text-slate-900 dark:text-slate-100">{courseName}</p>
-            <p className="text-xs tracking-wide text-slate-400 dark:text-slate-500">
+            <p className="mb-2 text-sm text-muted-foreground">курс</p>
+            <p
+              className="mb-8 text-lg font-semibold text-foreground break-words max-w-full"
+              title={courseName}
+            >
+              {courseName}
+            </p>
+            <p className="text-xs tracking-wide text-muted-foreground break-all">
               Рег. № {cert.registration_number}
             </p>
-          </div>
-        </article>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

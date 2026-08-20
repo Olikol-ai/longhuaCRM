@@ -1,9 +1,9 @@
 version: "3.9"
 
-# Production stack: PostgreSQL + LonghuaCRM API (serves built SPA).
-# Usage:
-#   cp .env.example .env   # set JWT_SECRET, ADMIN_PASSWORD, DATABASE_URL, etc.
-#   docker compose -f docker-compose.prod.yml up -d --build
+# Production stack for greenfield Docker hosts (API + PostgreSQL).
+# Canonical production path on the current Longhua server (/opt/longhuaCRM) is ./deploy.sh.
+# Use this file only when the whole stack runs in Docker.
+#   POSTGRES_PASSWORD and JWT_SECRET and APP_PUBLIC_URL are required (no defaults).
 
 services:
   postgres:
@@ -13,7 +13,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-longhua}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -36,11 +36,11 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-longhua}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-longhua}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       ADMIN_EMAIL: ${ADMIN_EMAIL:?ADMIN_EMAIL is required}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
-      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:?APP_PUBLIC_URL is required}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       TRUST_PROXY: ${TRUST_PROXY:-true}
       SERVE_FRONTEND: "true"
@@ -58,8 +58,13 @@ services:
       JITSI_BASE_URL: ${JITSI_BASE_URL:-}
       JITSI_JWT_APP_ID: ${JITSI_JWT_APP_ID:-}
       JITSI_JWT_APP_SECRET: ${JITSI_JWT_APP_SECRET:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@longhua.local}
       # Permanent HDD storage (host path). Survives container recreate.
       UPLOADS_DIR: /mnt/storage/longhua-storage
+      # Materials textbooks/videos — Multer + SecureFiles limit (bytes). Default 2 GiB.
+      MATERIALS_MAX_UPLOAD_BYTES: ${MATERIALS_MAX_UPLOAD_BYTES:-2147483648}
     volumes:
       - ${LONGHUA_STORAGE_HOST:-/mnt/storage/longhua-storage}:/mnt/storage/longhua-storage
       - backups_data:/app/backups

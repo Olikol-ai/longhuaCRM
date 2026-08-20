@@ -166,7 +166,7 @@ export default function StudentExamTake() {
   if (!attemptId) {
     return (
       <div className="p-6 max-w-lg mx-auto text-center space-y-4">
-        <p className="text-slate-600 dark:text-slate-300">Не указана попытка экзамена.</p>
+        <p className="text-muted-foreground dark:text-slate-300">Не указана попытка экзамена.</p>
         <Button asChild variant="outline">
           <Link to={createPageUrl('StudentExams')}>К списку экзаменов</Link>
         </Button>
@@ -178,7 +178,7 @@ export default function StudentExamTake() {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3">
         <Loader2 className="h-7 w-7 animate-spin text-brand" />
-        <p className="text-sm text-slate-500">Загрузка экзамена…</p>
+        <p className="text-sm text-muted-foreground">Загрузка экзамена…</p>
       </div>
     );
   }
@@ -213,7 +213,7 @@ export default function StudentExamTake() {
   if (questions.length === 0) {
     return (
       <div className="p-6 max-w-lg mx-auto text-center space-y-4">
-        <p className="text-slate-600 dark:text-slate-300">В этом экзамене нет вопросов.</p>
+        <p className="text-muted-foreground dark:text-slate-300">В этом экзамене нет вопросов.</p>
         <Button asChild variant="outline">
           <Link to={createPageUrl('StudentExams')}>Назад</Link>
         </Button>
@@ -230,11 +230,11 @@ export default function StudentExamTake() {
             <div className="min-w-0">
               <Link
                 to={createPageUrl('StudentExams')}
-                className="text-xs text-slate-500 hover:text-brand dark:hover:text-brand"
+                className="text-xs text-muted-foreground hover:text-brand dark:hover:text-brand"
               >
                 ← Мои экзамены
               </Link>
-              <h1 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-white truncate">
+              <h1 className="text-base sm:text-lg font-semibold text-foreground truncate">
                 {examTitle || 'Экзамен'}
               </h1>
             </div>

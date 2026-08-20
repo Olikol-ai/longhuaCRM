@@ -1,13 +1,14 @@
 /**
- * Runtime coordination for learning-content audio (AuthenticatedAudio).
- * Ensures at most one CRM audio element plays at a time and supports
- * explicit stop on navigation / unmount.
+ * Global exclusive audio playback — at most one Longhua audio engine at a time.
+ * Used by learning content and chat voice (same engine class).
  */
+
+const ENGINE_SELECTOR = 'audio.lh-audio-engine';
 
 let activeElement = null;
 
-function isCrmAudioElement(el) {
-  return Boolean(el && el.classList?.contains('crm-audio-player__element'));
+function isEngine(el) {
+  return Boolean(el && el.classList?.contains('lh-audio-engine'));
 }
 
 export function claimLearningAudio(el) {
@@ -28,10 +29,10 @@ export function releaseLearningAudio(el) {
   }
 }
 
-/** Pause every mounted CRM learning audio player. */
+/** Pause every mounted Longhua audio engine. */
 export function stopAllLearningAudio() {
   if (typeof document !== 'undefined') {
-    document.querySelectorAll('audio.crm-audio-player__element').forEach((node) => {
+    document.querySelectorAll(ENGINE_SELECTOR).forEach((node) => {
       try {
         if (!node.paused) node.pause();
       } catch {
@@ -71,5 +72,10 @@ export function disposeLearningAudioElement(el) {
 }
 
 export function isActiveLearningAudio(el) {
-  return isCrmAudioElement(el) && activeElement === el;
+  return isEngine(el) && activeElement === el;
 }
+
+/** @deprecated Alias — same as claimLearningAudio */
+export const claimAudio = claimLearningAudio;
+/** @deprecated Alias — same as stopAllLearningAudio */
+export const stopAllAudio = stopAllLearningAudio;

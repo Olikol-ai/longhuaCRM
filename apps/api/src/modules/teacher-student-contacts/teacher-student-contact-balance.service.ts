@@ -4,12 +4,18 @@ import { randomUUID } from 'crypto';
 import { DataSource, EntityManager } from 'typeorm';
 import { AttendanceEntity } from '../lessons/entities/attendance.entity';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
+import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherStudentBalanceHistoryEntity } from './entities/teacher-student-balance-history.entity';
 import { TeacherStudentContactEntity } from './entities/teacher-student-contact.entity';
+import { TutorContactBalanceEntity } from './entities/tutor-contact-balance.entity';
 
 /**
- * Private TeacherStudentContact lesson balance.
- * Isolated from school StudentBalanceService / payments / payroll.
+ * Balance mutations for notebook contacts.
+ *
+ * Teacher + linkedStudentId → students.lesson_balance only.
+ * Tutor → tutor_contact_balances.lesson_balance only.
+ *
+ * teacher_student_contacts has no balance column.
  */
 @Injectable()
 export class TeacherStudentContactBalanceService {
@@ -63,8 +69,7 @@ export class TeacherStudentContactBalanceService {
         return;
       }
 
-      const contactRepo = em.getRepository(TeacherStudentContactEntity);
-      const contact = await contactRepo.findOne({
+      const contact = await em.getRepository(TeacherStudentContactEntity).findOne({
         where: { id: contactId },
         lock: { mode: 'pessimistic_write' },
       });
@@ -72,10 +77,9 @@ export class TeacherStudentContactBalanceService {
         return;
       }
 
-      const oldBalance = contact.lessonBalance ?? 0;
-      const newBalance = Math.max(0, oldBalance - 1);
-      contact.lessonBalance = newBalance;
-      await contactRepo.save(contact);
+      const oldBalance = await this.readBalance(em, contact);
+      const newBalance = oldBalance - 1;
+      await this.writeBalance(em, contact, newBalance);
 
       await this.writeHistory(em, {
         studentContactId: contactId,
@@ -95,8 +99,7 @@ export class TeacherStudentContactBalanceService {
 
   /**
    * Restore 1 lesson when a previously completed contact lesson is cancelled
-   * or reassigned. Idempotent: only restores if attendance.balanceDeducted was true.
-   * @returns true when a lesson was actually restored
+   * or reassigned. Idempotent via attendance.balanceDeducted.
    */
   async restoreForCancelledLesson(
     lessonId: string,
@@ -130,8 +133,7 @@ export class TeacherStudentContactBalanceService {
         return false;
       }
 
-      const contactRepo = em.getRepository(TeacherStudentContactEntity);
-      const contact = await contactRepo.findOne({
+      const contact = await em.getRepository(TeacherStudentContactEntity).findOne({
         where: { id: contactId },
         lock: { mode: 'pessimistic_write' },
       });
@@ -139,10 +141,9 @@ export class TeacherStudentContactBalanceService {
         return false;
       }
 
-      const oldBalance = contact.lessonBalance ?? 0;
+      const oldBalance = await this.readBalance(em, contact);
       const newBalance = oldBalance + 1;
-      contact.lessonBalance = newBalance;
-      await contactRepo.save(contact);
+      await this.writeBalance(em, contact, newBalance);
 
       await this.writeHistory(em, {
         studentContactId: contactId,
@@ -167,12 +168,11 @@ export class TeacherStudentContactBalanceService {
     reason: string | null,
     createdBy: string | null,
   ): Promise<TeacherStudentContactEntity> {
-    const oldBalance = contact.lessonBalance ?? 0;
+    const oldBalance = await this.readBalance(em, contact);
     if (oldBalance === newBalance) {
       return contact;
     }
-    contact.lessonBalance = newBalance;
-    await em.getRepository(TeacherStudentContactEntity).save(contact);
+    await this.writeBalance(em, contact, newBalance);
     await this.writeHistory(em, {
       studentContactId: contact.id,
       oldBalance,
@@ -181,6 +181,95 @@ export class TeacherStudentContactBalanceService {
       createdBy,
     });
     return contact;
+  }
+
+  /** Ensure a tutor contact has a balance row (0) when created. */
+  async ensureTutorBalanceRow(
+    em: EntityManager,
+    contactId: string,
+    initialBalance = 0,
+  ): Promise<void> {
+    const repo = em.getRepository(TutorContactBalanceEntity);
+    const existing = await repo.findOne({ where: { contactId } });
+    if (existing) {
+      return;
+    }
+    await repo.save(
+      repo.create({
+        contactId,
+        lessonBalance: Math.trunc(initialBalance),
+      }),
+    );
+  }
+
+  private async readBalance(
+    em: EntityManager,
+    contact: TeacherStudentContactEntity,
+  ): Promise<number> {
+    if (contact.ownerType === 'teacher' && contact.linkedStudentId) {
+      const student = await em.getRepository(StudentEntity).findOne({
+        where: { id: contact.linkedStudentId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (student) {
+        return student.lessonBalance ?? 0;
+      }
+      return 0;
+    }
+
+    if (contact.ownerType === 'tutor') {
+      const row = await this.lockTutorBalance(em, contact.id);
+      return row.lessonBalance ?? 0;
+    }
+
+    return 0;
+  }
+
+  private async writeBalance(
+    em: EntityManager,
+    contact: TeacherStudentContactEntity,
+    newBalance: number,
+  ): Promise<void> {
+    if (contact.ownerType === 'teacher' && contact.linkedStudentId) {
+      const studentRepo = em.getRepository(StudentEntity);
+      const student = await studentRepo.findOne({
+        where: { id: contact.linkedStudentId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (student) {
+        student.lessonBalance = newBalance;
+        await studentRepo.save(student);
+      }
+      return;
+    }
+
+    if (contact.ownerType === 'tutor') {
+      const row = await this.lockTutorBalance(em, contact.id);
+      row.lessonBalance = newBalance;
+      await em.getRepository(TutorContactBalanceEntity).save(row);
+    }
+  }
+
+  private async lockTutorBalance(
+    em: EntityManager,
+    contactId: string,
+  ): Promise<TutorContactBalanceEntity> {
+    const repo = em.getRepository(TutorContactBalanceEntity);
+    let row = await repo.findOne({
+      where: { contactId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!row) {
+      await repo.save(repo.create({ contactId, lessonBalance: 0 }));
+      row = await repo.findOne({
+        where: { contactId },
+        lock: { mode: 'pessimistic_write' },
+      });
+    }
+    if (!row) {
+      throw new Error(`Tutor balance row missing for contact ${contactId}`);
+    }
+    return row;
   }
 
   private async writeHistory(

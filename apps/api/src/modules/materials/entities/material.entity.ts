@@ -10,8 +10,25 @@ import {
 } from 'typeorm';
 import { MaterialFolderEntity } from './material-folder.entity';
 
-export type MaterialFileType = 'pdf' | 'pptx' | 'video' | 'link' | 'other';
+export type MaterialFileType =
+  | 'pdf'
+  | 'pptx'
+  | 'video'
+  | 'audio'
+  | 'link'
+  | 'canva'
+  | 'other';
 export type MaterialStatus = 'active' | 'deleted';
+
+export const MATERIAL_FILE_TYPES: MaterialFileType[] = [
+  'pdf',
+  'pptx',
+  'video',
+  'audio',
+  'link',
+  'canva',
+  'other',
+];
 
 @Entity('materials')
 export class MaterialEntity {
@@ -32,16 +49,27 @@ export class MaterialEntity {
   @Column({ name: 'file_url', type: 'text', nullable: true })
   fileUrl: string | null;
 
-  @Column({
-    name: 'file_type',
-    type: 'enum',
-    enum: ['pdf', 'pptx', 'video', 'link', 'other'],
-    default: 'other',
-  })
+  /** Stored as varchar in DB (not a Postgres enum). */
+  @Column({ name: 'file_type', type: 'varchar', length: 32, default: 'other' })
   fileType: MaterialFileType;
 
   @Column({ type: 'text', nullable: true })
   description: string | null;
+
+  @Column({ name: 'mime_type', type: 'varchar', length: 128, nullable: true })
+  mimeType: string | null;
+
+  @Column({ name: 'file_size_bytes', type: 'bigint', nullable: true })
+  fileSizeBytes: string | null;
+
+  @Column({ name: 'duration_seconds', type: 'integer', nullable: true })
+  durationSeconds: number | null;
+
+  @Column({ name: 'original_filename', type: 'text', nullable: true })
+  originalFilename: string | null;
+
+  @Column({ name: 'stored_filename', type: 'text', nullable: true })
+  storedFilename: string | null;
 
   /** Soft-delete status — deleted materials stay for lesson/course history. */
   @Index('IDX_MATERIALS_STATUS')

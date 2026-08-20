@@ -177,6 +177,7 @@ export class VideoService {
       embed_url: access.embedUrl,
       display_name: access.displayName,
       token: access.token,
+      token_expires_at: access.tokenExpiresAt ?? null,
       domain: access.domain,
       room_name: access.roomName,
       external_api_url: access.externalApiUrl,

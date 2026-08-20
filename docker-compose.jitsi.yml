@@ -55,6 +55,8 @@ services:
       JWT_ACCEPTED_ISSUERS: ${JWT_ACCEPTED_ISSUERS:-${JWT_APP_ID}}
       JWT_ACCEPTED_AUDIENCES: ${JWT_ACCEPTED_AUDIENCES:-jitsi}
       JWT_ALLOW_EMPTY: 0
+      # Prefer JVB only — P2P↔bridge handoff caused mid-lesson disconnects.
+      ENABLE_P2P: ${ENABLE_P2P:-0}
       TZ: ${TZ:-Europe/Minsk}
       DEFAULT_LANGUAGE: ru
     networks:

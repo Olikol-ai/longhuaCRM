@@ -122,4 +122,38 @@ export async function createAndWrapIdentity(password) {
   };
 }
 
+/**
+ * Re-wrap the same private identity key with a new password.
+ * Does not generate a new keypair.
+ */
+export async function rewrapPrivateKeyWithNewPassword(
+  privateKeyBytes,
+  newPassword,
+  iterations = E2EE_KDF_ITERATIONS,
+) {
+  return wrapPrivateKey(privateKeyBytes, newPassword, iterations);
+}
+
+/**
+ * Unwrap with the old password, wrap with the new one, keep the same bytes.
+ */
+export async function rewrapWrappedPrivateKey({
+  wrappedPrivateKey,
+  wrapSalt,
+  wrapIv,
+  oldPassword,
+  newPassword,
+  iterations = E2EE_KDF_ITERATIONS,
+}) {
+  const privateKey = await unwrapPrivateKey(
+    wrappedPrivateKey,
+    wrapSalt,
+    wrapIv,
+    oldPassword,
+    iterations,
+  );
+  const wrapped = await wrapPrivateKey(privateKey, newPassword, iterations);
+  return { privateKey, ...wrapped };
+}
+
 export { bytesToBase64, base64ToBytes };

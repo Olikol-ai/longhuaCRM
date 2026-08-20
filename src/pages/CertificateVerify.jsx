@@ -70,7 +70,7 @@ export default function CertificateVerify() {
 
   return (
     <div
-      className="min-h-screen px-4 py-10 sm:py-16 bg-gradient-to-b from-slate-100 via-slate-200 to-slate-300 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950"
+      className="min-h-screen px-4 py-10 sm:py-16 bg-gradient-to-b from-muted via-muted to-background"
       style={{
         fontFamily: '"Source Sans 3", "Segoe UI", sans-serif',
       }}
@@ -78,15 +78,15 @@ export default function CertificateVerify() {
       <div className="mx-auto w-full max-w-lg">
         <header className="mb-8 text-center">
           <p
-            className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-900 dark:text-white"
+            className="text-3xl sm:text-4xl font-semibold tracking-tight text-foreground"
             style={{ fontFamily: '"Cormorant Garamond", Georgia, serif' }}
           >
             Longhua Academy
           </p>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Проверка подлинности сертификата</p>
+          <p className="mt-1 text-sm text-muted-foreground">Проверка подлинности сертификата</p>
         </header>
 
-        <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white dark:bg-slate-900 shadow-xl shadow-slate-900/10">
+        <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-card shadow-xl shadow-slate-900/10">
           <div
             className="pointer-events-none absolute inset-x-0 top-0 h-1.5"
             style={{
@@ -97,22 +97,22 @@ export default function CertificateVerify() {
           />
 
           {loading ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-24 text-slate-500 dark:text-slate-400">
-              <Loader2 className="h-8 w-8 animate-spin text-slate-700 dark:text-slate-300" />
+            <div className="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
+              <Loader2 className="h-8 w-8 animate-spin text-foreground" />
               <p className="text-sm">Сверяем с реестром…</p>
             </div>
           ) : error ? (
             <div className="px-6 py-12 text-center sm:px-10">
-              <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 ring-8 ring-slate-50 dark:ring-slate-800">
-                <ShieldX className="h-12 w-12 text-slate-500 dark:text-slate-400" strokeWidth={1.75} />
+              <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-muted ring-8 ring-slate-50 dark:ring-slate-800">
+                <ShieldX className="h-12 w-12 text-muted-foreground" strokeWidth={1.75} />
               </div>
               <h1
-                className="text-2xl sm:text-3xl font-semibold text-slate-900 dark:text-white"
+                className="text-2xl sm:text-3xl font-semibold text-foreground"
                 style={{ fontFamily: '"Cormorant Garamond", Georgia, serif' }}
               >
                 Сертификат не найден
               </h1>
-              <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">{error}</p>
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{error}</p>
             </div>
           ) : (
             <div className="px-6 py-10 sm:px-10 sm:py-12">
@@ -136,64 +136,64 @@ export default function CertificateVerify() {
                 )}
 
                 <h1
-                  className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-900 dark:text-white"
+                  className="text-3xl sm:text-4xl font-semibold tracking-tight text-foreground"
                   style={{ fontFamily: '"Cormorant Garamond", Georgia, serif' }}
                 >
                   {valid ? 'Сертификат действителен' : 'Сертификат недействителен'}
                 </h1>
-                <p className="mt-3 max-w-sm text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
                   {data?.message}
                 </p>
               </div>
 
-              <dl className="mt-10 space-y-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 px-5 py-5 text-left">
+              <dl className="mt-10 space-y-3 rounded-2xl bg-muted px-5 py-5 text-left">
                 <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Получатель
                   </dt>
-                  <dd className="text-sm font-semibold text-slate-900 dark:text-white sm:text-right">
+                  <dd className="text-sm font-semibold text-foreground sm:text-right break-words min-w-0">
                     {data?.student_name || '—'}
                   </dd>
                 </div>
                 <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Курс
                   </dt>
-                  <dd className="text-sm font-semibold text-slate-900 dark:text-white sm:text-right">
+                  <dd className="text-sm font-semibold text-foreground sm:text-right break-words min-w-0">
                     {data?.course_name || '—'}
                   </dd>
                 </div>
                 <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Рег. номер
                   </dt>
-                  <dd className="font-mono text-sm font-semibold text-slate-900 dark:text-white sm:text-right">
+                  <dd className="font-mono text-sm font-semibold text-foreground sm:text-right break-all min-w-0">
                     {data?.registration_number || '—'}
                   </dd>
                 </div>
                 <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Дата выдачи
                   </dt>
-                  <dd className="text-sm font-semibold text-slate-900 dark:text-white sm:text-right">
+                  <dd className="text-sm font-semibold text-foreground sm:text-right">
                     {formatIssueDate(data?.issue_date)}
                   </dd>
                 </div>
               </dl>
 
               {valid && (
-                <div className="mt-10 border-t border-slate-200 dark:border-slate-700 pt-8 text-center">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                <div className="mt-10 border-t border-border pt-8 text-center">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                     {issuer.title || 'Директор'}
                   </p>
                   <p
-                    className="mt-2 text-lg font-semibold text-slate-900 dark:text-white"
+                    className="mt-2 text-lg font-semibold text-foreground"
                     style={{ fontFamily: '"Cormorant Garamond", Georgia, serif' }}
                   >
                     {issuer.organization || 'ЧУП «ДатаВэйв Солюшнс»'}
                   </p>
                   <p
-                    className="mt-4 text-4xl text-slate-800 dark:text-slate-100"
+                    className="mt-4 text-4xl text-foreground"
                     style={{
                       fontFamily: '"Great Vibes", cursive',
                       lineHeight: 1.2,
@@ -202,7 +202,7 @@ export default function CertificateVerify() {
                     {issuer.director || 'Янчиленко И.А.'}
                   </p>
                   <div className="mx-auto mt-2 h-px w-40 bg-gradient-to-r from-transparent via-slate-400 to-transparent" />
-                  <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                  <p className="mt-2 text-sm font-medium text-foreground">
                     {issuer.director || 'Янчиленко И.А.'}
                   </p>
                 </div>
@@ -211,9 +211,9 @@ export default function CertificateVerify() {
           )}
         </div>
 
-        <p className="mt-8 text-center text-xs text-slate-500 dark:text-slate-400">
+        <p className="mt-8 text-center text-xs text-muted-foreground">
           Официальная проверка реестра сертификатов{' '}
-          <Link to="/login" className="font-medium text-slate-700 dark:text-slate-300 underline-offset-2 hover:underline">
+          <Link to="/login" className="font-medium text-foreground underline-offset-2 hover:underline">
             Longhua Academy
           </Link>
         </p>

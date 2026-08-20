@@ -1,0 +1,33 @@
+---
+description: Longhua Design System 2.0 — SSOT for all new UI
+alwaysApply: true
+---
+
+# Design System 2.0
+
+Longhua is one commercial product. UI has a single source of truth:
+
+`src/design-system/`
+
+## Rules
+
+- New screens and new UI in existing screens MUST compose from `@/design-system`.
+- Do NOT invent new button/card/badge/empty/loading/error visuals "on the page".
+- Do NOT copy class stacks from old pages into new work.
+- Do NOT add Button variants outside `src/design-system/primitives/Button.jsx`.
+- Prefer `@/design-system` over direct `@/components/ui/*` imports in **new** code.
+- Domain cards stay presentational (props in) — no API calls inside `design-system/domain/`.
+- Spacing uses the 8pt grid (`tokens/spacing`, `--lh-space-*`).
+- Icons use size tokens (`sm|md|lg|xl`) — no ad-hoc `h-4 w-4` in new code.
+- `apps/mobile` is NOT a second product UI (see ADR-001). Do not grow feature parity there.
+
+## Allowed exceptions
+
+- Temporary edits inside not-yet-migrated legacy pages may touch local styles, but any **new** control must still come from the Design System when practical.
+- Jitsi SDK wiring, E2EE crypto, and raw canvas/WebRTC host nodes are not DS concerns.
+
+## References
+
+- `docs/architecture/design-system-2.0.md`
+- `docs/architecture/adr-001-primary-client-pwa.md`
+- `docs/architecture/event-bus.md`

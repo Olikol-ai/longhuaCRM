@@ -57,6 +57,23 @@ export const lessons = {
       body: JSON.stringify(toLessonWritePayload(data)),
     });
   },
+  /**
+   * Delete a lesson. For weekly series pass apply_scope:
+   * `this` (default) | `all` | `series` | `following`.
+   */
+  delete(id, options = {}) {
+    const scope =
+      options.apply_scope ?? options.applyScope ?? null;
+    const params = new URLSearchParams();
+    if (scope && scope !== 'this') {
+      params.set('apply_scope', String(scope));
+    }
+    const qs = params.toString();
+    return apiFetch(
+      `/lessons/${encodeURIComponent(id)}${qs ? `?${qs}` : ''}`,
+      { method: 'DELETE' },
+    );
+  },
   updateStudents(id, data) {
     return apiFetch(`/lessons/${id}/students`, {
       method: 'PATCH',

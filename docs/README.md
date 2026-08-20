@@ -17,6 +17,13 @@
 | [Backend.md](./Backend.md) | NestJS API, паттерны, cron, middleware |
 | [Frontend.md](./Frontend.md) | React SPA, маршруты, API-клиент |
 | [frontend-routing.md](./frontend-routing.md) | Детали маршрутизации (App.jsx, pages.config) |
+| [architecture/adr-001-primary-client-pwa.md](./architecture/adr-001-primary-client-pwa.md) | ADR: Primary Client = PWA |
+| [architecture/design-system-2.0.md](./architecture/design-system-2.0.md) | Design System 2.0 + UI audit |
+| [architecture/event-bus.md](./architecture/event-bus.md) | Unified Event Bus (design) |
+| [architecture/stage-minus-1-report.md](./architecture/stage-minus-1-report.md) | Stage −1 deliverables report |
+| [architecture/stage-0-pwa-preparation.md](./architecture/stage-0-pwa-preparation.md) | Stage 0 — PWA architecture prep (full) |
+| [architecture/stage-0-report.md](./architecture/stage-0-report.md) | Stage 0 — executive report |
+| [architecture/stage-1-pwa-identity-report.md](./architecture/stage-1-pwa-identity-report.md) | Stage 1 — PWA Identity (PASS) |
 | [API.md](./API.md) | Полный справочник REST endpoints |
 | [BusinessLogic.md](./BusinessLogic.md) | Бизнес-процессы школы |
 | [Environment.md](./Environment.md) | Переменные окружения (см. `.env.example`) |

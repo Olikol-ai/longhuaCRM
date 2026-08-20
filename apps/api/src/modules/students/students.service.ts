@@ -1,8 +1,17 @@
-import { Injectable, NotFoundException, Optional } from '@nestjs/common';
-import { FindOptionsWhere } from 'typeorm';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { FindOptionsWhere, Repository } from 'typeorm';
 import { StudentAccessService } from '../../common/access/student-access.service';
+import { normalizeRole } from '../../common/constants/roles';
 import { JwtPayload } from '../auth/auth.service';
 import { ChatMembershipSyncService } from '../chats/services/chat-membership-sync.service';
+import { TeacherEntity } from '../teachers/entities/teacher.entity';
+import { TeacherStudentContactsService } from '../teacher-student-contacts/teacher-student-contacts.service';
 import { RoleEntitySyncService } from '../users/role-entity-sync.service';
 import { UsersRepository } from '../users/users.repository';
 import { StudentEntity } from './entities/student.entity';
@@ -19,14 +28,31 @@ export class StudentsService {
     private readonly roleEntitySync: RoleEntitySyncService,
     private readonly usersRepository: UsersRepository,
     private readonly studentDeletion: StudentDeletionService,
+    @InjectRepository(TeacherEntity)
+    private readonly teacherRepo: Repository<TeacherEntity>,
+    @Optional()
+    private readonly teacherStudentContacts?: TeacherStudentContactsService,
     @Optional()
     private readonly chatMembershipSync?: ChatMembershipSyncService,
   ) {}
 
+  /**
+   * Students visible to the actor by access rights (admin = all, teacher = assigned).
+   * Never filtered by who created the student card.
+   * Admin lists also backfill school cards for teacher notebook contacts.
+   */
   async findAll(actor: JwtPayload): Promise<StudentEntity[]> {
+    if (this.studentAccess.isAdmin(actor) && this.teacherStudentContacts) {
+      await this.teacherStudentContacts.ensureTeacherContactsLinkedToSchoolStudents();
+    }
     const where = await this.studentAccess.scopeStudentFilter(actor, {});
     const rows = await this.repository.filter(where as FindOptionsWhere<StudentEntity>);
-    return this.applyUserTelegram(rows);
+    const enriched = await this.applyUserTelegram(rows);
+    return enriched.sort((a, b) =>
+      String(a.name || '').localeCompare(String(b.name || ''), 'ru', {
+        sensitivity: 'base',
+      }),
+    );
   }
 
   /**
@@ -35,6 +61,17 @@ export class StudentsService {
    */
   async findLowBalance(): Promise<StudentEntity[]> {
     const rows = await this.repository.findActiveWithLowBalance();
+    return this.applyUserTelegram(rows);
+  }
+
+  /**
+   * Dropdown for school payments — access by assignment/role, never by creator.
+   */
+  async findPaymentOptions(actor: JwtPayload): Promise<StudentEntity[]> {
+    if (this.studentAccess.isAdmin(actor) && this.teacherStudentContacts) {
+      await this.teacherStudentContacts.ensureTeacherContactsLinkedToSchoolStudents();
+    }
+    const rows = await this.studentAccess.listStudentsForPayments(actor);
     return this.applyUserTelegram(rows);
   }
 
@@ -48,8 +85,24 @@ export class StudentsService {
     return enriched;
   }
 
-  async create(dto: CreateStudentDto): Promise<StudentEntity> {
+  async create(actor: JwtPayload, dto: CreateStudentDto): Promise<StudentEntity> {
     const payload: Record<string, unknown> = { ...dto };
+    const role = normalizeRole(actor.role);
+
+    if (role === 'teacher') {
+      const teacher = await this.teacherRepo.findOne({ where: { userId: actor.sub } });
+      if (!teacher) {
+        throw new ForbiddenException('Профиль преподавателя не найден');
+      }
+      // Payment / notebook access follows assignment, not authorship.
+      // Teacher-created school cards are always assigned to that teacher.
+      payload.assignedTeacherId = teacher.id;
+      if (!payload.status) {
+        payload.status = 'active';
+      }
+    } else if (role !== 'admin') {
+      throw new ForbiddenException('Forbidden');
+    }
 
     if (dto.email?.trim() && !dto.userId) {
       const user = await this.usersRepository.findByEmail(dto.email.trim().toLowerCase());
@@ -141,6 +194,15 @@ export class StudentsService {
       result = synced;
     }
 
+    // One-way: Student name/phone/notes → contact labels (not lesson_balance).
+    const profileTouched =
+      nameTouched ||
+      Object.prototype.hasOwnProperty.call(normalized, 'phone') ||
+      Object.prototype.hasOwnProperty.call(normalized, 'notes');
+    if (profileTouched && this.teacherStudentContacts) {
+      await this.teacherStudentContacts.syncLinkedContactProfileFromStudent(result);
+    }
+
     const subjectRelevant =
       Object.prototype.hasOwnProperty.call(normalized, 'assignedTeacherId')
       || Object.prototype.hasOwnProperty.call(normalized, 'assignedTutorId')
@@ -148,6 +210,18 @@ export class StudentsService {
       || Object.prototype.hasOwnProperty.call(normalized, 'userId');
     if (subjectRelevant && this.chatMembershipSync) {
       await this.chatMembershipSync.syncSubjectChatsForStudent(result.id);
+    }
+
+    if (
+      this.teacherStudentContacts &&
+      Object.prototype.hasOwnProperty.call(normalized, 'assignedTeacherId') &&
+      typeof result.assignedTeacherId === 'string' &&
+      result.assignedTeacherId
+    ) {
+      await this.teacherStudentContacts.syncTeacherOwnerFromLinkedStudent(
+        result.id,
+        result.assignedTeacherId,
+      );
     }
 
     return result;
@@ -158,6 +232,9 @@ export class StudentsService {
   }
 
   async filter(actor: JwtPayload, where: Record<string, unknown>): Promise<StudentEntity[]> {
+    if (this.studentAccess.isAdmin(actor) && this.teacherStudentContacts) {
+      await this.teacherStudentContacts.ensureTeacherContactsLinkedToSchoolStudents();
+    }
     const scoped = await this.studentAccess.scopeStudentFilter(actor, where);
     const rows = await this.repository.filter(scoped as FindOptionsWhere<StudentEntity>);
     return this.applyUserTelegram(rows);

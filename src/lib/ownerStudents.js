@@ -6,7 +6,10 @@
  *
  * Inactive CRM shells left after role changes (student → tutor/teacher) must never
  * appear here as “Добавленные вручную”.
+ *
+ * Lesson balance for teachers always comes from school Student (SSOT).
  */
+import { getLessonBalance } from './lessonBalance.js';
 
 export const STUDENT_KIND = {
   REGISTERED: 'registered',
@@ -83,7 +86,7 @@ export function buildOwnerStudentRows(ownerType, sources = {}) {
         phone: student.phone || null,
         email: student.email || null,
         status: student.status || 'active',
-        lesson_balance: student.lesson_balance ?? student.lessonBalance ?? 0,
+        lesson_balance: getLessonBalance(student),
         user_id: student.user_id || student.userId || null,
         raw: student,
         // School CRM students are managed by admin / assignment flow, not this notebook.
@@ -96,6 +99,16 @@ export function buildOwnerStudentRows(ownerType, sources = {}) {
 
     for (const contact of contacts) {
       if (isInactiveStatus(contact)) continue;
+      const linkedId = contact.linked_student_id || contact.linkedStudentId || null;
+      const linkedSchool = linkedId
+        ? schoolStudents.find((s) => s.id === linkedId)
+        : null;
+      // Teacher SSOT: prefer school Student from list; else API contact payload
+      // (listMine already replaces lessonBalance with Student for linked teachers).
+      const lessonBalance =
+        linkedSchool != null
+          ? getLessonBalance(linkedSchool)
+          : getLessonBalance(contact);
       rows.push({
         key: `contact:${contact.id}`,
         id: contact.id,
@@ -105,7 +118,8 @@ export function buildOwnerStudentRows(ownerType, sources = {}) {
         phone: contact.phone || null,
         email: null,
         status: contact.status || 'active',
-        lesson_balance: contact.lesson_balance ?? contact.lessonBalance ?? 0,
+        lesson_balance: lessonBalance,
+        linked_student_id: linkedId,
         user_id: null,
         last_lesson_date: contact.last_lesson_date ?? contact.lastLessonDate ?? null,
         last_lesson_start_time:
@@ -159,7 +173,8 @@ export function buildOwnerStudentRows(ownerType, sources = {}) {
         phone: contact.phone || null,
         email: null,
         status: contact.status || 'active',
-        lesson_balance: contact.lesson_balance ?? contact.lessonBalance ?? 0,
+        // Tutor private notebook: balance comes from tutor_contact_balances via API DTO.
+        lesson_balance: getLessonBalance(contact),
         user_id: null,
         last_lesson_date: contact.last_lesson_date ?? contact.lastLessonDate ?? null,
         last_lesson_start_time:

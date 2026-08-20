@@ -26,6 +26,13 @@ const DialogOverlay = React.forwardRef(({ className, ...props }, ref) => (
 ))
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
+/**
+ * Shared overlay close control — icon fully inside a DS-sized square hit target.
+ * size-11 / md:size-9 matches Design System IconButton; SVG locked to size-4.
+ */
+export const overlayCloseButtonClassName =
+  "absolute right-4 top-4 z-20 box-border inline-flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-lg opacity-70 ring-offset-background transition-opacity hover:opacity-100 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground md:size-9 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
+
 const DialogContent = React.forwardRef(({ className, children, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
@@ -37,9 +44,8 @@ const DialogContent = React.forwardRef(({ className, children, ...props }, ref) 
       )}
       {...props}>
       {children}
-      <DialogPrimitive.Close
-        className="absolute right-3 top-3 inline-flex min-h-touch min-w-touch items-center justify-center rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
-        <X className="h-4 w-4" />
+      <DialogPrimitive.Close className={overlayCloseButtonClassName}>
+        <X aria-hidden />
         <span className="sr-only">Закрыть</span>
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>

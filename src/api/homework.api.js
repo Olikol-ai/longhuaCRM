@@ -1,4 +1,5 @@
 import { apiFetch, getToken } from './http';
+import { assertOnlineForMutation } from '@/lib/offline/offlineGuard';
 
 export const homework = {
   list() {
@@ -73,6 +74,7 @@ export const homework = {
   },
 
   async uploadSpeakingAudio(attemptId, questionSnapshotId, file, durationMs) {
+    assertOnlineForMutation();
     const formData = new FormData();
     formData.append('file', file);
     if (durationMs != null) formData.append('duration_ms', String(durationMs));
@@ -107,10 +109,10 @@ export const homework = {
     });
   },
 
-  finalizeReview(assignmentId) {
+  finalizeReview(assignmentId, body) {
     return apiFetch(
       `/homework/assignments/${encodeURIComponent(assignmentId)}/review/finalize`,
-      { method: 'POST', body: '{}' },
+      { method: 'POST', body: JSON.stringify(body || {}) },
     );
   },
 };

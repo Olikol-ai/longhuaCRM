@@ -47,8 +47,8 @@ export default function TutorStats() {
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">Статистика</h1>
-        <p className="text-sm text-slate-500 mt-1">
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground">Статистика</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           Учитываются только проведённые занятия (без отменённых и перенесённых)
         </p>
       </div>
@@ -60,12 +60,12 @@ export default function TutorStats() {
         <StatCard label="Будущие занятия" value={stats?.upcoming_lessons_count ?? stats?.upcomingLessonsCount ?? 0} icon={BookOpen} color="muted" />
       </div>
 
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-          <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">История проведённых занятий</h2>
+      <div className="rounded-2xl border border-border bg-card overflow-hidden">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-semibold text-foreground">История проведённых занятий</h2>
         </div>
         {history.length === 0 ? (
-          <p className="p-6 text-sm text-slate-400">Пока нет проведённых занятий</p>
+          <p className="p-6 text-sm text-muted-foreground">Пока нет проведённых занятий</p>
         ) : (
           <div className="p-3 sm:p-4">
             <ResponsiveTable

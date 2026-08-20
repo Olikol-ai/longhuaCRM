@@ -250,7 +250,7 @@ export default function AdminTutorDetail() {
   if (error || !tutor) {
     return (
       <div className="p-6 space-y-4 max-w-3xl mx-auto">
-        <Link to="/AdminPanel?tab=tutors" className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-brand">
+        <Link to="/AdminPanel?tab=tutors" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-brand">
           <ArrowLeft className="w-4 h-4" /> К списку репетиторов
         </Link>
         <p className="text-sm text-red-600">{error || 'Репетитор не найден'}</p>
@@ -266,19 +266,19 @@ export default function AdminTutorDetail() {
         <div>
           <Link
             to="/AdminPanel?tab=tutors"
-            className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-brand mb-2"
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-brand mb-2"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Репетиторы
           </Link>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{displayName}</h1>
-          <p className="text-sm text-slate-500 mt-1">Личный кабинет репетитора · блокнот не связан с CRM школы</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">{displayName}</h1>
+          <p className="text-sm text-muted-foreground mt-1">Личный кабинет репетитора · блокнот не связан с CRM школы</p>
         </div>
-        <span className={`text-xs font-semibold self-start ${tutor.status === 'active' ? 'text-emerald-600' : 'text-slate-500'}`}>
+        <span className={`text-xs font-semibold self-start ${tutor.status === 'active' ? 'text-emerald-600' : 'text-muted-foreground'}`}>
           {localizeEntityStatus(tutor.status)}
         </span>
       </div>
 
-      <div className="flex gap-1 overflow-x-auto border-b border-slate-100 dark:border-slate-800 pb-px">
+      <div className="flex gap-1 overflow-x-auto border-b border-border pb-px">
         {TABS.map((item) => {
           const Icon = item.icon;
           const active = tab === item.id;
@@ -289,8 +289,8 @@ export default function AdminTutorDetail() {
               onClick={() => setTab(item.id)}
               className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap rounded-t-lg transition-colors ${
                 active
-                  ? 'bg-white dark:bg-slate-900 text-brand border border-b-white dark:border-b-slate-900 border-slate-200 dark:border-slate-700 -mb-px'
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-card text-brand border border-b-white dark:border-b-slate-900 border-border -mb-px'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -376,7 +376,7 @@ export default function AdminTutorDetail() {
                 value={profileForm.defaultLessonPrice}
                 onChange={(e) => setProfileForm((f) => ({ ...f, defaultLessonPrice: e.target.value }))}
               />
-              <p className="text-xs text-slate-400">Только хранение. Оплата не подключена.</p>
+              <p className="text-xs text-muted-foreground">Только хранение. Оплата не подключена.</p>
             </div>
             <div className="space-y-2">
               <Label>Статус</Label>
@@ -394,7 +394,7 @@ export default function AdminTutorDetail() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="text-sm text-slate-500">
+            <div className="text-sm text-muted-foreground">
               Дата регистрации: {formatDateLabel(tutor.created_at || tutor.createdAt)}
             </div>
             <Button type="submit" disabled={savingProfile}>
@@ -408,13 +408,13 @@ export default function AdminTutorDetail() {
       {tab === 'students' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-slate-500">Личный блокнот репетитора ({students.length})</p>
+            <p className="text-sm text-muted-foreground">Личный блокнот репетитора ({students.length})</p>
             <Button type="button" size="sm" onClick={openCreateStudent}>
               <Plus className="w-4 h-4 mr-1" /> Добавить
             </Button>
           </div>
           {students.length === 0 ? (
-            <Card className="p-8 text-center text-slate-400">Записей в блокноте пока нет</Card>
+            <Card className="p-8 text-center text-muted-foreground">Записей в блокноте пока нет</Card>
           ) : (
             <ResponsiveTable
               rows={students}
@@ -456,11 +456,11 @@ export default function AdminTutorDetail() {
 
       {tab === 'schedule' && (
         <div className="space-y-3">
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-muted-foreground">
             Уроки этого репетитора. Не отображаются в общем расписании школы.
           </p>
           {lessons.length === 0 ? (
-            <Card className="p-8 text-center text-slate-400">Занятий пока нет</Card>
+            <Card className="p-8 text-center text-muted-foreground">Занятий пока нет</Card>
           ) : (
             <ResponsiveTable
               rows={lessons}
@@ -533,15 +533,15 @@ export default function AdminTutorDetail() {
 
       {studentFormOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4">
-          <div className="w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="w-full sm:max-w-md bg-card rounded-t-2xl sm:rounded-2xl shadow-xl border border-border">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
               <h2 className="text-base font-semibold">
                 {editingStudent ? 'Изменить ученика' : 'Новый ученик'}
               </h2>
               <button
                 type="button"
                 onClick={() => setStudentFormOpen(false)}
-                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="p-2 rounded-lg hover:bg-muted"
               >
                 <X className="w-4 h-4" />
               </button>

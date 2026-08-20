@@ -83,11 +83,30 @@ export class AssignmentService {
     input: CreateAssignmentInput,
     actor: DomainAccessActor,
   ): Promise<AssessmentExamAssignmentEntity> {
-    await this.access.assertCanCreateAssignment(actor, input.examId);
+    await this.access.assertCanCreateAssignment(
+      actor,
+      input.examId,
+      input.targetType,
+      input.targetId,
+    );
 
     const exam = this.guard.requireFound(await this.exams.findById(input.examId), 'Exam');
     if (exam.status !== ContentLifecycleStatus.Published) {
       throw new ConflictException('Assignment can only be created for a published Exam');
+    }
+
+    const existingForExam = await this.assignments.filterByExamId(input.examId);
+    const duplicate = existingForExam.find(
+      (row) =>
+        row.targetType === input.targetType &&
+        row.targetId === input.targetId &&
+        row.status !== AssignmentStatus.Cancelled &&
+        row.status !== AssignmentStatus.Completed,
+    );
+    if (duplicate) {
+      throw new ConflictException(
+        'Этот экзамен уже назначен данному получателю',
+      );
     }
 
     const status = input.status ?? this.resolveInitialStatus(input.validFrom);

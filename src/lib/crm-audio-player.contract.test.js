@@ -9,26 +9,51 @@ import {
   releaseLearningAudio,
   stopAllLearningAudio,
 } from './learning-audio-runtime.js';
+import {
+  barsFromId,
+  commitSeekToMedia,
+  formatAudioClock,
+  isFiniteDuration,
+  playbackPosition,
+  seekRatioFromClientX,
+} from './audio/audioPlayerUtils.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => readFileSync(join(root, rel), 'utf8');
 
-describe('Unified CRM audio player', () => {
-  it('AuthenticatedAudio is the single styled HTML5 player with seek and exclusive play', () => {
-    const player = read('components/media/AuthenticatedAudio.jsx');
-    assert.match(player, /crm-audio-player/);
+describe('LonghuaAudioPlayer unification', () => {
+  it('LonghuaAudioPlayer is the single custom engine (no native controls UI)', () => {
+    const player = read('components/media/LonghuaAudioPlayer.jsx');
+    const hook = read('hooks/useAudioPlayer.js');
+    assert.match(player, /useAudioPlayer/);
+    assert.match(player, /lh-audio-engine/);
     assert.match(player, /data-testid="crm-audio-player"/);
-    assert.match(player, /<audio/);
-    assert.match(player, /controls/);
+    assert.match(hook, /setPointerCapture/);
+    assert.match(hook, /onTrackPointerDown/);
+    assert.match(hook, /claimLearningAudio/);
+    assert.match(hook, /commitSeekToMedia/);
+    assert.match(hook, /pendingSeekRef/);
+    assert.match(player, /PLAYBACK_SPEEDS/);
+    assert.doesNotMatch(hook, /disposeLearningAudioElement/);
+    assert.doesNotMatch(player, /\bcontrols=/);
+    assert.doesNotMatch(player, /controlsList/);
+    assert.doesNotMatch(player, /<audio[^>]*\scontrols\b/);
+  });
+
+  it('AuthenticatedAudio delegates to LonghuaAudioPlayer with withAccessToken', () => {
+    const player = read('components/media/AuthenticatedAudio.jsx');
+    assert.match(player, /LonghuaAudioPlayer/);
     assert.match(player, /withAccessToken/);
-    assert.match(player, /claimLearningAudio/);
-    assert.match(player, /disposeLearningAudioElement/);
-    assert.match(
-      player,
-      /Не удалось загрузить аудиозапись\. Попробуйте обновить страницу или повторить попытку позже\./,
-    );
-    assert.match(player, /Повторить/);
-    assert.doesNotMatch(player, /maxPlays|disableSeek|listenLimit/);
+    assert.doesNotMatch(player, /<audio/);
+    assert.doesNotMatch(player, /\bcontrols=/);
+  });
+
+  it('VoicePlayer delegates to LonghuaAudioPlayer variant=voice', () => {
+    const voice = read('components/chats/VoicePlayer.jsx');
+    assert.match(voice, /LonghuaAudioPlayer/);
+    assert.match(voice, /variant="voice"/);
+    assert.doesNotMatch(voice, /<audio/);
+    assert.doesNotMatch(voice, /seekFromClientX/);
   });
 
   it('learning surfaces reuse AuthenticatedAudio (no alternate <audio controls>)', () => {
@@ -74,6 +99,62 @@ describe('Unified CRM audio player', () => {
   });
 });
 
+describe('audioPlayerUtils', () => {
+  it('formats clock and rejects non-finite duration', () => {
+    assert.equal(formatAudioClock(65), '1:05');
+    assert.equal(formatAudioClock(NaN), '0:00');
+    assert.equal(isFiniteDuration(NaN), false);
+    assert.equal(isFiniteDuration(Infinity), false);
+    assert.equal(isFiniteDuration(12.5), true);
+  });
+
+  it('seekRatioFromClientX clamps to 0..1', () => {
+    const track = {
+      getBoundingClientRect: () => ({ left: 100, width: 200 }),
+    };
+    assert.equal(seekRatioFromClientX(track, 100), 0);
+    assert.equal(seekRatioFromClientX(track, 200), 0.5);
+    assert.equal(seekRatioFromClientX(track, 300), 1);
+    assert.equal(seekRatioFromClientX(track, 50), 0);
+    assert.equal(seekRatioFromClientX(track, 400), 1);
+  });
+
+  it('barsFromId is deterministic', () => {
+    assert.deepEqual(barsFromId('a', 4), barsFromId('a', 4));
+    assert.notDeepEqual(barsFromId('a', 4), barsFromId('b', 4));
+  });
+
+  it('seek to 120s of a 300s track commits currentTime ≈ 120', () => {
+    const media = { duration: 300, readyState: 1, currentTime: 0 };
+    const result = commitSeekToMedia(media, 120);
+    assert.equal(result.applied, true);
+    assert.equal(media.currentTime, 120);
+    assert.equal(playbackPosition(media), 120);
+  });
+
+  it('seek backward 180 → 120 does not reset to 0', () => {
+    const media = { duration: 300, readyState: 1, currentTime: 180 };
+    commitSeekToMedia(media, 120);
+    assert.equal(media.currentTime, 120);
+    assert.notEqual(media.currentTime, 0);
+  });
+
+  it('queues seek until metadata is ready, then play keeps that position', () => {
+    const media = { duration: NaN, readyState: 0, currentTime: 0 };
+    const pending = commitSeekToMedia(media, 120);
+    assert.equal(pending.applied, false);
+    assert.equal(pending.pending, 120);
+    assert.equal(media.currentTime, 0);
+    media.duration = 300;
+    media.readyState = 1;
+    const committed = commitSeekToMedia(media, pending.pending);
+    assert.equal(committed.applied, true);
+    assert.equal(media.currentTime, 120);
+    media.paused = false;
+    assert.equal(playbackPosition(media), 120);
+  });
+});
+
 describe('learning-audio-runtime', () => {
   it('pauses the previous element when another claims playback', () => {
     const first = {
@@ -81,14 +162,14 @@ describe('learning-audio-runtime', () => {
       pause() {
         this.paused = true;
       },
-      classList: { contains: () => true },
+      classList: { contains: (name) => name === 'lh-audio-engine' },
     };
     const second = {
       paused: false,
       pause() {
         this.paused = true;
       },
-      classList: { contains: () => true },
+      classList: { contains: (name) => name === 'lh-audio-engine' },
     };
     claimLearningAudio(first);
     claimLearningAudio(second);

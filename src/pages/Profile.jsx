@@ -12,6 +12,7 @@ import {
   inviteUrlFromRow,
   isActiveInvite,
 } from "@/lib/invite-links";
+import { OFFLINE_RESOURCES, putSnapshot } from "@/lib/offline";
 
 function countNameWords(fullName) {
   return String(fullName || '')
@@ -78,6 +79,22 @@ export default function Profile() {
         email: user.email || "",
         phone: user.phone ? formatBelarusPhone(user.phone) : "",
         birthday,
+      });
+      void putSnapshot({
+        userId: user.id,
+        role: user.role || 'unknown',
+        resource: OFFLINE_RESOURCES.PROFILE,
+        resourceKey: 'self',
+        data: {
+          id: user.id,
+          full_name: user.full_name || '',
+          email: user.email || '',
+          role: user.role || null,
+          phone: user.phone || '',
+          has_avatar: Boolean(user.has_avatar),
+          avatar_updated_at: user.avatar_updated_at || null,
+          birthday: birthday || null,
+        },
       });
       await loadTelegramStatus();
     })();
@@ -297,15 +314,15 @@ export default function Profile() {
 
   const connected = Boolean(tgStatus?.connected);
   const inputClass = editing
-    ? "w-full min-w-0 max-w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40 bg-white dark:bg-slate-900"
-    : "w-full min-w-0 max-w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/60 text-slate-400 cursor-not-allowed break-words";
+    ? "w-full min-w-0 max-w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40 bg-card"
+    : "w-full min-w-0 max-w-full px-3 py-2 text-sm border border-border rounded-lg bg-muted text-muted-foreground cursor-not-allowed break-words";
 
   return (
     <div className="p-3 sm:p-6 w-full max-w-2xl mx-auto space-y-6 min-w-0 overflow-x-hidden" data-testid="profile-page">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Профиль</h2>
-          <p className="text-sm text-slate-400">Ваши личные данные</p>
+          <h2 className="text-xl font-bold text-foreground">Профиль</h2>
+          <p className="text-sm text-muted-foreground">Ваши личные данные</p>
         </div>
         {!editing ? (
           <button
@@ -322,7 +339,7 @@ export default function Profile() {
             type="button"
             onClick={handleCancelEdit}
             disabled={saving}
-            className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-sm font-medium rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2.5 bg-muted text-foreground text-sm font-medium rounded-xl hover:bg-muted transition-colors disabled:opacity-50"
             data-testid="profile-cancel-edit"
           >
             <X className="w-4 h-4" />
@@ -331,18 +348,18 @@ export default function Profile() {
         )}
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 flex flex-col sm:flex-row sm:items-center gap-4 min-w-0 overflow-hidden">
+      <div className="bg-card rounded-2xl border border-border p-5 flex flex-col sm:flex-row sm:items-center gap-4 min-w-0 overflow-hidden">
         <div className="shrink-0">
           <AvatarEditor user={user} sizeClass="h-16 w-16" />
         </div>
         <div className="min-w-0 flex-1 overflow-hidden">
           <h3
-            className="text-lg font-semibold text-slate-800 dark:text-slate-100 break-words [overflow-wrap:anywhere]"
+            className="text-lg font-semibold text-foreground break-words [overflow-wrap:anywhere]"
             data-testid="profile-header-name"
           >
             {user.full_name || "—"}
           </h3>
-          <p className="text-sm text-slate-400 break-words [overflow-wrap:anywhere] [word-break:break-word]">
+          <p className="text-sm text-muted-foreground break-words [overflow-wrap:anywhere] [word-break:break-word]">
             {form.email || user.email}
           </p>
           <span className={`text-xs font-bold uppercase px-2.5 py-1 rounded-full mt-1.5 inline-block max-w-full break-words ${getRoleBadgeClass(user.role)}`}>
@@ -351,13 +368,13 @@ export default function Profile() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-          <User className="w-4 h-4 text-slate-400" /> Контактные данные
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <User className="w-4 h-4 text-muted-foreground" /> Контактные данные
         </h3>
 
         <div>
-          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">ФИО</label>
+          <label className="block text-xs font-medium text-muted-foreground mb-1">ФИО</label>
           <input
             value={form.full_name}
             onChange={e => set("full_name", e.target.value)}
@@ -367,12 +384,12 @@ export default function Profile() {
             autoComplete="name"
           />
           {editing && (
-            <p className="mt-1 text-xs text-slate-400">Фамилия и имя — минимум два слова</p>
+            <p className="mt-1 text-xs text-muted-foreground">Фамилия и имя — минимум два слова</p>
           )}
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Эл. почта</label>
+          <label className="block text-xs font-medium text-muted-foreground mb-1">Эл. почта</label>
           <input
             type="email"
             value={form.email}
@@ -380,7 +397,7 @@ export default function Profile() {
             disabled={!editing || user.role === 'admin'}
             className={
               !editing || user.role === 'admin'
-                ? "w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/60 text-slate-400 cursor-not-allowed"
+                ? "w-full px-3 py-2 text-sm border border-border rounded-lg bg-muted text-muted-foreground cursor-not-allowed"
                 : inputClass
             }
             data-testid="profile-email"
@@ -388,7 +405,7 @@ export default function Profile() {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Телефон</label>
+          <label className="block text-xs font-medium text-muted-foreground mb-1">Телефон</label>
           <input
             type="tel"
             value={form.phone}
@@ -402,7 +419,7 @@ export default function Profile() {
 
         {user.has_student_profile && (
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Дата рождения</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Дата рождения</label>
             <input
               type="date"
               value={form.birthday}
@@ -414,11 +431,11 @@ export default function Profile() {
         )}
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 space-y-3">
-        <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-3">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
           <Send className="w-4 h-4 text-brand" /> Телеграм
         </h3>
-        <div className="border-t border-slate-100 dark:border-slate-800" />
+        <div className="border-t border-border" />
 
         {connected ? (
           <div className="space-y-3">
@@ -444,12 +461,12 @@ export default function Profile() {
       </div>
 
       {user.role === "teacher" && (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 space-y-3" data-testid="teacher-invite-profile-block">
-          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+        <div className="bg-card rounded-2xl border border-border p-5 space-y-3" data-testid="teacher-invite-profile-block">
+          <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
             <Users className="w-4 h-4 text-brand" /> Ссылка для регистрации учеников
           </h3>
-          <div className="border-t border-slate-100 dark:border-slate-800" />
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <div className="border-t border-border" />
+          <p className="text-sm text-muted-foreground">
             Отправьте ссылку ученику. После регистрации и подтверждения email он автоматически закрепится за вами.
           </p>
           {inviteUrl ? (
@@ -457,7 +474,7 @@ export default function Profile() {
               {inviteUrl}
             </p>
           ) : (
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-muted-foreground">
               Ссылка ещё не готова. Нажмите «Получить ссылку» или «Скопировать ссылку».
             </p>
           )}
@@ -478,7 +495,7 @@ export default function Profile() {
               type="button"
               onClick={handleCopyInvite}
               disabled={inviteBusy}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-sm font-medium rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-muted text-foreground text-sm font-medium rounded-xl hover:bg-muted transition-colors disabled:opacity-50"
               data-testid="teacher-invite-profile-copy"
             >
               {inviteBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}

@@ -17,9 +17,11 @@ export const chatsApi = {
     method: 'POST',
     body: JSON.stringify(payload),
   }),
-  updateMessage: (messageId, body) => apiFetch(`/chats/messages/${messageId}`, {
+  updateMessage: (messageId, bodyOrPatch) => apiFetch(`/chats/messages/${messageId}`, {
     method: 'PATCH',
-    body: JSON.stringify({ body }),
+    body: JSON.stringify(
+      typeof bodyOrPatch === 'string' ? { body: bodyOrPatch } : bodyOrPatch,
+    ),
   }),
   deleteMessage: (messageId) => apiFetch(`/chats/messages/${messageId}`, { method: 'DELETE' }),
   createDmRequest: (toUserId, message) => apiFetch('/chats/dm-requests', {
@@ -43,6 +45,15 @@ export const chatsApi = {
   }),
   unblockUser: (blockedUserId) => apiFetch(`/chats/blocks/${blockedUserId}`, { method: 'DELETE' }),
   hideMembership: (chatId) => apiFetch(`/chats/${chatId}/membership`, { method: 'DELETE' }),
+  updateMemberPrefs: (chatId, prefs) =>
+    apiFetch(`/chats/${chatId}/member-prefs`, {
+      method: 'PATCH',
+      body: JSON.stringify(prefs),
+    }),
+  archiveChat: (chatId) =>
+    apiFetch(`/chats/${chatId}/archive`, { method: 'POST', body: '{}' }),
+  unarchiveChat: (chatId) =>
+    apiFetch(`/chats/${chatId}/unarchive`, { method: 'POST', body: '{}' }),
   createGroup: (payload) => apiFetch('/chats/groups', {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -55,6 +66,8 @@ export const chatsApi = {
     method: 'PATCH',
     body: JSON.stringify(messageId ? { messageId } : {}),
   }),
+  markUnread: (chatId) =>
+    apiFetch(`/chats/${chatId}/unread`, { method: 'POST', body: '{}' }),
   members: (chatId) => apiFetch(`/chats/${chatId}/members`),
   pins: (chatId) => apiFetch(`/chats/${chatId}/pins`),
   pin: (chatId, messageId) => apiFetch(`/chats/${chatId}/pins/${messageId}`, { method: 'POST' }),

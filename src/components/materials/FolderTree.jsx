@@ -5,19 +5,33 @@ import { toast } from '@/components/ui/use-toast';
 import { getCourseDisplayName } from '@/lib/courseLabels';
 import { isMaterialDrag, readMaterialDragIds } from '@/lib/materialDrag';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import RenameFolderDialog from './RenameFolderDialog';
+import {
   BookOpen,
   ChevronDown,
   ChevronRight,
   Folder,
+  FolderOpen,
   FolderPlus,
   GripVertical,
   Loader2,
+  MoreHorizontal,
+  Pencil,
   Plus,
   Trash2,
 } from 'lucide-react';
 
 function parentKey(folder) {
   return folder.parent_id || folder.parent_folder_id || null;
+}
+
+function folderOwnerId(folder) {
+  return folder.created_by_user_id || folder.createdByUserId || null;
 }
 
 function sortFolders(list) {
@@ -78,10 +92,12 @@ function FolderRow({
   depth,
   expanded,
   canManage,
+  canRename,
   busy,
   onToggleExpand,
   onSelect,
   onStartAdd,
+  onRename,
   onDelete,
   dragHandleProps,
   dropProps,
@@ -90,7 +106,7 @@ function FolderRow({
   return (
     <div
       {...(dropProps || {})}
-      className={`group flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm transition-colors ${
+      className={`group flex items-center gap-1 rounded-lg px-2 min-h-touch py-1.5 text-sm transition-colors ${
         isDropOver
           ? 'bg-emerald-100 text-emerald-900 ring-2 ring-emerald-400 dark:bg-emerald-950/50 dark:text-emerald-100'
           : selected
@@ -111,7 +127,8 @@ function FolderRow({
       )}
       <button
         type="button"
-        className="p-0.5 text-muted-foreground"
+        className="min-h-touch min-w-touch inline-flex items-center justify-center text-muted-foreground"
+        aria-label={expanded ? 'Свернуть папку' : 'Развернуть папку'}
         onClick={(e) => {
           e.stopPropagation();
           onToggleExpand();
@@ -131,27 +148,65 @@ function FolderRow({
         <Folder className="h-3.5 w-3.5 text-amber-500 shrink-0" />
         <span className="truncate">{folder.name}</span>
       </button>
-      {canManage && (
-        <div className="flex shrink-0">
-          <button
-            type="button"
-            title="Подпапка"
-            className="p-1 text-brand hover:bg-brand-soft dark:hover:bg-brand-soft rounded"
-            onClick={onStartAdd}
-          >
-            <FolderPlus className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            title="Удалить папку"
-            disabled={busy}
-            className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded disabled:opacity-50"
-            onClick={onDelete}
-          >
-            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-          </button>
+      <div className="flex shrink-0 items-center">
+          {canManage && (
+            <button
+              type="button"
+              title="Подпапка"
+              className="min-h-touch min-w-touch inline-flex items-center justify-center text-brand hover:bg-brand-soft dark:hover:bg-brand-soft rounded"
+              aria-label="Создать подпапку"
+              onClick={onStartAdd}
+            >
+              <FolderPlus className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                title="Действия с папкой"
+                aria-label={`Действия: ${folder.name}`}
+                disabled={busy}
+                className="min-h-touch min-w-touch inline-flex items-center justify-center text-muted-foreground hover:bg-muted rounded disabled:opacity-50"
+                data-testid={`folder-menu-${folder.id}`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {busy ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[10rem]">
+              <DropdownMenuItem
+                onSelect={() => onSelect?.()}
+                data-testid={`folder-open-${folder.id}`}
+              >
+                <FolderOpen className="h-3.5 w-3.5 mr-2" />
+                Открыть
+              </DropdownMenuItem>
+              {canRename && (
+                <DropdownMenuItem
+                  onSelect={() => onRename?.()}
+                  data-testid={`folder-rename-${folder.id}`}
+                >
+                  <Pencil className="h-3.5 w-3.5 mr-2" />
+                  Переименовать
+                </DropdownMenuItem>
+              )}
+              {canManage && (
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onSelect={() => onDelete?.()}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-2" />
+                  Удалить
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-      )}
     </div>
   );
 }
@@ -163,6 +218,8 @@ function FolderNode({
   onSelectFolder,
   onRefresh,
   canManage,
+  canRenameFolder,
+  onRequestRename,
   enableDrag,
   canReceiveMaterials = false,
   onDropMaterials,
@@ -184,6 +241,7 @@ function FolderNode({
   );
   const selected = selectedFolderId === folder.id;
   const droppableId = `folder-children:${folder.id}`;
+  const canRename = Boolean(canRenameFolder?.(folder));
 
   const createChild = async () => {
     if (!name.trim()) return;
@@ -232,6 +290,11 @@ function FolderNode({
     onDropMaterials,
   };
 
+  const passRename = {
+    canRenameFolder,
+    onRequestRename,
+  };
+
   const childrenList = expanded && (
     enableDrag ? (
       <Droppable droppableId={droppableId} type={`FOLDER:${folder.id}`}>
@@ -250,6 +313,7 @@ function FolderNode({
                 depth={depth + 1}
                 index={childIndex}
                 {...passDrop}
+                {...passRename}
               />
             ))}
             {provided.placeholder}
@@ -271,6 +335,7 @@ function FolderNode({
             depth={depth + 1}
             index={childIndex}
             {...passDrop}
+            {...passRename}
           />
         ))}
       </div>
@@ -308,10 +373,12 @@ function FolderNode({
         depth={depth}
         expanded={expanded}
         canManage={canManage}
+        canRename={canRename}
         busy={busy}
         onToggleExpand={() => setExpanded((v) => !v)}
         onSelect={() => onSelectFolder({ courseId: folder.course_id, folderId: folder.id })}
         onStartAdd={() => setAdding(true)}
+        onRename={() => onRequestRename?.(folder)}
         onDelete={deleteFolder}
         dragHandleProps={dragHandleProps}
         dropProps={dropProps}
@@ -360,6 +427,8 @@ function CourseBody({
   setFolderName,
   busy,
   canManage,
+  canRenameFolder,
+  onRequestRename,
   enableDrag,
   canReceiveMaterials,
   onDropMaterials,
@@ -384,6 +453,11 @@ function CourseBody({
   const passDrop = {
     canReceiveMaterials,
     onDropMaterials,
+  };
+
+  const passRename = {
+    canRenameFolder,
+    onRequestRename,
   };
 
   return (
@@ -521,6 +595,7 @@ function CourseBody({
                     depth={1}
                     index={folderIndex}
                     {...passDrop}
+                    {...passRename}
                   />
                 ))}
                 {folderProvided.placeholder}
@@ -542,6 +617,7 @@ function CourseBody({
                 depth={1}
                 index={folderIndex}
                 {...passDrop}
+                {...passRename}
               />
             ))}
           </div>
@@ -559,7 +635,10 @@ export default function FolderTree({
   selectedFolderId,
   onSelectFolder,
   onRefresh,
+  onTreeRefresh,
+  onFolderRenamed,
   canManage = false,
+  currentUserId = null,
   canReceiveMaterials = false,
   onDropMaterials,
 }) {
@@ -575,6 +654,14 @@ export default function FolderTree({
   const [courseName, setCourseName] = useState('');
   const [creatingCourse, setCreatingCourse] = useState(false);
   const [reordering, setReordering] = useState(false);
+  const [renamingFolder, setRenamingFolder] = useState(null);
+  const [renameBusy, setRenameBusy] = useState(false);
+
+  const canRenameFolder = (folder) => {
+    if (canManage) return true;
+    if (!currentUserId) return false;
+    return folderOwnerId(folder) === currentUserId;
+  };
 
   const sortedCourses = useMemo(() => {
     return [...courses].sort((a, b) => {
@@ -714,6 +801,27 @@ export default function FolderTree({
     }
   };
 
+  const saveRename = async (nextName) => {
+    if (!renamingFolder?.id) return;
+    setRenameBusy(true);
+    try {
+      await api.materials.folders.update(renamingFolder.id, { name: nextName });
+      onFolderRenamed?.(renamingFolder.id, nextName);
+      setRenamingFolder(null);
+      toast({ title: 'Папка переименована' });
+      const refreshTree = onTreeRefresh || onRefresh;
+      await refreshTree?.();
+    } catch (err) {
+      toast({
+        title: 'Не удалось переименовать папку',
+        description: err?.message || 'Попробуйте ещё раз',
+        variant: 'destructive',
+      });
+    } finally {
+      setRenameBusy(false);
+    }
+  };
+
   const onDragEnd = async (result) => {
     if (!canManage || !result.destination) return;
     const { source, destination, type, draggableId } = result;
@@ -786,6 +894,8 @@ export default function FolderTree({
       setFolderName={setFolderName}
       busy={busy}
       canManage={canManage}
+      canRenameFolder={canRenameFolder}
+      onRequestRename={setRenamingFolder}
       enableDrag={enableDrag}
       canReceiveMaterials={canReceiveMaterials}
       onDropMaterials={onDropMaterials}
@@ -942,6 +1052,16 @@ export default function FolderTree({
           <div className="space-y-1">{courseList}</div>
         )}
       </div>
+
+      <RenameFolderDialog
+        open={Boolean(renamingFolder)}
+        folderName={renamingFolder?.name || ''}
+        busy={renameBusy}
+        onOpenChange={(open) => {
+          if (!open && !renameBusy) setRenamingFolder(null);
+        }}
+        onSave={saveRename}
+      />
     </aside>
   );
 }

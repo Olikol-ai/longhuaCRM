@@ -10,18 +10,27 @@ import {
   setCachedSessionUser,
   setInFlightEstablish,
 } from './session-user';
+import { clearAllOfflineData, ensureOfflineUserScope } from '@/lib/offline/offlineRepository';
+import { syncPushSubscriptionIfGranted } from '@/lib/pwa/pushClient';
+import { withTimeout } from '@/lib/asyncBounded';
+import { disconnectChatSocket } from '@/lib/chat-socket';
 
 const AuthContext = createContext();
+
+/** Optional logout I/O must never block auth clear / login redirect. */
+const LOGOUT_OPTIONAL_TIMEOUT_MS = 2500;
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [authError, setAuthError] = useState(null);
   const [appPublicSettings] = useState({ id: 'longhua-crm', public_settings: { auth_required: true } });
   const [needsNameSetup, setNeedsNameSetup] = useState(false);
   const establishSessionRef = useRef(null);
+  const loggingOutRef = useRef(false);
 
   const applyUserSession = useCallback((currentUser) => {
     if (currentUser.onboarding_state === 'blocked') {
@@ -34,6 +43,7 @@ export const AuthProvider = ({ children }) => {
         type: 'blocked',
         message: 'Аккаунт заблокирован. Обратитесь к администратору.',
       });
+      void clearAllOfflineData();
       return;
     }
 
@@ -47,6 +57,7 @@ export const AuthProvider = ({ children }) => {
         type: 'auth_required',
         message: 'Сессия недействительна. Войдите снова.',
       });
+      void clearAllOfflineData();
       return;
     }
 
@@ -55,6 +66,7 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
       setNeedsNameSetup(true);
       setAuthError(null);
+      void ensureOfflineUserScope(currentUser.id, currentUser.role);
       return;
     }
 
@@ -62,6 +74,8 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(true);
     setNeedsNameSetup(false);
     setAuthError(null);
+    void ensureOfflineUserScope(currentUser.id, currentUser.role);
+    void syncPushSubscriptionIfGranted();
   }, []);
 
   /**
@@ -163,14 +177,48 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const logout = useCallback(() => {
+    if (loggingOutRef.current) return;
+    loggingOutRef.current = true;
+    setIsLoggingOut(true);
+
+    // CRITICAL: clear token synchronously FIRST.
+    // If we clear isAuthenticated while the token remains, auth-gate treats it as
+    // partial session (token && !isAuthenticated) → infinite "Загрузка сессии".
+    // Push revoke / SW ready must never gate token clear or redirect.
     clearSessionCache();
+    clearInFlightEstablish();
+    setToken(null);
     setUser(null);
     setIsAuthenticated(false);
     setNeedsNameSetup(false);
     setAuthError(null);
     setIsLoadingAuth(false);
-    setToken(null);
-    window.location.href = '/login';
+
+    try {
+      disconnectChatSocket();
+    } catch {
+      /* best-effort */
+    }
+
+    void (async () => {
+      await Promise.allSettled([
+        withTimeout(
+          (async () => {
+            try {
+              const { revokeCurrentDevicePushSubscription } = await import('@/lib/pwa/pushClient');
+              await revokeCurrentDevicePushSubscription({
+                timeoutMs: LOGOUT_OPTIONAL_TIMEOUT_MS,
+              });
+            } catch (err) {
+              console.warn('[logout] push revoke skipped', err?.message || err);
+            }
+          })(),
+          LOGOUT_OPTIONAL_TIMEOUT_MS,
+        ),
+        withTimeout(Promise.resolve(clearAllOfflineData()).catch(() => null), LOGOUT_OPTIONAL_TIMEOUT_MS),
+      ]);
+      window.location.assign('/login');
+    })();
   }, []);
 
   const navigateToLogin = () => {
@@ -201,6 +249,7 @@ export const AuthProvider = ({ children }) => {
       isAuthenticated,
       isLoadingAuth,
       isLoadingPublicSettings,
+      isLoggingOut,
       authError,
       appPublicSettings,
       logout,

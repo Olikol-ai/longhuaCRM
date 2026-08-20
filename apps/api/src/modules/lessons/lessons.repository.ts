@@ -45,12 +45,18 @@ export class LessonsRepository {
   }
 
   async update(id: string, data: Partial<LessonEntity>): Promise<LessonEntity | null> {
-    await this.lessonRepo.update({ id }, data);
-    return this.findById(id);
+    if (typeof id !== 'string' || !id.trim()) {
+      throw new Error('LessonsRepository.update requires a concrete lesson id');
+    }
+    await this.lessonRepo.update({ id: id.trim() }, data);
+    return this.findById(id.trim());
   }
 
   async delete(id: string): Promise<void> {
-    await this.lessonRepo.delete({ id });
+    if (typeof id !== 'string' || !id.trim()) {
+      throw new Error('LessonsRepository.delete requires a concrete lesson id');
+    }
+    await this.lessonRepo.delete({ id: id.trim() });
   }
 
   filter(where: FindOptionsWhere<LessonEntity>): Promise<LessonEntity[]> {

@@ -40,6 +40,8 @@ import { RoleEntitySyncService } from '../users/role-entity-sync.service';
 
 import { userToRecord } from '../users/user.mapper';
 
+import { ChangePasswordDto } from './dto/change-password.dto';
+
 import { ForgotPasswordDto, ResetPasswordDto } from './dto/forgot-password.dto';
 
 import { LoginDto } from './dto/login.dto';
@@ -856,6 +858,47 @@ export class AuthService {
     return {
       ok: true,
       message: 'Пароль успешно изменён. Теперь вы можете войти с новым паролем.',
+    };
+  }
+
+  /**
+   * Authenticated user changes own password. JWT stays valid (stateless tokens);
+   * pending password-reset tokens are cleared so they cannot race with the new hash.
+   */
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    if (dto.new_password !== dto.confirm_password) {
+      throw new BadRequestException('Пароли не совпадают');
+    }
+
+    try {
+      validateRegistrationPassword(dto.new_password);
+    } catch (error) {
+      throw new BadRequestException((error as Error).message);
+    }
+
+    const user = await this.usersRepository.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('Пользователь не найден');
+    }
+
+    if (!bcrypt.compareSync(dto.current_password, user.passwordHash)) {
+      throw new BadRequestException('Неверный текущий пароль');
+    }
+
+    if (bcrypt.compareSync(dto.new_password, user.passwordHash)) {
+      throw new BadRequestException('Новый пароль должен отличаться от текущего');
+    }
+
+    user.passwordHash = bcrypt.hashSync(dto.new_password, 10);
+    user.passwordResetToken = null;
+    user.passwordResetExpiresAt = null;
+    await this.usersRepository.save(user);
+
+    this.logger.log(`Password changed for user ${user.id}`);
+
+    return {
+      ok: true,
+      message: 'Пароль успешно изменён.',
     };
   }
 

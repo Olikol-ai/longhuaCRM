@@ -130,7 +130,9 @@ export class UserCryptoService implements OnModuleInit {
           'Activate server-provisioned keys via POST /crypto/me/activate before replacing them',
         );
       }
-      existing.publicKey = input.publicKey;
+      if (existing.publicKey !== input.publicKey) {
+        throw new BadRequestException('Cannot replace an existing E2EE identity key');
+      }
       existing.wrappedPrivateKey = input.wrappedPrivateKey;
       existing.wrapSalt = input.wrapSalt;
       existing.wrapIv = input.wrapIv;
@@ -138,7 +140,6 @@ export class UserCryptoService implements OnModuleInit {
       existing.kdf = kdf;
       existing.kdfIterations = kdfIterations;
       if (input.keyVersion != null) existing.keyVersion = input.keyVersion;
-      else existing.keyVersion = (existing.keyVersion || 1) + 1;
       return this.cryptoRepo.save(existing);
     }
 

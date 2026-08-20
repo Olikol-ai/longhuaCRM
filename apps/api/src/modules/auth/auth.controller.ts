@@ -4,6 +4,7 @@ import { getClientIp } from '../../common/security/client-ip';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AuthService, JwtPayload } from './auth.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto, ResetPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -74,6 +75,13 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   updateMe(@CurrentUser() user: JwtPayload, @Body() dto: UpdateMeDto) {
     return this.authService.updateMe(user.sub, dto);
+  }
+
+  /** Authenticated user changes their own password (current password required). */
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  changePassword(@CurrentUser() user: JwtPayload, @Body() dto: ChangePasswordDto) {
+    return this.authService.changePassword(user.sub, dto);
   }
 
   @Get('public-settings')

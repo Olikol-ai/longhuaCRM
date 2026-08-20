@@ -11,7 +11,10 @@ CRM_DIR="${CRM_DIR:-/opt/longhuaCRM}"
 BRANCH="${BRANCH:-refactor/nestjs}"
 SCREEN_NAME="${SCREEN_NAME:-longhua}"
 API_PORT="${API_PORT:-3001}"
-HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:${API_PORT}/api/health/live}"
+HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:${API_PORT}/api/health/ready}"
+HEALTH_LIVE_URL="${HEALTH_LIVE_URL:-http://127.0.0.1:${API_PORT}/api/health/live}"
+# Production deploy must not migrate without a backup unless explicitly skipped.
+BACKUP_REQUIRED="${BACKUP_REQUIRED:-1}"
 LOG_DIR=""
 LOG_FILE=""
 DRY_RUN=0
@@ -31,7 +34,10 @@ Environment overrides (see .env.example):
   BRANCH=refactor/nestjs
   SCREEN_NAME=longhua
   API_PORT=3001
-  HEALTH_URL=http://127.0.0.1:3001/api/health/live
+  HEALTH_URL=http://127.0.0.1:3001/api/health/ready
+  HEALTH_LIVE_URL=http://127.0.0.1:3001/api/health/live
+  BACKUP_REQUIRED=1                 abort if pre-migration backup fails (default)
+  SKIP_PRE_MIGRATION_BACKUP=1       emergency only
 EOF
 }
 
@@ -62,6 +68,22 @@ die() {
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"
+}
+
+wait_http() {
+  local url="$1"
+  local label="$2"
+  local timeout_s="${3:-60}"
+  local elapsed=0
+  while (( elapsed < timeout_s )); do
+    if curl -fsS --max-time 3 "$url" >/dev/null 2>&1; then
+      log "$label OK: $url"
+      return 0
+    fi
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+  die "$label failed after ${timeout_s}s: $url"
 }
 
 abs_path() {
@@ -209,6 +231,49 @@ quit_crm_screen() {
   fi
 }
 
+# systemd runtime unit (autostart after reboot). Deploy must stop it first so
+# Restart=on-failure does not race with git pull / migrate / build.
+systemd_runtime_available() {
+  command -v systemctl >/dev/null 2>&1 || return 1
+  systemctl cat longhua.service >/dev/null 2>&1
+}
+
+stop_systemd_runtime() {
+  if ! systemd_runtime_available; then
+    return 0
+  fi
+  if systemctl is-active --quiet longhua.service 2>/dev/null \
+    || systemctl is-failed --quiet longhua.service 2>/dev/null; then
+    log "Stopping systemd unit longhua.service (avoid restart race during deploy)"
+    if sudo -n systemctl stop longhua.service >/dev/null 2>&1; then
+      log "systemd longhua.service stopped"
+      return 0
+    fi
+    die "longhua.service is installed but could not be stopped (need: sudo systemctl stop longhua). Install sudoers via scripts/install-longhua-systemd.sh"
+  fi
+}
+
+start_systemd_runtime() {
+  if ! systemd_runtime_available; then
+    return 1
+  fi
+  log "Starting Longhua stack via systemd unit longhua.service (npm run dev)"
+  if ! sudo -n systemctl start longhua.service >/dev/null 2>&1; then
+    die "Failed to start longhua.service (need passwordless systemctl — re-run: sudo ./scripts/install-longhua-systemd.sh)"
+  fi
+  # Wait until screen session exists (unit creates it)
+  local elapsed=0
+  while (( elapsed < 60 )); do
+    if screen -ls 2>/dev/null | grep -E "\.${SCREEN_NAME}([[:space:]]|$)" >/dev/null 2>&1; then
+      log "Screen session '$SCREEN_NAME' is up (via systemd)"
+      return 0
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+  die "longhua.service started but screen session '$SCREEN_NAME' did not appear"
+}
+
 if [[ "$DRY_RUN" -eq 1 ]]; then
   log "DRY-RUN: processes that would be stopped:"
   if [[ -z "$(crm_pgrep || true)" ]]; then
@@ -219,12 +284,18 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
       log "  $line"
     done < <(crm_pgrep || true)
   fi
+  log "DRY-RUN: would take pre-migration backup (BACKUP_REQUIRED=$BACKUP_REQUIRED)"
   log "DRY-RUN: would fetch/pull origin/$BRANCH"
   log "DRY-RUN: would npm install (+ apps/api)"
   log "DRY-RUN: would run migrations"
   log "DRY-RUN: would build:api and build:client"
-  log "DRY-RUN: would restart screen '$SCREEN_NAME' with npm run dev"
-  log "DRY-RUN: would check $HEALTH_URL and port $API_PORT"
+  if systemd_runtime_available; then
+    log "DRY-RUN: would stop/start systemd unit longhua.service (screen '$SCREEN_NAME' → npm run dev)"
+  else
+    log "DRY-RUN: would restart screen '$SCREEN_NAME' via scripts/longhua-screen-runtime.sh (npm run dev)"
+  fi
+  log "DRY-RUN: runtime command: npm run dev (concurrently: API + Vite + cloudflared; NODE_ENV from .env)"
+  log "DRY-RUN: would require $HEALTH_LIVE_URL (live) and $HEALTH_URL (ready) on port $API_PORT"
   log "======= LongHuaCRM dry-run finished (no changes) ======="
   exit 0
 fi
@@ -237,6 +308,8 @@ require_cmd kill
 require_cmd sleep
 
 # --- 3. Stop current app ------------------------------------------------------
+# Prefer stopping systemd first so Restart= does not respawn mid-deploy.
+stop_systemd_runtime
 quit_crm_screen
 stop_crm_processes
 
@@ -260,14 +333,39 @@ log "Installing apps/api dependencies..."
 npm install --prefix apps/api
 log "npm install OK"
 
-# --- 6. Migrations ------------------------------------------------------------
+# --- 6. Pre-migration backup --------------------------------------------------
+if [[ "${SKIP_PRE_MIGRATION_BACKUP:-0}" == "1" ]]; then
+  if [[ "$BACKUP_REQUIRED" == "1" ]]; then
+    die "SKIP_PRE_MIGRATION_BACKUP=1 is incompatible with BACKUP_REQUIRED=1"
+  fi
+  log "Skipping pre-migration backup (SKIP_PRE_MIGRATION_BACKUP=1)"
+else
+  if ! command -v pg_dump >/dev/null 2>&1; then
+    if [[ "$BACKUP_REQUIRED" == "1" ]]; then
+      die "BACKUP_REQUIRED=1 but pg_dump is not installed — aborting before migration"
+    fi
+    log "WARNING: pg_dump not installed — continuing without backup"
+  else
+    log "Pre-migration database backup..."
+    if BACKUP_DIR="$CRM_DIR/backups/pre-deploy" bash "$CRM_DIR/scripts/backup-db.sh"; then
+      log "Pre-migration backup OK"
+    else
+      if [[ "$BACKUP_REQUIRED" == "1" ]]; then
+        die "BACKUP_REQUIRED=1 but backup failed — aborting deploy"
+      fi
+      log "WARNING: pre-migration backup failed — continuing"
+    fi
+  fi
+fi
+
+# --- 7. Migrations ------------------------------------------------------------
 log "Running database migrations..."
 if ! npm run migration:run --prefix apps/api; then
   die "Migration failed — application will NOT be started"
 fi
 log "Migrations OK"
 
-# --- 7. Build check -----------------------------------------------------------
+# --- 8. Build check -----------------------------------------------------------
 log "Building API..."
 if ! npm run build:api; then
   die "build:api failed — application will NOT be started"
@@ -278,36 +376,37 @@ if ! npm run build:client; then
 fi
 log "Build OK"
 
-# --- 8. Start in screen -------------------------------------------------------
+# --- 9. Start runtime (npm run dev via systemd / screen) ----------------------
 quit_crm_screen
 # Ensure no leftover CRM processes before start (idempotent)
 stop_crm_processes
 
-log "Starting application in screen '$SCREEN_NAME'..."
-# -dmS: detached; bash -lc keeps PATH/npm from login profile when available
-screen -dmS "$SCREEN_NAME" bash -lc "cd \"$CRM_DIR\" && npm run dev"
+# Prefer systemd runtime when installed (reboot autostart).
+# Screen command: npm run dev → backend + frontend + cloudflared.
+if ! start_systemd_runtime; then
+  log "Starting application in screen '$SCREEN_NAME' (npm run dev, legacy path)..."
+  if [[ ! -x "$CRM_DIR/scripts/longhua-screen-runtime.sh" ]]; then
+    die "Missing runtime helper: $CRM_DIR/scripts/longhua-screen-runtime.sh"
+  fi
+  SCREEN_NAME="$SCREEN_NAME" CRM_DIR="$CRM_DIR" \
+    "$CRM_DIR/scripts/longhua-screen-runtime.sh" start-detached
 
-sleep 2
-if ! screen -ls 2>/dev/null | grep -E "\.${SCREEN_NAME}([[:space:]]|$)" >/dev/null 2>&1; then
-  die "Failed to create screen session '$SCREEN_NAME'"
+  sleep 2
+  if ! screen -ls 2>/dev/null | grep -E "\.${SCREEN_NAME}([[:space:]]|$)" >/dev/null 2>&1; then
+    die "Failed to create screen session '$SCREEN_NAME'"
+  fi
+  log "Screen session '$SCREEN_NAME' started"
 fi
-log "Screen session '$SCREEN_NAME' started"
 
-# --- 9. Post-start checks -----------------------------------------------------
-log "Waiting 10s for API to boot..."
-sleep 10
+# --- 10. Post-start checks ----------------------------------------------------
+log "Waiting for API health probes..."
+wait_http "$HEALTH_LIVE_URL" "Liveness" 60
+wait_http "$HEALTH_URL" "Readiness" 30
 
 if ss -tulpn 2>/dev/null | grep -E ":${API_PORT}\\b" >/dev/null 2>&1; then
   log "Port $API_PORT is listening"
 else
-  log "WARNING: port $API_PORT not found in ss output yet"
-fi
-
-if curl -fsS --max-time 10 "$HEALTH_URL" >/dev/null 2>&1; then
-  log "Health check OK: $HEALTH_URL"
-else
-  log "WARNING: health check failed for $HEALTH_URL (app may still be starting)"
-  log "Inspect: screen -r $SCREEN_NAME"
+  log "WARNING: port $API_PORT not found in ss output (health probes passed)"
 fi
 
 log "======= LongHuaCRM deploy finished (commit=$COMMIT_AFTER) ======="

@@ -1,8 +1,10 @@
 import { ForbiddenException, GoneException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { ChatAccessService } from '../../../common/access/chat-access.service';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
+import { composeDisplayName } from '../../users/display-name.util';
+import { UserEntity } from '../../users/entities/user.entity';
 import {
   ChatEntity,
   ChatMemberEntity,
@@ -17,18 +19,76 @@ import { isLessonScopedChat } from '../utils/lesson-chat-scope';
 import { ChatMembershipSyncService } from './chat-membership-sync.service';
 import { ChatPresenceService } from './chat-presence.service';
 
+export type ChatMemberPrefsView = {
+  archived: boolean;
+  pinned: boolean;
+  muted: boolean;
+  favorite: boolean;
+  mutedUntil: string | null;
+  archivedAt: string | null;
+  pinnedAt: string | null;
+  favoritedAt: string | null;
+  /** Read cursor SSOT — used by clients for unread separator / badge sync. */
+  lastReadMessageId: string | null;
+};
+
 export type ChatListItem = ChatEntity & {
   unreadCount: number;
   memberCount: number;
   onlineCount: number;
   /** Member user ids — used by FE to recompute onlineCount on presence events. */
   memberUserIds: string[];
+  /** Actor-specific list prefs (SSOT from chat_members). */
+  userState: ChatMemberPrefsView;
+  /** Direct peer summary for list/header title + avatar (SSOT for DM naming). */
+  peer?: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+    hasAvatar: boolean;
+    avatarUpdatedAt: string | null;
+    lastSeenAt: string | null;
+  } | null;
 };
 
 export type ChatListResponse = {
   groups: Record<string, ChatListItem[]>;
   totalUnread: number;
 };
+
+const MUTE_FAR_FUTURE = new Date('9999-12-31T23:59:59.000Z');
+
+function emptyMemberPrefs(): ChatMemberPrefsView {
+  return {
+    archived: false,
+    pinned: false,
+    muted: false,
+    favorite: false,
+    mutedUntil: null,
+    archivedAt: null,
+    pinnedAt: null,
+    favoritedAt: null,
+    lastReadMessageId: null,
+  };
+}
+
+function prefsFromMember(member?: ChatMemberEntity | null): ChatMemberPrefsView {
+  if (!member) return emptyMemberPrefs();
+  const now = Date.now();
+  return {
+    archived: Boolean(member.archivedAt),
+    pinned: Boolean(member.pinnedAt),
+    muted: Boolean(member.mutedUntil && member.mutedUntil.getTime() > now),
+    favorite: Boolean(member.favoritedAt),
+    mutedUntil: member.mutedUntil ? member.mutedUntil.toISOString() : null,
+    archivedAt: member.archivedAt ? member.archivedAt.toISOString() : null,
+    pinnedAt: member.pinnedAt ? member.pinnedAt.toISOString() : null,
+    favoritedAt: member.favoritedAt ? member.favoritedAt.toISOString() : null,
+    lastReadMessageId: member.lastReadMessageId ?? null,
+  };
+}
 
 @Injectable()
 export class ChatsService {
@@ -95,15 +155,26 @@ export class ChatsService {
       if (chat.kind === ChatKind.Direct && !membership) continue;
       const unreadCount = await this.countUnread(chat.id, membership, actor.sub);
       const counts = await this.memberOnlineCounts(chat.id);
-      items.push(Object.assign(chat, { unreadCount, ...counts }));
+      items.push(
+        Object.assign(chat, {
+          unreadCount,
+          ...counts,
+          userState: prefsFromMember(membership),
+        }),
+      );
     }
 
-    const groups = items.reduce<Record<string, ChatListItem[]>>((acc, chat) => {
+    const enriched = await this.attachDirectPeers(items, actor.sub);
+
+    const groups = enriched.reduce<Record<string, ChatListItem[]>>((acc, chat) => {
       (acc[chat.kind] ??= []).push(chat);
       return acc;
     }, {});
 
-    const totalUnread = items.reduce((sum, chat) => sum + chat.unreadCount, 0);
+    const totalUnread = enriched.reduce((sum, chat) => {
+      if (chat.userState?.archived) return sum;
+      return sum + chat.unreadCount;
+    }, 0);
     return { groups, totalUnread };
   }
 
@@ -117,6 +188,8 @@ export class ChatsService {
       .innerJoinAndSelect('member.chat', 'chat')
       .where('member.userId = :userId', { userId: actor.sub })
       .andWhere('member.hiddenAt IS NULL')
+      // Archived chats keep per-chat unread in Archive tab, but do not inflate the nav badge.
+      .andWhere('member.archivedAt IS NULL')
       .andWhere('chat.lessonId IS NULL')
       .andWhere('chat.kind <> :lesson', { lesson: ChatKind.Lesson })
       .andWhere(`chat.title NOT LIKE :lessonTitle`, { lessonTitle: 'Урок:%' })
@@ -145,11 +218,29 @@ export class ChatsService {
   }
 
   async getChat(actor: DomainAccessActor, chatId: string): Promise<
-    ChatEntity & { memberCount: number; onlineCount: number; memberUserIds: string[] }
+    ChatEntity & {
+      memberCount: number;
+      onlineCount: number;
+      memberUserIds: string[];
+      userState: ChatMemberPrefsView;
+      peer?: ChatListItem['peer'];
+    }
   > {
     const chat = await this.access.assertCanRead(actor, chatId);
+    const member = await this.memberRepo.findOne({
+      where: { chatId, userId: actor.sub },
+    });
+    const userState = prefsFromMember(member);
     const counts = await this.memberOnlineCounts(chatId);
-    return Object.assign(chat, counts);
+    const [enriched] = await this.attachDirectPeers(
+      [Object.assign(chat, { unreadCount: 0, userState, ...counts })],
+      actor.sub,
+    );
+    return Object.assign(chat, counts, {
+      title: enriched.title,
+      peer: enriched.peer ?? null,
+      userState,
+    });
   }
 
   async unreadCount(actor: DomainAccessActor, chatId: string): Promise<number> {
@@ -281,6 +372,68 @@ export class ChatsService {
     };
   }
 
+  /**
+   * Mark chat as unread for the actor (list badge).
+   * Rewinds last_read to before the latest non-own message so at least one unread remains.
+   * Membership ensured after ACL — same pattern as markRead / member-prefs.
+   */
+  async markUnread(
+    actor: DomainAccessActor,
+    chatId: string,
+  ): Promise<{ lastReadMessageId: string | null; unreadCount: number }> {
+    await this.access.assertCanRead(actor, chatId);
+    await this.membershipSync.addMember(chatId, actor.sub);
+
+    const latest = await this.messageRepo
+      .createQueryBuilder('message')
+      .where('message.chatId = :chatId', { chatId })
+      .andWhere('message.deletedAt IS NULL')
+      .andWhere(
+        '(message.senderUserId IS NULL OR message.senderUserId <> :viewerUserId)',
+        { viewerUserId: actor.sub },
+      )
+      .orderBy('message.created_at', 'DESC')
+      .addOrderBy('message.id', 'DESC')
+      .getOne();
+
+    if (!latest) {
+      const member = await this.memberRepo.findOne({ where: { chatId, userId: actor.sub } });
+      const unreadCount = await this.countUnread(chatId, member, actor.sub);
+      await this.emitUnreadSummary(actor);
+      return { lastReadMessageId: member?.lastReadMessageId ?? null, unreadCount };
+    }
+
+    const previous = await this.messageRepo
+      .createQueryBuilder('message')
+      .where('message.chatId = :chatId', { chatId })
+      .andWhere('message.deletedAt IS NULL')
+      .andWhere(
+        `(message.created_at < :createdAt OR (message.created_at = :createdAt AND message.id < :messageId))`,
+        { createdAt: latest.createdAt, messageId: latest.id },
+      )
+      .orderBy('message.created_at', 'DESC')
+      .addOrderBy('message.id', 'DESC')
+      .getOne();
+
+    await this.memberRepo.update(
+      { chatId, userId: actor.sub },
+      {
+        lastReadMessageId: previous?.id ?? null,
+        lastReadAt: previous?.createdAt ?? null,
+      },
+    );
+
+    const refreshed = await this.memberRepo.findOne({
+      where: { chatId, userId: actor.sub },
+    });
+    const unreadCount = await this.countUnread(chatId, refreshed, actor.sub);
+    await this.emitUnreadSummary(actor);
+    return {
+      lastReadMessageId: refreshed?.lastReadMessageId ?? null,
+      unreadCount,
+    };
+  }
+
   /** Advance read cursor when the actor sends a message (group/system/subject/course/DM). */
   async advanceLastReadForSender(
     chatId: string,
@@ -360,11 +513,93 @@ export class ChatsService {
 
   async hideMembership(actor: DomainAccessActor, chatId: string): Promise<void> {
     await this.access.assertCanRead(actor, chatId);
+    // Same as markRead / member-prefs: admin may list subject/school chats without a row yet.
+    await this.membershipSync.addMember(chatId, actor.sub);
     const member = await this.memberRepo.findOne({ where: { chatId, userId: actor.sub } });
     if (!member) throw new NotFoundException('Membership not found');
     member.hiddenAt = new Date();
     await this.memberRepo.save(member);
     this.gateway?.emitToUser(actor.sub, 'chat.deleted', { chatId, personal: true });
+  }
+
+  /**
+   * Per-user list prefs (archive/pin/mute/favorite). Does not affect other members.
+   * Archive is independent of hiddenAt (hide-until-message).
+   *
+   * Admins can list subject/school/course chats via ACL without a chat_members row
+   * (see listChats). Prefs still live on chat_members — ensure the row after ACL,
+   * matching markRead (never create membership before assertCanRead).
+   */
+  async updateMemberPrefs(
+    actor: DomainAccessActor,
+    chatId: string,
+    patch: {
+      archived?: boolean;
+      pinned?: boolean;
+      muted?: boolean;
+      favorite?: boolean;
+    },
+  ): Promise<ChatMemberPrefsView> {
+    await this.access.assertCanRead(actor, chatId);
+    await this.membershipSync.addMember(chatId, actor.sub);
+
+    // Atomic SQL — closes race where listChats→ensureForUser deletes a row that
+    // still has archived_at=NULL between addMember() and a slow entity save().
+    const sets: string[] = [];
+    const params: unknown[] = [chatId, actor.sub];
+    let next = 3;
+
+    if (patch.archived === true) {
+      sets.push('archived_at = COALESCE(archived_at, NOW())');
+    } else if (patch.archived === false) {
+      sets.push('archived_at = NULL');
+    }
+    if (patch.pinned === true) {
+      sets.push('pinned_at = COALESCE(pinned_at, NOW())');
+    } else if (patch.pinned === false) {
+      sets.push('pinned_at = NULL');
+    }
+    if (patch.favorite === true) {
+      sets.push('favorited_at = COALESCE(favorited_at, NOW())');
+    } else if (patch.favorite === false) {
+      sets.push('favorited_at = NULL');
+    }
+    if (patch.muted === true) {
+      sets.push(`muted_until = $${next}`);
+      params.push(MUTE_FAR_FUTURE);
+      next += 1;
+    } else if (patch.muted === false) {
+      sets.push('muted_until = NULL');
+    }
+
+    if (sets.length) {
+      await this.memberRepo.query(
+        `UPDATE chat_members SET ${sets.join(', ')} WHERE chat_id = $1 AND user_id = $2`,
+        params,
+      );
+    }
+
+    const member = await this.memberRepo.findOne({
+      where: { chatId, userId: actor.sub },
+    });
+    if (!member) {
+      throw new NotFoundException('Membership not found');
+    }
+
+    const userState = prefsFromMember(member);
+    this.gateway?.emitToUser(actor.sub, 'chat.member_prefs', {
+      chatId,
+      userState,
+    });
+    return userState;
+  }
+
+  async archiveChat(actor: DomainAccessActor, chatId: string): Promise<ChatMemberPrefsView> {
+    return this.updateMemberPrefs(actor, chatId, { archived: true });
+  }
+
+  async unarchiveChat(actor: DomainAccessActor, chatId: string): Promise<ChatMemberPrefsView> {
+    return this.updateMemberPrefs(actor, chatId, { archived: false });
   }
 
   async inviteMembers(
@@ -441,6 +676,47 @@ export class ChatsService {
       onlineCount: this.presence.countOnline(memberUserIds),
       memberUserIds,
     };
+  }
+
+  /**
+   * Direct chats are stored with empty title — resolve peer display name once for list/header SSOT.
+   */
+  private async attachDirectPeers(
+    items: ChatListItem[],
+    actorUserId: string,
+  ): Promise<ChatListItem[]> {
+    const directIds = items.filter((chat) => chat.kind === ChatKind.Direct).map((chat) => chat.id);
+    if (!directIds.length) return items;
+
+    const rows = await this.memberRepo.find({
+      where: { chatId: In(directIds) },
+      relations: { user: true },
+    });
+    const peerByChat = new Map<string, UserEntity>();
+    for (const row of rows) {
+      if (row.userId === actorUserId || !row.user) continue;
+      peerByChat.set(row.chatId, row.user);
+    }
+
+    return items.map((chat) => {
+      if (chat.kind !== ChatKind.Direct) return chat;
+      const peer = peerByChat.get(chat.id);
+      if (!peer) return chat;
+      const title = composeDisplayName(peer.firstName, peer.lastName, peer.email || 'Собеседник');
+      return Object.assign(chat, {
+        title: String(chat.title || '').trim() || title,
+        peer: {
+          id: peer.id,
+          email: peer.email,
+          firstName: peer.firstName,
+          lastName: peer.lastName,
+          role: peer.role,
+          hasAvatar: Boolean(peer.avatarFilePath),
+          avatarUpdatedAt: peer.avatarUpdatedAt ? peer.avatarUpdatedAt.toISOString() : null,
+          lastSeenAt: peer.lastSeenAt ? peer.lastSeenAt.toISOString() : null,
+        },
+      });
+    });
   }
 
   private async countUnread(

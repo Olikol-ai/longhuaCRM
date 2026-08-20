@@ -11,6 +11,7 @@ import { IsNull, Repository } from 'typeorm';
 import { ChatAccessService } from '../../../common/access/chat-access.service';
 import { DomainAccessActor } from '../../../common/access/domain-access.types';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { NotificationDeliveryService } from '../../notifications/notification-delivery.service';
 import { ChatEntity, ChatMemberEntity, ChatMessageEntity } from '../entities';
 import { ChatKind, ChatMessageType } from '../enums/chat.enums';
 import { ChatGateway } from '../gateway/chat.gateway';
@@ -41,6 +42,7 @@ export class ChatMessagesService {
     private readonly access: ChatAccessService,
     private readonly presence: ChatPresenceService,
     private readonly notifications: NotificationsService,
+    private readonly delivery: NotificationDeliveryService,
     private readonly membershipSync: ChatMembershipSyncService,
     @Optional() private readonly gateway?: ChatGateway,
   ) {}
@@ -339,18 +341,27 @@ export class ChatMessagesService {
                   ? 'Файл'
                   : 'Новое сообщение в чате');
 
+      const viewing = this.gateway
+        ? await this.gateway.getUsersViewingChat(message.chatId)
+        : new Set<string>();
+
       for (const member of members) {
         if (member.userId === message.senderUserId) continue;
-        if (this.presence.isOnline(member.userId)) continue;
-        await this.notifications.create({
-          userId: member.userId,
-          channel: 'in_app',
-          type: 'chat_message',
+        // Actively viewing this chat → socket only; no Push / center spam.
+        if (viewing.has(member.userId)) continue;
+
+        await this.delivery.fanoutToRecipient({
+          eventId: message.id,
+          eventType: 'message.received',
+          recipientId: member.userId,
           title: 'Новое сообщение',
           body: preview,
-          status: 'sent',
           referenceType: 'chat',
           referenceId: message.chatId,
+          payload: { chatId: message.chatId },
+          channels: ['in_app', 'web_push'],
+          // Online elsewhere still gets Push (Telegram-like); Socket also delivers.
+          suppressPush: false,
         });
       }
     } catch (err) {

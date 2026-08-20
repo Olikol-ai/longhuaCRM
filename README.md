@@ -29,12 +29,22 @@ npm run dev
 
 ## Production
 
+Canonical path on this server (`/opt/longhuaCRM`):
+
 ```bash
-npm run build
+cd /opt/longhuaCRM
+./deploy.sh
+```
+
+`deploy.sh` runs backup → migration → build → `NODE_ENV=production` start → health live/ready.
+
+Greenfield Docker VM (do not mix with `./deploy.sh` on the same database):
+
+```bash
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-Миграции применяются при старте API. Подробно: [docs/Deployment.md](docs/Deployment.md).
+Подробно: [docs/Deployment.md](docs/Deployment.md).
 
 ## Обновление сервера
 

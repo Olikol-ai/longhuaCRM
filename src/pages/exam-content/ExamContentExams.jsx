@@ -57,7 +57,7 @@ export default function ExamContentExams() {
 
   useEffect(() => {
     reload().catch((err) => setError(userFacingError(err)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [levelId]);
 
   const openEdit = (blueprintId, editionId) => {

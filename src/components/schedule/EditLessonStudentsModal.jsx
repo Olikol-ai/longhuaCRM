@@ -154,24 +154,24 @@ export default function EditLessonStudentsModal({
 
   return (
     <div className="fixed inset-0 bg-black/40 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
-      <div className="@container bg-white dark:bg-slate-900 rounded-2xl w-full max-w-[min(100%,28rem)] sm:max-w-lg shadow-xl max-h-[min(90vh,100%)] flex flex-col min-w-0 overflow-hidden rounded-b-none sm:rounded-2xl mt-auto sm:mt-0">
-        <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
-          <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+      <div className="@container bg-card rounded-2xl w-full max-w-[min(100%,28rem)] sm:max-w-lg shadow-xl max-h-[min(90vh,100%)] flex flex-col min-w-0 overflow-hidden rounded-b-none sm:rounded-2xl mt-auto sm:mt-0">
+        <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-border flex-shrink-0">
+          <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
             <Users className="w-4 h-4 text-brand" />
             Изменить учеников
           </h3>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 shrink-0 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+            className="p-1.5 shrink-0 hover:bg-muted rounded-lg"
           >
-            <X className="w-4 h-4 text-slate-500" />
+            <X className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
 
         <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 min-w-0">
           {isGroupLesson ? (
-            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            <p className="text-sm text-muted-foreground leading-relaxed">
               Это групповой урок. Состав учеников берётся из группы и здесь не
               меняется. Откройте карточку группы, чтобы добавить или убрать
               участников.
@@ -179,13 +179,13 @@ export default function EditLessonStudentsModal({
           ) : (
             <>
               <div className="min-w-0 space-y-1.5">
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
+                <label className="block text-xs font-medium text-muted-foreground">
                   Ученик урока
                 </label>
                 <select
                   value={selectedKey}
                   onChange={(e) => setSelectedKey(e.target.value)}
-                  className="w-full min-w-0 px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
+                  className="w-full min-w-0 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40"
                 >
                   <option value="">Выбрать ученика</option>
                   {options.map((option) => (
@@ -204,21 +204,21 @@ export default function EditLessonStudentsModal({
               </div>
 
               <div className="min-w-0 space-y-2">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   История смен
                 </p>
                 {historyLoading ? (
-                  <p className="text-xs text-slate-400 inline-flex items-center gap-1.5">
+                  <p className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
                     <Loader2 className="w-3 h-3 animate-spin" /> Загрузка…
                   </p>
                 ) : history.length === 0 ? (
-                  <p className="text-xs text-slate-400">Пока без изменений</p>
+                  <p className="text-xs text-muted-foreground">Пока без изменений</p>
                 ) : (
                   <ul className="space-y-2 max-h-40 overflow-y-auto">
                     {history.slice(0, 8).map((row) => (
                       <li
                         key={row.id}
-                        className="text-xs text-slate-600 dark:text-slate-300 border border-slate-100 dark:border-slate-800 rounded-lg px-2.5 py-2"
+                        className="text-xs text-muted-foreground border border-border rounded-lg px-2.5 py-2"
                       >
                         <span className="font-medium">
                           {row.old_display_name || "—"}
@@ -227,7 +227,7 @@ export default function EditLessonStudentsModal({
                         <span className="font-medium">
                           {row.new_display_name || "—"}
                         </span>
-                        <span className="block text-slate-400 mt-0.5">
+                        <span className="block text-muted-foreground mt-0.5">
                           {row.created_at
                             ? new Date(row.created_at).toLocaleString("ru-RU")
                             : ""}
@@ -244,12 +244,12 @@ export default function EditLessonStudentsModal({
           )}
         </div>
 
-        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 px-4 sm:px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex-shrink-0">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 px-4 sm:px-6 py-4 border-t border-border flex-shrink-0">
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            className={`${actionBtnBase} text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 sm:w-auto sm:min-w-[6.5rem]`}
+            className={`${actionBtnBase} text-muted-foreground hover:bg-muted sm:w-auto sm:min-w-[6.5rem]`}
           >
             {isGroupLesson ? "Закрыть" : "Отмена"}
           </button>

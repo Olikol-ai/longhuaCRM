@@ -152,6 +152,13 @@ export class AssessmentAccessService {
       return exam;
     }
     if (this.isTeacher(actor) || this.isTutor(actor)) {
+      // Published school exams are listable/assignable by instructors.
+      if (
+        exam.source === 'assessment' &&
+        exam.status === ContentLifecycleStatus.Published
+      ) {
+        return exam;
+      }
       if (await this.teacherCanAccessExam(actor, exam)) {
         return exam;
       }
@@ -251,15 +258,97 @@ export class AssessmentAccessService {
     throw new ForbiddenException('Forbidden: cannot manage Assignment');
   }
 
+  /**
+   * Create assignment ACL.
+   * Admin: any published exam + any valid target.
+   * Teacher/tutor: published (or own) school exam + only own students/groups.
+   * Student: never.
+   */
   async assertCanCreateAssignment(
     actor: DomainAccessActor,
     examId: string,
+    targetType: AssignmentTargetType,
+    targetId: string,
   ): Promise<void> {
+    if (this.isStudent(actor)) {
+      throw new ForbiddenException('Forbidden: students cannot assign exams');
+    }
     this.assertCanManageContent(actor);
+
+    const exam = await this.requireExam(examId);
+    if (this.isAdmin(actor)) {
+      await this.assertCanAssignTarget(actor, targetType, targetId);
+      return;
+    }
+
+    if (!(this.isTeacher(actor) || this.isTutor(actor))) {
+      throw new ForbiddenException('Forbidden: cannot create Assignment');
+    }
+
+    const ownsExam = this.canManageCreatedContent(actor, exam);
+    const publishedSchool =
+      exam.source === 'assessment' &&
+      exam.status === ContentLifecycleStatus.Published;
+    if (!ownsExam && !publishedSchool) {
+      throw new ForbiddenException('Forbidden: cannot assign this Exam');
+    }
+
+    await this.assertCanAssignTarget(actor, targetType, targetId);
+  }
+
+  /**
+   * Target must belong to the instructor via canonical CRM links.
+   * Teacher → Student.assignedTeacherId / Group.teacherId.
+   */
+  async assertCanAssignTarget(
+    actor: DomainAccessActor,
+    targetType: AssignmentTargetType,
+    targetId: string,
+  ): Promise<void> {
     if (this.isAdmin(actor)) {
       return;
     }
-    await this.assertCanManageExam(actor, examId);
+
+    if (!(this.isTeacher(actor) || this.isTutor(actor))) {
+      throw new ForbiddenException('Вы не можете назначить экзамен этому ученику');
+    }
+
+    const teacherId = await this.resolveTeacherId(actor);
+
+    if (targetType === AssignmentTargetType.Student) {
+      if (!teacherId) {
+        throw new ForbiddenException('Вы не можете назначить экзамен этому ученику');
+      }
+      const student = await this.studentRepo.findOne({ where: { id: targetId } });
+      if (!student || student.assignedTeacherId !== teacherId) {
+        throw new ForbiddenException('Вы не можете назначить экзамен этому ученику');
+      }
+      return;
+    }
+
+    if (
+      targetType === AssignmentTargetType.Group ||
+      targetType === AssignmentTargetType.CorporateGroup
+    ) {
+      if (!teacherId) {
+        throw new ForbiddenException('Вы не можете назначить экзамен этому ученику');
+      }
+      const group = await this.groupRepo.findOne({ where: { id: targetId } });
+      if (!group || group.teacherId !== teacherId) {
+        throw new ForbiddenException('Вы не можете назначить экзамен этому ученику');
+      }
+      return;
+    }
+
+    if (
+      targetType === AssignmentTargetType.Teacher &&
+      teacherId &&
+      targetId === teacherId
+    ) {
+      return;
+    }
+
+    throw new ForbiddenException('Вы не можете назначить экзамен этому ученику');
   }
 
   async filterReadableAssignments(

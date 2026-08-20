@@ -10,6 +10,7 @@ import { GroupMemberEntity } from '../modules/groups/entities/group-member.entit
 import { AttendanceEntity } from '../modules/lessons/entities/attendance.entity';
 import { LessonEntity } from '../modules/lessons/entities/lesson.entity';
 import { LessonRecurrenceSeriesEntity } from '../modules/lessons/entities/lesson-recurrence-series.entity';
+import { LessonRecurrenceExceptionEntity } from '../modules/lessons/entities/lesson-recurrence-exception.entity';
 import { LessonStudentChangeHistoryEntity } from '../modules/lessons/entities/lesson-student-change-history.entity';
 import { MaterialAccessEntity } from '../modules/materials/entities/material-access.entity';
 import { MaterialCourseGrantEntity } from '../modules/materials/entities/material-course-grant.entity';
@@ -18,6 +19,8 @@ import { MaterialFolderEntity } from '../modules/materials/entities/material-fol
 import { MaterialLinkEntity } from '../modules/materials/entities/material-link.entity';
 import { MaterialEntity } from '../modules/materials/entities/material.entity';
 import { NotificationEntity } from '../modules/notifications/entities/notification.entity';
+import { PushSubscriptionEntity } from '../modules/notifications/entities/push-subscription.entity';
+import { NotificationPreferenceEntity } from '../modules/notifications/entities/notification-preference.entity';
 import { PaymentEntity } from '../modules/payments/entities/payment.entity';
 import { ShopItemEntity } from '../modules/payments/entities/shop-item.entity';
 import { AvailabilityBookingEntity } from '../modules/schedule/entities/availability-booking.entity';
@@ -37,6 +40,7 @@ import { TutorWorkDayEntity } from '../modules/tutors/entities/tutor-work-day.en
 import { TutorMaterialEntity } from '../modules/tutors/entities/tutor-material.entity';
 import { TeacherStudentContactEntity } from '../modules/teacher-student-contacts/entities/teacher-student-contact.entity';
 import { TeacherStudentBalanceHistoryEntity } from '../modules/teacher-student-contacts/entities/teacher-student-balance-history.entity';
+import { TutorContactBalanceEntity } from '../modules/teacher-student-contacts/entities/tutor-contact-balance.entity';
 import { TeacherInviteLinkEntity } from '../modules/teachers/entities/teacher-invite-link.entity';
 import { TutorInviteLinkEntity } from '../modules/tutors/entities/tutor-invite-link.entity';
 import { TeacherMonthlyPayoutEntity } from '../modules/teacher-payments/entities/teacher-monthly-payout.entity';
@@ -44,6 +48,7 @@ import { TeacherPaymentEntity } from '../modules/teacher-payments/entities/teach
 import { AppSettingEntity } from '../modules/settings/entities/app-setting.entity';
 import { UserEntity } from '../modules/users/entities/user.entity';
 import { LessonConfirmationEntity } from '../modules/lesson-confirmations/entities/lesson-confirmation.entity';
+import { InstructorScheduleDigestEntity } from '../modules/lesson-confirmations/entities/instructor-schedule-digest.entity';
 import { ASSESSMENT_ENTITIES } from '../modules/assessment/entities';
 import { HOMEWORK_ENTITIES } from '../modules/homework/entities';
 import { CHAT_ENTITIES } from '../modules/chats/entities';
@@ -65,6 +70,7 @@ export const ALL_V2_ENTITIES = [
   TutorMaterialEntity,
   TeacherStudentContactEntity,
   TeacherStudentBalanceHistoryEntity,
+  TutorContactBalanceEntity,
   TeacherInviteLinkEntity,
   TutorInviteLinkEntity,
   CourseTemplateEntity,
@@ -74,9 +80,11 @@ export const ALL_V2_ENTITIES = [
   GroupMemberEntity,
   LessonEntity,
   LessonRecurrenceSeriesEntity,
+  LessonRecurrenceExceptionEntity,
   AttendanceEntity,
   LessonStudentChangeHistoryEntity,
   LessonConfirmationEntity,
+  InstructorScheduleDigestEntity,
   AvailabilitySlotEntity,
   LessonSeriesEntity,
   LessonSeriesSlotEntity,
@@ -96,6 +104,8 @@ export const ALL_V2_ENTITIES = [
   TeacherPaymentEntity,
   TeacherMonthlyPayoutEntity,
   NotificationEntity,
+  PushSubscriptionEntity,
+  NotificationPreferenceEntity,
   AuditLogEntity,
   AppSettingEntity,
   ...ASSESSMENT_ENTITIES,

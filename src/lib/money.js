@@ -11,18 +11,38 @@ export function sumPaymentAmounts(payments) {
 }
 
 /**
- * Format BYN for display: "1 500 BYN", "40 BYN", "1 250,50 BYN"
+ * ISO 4217 code for display.
+ *
+ * The official NBRB graphical sign (Unicode U+20C5 BELARUSIAN RUBLE SIGN)
+ * is only provisionally assigned and is not in OS fonts until Unicode 19
+ * (expected 2027). Do not insert a homemade glyph — use "BYN".
  */
-export function formatCurrency(value) {
-  const n = parseMoneyAmount(value);
-  const formatted = new Intl.NumberFormat('ru-BY', {
+export const BYN_CODE = 'BYN';
+
+function formatNumber(n) {
+  return new Intl.NumberFormat('ru-BY', {
     minimumFractionDigits: Number.isInteger(n) ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(n);
-  return `${formatted} BYN`;
 }
 
-/** @deprecated Prefer formatCurrency — kept for existing imports */
+/**
+ * Canonical money display: amount + one currency label.
+ * "1 500 BYN", "40 BYN", "1 250,50 BYN", "0 BYN", "−100 BYN"
+ *
+ * Never append BYN again in UI. Use {formatBYN(amount)} only.
+ */
+export function formatBYN(value) {
+  const n = parseMoneyAmount(value);
+  return `${formatNumber(n)} ${BYN_CODE}`;
+}
+
+/** @deprecated Use formatBYN — same output, kept for existing imports */
+export function formatCurrency(value) {
+  return formatBYN(value);
+}
+
+/** @deprecated Prefer formatBYN */
 export function formatMoneyByn(value) {
-  return formatCurrency(value);
+  return formatBYN(value);
 }

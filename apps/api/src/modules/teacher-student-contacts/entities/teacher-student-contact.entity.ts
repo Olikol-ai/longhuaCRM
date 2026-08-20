@@ -15,8 +15,12 @@ export type TeacherStudentContactStatus = 'active' | 'inactive';
 
 /**
  * Local scheduling notebook entry for a teacher or tutor.
- * Never a CRM User / school Student / school payment.
- * Has its own lesson_balance for private scheduling.
+ *
+ * Teachers: link + notes + schedule identity; academic balance lives only on
+ * linked Student (students.lesson_balance).
+ * Tutors: private notebook identity; pack balance lives in tutor_contact_balances.
+ *
+ * This table intentionally has no lesson_balance column.
  */
 @Entity('teacher_student_contacts')
 @Index('IDX_TEACHER_STUDENT_CONTACTS_OWNER', ['ownerType', 'ownerId'])
@@ -44,11 +48,7 @@ export class TeacherStudentContactEntity {
   @Column({ type: 'text', nullable: true })
   comment: string | null;
 
-  /** Private lesson pack balance (never school Student balance). */
-  @Column({ name: 'lesson_balance', type: 'int', default: 0 })
-  lessonBalance: number;
-
-  /** Optional future link to a real CRM Student. */
+  /** Link to school CRM Student (teacher contacts for admin visibility). */
   @Column({ name: 'linked_student_id', type: 'uuid', nullable: true })
   linkedStudentId: string | null;
 

@@ -1,0 +1,25 @@
+# Allow deploy.sh / ops (user ilya) to manage longhua.service without a password,
+# so deploy does not race with systemd Restart=on-failure.
+ilya ALL=(root) NOPASSWD: \
+  /usr/bin/systemctl start longhua.service, \
+  /usr/bin/systemctl stop longhua.service, \
+  /usr/bin/systemctl restart longhua.service, \
+  /usr/bin/systemctl reload longhua.service, \
+  /usr/bin/systemctl try-reload-or-restart longhua.service, \
+  /usr/bin/systemctl status longhua.service, \
+  /usr/bin/systemctl is-active longhua.service, \
+  /usr/bin/systemctl is-enabled longhua.service, \
+  /usr/bin/systemctl show longhua.service, \
+  /usr/bin/systemctl cat longhua.service, \
+  /usr/bin/systemctl daemon-reload, \
+  /bin/systemctl start longhua.service, \
+  /bin/systemctl stop longhua.service, \
+  /bin/systemctl restart longhua.service, \
+  /bin/systemctl reload longhua.service, \
+  /bin/systemctl try-reload-or-restart longhua.service, \
+  /bin/systemctl status longhua.service, \
+  /bin/systemctl is-active longhua.service, \
+  /bin/systemctl is-enabled longhua.service, \
+  /bin/systemctl show longhua.service, \
+  /bin/systemctl cat longhua.service, \
+  /bin/systemctl daemon-reload
