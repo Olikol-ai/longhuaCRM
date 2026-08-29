@@ -1,6 +1,10 @@
 import { Calendar, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { EXAM_UI_STATUS, EXAM_UI_STATUS_LABEL } from '@/lib/assessment-ui';
+import {
+  EXAM_UI_STATUS,
+  EXAM_UI_STATUS_LABEL,
+  isExamResultReviewed,
+} from '@/lib/assessment-ui';
 
 function formatDate(value) {
   if (!value) return null;
@@ -38,6 +42,7 @@ export default function ExamAssignmentCard({
     card.exam?.rule?.duration_minutes ??
     card.exam?.rule?.durationMinutes ??
     null;
+  const reviewed = isExamResultReviewed(card.result);
 
   return (
     <article
@@ -80,7 +85,7 @@ export default function ExamAssignmentCard({
           </div>
         </div>
 
-        <div className="flex flex-col sm:items-end gap-2 shrink-0 w-full sm:w-auto">
+        <div className="flex flex-col sm:items-end gap-2 shrink-0 w-full sm:w-auto min-w-0">
           {card.status === EXAM_UI_STATUS.NOT_STARTED && (
             <Button
               className="w-full sm:w-auto bg-primary hover:bg-primary/90"
@@ -100,14 +105,25 @@ export default function ExamAssignmentCard({
               Продолжить
             </Button>
           )}
-          {card.status === EXAM_UI_STATUS.COMPLETED && (
+          {card.status === EXAM_UI_STATUS.COMPLETED && reviewed && (
             <Button
               variant="outline"
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto max-w-full"
               disabled={busy}
               onClick={() => onViewResult?.(card)}
+              data-testid="exam-view-feedback-button"
             >
-              Результат
+              Посмотреть разбор
+            </Button>
+          )}
+          {card.status === EXAM_UI_STATUS.COMPLETED && !reviewed && (
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto max-w-full"
+              disabled
+              data-testid="exam-pending-review-button"
+            >
+              Ожидает проверки
             </Button>
           )}
         </div>

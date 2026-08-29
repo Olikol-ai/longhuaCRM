@@ -111,6 +111,7 @@ export function VideoSessionProvider({ children }) {
   const [linkQuality, setLinkQuality] = useState('unknown');
   const [participantCount, setParticipantCount] = useState(null);
   const [livePresence, setLivePresence] = useState([]);
+  const [audioUnlockNeeded, setAudioUnlockNeeded] = useState(false);
   const [chatUnread, setChatUnread] = useState(0);
   const [chatToast, setChatToast] = useState(null);
   const [railTab, setRailTab] = useState('chat');
@@ -268,6 +269,7 @@ export function VideoSessionProvider({ children }) {
     setLinkQuality('unknown');
     setParticipantCount(null);
     setLivePresence([]);
+    setAudioUnlockNeeded(false);
     setChatUnread(0);
     setChatToast(null);
     setRailTab('chat');
@@ -368,6 +370,7 @@ export function VideoSessionProvider({ children }) {
     setLinkQuality('unknown');
     setParticipantCount(null);
     setLivePresence([]);
+    setAudioUnlockNeeded(false);
     setChatUnread(0);
     setChatToast(null);
     setLeaveOpen(false);
@@ -462,6 +465,7 @@ export function VideoSessionProvider({ children }) {
       linkQuality,
       participantCount,
       livePresence,
+      audioUnlockNeeded,
       chatUnread,
       chatToast,
       railTab,
@@ -480,6 +484,7 @@ export function VideoSessionProvider({ children }) {
       setLinkQuality,
       setParticipantCount,
       setLivePresence,
+      setAudioUnlockNeeded,
       setChatUnread,
       setChatToast,
       setRailTab,
@@ -514,6 +519,7 @@ export function VideoSessionProvider({ children }) {
       linkQuality,
       participantCount,
       livePresence,
+      audioUnlockNeeded,
       chatUnread,
       chatToast,
       railTab,

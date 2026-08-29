@@ -2,12 +2,19 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/api';
 import { displayPersonName, isManualReviewQuestionType } from '@/lib/assessment-admin';
 import { unwrapItems } from '@/lib/assessment-ui';
+import {
+  filterExamResults,
+  isExamResultCompleted,
+  isExamResultPending,
+  isTeacherExamAssignmentCurrent,
+} from '@/lib/teacher-work-history';
 
 /**
  * Assignments visible to the teacher (ACL-filtered) with exam/student/attempt/result meta.
  */
 export function useTeacherAssessmentCards() {
   const [cards, setCards] = useState([]);
+  const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -30,8 +37,9 @@ export function useTeacherAssessmentCards() {
         : unwrapItems(studentsPayload);
       const studentById = new Map(students.map((s) => [s.id, s]));
       const attempts = unwrapItems(attemptsPayload);
-      const results = unwrapItems(resultsPayload);
-      const resultByAttempt = new Map(results.map((r) => [r.attempt_id, r]));
+      const resultRows = unwrapItems(resultsPayload);
+      const resultByAttempt = new Map(resultRows.map((r) => [r.attempt_id, r]));
+      const attemptById = new Map(attempts.map((a) => [a.id, a]));
 
       const cardsBuilt = unwrapItems(assignmentsPayload).map((assignment) => {
         const exam = exams.get(assignment.exam_id);
@@ -72,8 +80,13 @@ export function useTeacherAssessmentCards() {
           examName: exam?.name || 'Экзамен',
           studentName,
           attemptCount,
+          resultId: latestResult?.id || null,
           resultStatus: latestResult?.status || null,
           resultPassed: latestResult?.passed ?? null,
+          resultScore: latestResult?.score ?? null,
+          resultMaxScore: latestResult?.max_score ?? null,
+          resultPercent: latestResult?.percent ?? null,
+          resultFinishedAt: latestResult?.finished_at || latestResult?.updated_at || null,
         };
       });
 
@@ -83,10 +96,30 @@ export function useTeacherAssessmentCards() {
         return tb - ta;
       });
 
+      const enrichedResults = resultRows.map((row) => {
+        const attempt = attemptById.get(row.attempt_id);
+        const sid = attempt?.student_id;
+        return {
+          ...row,
+          exam_name: exams.get(row.exam_id)?.name || 'Экзамен',
+          student_id: sid || null,
+          student_name: sid
+            ? displayPersonName(studentById.get(sid)) || sid
+            : '—',
+        };
+      });
+      enrichedResults.sort((a, b) => {
+        const ta = new Date(a.finished_at || a.created_at || 0).getTime();
+        const tb = new Date(b.finished_at || b.created_at || 0).getTime();
+        return tb - ta;
+      });
+
       setCards(cardsBuilt);
+      setResults(enrichedResults);
     } catch (err) {
       setError(err);
       setCards([]);
+      setResults([]);
     } finally {
       setLoading(false);
     }
@@ -96,7 +129,7 @@ export function useTeacherAssessmentCards() {
     reload();
   }, [reload]);
 
-  return { cards, loading, error, reload };
+  return { cards, results, loading, error, reload };
 }
 
 export function useTeacherReviewQueue() {
@@ -125,15 +158,7 @@ export function useTeacherReviewQueue() {
       const attemptById = new Map(attempts.map((a) => [a.id, a]));
 
       const itemsBuilt = unwrapItems(resultsPayload)
-        .filter((r) => {
-          const status = r.status;
-          const evalType = r.evaluation_type;
-          return (
-            status === 'pending_review' ||
-            ((evalType === 'manual' || evalType === 'mixed') &&
-              (status === 'pending_review' || status === 'processing'))
-          );
-        })
+        .filter((r) => isExamResultPending(r))
         .map((row) => {
           const attempt = attemptById.get(row.attempt_id);
           const sid = attempt?.student_id;
@@ -146,7 +171,6 @@ export function useTeacherReviewQueue() {
           };
         });
 
-      // Enrich with manual-question counts via existing attempt state (ACL allows teachers).
       const enriched = await Promise.all(
         itemsBuilt.map(async (row) => {
           if (!row.attempt_id) return row;
@@ -184,3 +208,10 @@ export function useTeacherReviewQueue() {
 
   return { items, loading, error, reload };
 }
+
+export {
+  filterExamResults,
+  isExamResultCompleted,
+  isExamResultPending,
+  isTeacherExamAssignmentCurrent,
+};

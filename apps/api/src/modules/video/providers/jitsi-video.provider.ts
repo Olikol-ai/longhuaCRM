@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import {
   Injectable,
+  Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -20,6 +21,7 @@ import { JitsiJwtService } from './jitsi-jwt.service';
 @Injectable()
 export class JitsiVideoProvider implements VideoProvider {
   readonly name = 'jitsi';
+  private readonly logger = new Logger(JitsiVideoProvider.name);
 
   constructor(
     private readonly config: ConfigService,
@@ -108,6 +110,10 @@ export class JitsiVideoProvider implements VideoProvider {
       subject: input.subject,
       role: input.roleLabel,
     });
+    // Diagnostic only — never log the JWT itself.
+    this.logger.log(
+      `jwt_issued room=${roomName} userId=${input.userId || 'n/a'} moderator=${Boolean(input.isModerator)} exp=${expiresAt}`,
+    );
 
     const subject = input.subject?.trim() || null;
     const roleLabel = input.roleLabel?.trim() || null;

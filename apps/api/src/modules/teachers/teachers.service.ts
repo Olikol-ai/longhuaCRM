@@ -64,6 +64,18 @@ export class TeachersService {
     return this.applyUserTelegram(rows);
   }
 
+  /** Same SSOT as findActive — COUNT for Admin Dashboard. */
+  async countActive(): Promise<number> {
+    return this.userRepo.manager
+      .getRepository(TeacherEntity)
+      .createQueryBuilder('t')
+      .innerJoin(UserEntity, 'u', 'u.id = t.user_id')
+      .where('t.status = :teacherStatus', { teacherStatus: 'active' })
+      .andWhere('u.role = :role', { role: 'teacher' })
+      .andWhere('u.status = :userStatus', { userStatus: 'active' })
+      .getCount();
+  }
+
   async findById(actor: JwtPayload, id: string): Promise<TeacherEntity> {
     await this.teacherAccess.assertCanReadTeacher(actor, id);
     const row = await this.repository.findById(id);

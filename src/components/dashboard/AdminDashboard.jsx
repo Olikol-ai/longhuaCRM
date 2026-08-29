@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { api } from '@/api';
-import { format, isToday, isTomorrow, parseISO, differenceInDays } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { CalendarDays, Users, GraduationCap, AlertCircle, Clock, ArrowRight, Cake } from "lucide-react";
 import StatCard from "./StatCard";
@@ -9,22 +9,8 @@ import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { getGreetingName } from "@/lib/display-name";
 import { Card } from "@/components/ui/card";
-
-/** One row per student.id — guards against duplicate API rows. */
-function uniqueStudentsById(students) {
-  const byId = new Map();
-  for (const student of students) {
-    const id = String(student?.id ?? "").trim();
-    if (id && !byId.has(id)) {
-      byId.set(id, student);
-    }
-  }
-  return [...byId.values()];
-}
-
-function isActiveStudent(student) {
-  return student?.status !== "inactive";
-}
+import { toast } from "@/components/ui/use-toast";
+import { userFacingError } from "@/lib/userFacingError";
 
 function DashboardSection({ title, subtitle, icon: Icon, iconClass, children }) {
   return (
@@ -41,61 +27,63 @@ function DashboardSection({ title, subtitle, icon: Icon, iconClass, children }) 
   );
 }
 
+const EMPTY_SUMMARY = {
+  timezone: null,
+  today: null,
+  tomorrow: null,
+  counts: {
+    teachers: 0,
+    students: 0,
+    lessons_today: 0,
+    lessons_tomorrow: 0,
+    low_balance_students: 0,
+  },
+  lessons_today: [],
+  lessons_tomorrow: [],
+  upcoming_birthdays: [],
+};
+
+/**
+ * Admin home — KPIs and day lists come ONLY from GET /dashboard/admin (live DB).
+ * No browser storage cache, no list.length over incomplete fetches, no mock fallbacks.
+ */
 export default function AdminDashboard({ user }) {
-  const [lessons, setLessons] = useState([]);
-  const [students, setStudents] = useState([]);
-  const [teachers, setTeachers] = useState([]);
-  const [lowBalanceStudents, setLowBalanceStudents] = useState([]);
+  const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    Promise.all([
-      api.lessons.list("-date", 200),
-      api.students.list(),
-      api.teachers.list(),
-      api.students.lowBalance().catch(() => []),
-    ]).then(([l, s, t, lowBalance]) => {
-      setLessons(l);
-      setStudents(s);
-      setTeachers(t);
-      setLowBalanceStudents(Array.isArray(lowBalance) ? lowBalance : []);
-      setLoading(false);
-    });
-  }, []);
-
-  const todayLessons = lessons.filter(l => {
-    try { return isToday(parseISO(l.date)) && l.status !== "cancelled"; } catch { return false; }
-  });
-  const tomorrowLessons = lessons.filter(l => {
-    try { return isTomorrow(parseISO(l.date)) && l.status !== "cancelled"; } catch { return false; }
-  });
-
-  const activeStudents = uniqueStudentsById(students).filter(isActiveStudent);
-  const lowBalance = lowBalanceStudents.length;
-
-  const upcomingBirthdays = uniqueStudentsById(students).filter(s => {
-    if (!s.birthday || s.status === "inactive") return false;
-    try {
-      const today = new Date();
-      const bday = parseISO(s.birthday);
-      const thisYear = new Date(today.getFullYear(), bday.getMonth(), bday.getDate());
-      const nextYear = new Date(today.getFullYear() + 1, bday.getMonth(), bday.getDate());
-      const target = thisYear >= today ? thisYear : nextYear;
-      const diff = differenceInDays(target, today);
-      return diff >= 0 && diff <= 30;
-    } catch { return false; }
-  }).map(s => {
-    const today = new Date();
-    const bday = parseISO(s.birthday);
-    const thisYear = new Date(today.getFullYear(), bday.getMonth(), bday.getDate());
-    const nextYear = new Date(today.getFullYear() + 1, bday.getMonth(), bday.getDate());
-    const target = thisYear >= today ? thisYear : nextYear;
-    return { ...s, daysUntil: differenceInDays(target, today), birthdayDate: target };
-  }).sort((a, b) => a.daysUntil - b.daysUntil);
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setSummary(null);
+    api.dashboard
+      .adminSummary()
+      .then((payload) => {
+        if (cancelled) return;
+        setSummary(payload && typeof payload === "object" ? payload : EMPTY_SUMMARY);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setSummary(null);
+        setError(userFacingError(err) || "Не удалось загрузить дашборд");
+        toast({
+          title: "Ошибка загрузки дашборда",
+          description: userFacingError(err),
+          variant: "destructive",
+        });
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   if (loading) {
     return (
-      <div className="p-6 space-y-4">
+      <div className="p-6 space-y-4" data-testid="admin-dashboard-loading">
         {[...Array(4)].map((_, i) => (
           <div key={i} className="h-24 bg-muted rounded-xl animate-pulse" />
         ))}
@@ -103,23 +91,79 @@ export default function AdminDashboard({ user }) {
     );
   }
 
+  if (error || !summary) {
+    return (
+      <div className="p-6 max-w-lg mx-auto text-center space-y-3" data-testid="admin-dashboard-error">
+        <p className="font-medium text-foreground">Не удалось загрузить статистику</p>
+        <p className="text-sm text-muted-foreground">{error || "Нет данных"}</p>
+      </div>
+    );
+  }
+
+  const counts = summary.counts || EMPTY_SUMMARY.counts;
+  const todayLessons = Array.isArray(summary.lessons_today) ? summary.lessons_today : [];
+  const tomorrowLessons = Array.isArray(summary.lessons_tomorrow) ? summary.lessons_tomorrow : [];
+  const upcomingBirthdays = Array.isArray(summary.upcoming_birthdays)
+    ? summary.upcoming_birthdays
+    : [];
+  const lowBalance = Number(counts.low_balance_students) || 0;
+
+  const todayLabel = summary.today
+    ? format(parseISO(summary.today), "d MMMM", { locale: ru })
+    : "";
+  const tomorrowLabel = summary.tomorrow
+    ? format(parseISO(summary.tomorrow), "d MMMM", { locale: ru })
+    : "";
+
   const greetingName = getGreetingName(user);
   const heading = greetingName
     ? `${getGreeting()}, ${greetingName}`
     : `${getGreeting()}!`;
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-6xl mx-auto w-full min-w-0">
+    <div
+      className="p-4 sm:p-6 space-y-6 max-w-6xl mx-auto w-full min-w-0"
+      data-testid="admin-dashboard"
+      data-dashboard-ssot="api"
+    >
       <div>
         <h2 className="text-xl font-bold text-foreground">{heading}</h2>
         <p className="text-sm text-muted-foreground mt-0.5">Вот что происходит сегодня</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard label="Уроков сегодня" value={todayLessons.length} icon={CalendarDays} color="brand" />
-        <StatCard label="Уроков завтра" value={tomorrowLessons.length} icon={Clock} color="muted" />
-        <StatCard label="Всего учеников" value={activeStudents.length} icon={GraduationCap} color="muted" />
-        <StatCard label="Всего преподавателей" value={teachers.filter(t => t.status !== "inactive").length} icon={Users} color="emerald" />
+        <div data-testid="admin-stat-lessons-today">
+          <StatCard
+            label="Уроков сегодня"
+            value={counts.lessons_today}
+            icon={CalendarDays}
+            color="brand"
+          />
+        </div>
+        <div data-testid="admin-stat-lessons-tomorrow">
+          <StatCard
+            label="Уроков завтра"
+            value={counts.lessons_tomorrow}
+            icon={Clock}
+            color="muted"
+          />
+        </div>
+        <div data-testid="admin-stat-students">
+          <StatCard
+            label="Всего учеников"
+            value={counts.students}
+            icon={GraduationCap}
+            color="muted"
+          />
+        </div>
+        <div data-testid="admin-stat-teachers">
+          <StatCard
+            label="Всего преподавателей"
+            value={counts.teachers}
+            icon={Users}
+            color="emerald"
+          />
+        </div>
       </div>
 
       {lowBalance > 0 && (
@@ -139,30 +183,26 @@ export default function AdminDashboard({ user }) {
       )}
 
       <div className="grid lg:grid-cols-2 gap-6">
-        <DashboardSection title="Уроки сегодня" subtitle={format(new Date(), "d MMMM", { locale: ru })}>
+        <DashboardSection title="Уроки сегодня" subtitle={todayLabel}>
           <div className="space-y-0.5">
             {todayLessons.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-6">Уроков сегодня нет</p>
             ) : (
-              todayLessons
-                .sort((a, b) => a.start_time?.localeCompare(b.start_time))
-                .map(l => (
-                  <LessonRow key={l.id} lesson={l} students={students} teachers={teachers} />
-                ))
+              todayLessons.map((l) => (
+                <LessonRow key={l.id} lesson={l} />
+              ))
             )}
           </div>
         </DashboardSection>
 
-        <DashboardSection title="Уроки завтра" subtitle={format(new Date(Date.now() + 86400000), "d MMMM", { locale: ru })}>
+        <DashboardSection title="Уроки завтра" subtitle={tomorrowLabel}>
           <div className="space-y-0.5">
             {tomorrowLessons.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-6">Уроков завтра нет</p>
             ) : (
-              tomorrowLessons
-                .sort((a, b) => a.start_time?.localeCompare(b.start_time))
-                .map(l => (
-                  <LessonRow key={l.id} lesson={l} students={students} teachers={teachers} />
-                ))
+              tomorrowLessons.map((l) => (
+                <LessonRow key={l.id} lesson={l} />
+              ))
             )}
           </div>
         </DashboardSection>
@@ -171,16 +211,22 @@ export default function AdminDashboard({ user }) {
       {upcomingBirthdays.length > 0 && (
         <DashboardSection title="Дни рождения (ближайшие 30 дней)" icon={Cake} iconClass="text-pink-400">
           <div className="divide-y divide-border">
-            {upcomingBirthdays.map(s => (
+            {upcomingBirthdays.map((s) => (
               <div key={s.id} className="flex items-center gap-3 px-2 py-3">
                 <div className="w-7 h-7 rounded-full bg-pink-100 dark:bg-pink-950/50 flex items-center justify-center">
-                  <span className="text-xs font-semibold text-pink-600 dark:text-pink-400">{s.name[0]}</span>
+                  <span className="text-xs font-semibold text-pink-600 dark:text-pink-400">
+                    {(s.name || "?")[0]}
+                  </span>
                 </div>
                 <span className="text-sm text-foreground flex-1">{s.name}</span>
                 <div className="text-right">
-                  <p className="text-xs font-semibold text-foreground">{format(s.birthdayDate, "d MMMM")}</p>
+                  <p className="text-xs font-semibold text-foreground">
+                    {format(parseISO(s.birthday_date || s.birthdayDate), "d MMMM")}
+                  </p>
                   <p className="text-[10px] text-muted-foreground">
-                    {s.daysUntil === 0 ? "🎂 Сегодня!" : `через ${s.daysUntil} дн.`}
+                    {(s.days_until ?? s.daysUntil) === 0
+                      ? "🎂 Сегодня!"
+                      : `через ${s.days_until ?? s.daysUntil} дн.`}
                   </p>
                 </div>
               </div>

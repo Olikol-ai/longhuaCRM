@@ -81,7 +81,9 @@ describe('lesson-video helpers', () => {
     assert.equal(config.toolbarButtons.length, 0);
     assert.ok(!config.toolbarButtons.includes('invite'));
 
-    assert.equal(config.p2p?.enabled, false);
+    assert.equal(config.p2p?.enabled, true);
+    assert.equal(config.startSilent, false);
+    assert.equal(config.openBridgeChannel, 'websocket');
     assert.equal(config.filmstrip?.disableStageFilmstrip, false);
 
     const ui = buildJitsiInterfaceConfigOverwrite();
@@ -128,6 +130,7 @@ describe('lesson-video helpers', () => {
   it('dedupes CRM roster vs Jitsi guest and reconnects by identity', async () => {
     const {
       coalesceLivePresence,
+      countOnlineUniqueParticipants,
       mergeRosterWithPresence,
     } = await import('./lesson-video.js');
 
@@ -151,7 +154,38 @@ describe('lesson-video helpers', () => {
     assert.equal(live.length, 1);
     assert.equal(live[0].online, true);
     assert.equal(live[0].id, 'new-jid');
+    assert.equal(countOnlineUniqueParticipants(live), 1);
 
+    // Reconnect ghosts must not inflate the CRM badge (raw Jitsi would say 3–4).
+    assert.equal(
+      countOnlineUniqueParticipants([
+        {
+          id: 't-old',
+          displayName: 'Учитель',
+          online: true,
+          crmUserId: 'user-teacher-1',
+        },
+        {
+          id: 't-new',
+          displayName: 'Учитель',
+          online: true,
+          crmUserId: 'user-teacher-1',
+        },
+        {
+          id: 's1',
+          displayName: 'Ученик',
+          online: true,
+          crmUserId: 'user-student-1',
+        },
+        {
+          id: 's1-ghost',
+          displayName: 'Ученик',
+          online: true,
+          crmUserId: 'user-student-1',
+        },
+      ]),
+      2,
+    );
     const merged = mergeRosterWithPresence(
       [
         {
@@ -262,6 +296,15 @@ describe('Video lesson UI contract', () => {
     assert.match(layer, /canManageAttendance|attendanceOpen|settingsOpen/);
     assert.match(layer, /onPresenceChange|livePresence|setLivePresence/);
     assert.match(embed, /onPresenceChange|getParticipantsInfo|participantJoined/);
+    assert.match(embed, /countOnlineUniqueParticipants/);
+    assert.doesNotMatch(embed, /getNumberOfParticipants\s*\(/);
+    assert.match(embed, /unlockRemoteAudio|onAudioUnlockNeeded/);
+    assert.match(embed, /setAttribute\(\s*['"]allow['"][\s\S]*autoplay/);
+    assert.match(layer, /lesson-video-audio-unlock|Нажмите, чтобы включить звук/);
+    assert.match(
+      readFileSync(join(root, 'lib/lesson-video.js'), 'utf8'),
+      /countOnlineUniqueParticipants|startSilent:\s*false/,
+    );
     assert.match(prejoin, /Проверка оборудования/);
     assert.match(prejoin, /Камера/);
     assert.match(prejoin, /Микрофон/);

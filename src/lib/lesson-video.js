@@ -67,12 +67,28 @@ export function buildJitsiConfigOverwrite(options = {}) {
     hideConferenceSubject: true,
     enableLobby: false,
     lobby: { autoKnock: false },
-    notifications: [],
+    // Empty = all Jitsi notifications enabled (incl. autoplay / device prompts).
+    // Only suppress noisy join/leave toasts via disabledNotifications below.
     toolbarButtons: [],
     buttonsWithNotifyClick: [],
     disableProfile: true,
     startWithAudioMuted: false,
     startWithVideoMuted: false,
+    /** Override host default (nth joiner muted) — CRM lessons are small rooms. */
+    startAudioMuted: 0,
+    startVideoMuted: 0,
+    /** Never join without creating local A/V tracks (breaks two-way audio). */
+    startSilent: false,
+    enableNoAudioDetection: true,
+    enableNoisyMicDetection: true,
+    disableAP: false,
+    constraints: {
+      audio: {
+        autoGainControl: true,
+        echoCancellation: true,
+        noiseSuppression: true,
+      },
+    },
     hideConferenceTimer: false,
     disableModeratorIndicator: false,
     /**
@@ -90,12 +106,23 @@ export function buildJitsiConfigOverwrite(options = {}) {
       disableStageFilmstrip: false,
     },
     /**
-     * P2P↔JVB handoff causes a brief media blackout that looks like a dropped call.
-     * Always use the videobridge for lesson stability (esp. with screen share).
+     * Lessons are 1:1 (teacher↔student). P2P avoids the videobridge when ICE to
+     * JVB UDP/10000 fails (common behind CGNAT / strict NAT). Jitsi still falls
+     * back to JVB when a 3rd participant joins or P2P cannot establish.
+     * Do NOT force enabled:false — that left every call on a broken JVB path
+     * (local preview only, zero remote RTP).
      */
     p2p: {
-      enabled: false,
+      enabled: true,
+      // Prefer stable codecs on mobile Safari / Chrome.
+      codecPreferenceOrder: ['VP8', 'VP9', 'H264', 'AV1'],
+      mobileCodecPreferenceOrder: ['VP8', 'H264', 'VP9', 'AV1'],
     },
+    /**
+     * Prefer WebSocket bridge channel when on JVB (more reliable than SCTP
+     * datachannel behind some NATs / proxies).
+     */
+    openBridgeChannel: 'websocket',
     /**
      * Hide unused Jitsi chrome (e.g. Russian «Параметры производительности»).
      * CRM owns all controls; empty toolbar already, reinforce settings scope.
@@ -550,6 +577,14 @@ export function coalesceLivePresence(liveList) {
   }
 
   return Array.from(byKey.values());
+}
+
+/**
+ * Canonical participant count for CRM chrome: unique online identities,
+ * never raw Jitsi endpoint counts (ghosts / reconnect endpoints inflate those).
+ */
+export function countOnlineUniqueParticipants(liveList) {
+  return coalesceLivePresence(liveList).filter((row) => row?.online).length;
 }
 
 /**

@@ -12,6 +12,7 @@ import {
   PassingMode,
   QuestionType,
   ResultStatus,
+  ShowCorrectAnswers,
 } from '../enums';
 import {
   ASSESSMENT_RESULT_PASSED,
@@ -365,5 +366,98 @@ describe('ResultService processing', () => {
         attemptNumber: 1,
       } as never),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+});
+
+describe('ResultService student feedback', () => {
+  const results = {
+    findByAttemptId: jest.fn(),
+    findById: jest.fn(),
+  } as unknown as jest.Mocked<AssessmentResultRepository>;
+
+  const attempts = {
+    findQuestionSnapshotsByAttemptId: jest.fn(),
+    findAttemptAnswersByAttemptId: jest.fn(),
+    findSelectedAnswerSnapshotIds: jest.fn(),
+    findAnswerSnapshotsByQuestionSnapshotId: jest.fn(),
+  } as unknown as jest.Mocked<AssessmentAttemptRepository>;
+
+  const exams = {
+    findRuleByExamId: jest.fn(),
+  } as unknown as jest.Mocked<AssessmentExamRepository>;
+
+  const scoring = new AssessmentScoringService(attempts);
+  const access = {
+    isAdmin: jest.fn().mockReturnValue(false),
+    isTeacher: jest.fn().mockReturnValue(false),
+    assertCanReadResult: jest.fn(),
+  };
+
+  const service = new ResultService(
+    results,
+    attempts,
+    exams,
+    scoring,
+    new AssessmentContentGuard(),
+    access as never,
+  );
+
+  it('returns review_comment for the owning student without examiner fields', async () => {
+    const student = { sub: 'student-user-1', role: 'student' };
+    const resultRow = {
+      id: 'res-1',
+      attemptId: 'att-1',
+      examId: 'exam-1',
+      status: ResultStatus.Passed,
+      passed: true,
+      score: '1',
+      maxScore: '2',
+      percent: '50.00',
+      evaluationType: EvaluationType.Automatic,
+      startedAt: new Date(),
+      finishedAt: new Date(),
+      duration: 60,
+      attemptNumber: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      breakdowns: [],
+    };
+    access.assertCanReadResult.mockResolvedValue(resultRow as never);
+    results.findByAttemptId.mockResolvedValue(resultRow as never);
+    exams.findRuleByExamId.mockResolvedValue({
+      showCorrectAnswers: ShowCorrectAnswers.Never,
+    } as never);
+    attempts.findQuestionSnapshotsByAttemptId.mockResolvedValue([
+      {
+        id: 'qs-1',
+        sectionKey: 'main',
+        type: QuestionType.ShortText,
+        points: '2',
+        stem: 'Translate',
+        explanation: 'SECRET_ETALON',
+      },
+    ] as never);
+    attempts.findAttemptAnswersByAttemptId.mockResolvedValue([
+      {
+        id: 'aa-1',
+        questionSnapshotId: 'qs-1',
+        textAnswer: 'wrong',
+        score: '0.5',
+        isCorrect: false,
+        reviewComment: 'Нужен другой порядок',
+        reviewedByUserId: 'teacher-1',
+      },
+    ] as never);
+    attempts.findSelectedAnswerSnapshotIds.mockResolvedValue([]);
+    attempts.findAnswerSnapshotsByQuestionSnapshotId.mockResolvedValue([]);
+
+    const bundle = await service.getStudentFeedback('res-1', student as never);
+    expect(bundle.items).toHaveLength(1);
+    expect(bundle.items[0].review_comment).toBe('Нужен другой порядок');
+    expect(bundle.items[0].score).toBe(0.5);
+    expect(bundle.items[0].expected_answer).toBeNull();
+    expect(bundle.show_correct_answers).toBe(false);
+    expect(JSON.stringify(bundle)).not.toContain('reviewedByUserId');
+    expect(JSON.stringify(bundle)).not.toContain('teacher-1');
   });
 });

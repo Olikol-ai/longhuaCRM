@@ -22,6 +22,8 @@ import { JwtPayload } from '../../auth/auth.service';
 import {
   AssignHomeworkDto,
   CreateHomeworkDto,
+  HomeworkAccessGrantDto,
+  HomeworkAccessRevokeDto,
   SaveHomeworkAnswersDto,
   SaveHomeworkReviewDto,
   SubmitHomeworkDto,
@@ -45,6 +47,30 @@ export class HomeworkController {
   @Roles('admin', 'teacher', 'tutor')
   create(@CurrentUser() user: JwtPayload, @Body() dto: CreateHomeworkDto) {
     return this.homework.create(user, dto);
+  }
+
+  @Post('access/grant')
+  @Roles('admin', 'teacher', 'tutor')
+  grantAccess(@CurrentUser() user: JwtPayload, @Body() dto: HomeworkAccessGrantDto) {
+    return this.homework.grantAccess(user, dto);
+  }
+
+  @Post('access/revoke')
+  @Roles('admin', 'teacher', 'tutor')
+  revokeAccess(@CurrentUser() user: JwtPayload, @Body() dto: HomeworkAccessRevokeDto) {
+    return this.homework.revokeAccess(user, dto);
+  }
+
+  @Post('access/bulk-grant')
+  @Roles('admin', 'teacher', 'tutor')
+  bulkGrantAccess(@CurrentUser() user: JwtPayload, @Body() dto: HomeworkAccessGrantDto) {
+    return this.homework.grantAccess(user, dto);
+  }
+
+  @Post('access/bulk-revoke')
+  @Roles('admin', 'teacher', 'tutor')
+  bulkRevokeAccess(@CurrentUser() user: JwtPayload, @Body() dto: HomeworkAccessRevokeDto) {
+    return this.homework.revokeAccess(user, dto);
   }
 
   @Get('assignments/mine')
@@ -170,6 +196,15 @@ export class HomeworkController {
     @Body() dto: SubmitHomeworkDto,
   ) {
     return this.homework.submit(user, id, dto.answers);
+  }
+
+  @Get(':id/access')
+  @Roles('admin', 'teacher', 'tutor')
+  listAccess(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.homework.listAccess(user, id);
   }
 
   @Get(':id')

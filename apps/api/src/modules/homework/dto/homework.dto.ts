@@ -290,3 +290,27 @@ export class SaveHomeworkReviewDto {
   @IsBoolean()
   show_correct_answers?: boolean;
 }
+
+export class HomeworkAccessGrantDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID('4', { each: true })
+  homework_ids!: string[];
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID('4', { each: true })
+  grantee_user_ids!: string[];
+}
+
+export class HomeworkAccessRevokeDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID('4', { each: true })
+  homework_ids!: string[];
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID('4', { each: true })
+  grantee_user_ids!: string[];
+}

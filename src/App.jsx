@@ -38,6 +38,7 @@ const Certificates = lazyRetry(() => import('./pages/Certificates'));
 const StudentCertificates = lazyRetry(() => import('./pages/StudentCertificates'));
 const StudentExams = lazyRetry(() => import('./pages/StudentExams'));
 const StudentExamTake = lazyRetry(() => import('./pages/StudentExamTake'));
+const StudentExamFeedback = lazyRetry(() => import('./pages/StudentExamFeedback'));
 const CertificateView = lazyRetry(() => import('./pages/CertificateView'));
 const CertificateVerify = lazyRetry(() => import('./pages/CertificateVerify'));
 const Payments = lazyRetry(() => import('./pages/Payments'));
@@ -196,6 +197,7 @@ const AuthenticatedApp = () => {
         <Route path="/StudentCertificates" element={<StudentRoute><LayoutWrapper currentPageName="StudentCertificates"><StudentCertificates /></LayoutWrapper></StudentRoute>} />
         <Route path="/StudentExams" element={<StudentRoute><LayoutWrapper currentPageName="StudentExams"><StudentExams /></LayoutWrapper></StudentRoute>} />
         <Route path="/StudentExamTake" element={<StudentRoute><LayoutWrapper currentPageName="StudentExams"><StudentExamTake /></LayoutWrapper></StudentRoute>} />
+        <Route path="/StudentExamFeedback" element={<PathAccessGuard><LayoutWrapper currentPageName="StudentExams"><StudentExamFeedback /></LayoutWrapper></PathAccessGuard>} />
         <Route path="/HskAcademy" element={<PathAccessGuard><LayoutWrapper currentPageName="HskAcademy"><HskAcademyHub /></LayoutWrapper></PathAccessGuard>} />
         <Route path="/HskAcademyPractice" element={<PathAccessGuard><LayoutWrapper currentPageName="HskAcademy"><HskAcademyPractice /></LayoutWrapper></PathAccessGuard>} />
         <Route path="/HskAcademyMock" element={<PathAccessGuard><LayoutWrapper currentPageName="HskAcademy"><HskAcademyMock /></LayoutWrapper></PathAccessGuard>} />

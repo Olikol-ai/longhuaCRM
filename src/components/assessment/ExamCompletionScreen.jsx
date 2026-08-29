@@ -1,10 +1,16 @@
 import { CheckCircle2, Clock3, XCircle } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { createPageUrl } from '@/utils';
-import { resultStatusLabel } from '@/lib/assessment-ui';
+import { isExamResultReviewed, resultStatusLabel } from '@/lib/assessment-ui';
 
-export default function ExamCompletionScreen({ result, examTitle, onBack }) {
+export default function ExamCompletionScreen({
+  result,
+  examTitle,
+  onBack,
+  onOpenFeedback,
+}) {
+  const navigate = useNavigate();
   const kind = resultStatusLabel(result);
 
   let icon = <Clock3 className="h-12 w-12 text-amber-500" />;
@@ -14,7 +20,7 @@ export default function ExamCompletionScreen({ result, examTitle, onBack }) {
 
   if (kind === 'pending_review' || kind === 'processing') {
     icon = <Clock3 className="h-12 w-12 text-amber-500" />;
-    title = 'Ожидает проверки';
+    title = 'Экзамен отправлен на проверку';
     subtitle =
       'Работа отправлена. Текстовые и Speaking-задания проверит преподаватель. Итоговая оценка будет после проверки.';
   } else if (kind === 'passed') {
@@ -32,6 +38,8 @@ export default function ExamCompletionScreen({ result, examTitle, onBack }) {
   const score = result?.score;
   const maxScore = result?.max_score;
   const percent = result?.percent;
+  const canOpenFeedback =
+    Boolean(result?.id) && isExamResultReviewed(result);
 
   return (
     <div
@@ -80,13 +88,38 @@ export default function ExamCompletionScreen({ result, examTitle, onBack }) {
           </div>
         )}
 
-        <div className="pt-2">
+        <div className="flex flex-col sm:flex-row gap-2 pt-2 justify-center">
+          {canOpenFeedback && result?.id ? (
+            <Button
+              className="w-full sm:w-auto bg-primary hover:bg-primary/90"
+              data-testid="exam-open-feedback"
+              onClick={() => {
+                if (onOpenFeedback) {
+                  onOpenFeedback(result.id);
+                  return;
+                }
+                navigate(
+                  `${createPageUrl('StudentExamFeedback')}?resultId=${encodeURIComponent(result.id)}`,
+                );
+              }}
+            >
+              Посмотреть разбор
+            </Button>
+          ) : null}
           {onBack ? (
-            <Button className="w-full sm:w-auto bg-primary hover:bg-primary/90" onClick={onBack}>
+            <Button
+              variant={canOpenFeedback ? 'outline' : 'default'}
+              className="w-full sm:w-auto"
+              onClick={onBack}
+            >
               К списку экзаменов
             </Button>
           ) : (
-            <Button asChild className="w-full sm:w-auto bg-primary hover:bg-primary/90">
+            <Button
+              asChild
+              variant={canOpenFeedback ? 'outline' : 'default'}
+              className="w-full sm:w-auto"
+            >
               <Link to={createPageUrl('StudentExams')}>К списку экзаменов</Link>
             </Button>
           )}

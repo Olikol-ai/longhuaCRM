@@ -132,6 +132,28 @@ export class LessonsService {
     return this.attachDisplayNames(rows);
   }
 
+  /**
+   * Canonical day lists for Admin Dashboard (same school calendar as Schedule digests).
+   * Counts and rows share this query — no client-side slice of a capped list.
+   */
+  async listNonCancelledByDatesForAdmin(
+    actor: JwtPayload,
+    dates: string[],
+  ): Promise<LessonEntity[]> {
+    if (normalizeRole(actor.role) !== 'admin') {
+      throw new ForbiddenException('Admin only');
+    }
+    const rows = await this.repository.findNonCancelledByDates(dates);
+    return this.attachDisplayNames(rows);
+  }
+
+  async countNonCancelledByDateForAdmin(actor: JwtPayload, date: string): Promise<number> {
+    if (normalizeRole(actor.role) !== 'admin') {
+      throw new ForbiddenException('Admin only');
+    }
+    return this.repository.countNonCancelledByDate(date);
+  }
+
   async findById(actor: JwtPayload, id: string): Promise<LessonEntity> {
     await this.lessonAccess.assertCanReadLesson(actor, id);
     const row = await this.repository.findById(id);

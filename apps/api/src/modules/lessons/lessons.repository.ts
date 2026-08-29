@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import { FindOptionsWhere, In, Not, Repository } from 'typeorm';
 import { AttendanceEntity } from './entities/attendance.entity';
 import { LessonEntity } from './entities/lesson.entity';
 
@@ -37,6 +37,41 @@ export class LessonsRepository {
         'group',
         'recurrenceSeries',
       ],
+    });
+  }
+
+  /**
+   * School-calendar date filter for dashboard / day views.
+   * Excludes cancelled lessons. No artificial row limit.
+   */
+  findNonCancelledByDates(dates: string[]): Promise<LessonEntity[]> {
+    const uniqueDates = [...new Set(dates.map((d) => String(d).trim()).filter(Boolean))];
+    if (uniqueDates.length === 0) {
+      return Promise.resolve([]);
+    }
+    return this.lessonRepo.find({
+      where: {
+        date: In(uniqueDates),
+        status: Not('cancelled' as LessonEntity['status']),
+      },
+      relations: [
+        'teacher',
+        'primaryStudent',
+        'primaryTutorStudent',
+        'primaryTeacherStudentContact',
+        'group',
+        'recurrenceSeries',
+      ],
+      order: { date: 'ASC', startTime: 'ASC' },
+    });
+  }
+
+  countNonCancelledByDate(date: string): Promise<number> {
+    return this.lessonRepo.count({
+      where: {
+        date: String(date).trim(),
+        status: Not('cancelled' as LessonEntity['status']),
+      },
     });
   }
 

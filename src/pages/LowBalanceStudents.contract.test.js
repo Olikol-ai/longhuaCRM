@@ -23,7 +23,8 @@ describe('Low-balance students UI contract', () => {
   it('dashboard button says Просмотреть and opens LowBalanceStudents', () => {
     assert.match(dashboardSource, /Просмотреть/);
     assert.match(dashboardSource, /LowBalanceStudents/);
-    assert.match(dashboardSource, /students\.lowBalance\(/);
+    assert.match(dashboardSource, /counts\.low_balance_students|low_balance_students/);
+    assert.match(dashboardSource, /api\.dashboard|adminSummary/);
     assert.equal(
       dashboardSource.includes('to="/UserManagement"'),
       false,
@@ -33,6 +34,7 @@ describe('Low-balance students UI contract', () => {
       /isLowLessonBalance|lesson_balance.*<=\s*2/.test(dashboardSource),
       false,
     );
+    assert.equal(dashboardSource.includes('students.lowBalance('), false);
   });
 
   it('dedicated page loads only low-balance API and shows required columns', () => {

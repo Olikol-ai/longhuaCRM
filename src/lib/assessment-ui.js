@@ -94,3 +94,9 @@ export function resultStatusLabel(result) {
   if (result.passed === false || result.status === 'failed') return 'failed';
   return result.status;
 }
+
+/** True when the attempt has a finalized score (passed/failed) and feedback is useful. */
+export function isExamResultReviewed(result) {
+  const kind = resultStatusLabel(result);
+  return kind === 'passed' || kind === 'failed';
+}

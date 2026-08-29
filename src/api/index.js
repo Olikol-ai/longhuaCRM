@@ -7,6 +7,7 @@ import { video } from './video.api';
 import { auth } from './auth';
 import { certificates } from './certificates.api';
 import { courses } from './courses.api';
+import { dashboard } from './dashboard.api';
 import { functions } from './functions';
 import { groups } from './groups.api';
 import { lessons } from './lessons.api';
@@ -45,6 +46,7 @@ export { teacherInvites } from './teacher-invites.api';
 export { tutorInviteLinks } from './tutor-invite-links.api';
 export { teacherStudentContacts } from './teacher-student-contacts.api';
 export { courses } from './courses.api';
+export { dashboard } from './dashboard.api';
 export { groups } from './groups.api';
 export { lessons } from './lessons.api';
 export { payments } from './payments.api';
@@ -74,6 +76,7 @@ export const api = {
   tutorInviteLinks,
   teacherStudentContacts,
   courses,
+  dashboard,
   groups,
   lessons,
   payments,

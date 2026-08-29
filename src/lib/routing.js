@@ -71,6 +71,8 @@ const EXACT_ROUTE_ACCESS = {
   '/StudentCertificates': ['student'],
   '/StudentExams': ['student'],
   '/StudentExamTake': ['student'],
+  // Own-result feedback page; payload ACL is assertCanReadResult on the API.
+  '/StudentExamFeedback': ['admin', 'teacher', 'tutor', 'student'],
   '/PaymentReturn': ['student'],
 
   '/HomeworkViewer': ['student', 'tutor_student'],

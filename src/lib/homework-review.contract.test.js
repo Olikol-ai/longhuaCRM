@@ -93,15 +93,15 @@ describe('Homework review / grading UX', () => {
     assert.match(service, /student_feedback:/);
   });
 
-  it('renders question → student answer → teacher comment → score in one card', () => {
+  it('renders question → student answer → score → teacher comment in one card', () => {
     const card = read('src/components/assessment/QuestionCard.jsx');
     const feedback = read('src/components/assessment/LearnerItemReview.jsx');
     const speakingIdx = card.indexOf('SpeakingAnswerPanel');
     const reviewIdx = card.indexOf('<LearnerItemReview');
     assert.ok(speakingIdx >= 0 && reviewIdx > speakingIdx);
-    const commentIdx = feedback.indexOf('homework-item-teacher-comment');
     const scoreIdx = feedback.indexOf('homework-item-score');
-    assert.ok(commentIdx >= 0 && scoreIdx > commentIdx);
+    const commentIdx = feedback.indexOf('homework-item-teacher-comment');
+    assert.ok(scoreIdx >= 0 && commentIdx > scoreIdx);
     assert.match(feedback, /whitespace-pre-wrap/);
     assert.match(feedback, /overflow-wrap:anywhere/);
     assert.doesNotMatch(feedback, /truncate/);

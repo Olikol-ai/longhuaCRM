@@ -20,15 +20,23 @@ export function useStudentExamCards() {
     setLoading(true);
     setError(null);
     try {
-      const [assignmentsPayload, attemptsPayload] = await Promise.all([
-        api.assessment.listAssignments({ limit: 200 }),
-        api.assessment.listAttempts({ limit: 200 }),
-      ]);
+      const [assignmentsPayload, attemptsPayload, resultsPayload] =
+        await Promise.all([
+          api.assessment.listAssignments({ limit: 200 }),
+          api.assessment.listAttempts({ limit: 200 }),
+          api.assessment.listResults({ limit: 200 }).catch(() => ({ items: [] })),
+        ]);
 
       const assignments = unwrapItems(assignmentsPayload).filter(
         (a) => a.status !== 'cancelled',
       );
       const attempts = unwrapItems(attemptsPayload);
+      const results = unwrapItems(resultsPayload);
+      const resultByAttemptId = new Map(
+        results
+          .filter((r) => r?.attempt_id || r?.attemptId)
+          .map((r) => [r.attempt_id || r.attemptId, r]),
+      );
 
       const examIds = [...new Set(assignments.map((a) => a.exam_id).filter(Boolean))];
       const exams = await Promise.all(
@@ -40,12 +48,17 @@ export function useStudentExamCards() {
         const exam = examById.get(assignment.exam_id);
         const examAttempts = attempts.filter((att) => att.exam_id === assignment.exam_id);
         const status = resolveExamCardStatus(examAttempts);
+        const lastSubmitted = findLatestSubmittedAttempt(examAttempts);
+        const result = lastSubmitted
+          ? resultByAttemptId.get(lastSubmitted.id) || null
+          : null;
         return {
           assignment,
           exam,
           status,
           liveAttempt: findLiveAttempt(examAttempts),
-          lastSubmitted: findLatestSubmittedAttempt(examAttempts),
+          lastSubmitted,
+          result,
           title: exam?.name || 'Экзамен',
           description: exam?.description || '',
           durationMinutes: exam?.rule?.duration_minutes ?? null,

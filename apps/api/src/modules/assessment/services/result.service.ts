@@ -13,7 +13,13 @@ import {
   AssessmentResultBreakdownEntity,
   AssessmentResultEntity,
 } from '../entities';
-import { EvaluationType, QuestionType, ResultStatus, isManualReviewQuestionType } from '../enums';
+import {
+  EvaluationType,
+  QuestionType,
+  ResultStatus,
+  ShowCorrectAnswers,
+  isManualReviewQuestionType,
+} from '../enums';
 import {
   ASSESSMENT_RESULT_PASSED,
   ASSESSMENT_RESULT_PENDING_REVIEW,
@@ -66,6 +72,30 @@ export type ReviewBundle = {
   reviewStatus: 'not_reviewed' | 'in_progress' | 'reviewed';
   items: ReviewItemView[];
   manualPendingCount: number;
+};
+
+/** Read-only student-facing feedback — no examiner internals. */
+export type StudentFeedbackItemDto = {
+  question_snapshot_id: string;
+  section_key: string;
+  type: string;
+  stem: string;
+  points: number;
+  student_text_answer: string | null;
+  selected_option_texts: string[];
+  answer_options: Array<{ text: string; selected: boolean }>;
+  has_audio: boolean;
+  audio_url: string | null;
+  score: number | null;
+  is_correct: boolean | null;
+  review_comment: string | null;
+  expected_answer: string | null;
+};
+
+export type StudentFeedbackBundleDto = {
+  result: ReturnType<typeof toResultDto>;
+  items: StudentFeedbackItemDto[];
+  show_correct_answers: boolean;
 };
 
 @Injectable()
@@ -272,6 +302,96 @@ export class ResultService {
         (i) => i.requiresManualReview && i.score == null,
       ).length,
     };
+  }
+
+  /**
+   * Student (or owner) read-only feedback: own answers, scores, teacher comments.
+   * Correct/etalon answers only when exam rule allows (never exposes is_correct flags).
+   */
+  async getStudentFeedback(
+    resultId: string,
+    actor: DomainAccessActor,
+  ): Promise<StudentFeedbackBundleDto> {
+    const result = await this.access.assertCanReadResult(actor, resultId);
+    const withBreakdowns =
+      (await this.results.findByAttemptId(result.attemptId)) ?? result;
+    const rule = await this.exams.findRuleByExamId(result.examId);
+    const showCorrect = this.shouldShowCorrectAnswers(
+      rule?.showCorrectAnswers ?? ShowCorrectAnswers.Never,
+      withBreakdowns,
+    );
+    const items = await this.buildReviewItems(result.attemptId);
+    const feedbackItems: StudentFeedbackItemDto[] = [];
+
+    for (const item of items) {
+      const selectedSet = new Set(item.selectedAnswerSnapshotIds);
+      const selectedTexts = item.answerOptions
+        .filter((o) => selectedSet.has(o.snapshotId))
+        .map((o) => o.text);
+      let expectedAnswer: string | null = null;
+      if (showCorrect) {
+        const fromExplanation =
+          typeof item.explanation === 'string' ? item.explanation.trim() : '';
+        if (fromExplanation) {
+          expectedAnswer = fromExplanation;
+        } else {
+          const answerSnaps =
+            await this.attempts.findAnswerSnapshotsByQuestionSnapshotId(
+              item.questionSnapshotId,
+            );
+          const correct = answerSnaps
+            .filter((a) => a.isCorrect)
+            .map((a) => a.text.trim())
+            .filter(Boolean);
+          if (correct.length) {
+            expectedAnswer = correct.join('; ');
+          }
+        }
+      }
+
+      feedbackItems.push({
+        question_snapshot_id: item.questionSnapshotId,
+        section_key: item.sectionKey,
+        type: item.type,
+        stem: item.stem,
+        points: item.points,
+        student_text_answer: item.textAnswer,
+        selected_option_texts: selectedTexts,
+        answer_options: item.answerOptions.map((o) => ({
+          text: o.text,
+          selected: selectedSet.has(o.snapshotId),
+        })),
+        has_audio: item.hasAudio,
+        audio_url: item.audioUrl,
+        score: item.score,
+        is_correct: item.isCorrect,
+        review_comment: item.reviewComment,
+        expected_answer: expectedAnswer,
+      });
+    }
+
+    return {
+      result: toResultDto(withBreakdowns),
+      items: feedbackItems,
+      show_correct_answers: showCorrect,
+    };
+  }
+
+  private shouldShowCorrectAnswers(
+    policy: ShowCorrectAnswers,
+    result: AssessmentResultEntity,
+  ): boolean {
+    if (policy === ShowCorrectAnswers.Always) return true;
+    if (policy === ShowCorrectAnswers.Never) return false;
+    if (policy === ShowCorrectAnswers.AfterPass) {
+      return result.status === ResultStatus.Passed || result.passed === true;
+    }
+    // after_submit — once there is a finished result (incl. pending_review / failed)
+    return (
+      result.status === ResultStatus.Passed ||
+      result.status === ResultStatus.Failed ||
+      result.status === ResultStatus.PendingReview
+    );
   }
 
   /**

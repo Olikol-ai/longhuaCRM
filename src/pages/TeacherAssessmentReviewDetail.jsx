@@ -219,23 +219,23 @@ export default function TeacherAssessmentReviewDetail() {
           {error?.message || 'Не удалось открыть работу'}
         </div>
         <Button asChild variant="outline">
-          <Link to={createPageUrl('TeacherAssessmentReview')}>Назад</Link>
+          <Link to={createPageUrl('TeacherAssessment')}>Назад</Link>
         </Button>
       </div>
     );
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6 pb-28">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6 pb-28 min-w-0 overflow-x-hidden">
       <div>
         <Link
-          to={createPageUrl('TeacherAssessmentReview')}
+          to={createPageUrl('TeacherAssessment')}
           className="text-xs text-muted-foreground hover:text-brand dark:hover:text-brand"
         >
-          ← Работы на проверку
+          ← Мои экзамены
         </Link>
         <div className="flex flex-wrap items-center gap-2 mt-1">
-          <h1 className="text-2xl font-bold text-foreground">
+          <h1 className="text-2xl font-bold text-foreground break-words">
             {examName}
           </h1>
           <span

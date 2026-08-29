@@ -40,6 +40,31 @@ export class StudentsRepository {
     });
   }
 
+  countActive(): Promise<number> {
+    return this.repo.count({ where: { status: 'active' } });
+  }
+
+  countActiveWithLowBalance(
+    maxBalance: number = LOW_LESSON_BALANCE_THRESHOLD,
+  ): Promise<number> {
+    return this.repo.count({
+      where: {
+        status: 'active',
+        lessonBalance: LessThanOrEqual(maxBalance),
+      },
+    });
+  }
+
+  /** Active students with a birthday set (for dashboard upcoming birthdays). */
+  findActiveWithBirthday(): Promise<StudentEntity[]> {
+    return this.repo
+      .createQueryBuilder('s')
+      .where('s.status = :status', { status: 'active' })
+      .andWhere('s.birthday IS NOT NULL')
+      .orderBy('s.name', 'ASC')
+      .getMany();
+  }
+
   save(entity: Partial<StudentEntity>): Promise<StudentEntity> {
     return this.repo.save(this.repo.create(entity));
   }

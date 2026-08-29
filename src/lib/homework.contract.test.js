@@ -49,10 +49,10 @@ describe('Homework module architecture', () => {
     assert.match(viewer, /Домашние задания/);
     assert.match(viewer, /LearnerQuestionBlocks/);
     assert.match(list, /Домашние задания/);
-    assert.match(list, /Созданные мной/);
-    assert.match(list, /Назначенные ученикам/);
-    assert.match(list, /Проверка/);
-    assert.match(list, /История/);
+    assert.match(list, /Шаблоны/);
+    assert.match(list, /На проверке/);
+    assert.match(list, /Выполненные/);
+    assert.match(list, /label: 'Все'/);
     assert.doesNotMatch(viewer, /[Ээ]кзамен/);
     assert.doesNotMatch(list, /[Ээ]кзамен/);
   });

@@ -4,6 +4,7 @@ import {
   buildJitsiConfigOverwrite,
   buildJitsiInterfaceConfigOverwrite,
   coalesceLivePresence,
+  countOnlineUniqueParticipants,
   loadJitsiExternalApi,
   mapLinkQualityScore,
   mapVideoConferenceError,
@@ -50,6 +51,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     onPresenceChange,
     onScreenSharingChanged,
     onLinkQualityChanged,
+    onAudioUnlockNeeded,
   },
   ref,
 ) {
@@ -72,6 +74,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
   const onPresenceChangeRef = useRef(onPresenceChange);
   const onScreenSharingChangedRef = useRef(onScreenSharingChanged);
   const onLinkQualityChangedRef = useRef(onLinkQualityChanged);
+  const onAudioUnlockNeededRef = useRef(onAudioUnlockNeeded);
   /** @type {React.MutableRefObject<Map<string, object>>} */
   const presenceMapRef = useRef(new Map());
   const [booting, setBooting] = useState(true);
@@ -93,6 +96,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     onPresenceChangeRef.current = onPresenceChange;
     onScreenSharingChangedRef.current = onScreenSharingChanged;
     onLinkQualityChangedRef.current = onLinkQualityChanged;
+    onAudioUnlockNeededRef.current = onAudioUnlockNeeded;
   }, [
     displayName,
     subject,
@@ -109,6 +113,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     onPresenceChange,
     onScreenSharingChanged,
     onLinkQualityChanged,
+    onAudioUnlockNeeded,
   ]);
 
   useEffect(() => {
@@ -142,6 +147,52 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
       resizeJitsiEmbed(apiRef.current, containerRef.current, {
         crmTheme: crmThemeRef.current,
       });
+    },
+    /**
+     * User gesture: resume AudioContext + nudge iframe so remote tracks play
+     * after browser autoplay policy blocked the async join.
+     * Never mutes remote streams — local preview may stay muted separately.
+     */
+    unlockRemoteAudio: async () => {
+      videoDiag('audio_unlock_gesture', {
+        joined: joinedOnceRef.current,
+        room: roomName || null,
+        crmUserId: crmUserIdRef.current || null,
+      });
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (Ctx) {
+          const ctx = new Ctx();
+          if (ctx.state === 'suspended') await ctx.resume();
+          // Short silent buffer keeps the context alive for media elements.
+          const buf = ctx.createBuffer(1, 1, 22050);
+          const src = ctx.createBufferSource();
+          src.buffer = buf;
+          src.connect(ctx.destination);
+          src.start(0);
+        }
+      } catch {
+        // ignore
+      }
+      try {
+        const iframe = apiRef.current?.getIFrame?.();
+        if (iframe) {
+          // Keep Permissions Policy aligned with getUserMedia + autoplay.
+          iframe.setAttribute(
+            'allow',
+            'camera; microphone; display-capture; autoplay; clipboard-write; fullscreen',
+          );
+          iframe.allow =
+            'camera; microphone; display-capture; autoplay; clipboard-write; fullscreen';
+          iframe?.contentWindow?.focus?.();
+          iframe?.focus?.();
+        }
+      } catch {
+        // ignore
+      }
+      // Cross-origin iframe: cannot touch remote <audio>/<video>. Focus +
+      // AudioContext resume is the supported unlock path for External API.
+      onAudioUnlockNeededRef.current?.(false);
     },
   }));
 
@@ -253,6 +304,13 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
 
         const iframe = api.getIFrame?.();
         if (iframe) {
+          iframe.setAttribute(
+            'allow',
+            'camera; microphone; display-capture; autoplay; clipboard-write; fullscreen',
+          );
+          iframe.allow =
+            'camera; microphone; display-capture; autoplay; clipboard-write; fullscreen';
+          iframe.setAttribute('allowfullscreen', 'true');
           iframe.style.colorScheme =
             crmThemeRef.current === 'dark' ? 'dark' : 'light';
           iframe.addEventListener('load', () => {
@@ -293,7 +351,59 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
             reconnecting: Boolean(row.reconnecting),
             handRaised: Boolean(row.handRaised),
           }));
-          onPresenceChangeRef.current?.(coalesceLivePresence(raw));
+          const coalesced = coalesceLivePresence(raw);
+          onPresenceChangeRef.current?.(coalesced);
+          // SSOT count = unique online CRM identities (not raw Jitsi endpoints).
+          onParticipantCountRef.current?.(countOnlineUniqueParticipants(coalesced));
+        };
+
+        /**
+         * One authenticated CRM user → one map row. Extra Jitsi endpoints
+         * (reconnect / second tab) collapse onto the preferred pid.
+         */
+        const collapsePresenceByCrmUser = (preferredPid) => {
+          const preferred = presenceMapRef.current.get(preferredPid);
+          const crmId = String(preferred?.crmUserId || '').trim();
+          if (!preferred || !crmId) return;
+          for (const [pid, row] of [...presenceMapRef.current.entries()]) {
+            if (pid === preferredPid) continue;
+            if (String(row.crmUserId || '').trim() !== crmId) continue;
+            const preferIncoming = Boolean(preferred.online) || !row.online;
+            const keep = preferIncoming ? preferred : row;
+            const drop = preferIncoming ? row : preferred;
+            const keepPid = preferIncoming ? preferredPid : pid;
+            const dropPid = preferIncoming ? pid : preferredPid;
+            const joinedCandidates = [keep.joinedAt, drop.joinedAt]
+              .map((v) => (v == null ? null : Number(v)))
+              .filter((v) => Number.isFinite(v));
+            presenceMapRef.current.delete(dropPid);
+            presenceMapRef.current.set(keepPid, {
+              ...keep,
+              id: keepPid,
+              displayName: keep.displayName || drop.displayName,
+              online: Boolean(keep.online || drop.online),
+              joinedAt: joinedCandidates.length
+                ? Math.min(...joinedCandidates)
+                : keep.joinedAt || drop.joinedAt || null,
+              leftAt: keep.online || drop.online ? null : keep.leftAt || drop.leftAt,
+              accumulatedMs: Math.max(
+                Number(keep.accumulatedMs || 0),
+                Number(drop.accumulatedMs || 0),
+              ),
+              crmUserId: crmId,
+              email: keep.email || drop.email || null,
+              jitsiIds: [
+                ...new Set([
+                  ...(keep.jitsiIds || [keep.id]),
+                  ...(drop.jitsiIds || [drop.id]),
+                ]),
+              ],
+            });
+            if (!preferIncoming) {
+              // kept alternate pid — stop iterating on stale preferred
+              return;
+            }
+          }
         };
 
         const patchPresence = (id, patch) => {
@@ -301,6 +411,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           const existing = presenceMapRef.current.get(id);
           if (!existing) return;
           presenceMapRef.current.set(id, { ...existing, ...patch });
+          if (patch?.crmUserId) collapsePresenceByCrmUser(id);
           emitPresence();
         };
 
@@ -375,6 +486,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
               reconnecting: false,
             });
           }
+          if (extras.crmUserId) collapsePresenceByCrmUser(id);
           emitPresence();
         };
 
@@ -420,35 +532,67 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           };
         };
 
-        const syncParticipants = () => {
-          try {
-            const count = api.getNumberOfParticipants?.();
-            if (typeof count === 'number') onParticipantCountRef.current?.(count);
-          } catch {
-            // ignore
-          }
+        const extractIdentityExtras = (row = {}) => {
+          const flags = readMuteFlags(row);
+          const props = row?.participantProperties || row?.properties || {};
+          const identity = row?.identity || row?.jwtId || null;
+          const crmUserId =
+            props.crmUserId ||
+            props.crm_user_id ||
+            row?.crmUserId ||
+            row?.userId ||
+            row?.idFromJWT ||
+            (typeof identity === 'string' ? identity : identity?.user?.id) ||
+            null;
+          const email =
+            props.crmEmail ||
+            props.crm_email ||
+            row?.email ||
+            (typeof identity === 'object' ? identity?.user?.email : null) ||
+            null;
+          return {
+            ...flags,
+            crmUserId: crmUserId ? String(crmUserId) : null,
+            email: email ? String(email).toLowerCase() : null,
+            screenSharing: Boolean(
+              row?.sharingScreen || row?.isSharingScreen || row?.screenSharing,
+            ),
+          };
+        };
 
+        const syncParticipants = () => {
+          // Do NOT use raw Jitsi endpoint count for CRM chrome —
+          // it counts ghost/reconnect endpoints and inflates the badge.
           try {
             const info = api.getParticipantsInfo?.() || [];
-            if (!Array.isArray(info) || info.length === 0) return;
+            if (!Array.isArray(info) || info.length === 0) {
+              emitPresence();
+              return;
+            }
             const seen = new Set();
             for (const row of info) {
               const pid = row?.participantId || row?.id;
               if (!pid) continue;
               seen.add(pid);
-              const flags = readMuteFlags(row);
-              markOnline(pid, row.displayName || row.formattedDisplayName, {
-                ...flags,
-                screenSharing: Boolean(
-                  row?.sharingScreen || row?.isSharingScreen || row?.screenSharing,
-                ),
-              });
+              markOnline(
+                pid,
+                row.displayName || row.formattedDisplayName,
+                extractIdentityExtras(row),
+              );
             }
             for (const [pid, row] of presenceMapRef.current.entries()) {
               if (!seen.has(pid) && row.online) markOffline(pid);
             }
+            const snapshot = Array.from(presenceMapRef.current.values());
+            videoDiag('presence_sync', {
+              room: name,
+              rawEndpoints: info.length,
+              uniqueOnline: countOnlineUniqueParticipants(snapshot),
+              crmUserId: crmUserIdRef.current || null,
+            });
+            emitPresence();
           } catch {
-            // getParticipantsInfo may be unavailable on older builds
+            emitPresence();
           }
         };
 
@@ -533,6 +677,8 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           videoDiag('conference_joined', {
             participantId: e?.id || api.getMyUserId?.() || null,
             room: name,
+            crmUserId: crmUserIdRef.current || null,
+            p2pEnabled: true,
           });
           resizeJitsiEmbed(api, containerRef.current, {
             crmTheme: crmThemeRef.current,
@@ -570,7 +716,62 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
               // older Jitsi builds may not support participant properties
             }
           }
+          // Sync mute flags from Jitsi (source of truth for local mic).
+          try {
+            const muted = api.isAudioMuted?.();
+            if (typeof muted === 'boolean') {
+              onAudioMuteChangedRef.current?.(muted);
+              if (localId) patchPresence(localId, { audioMuted: muted });
+            }
+          } catch {
+            // ignore
+          }
+          try {
+            const vMuted = api.isVideoMuted?.();
+            if (typeof vMuted === 'boolean') {
+              videoMutedRef.current = vMuted;
+              onVideoMuteChangedRef.current?.(vMuted);
+              if (localId) patchPresence(localId, { videoMuted: vMuted });
+            }
+          } catch {
+            // ignore
+          }
+          // Async iframe join often loses the prejoin user-gesture → remote
+          // autoplay blocked. Ask CRM shell to show “enable sound” CTA.
+          onAudioUnlockNeededRef.current?.(true);
           syncParticipants();
+          // Prove media path: after remotes join, connectionQuality must leave 0.
+          window.setTimeout(() => {
+            if (cancelled || !joinedOnceRef.current) return;
+            const online = Array.from(presenceMapRef.current.values()).filter(
+              (r) => r.online,
+            );
+            const remotes = online.filter((r) => r.id !== api.getMyUserId?.());
+            const lost = remotes.filter(
+              (r) =>
+                r.linkQuality === 'lost' ||
+                r.connectionQuality === 0 ||
+                r.reconnecting,
+            );
+            videoDiag(
+              remotes.length && lost.length === remotes.length
+                ? 'remote_media_missing'
+                : 'remote_media_check',
+              {
+                room: name,
+                localId: api.getMyUserId?.() || null,
+                onlineCount: online.length,
+                remoteCount: remotes.length,
+                remotesLost: lost.length,
+                crmUserId: crmUserIdRef.current || null,
+              },
+              remotes.length && lost.length === remotes.length ? 'error' : 'info',
+            );
+            if (remotes.length && lost.length === remotes.length) {
+              onConnectionStatusRef.current?.('degraded');
+              onLinkQualityChangedRef.current?.('lost', 0);
+            }
+          }, 12_000);
           onJoinedRef.current?.();
         });
         listen(api, 'readyToClose', () => reportLeave('readyToClose'));
@@ -639,15 +840,36 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           patchPresence(pid, { handRaised: raised });
         });
         listen(api, 'participantJoined', (e) => {
+          const pid = e?.id;
+          const extras = extractIdentityExtras(e || {});
           videoDiag('participant_joined', {
-            id: e?.id || null,
+            id: pid || null,
             displayName: e?.displayName || null,
+            peerCrmUserId: extras.crmUserId || null,
+            localCrmUserId: crmUserIdRef.current || null,
+            room: name,
+            uniqueOnline: countOnlineUniqueParticipants(
+              Array.from(presenceMapRef.current.values()),
+            ),
           });
-          markOnline(e?.id, e?.displayName);
+          markOnline(pid, e?.displayName, extras);
+          // Re-read roster so jwt/email identity lands ASAP (dedupe reconnects).
+          window.setTimeout(() => {
+            if (!cancelled) syncParticipants();
+          }, 250);
           syncParticipants();
         });
         listen(api, 'participantLeft', (e) => {
-          videoDiag('participant_left', { id: e?.id || null });
+          videoDiag('participant_left', {
+            id: e?.id || null,
+            room: name,
+            uniqueOnline: Math.max(
+              0,
+              countOnlineUniqueParticipants(
+                Array.from(presenceMapRef.current.values()),
+              ) - 1,
+            ),
+          });
           markOffline(e?.id);
           syncParticipants();
         });
@@ -657,6 +879,11 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           const key = e?.property || e?.key;
           const value = e?.newValue ?? e?.value;
           if (key === 'crmUserId' && value) {
+            videoDiag('participant_identity', {
+              id: pid,
+              crmUserId: String(value),
+              room: name,
+            });
             patchPresence(pid, { crmUserId: String(value) });
           }
           if (key === 'crmEmail' && value) {
@@ -777,6 +1004,8 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
       apiRef.current = null;
       presenceMapRef.current = new Map();
       onPresenceChangeRef.current?.([]);
+      onParticipantCountRef.current?.(0);
+      onAudioUnlockNeededRef.current?.(false);
       onLinkQualityChangedRef.current?.('unknown', null);
       if (containerRef.current) containerRef.current.innerHTML = '';
     };

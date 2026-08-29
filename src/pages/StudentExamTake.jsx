@@ -206,6 +206,11 @@ export default function StudentExamTake() {
         result={resultEntity}
         examTitle={examTitle}
         onBack={() => navigate(createPageUrl('StudentExams'))}
+        onOpenFeedback={(id) =>
+          navigate(
+            `${createPageUrl('StudentExamFeedback')}?resultId=${encodeURIComponent(id)}`,
+          )
+        }
       />
     );
   }

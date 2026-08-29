@@ -225,6 +225,46 @@ describe('AssessmentAccessService ACL', () => {
     await expect(access.assertCanReadResult(admin, 'res-1')).resolves.toBeDefined();
   });
 
+  it('student can read own result but not another student result', async () => {
+    resultRepo.findOne.mockResolvedValue({
+      id: 'res-own',
+      attemptId: 'att-own',
+      examId: 'exam-1',
+    });
+    attemptRepo.findOne.mockResolvedValue({
+      id: 'att-own',
+      userId: 'user-s1',
+      studentId: 'stu-1',
+      examId: 'exam-1',
+    });
+
+    await expect(
+      access.assertCanReadResult(
+        { sub: 'user-s1', role: 'student', email: 's@t.com' },
+        'res-own',
+      ),
+    ).resolves.toBeDefined();
+
+    resultRepo.findOne.mockResolvedValue({
+      id: 'res-foreign',
+      attemptId: 'att-foreign',
+      examId: 'exam-1',
+    });
+    attemptRepo.findOne.mockResolvedValue({
+      id: 'att-foreign',
+      userId: 'user-s-OTHER',
+      studentId: 'stu-2',
+      examId: 'exam-1',
+    });
+
+    await expect(
+      access.assertCanReadResult(
+        { sub: 'user-s1', role: 'student', email: 's@t.com' },
+        'res-foreign',
+      ),
+    ).rejects.toThrow(/foreign Result|Forbidden/);
+  });
+
   it('HSK Academy ECP materialization: student can start own exam_content without assignment', async () => {
     examRepo.findOne.mockResolvedValue({
       id: 'exam-ecp-1',

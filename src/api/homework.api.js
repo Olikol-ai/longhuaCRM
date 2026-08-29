@@ -115,4 +115,36 @@ export const homework = {
       { method: 'POST', body: JSON.stringify(body || {}) },
     );
   },
+
+  grantAccess(data) {
+    return apiFetch('/homework/access/grant', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  revokeAccess(data) {
+    return apiFetch('/homework/access/revoke', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  bulkGrant(data) {
+    return apiFetch('/homework/access/bulk-grant', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  bulkRevoke(data) {
+    return apiFetch('/homework/access/bulk-revoke', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  listAccess(homeworkId) {
+    return apiFetch(`/homework/${encodeURIComponent(homeworkId)}/access`);
+  },
 };

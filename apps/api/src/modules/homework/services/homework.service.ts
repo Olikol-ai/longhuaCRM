@@ -28,6 +28,8 @@ import { UserEntity } from '../../users/entities/user.entity';
 import {
   AssignHomeworkDto,
   CreateHomeworkDto,
+  HomeworkAccessGrantDto,
+  HomeworkAccessRevokeDto,
   HomeworkAnswerDto,
   HomeworkItemDto,
   HomeworkTaskDto,
@@ -47,6 +49,7 @@ import {
 } from '../enums';
 import {
   HomeworkAnswerSnapshotEntity,
+  HomeworkAccessEntity,
   HomeworkAssignmentEntity,
   HomeworkAttemptAnswerEntity,
   HomeworkAttemptAnswerSelectionEntity,
@@ -88,6 +91,8 @@ interface HomeworkOwnerInfo {
   ownerName: string | null;
 }
 
+type HomeworkAccessRole = 'owner' | 'shared';
+
 interface LearnerInfo {
   learnerType: 'student' | 'tutor_student';
   learnerId: string;
@@ -120,6 +125,8 @@ export class HomeworkService {
     private readonly itemAnswers: Repository<HomeworkItemAnswerEntity>,
     @InjectRepository(HomeworkTaskEntity)
     private readonly homeworkTasks: Repository<HomeworkTaskEntity>,
+    @InjectRepository(HomeworkAccessEntity)
+    private readonly homeworkAccess: Repository<HomeworkAccessEntity>,
     @InjectRepository(AssessmentQuestionEntity)
     private readonly assessmentQuestions: Repository<AssessmentQuestionEntity>,
     @InjectRepository(AssessmentReadingTaskEntity)
@@ -149,12 +156,39 @@ export class HomeworkService {
 
   async listForTeacher(user: JwtPayload) {
     const scope = await this.assertManagerOrAdmin(user);
-    const rows = await this.homeworks.find({
+    const owned = await this.homeworks.find({
       where: this.buildHomeworkOwnerWhere(scope, user),
       order: { updatedAt: 'DESC' },
       relations: ['items'],
     });
-    return this.enrichHomeworkDtos(rows);
+
+    let shared: HomeworkEntity[] = [];
+    if (scope.role !== 'admin') {
+      const grants = await this.homeworkAccess.find({
+        where: { granteeUserId: user.sub },
+        select: ['homeworkId'],
+      });
+      const ownedIds = new Set(owned.map((row) => row.id));
+      const sharedIds = [
+        ...new Set(
+          grants.map((g) => g.homeworkId).filter((id) => !ownedIds.has(id)),
+        ),
+      ];
+      if (sharedIds.length > 0) {
+        shared = await this.homeworks.find({
+          where: { id: In(sharedIds) },
+          order: { updatedAt: 'DESC' },
+          relations: ['items'],
+        });
+      }
+    }
+
+    const rows = [...owned, ...shared].sort((a, b) => {
+      const ta = new Date(a.updatedAt || 0).getTime();
+      const tb = new Date(b.updatedAt || 0).getTime();
+      return tb - ta;
+    });
+    return this.enrichHomeworkDtos(rows, user);
   }
 
   async getHomework(user: JwtPayload, id: string) {
@@ -172,8 +206,9 @@ export class HomeworkService {
     if (!hw) throw new NotFoundException('Homework not found');
     await this.assertCanViewHomework(user, hw);
     const owners = await this.buildHomeworkOwnerInfoMap([hw]);
+    const accessRole = await this.resolveAccessRole(user, hw);
     return {
-      ...this.toHomeworkDto(hw, owners.get(hw.id) ?? null),
+      ...this.toHomeworkDto(hw, owners.get(hw.id) ?? null, accessRole),
       items: (hw.items ?? [])
         .slice()
         .sort((left, right) => left.sortOrder - right.sortOrder)
@@ -295,7 +330,7 @@ export class HomeworkService {
   }
 
   async assign(user: JwtPayload, homeworkId: string, dto: AssignHomeworkDto) {
-    const hw = await this.requireOwnedHomework(user, homeworkId);
+    const hw = await this.requireAssignableHomework(user, homeworkId);
     if (hw.status !== HomeworkLifecycleStatus.Published) {
       throw new BadRequestException('Publish homework before assigning');
     }
@@ -428,16 +463,42 @@ export class HomeworkService {
       qb.andWhere('a.homework_id = :homeworkId', { homeworkId });
     }
     if (scope.role === 'teacher' && scope.teacherId) {
-      qb.andWhere('(h.teacher_id = :teacherId OR h.created_by_user_id = :uid)', {
-        teacherId: scope.teacherId,
-        uid: user.sub,
-      });
+      const sharedIds = (
+        await this.homeworkAccess.find({
+          where: { granteeUserId: user.sub },
+          select: ['homeworkId'],
+        })
+      ).map((row) => row.homeworkId);
+      qb.andWhere(
+        `(
+          h.teacher_id = :teacherId
+          OR h.created_by_user_id = :uid
+          OR a.assigned_by_user_id = :uid
+          ${sharedIds.length ? 'OR h.id IN (:...sharedIds)' : ''}
+        )`,
+        sharedIds.length
+          ? { teacherId: scope.teacherId, uid: user.sub, sharedIds }
+          : { teacherId: scope.teacherId, uid: user.sub },
+      );
     }
     if (scope.role === 'tutor' && scope.tutorId) {
-      qb.andWhere('(h.tutor_id = :tutorId OR h.created_by_user_id = :uid)', {
-        tutorId: scope.tutorId,
-        uid: user.sub,
-      });
+      const sharedIds = (
+        await this.homeworkAccess.find({
+          where: { granteeUserId: user.sub },
+          select: ['homeworkId'],
+        })
+      ).map((row) => row.homeworkId);
+      qb.andWhere(
+        `(
+          h.tutor_id = :tutorId
+          OR h.created_by_user_id = :uid
+          OR a.assigned_by_user_id = :uid
+          ${sharedIds.length ? 'OR h.id IN (:...sharedIds)' : ''}
+        )`,
+        sharedIds.length
+          ? { tutorId: scope.tutorId, uid: user.sub, sharedIds }
+          : { tutorId: scope.tutorId, uid: user.sub },
+      );
     }
     const rows = await qb.getMany();
     return this.enrichAssignmentDtos(
@@ -1722,9 +1783,18 @@ export class HomeworkService {
     return null;
   }
 
-  private async enrichHomeworkDtos(homeworks: HomeworkEntity[]) {
+  private async enrichHomeworkDtos(homeworks: HomeworkEntity[], user?: JwtPayload) {
     const owners = await this.buildHomeworkOwnerInfoMap(homeworks);
-    return homeworks.map((hw) => this.toHomeworkDto(hw, owners.get(hw.id) ?? null));
+    const accessById = user
+      ? await this.resolveAccessRoles(user, homeworks)
+      : new Map<string, HomeworkAccessRole>();
+    return homeworks.map((hw) =>
+      this.toHomeworkDto(
+        hw,
+        owners.get(hw.id) ?? null,
+        accessById.get(hw.id) ?? 'owner',
+      ),
+    );
   }
 
   private async enrichAssignmentDtos(
@@ -1862,11 +1932,15 @@ export class HomeworkService {
         result_score: result?.score != null ? Number(result.score) : null,
         result_max_score: result?.maxScore != null ? Number(result.maxScore) : null,
         result_passed: result?.passed ?? null,
+        result_status: result?.status ?? null,
+        student_feedback:
+          assignment.ownerComment ?? result?.ownerComment ?? null,
         checked_by_name: assignment.checkedByUserId
           ? checkerNameById.get(assignment.checkedByUserId) ?? null
           : null,
         attempt_id: attempt?.id ?? null,
         attempt_status: attempt?.status ?? null,
+        attempt_submitted_at: attempt?.submittedAt ?? null,
       };
     });
   }
@@ -1893,7 +1967,6 @@ export class HomeworkService {
     const hw = await this.homeworks.findOne({ where: { id } });
     if (!hw) throw new NotFoundException('Homework not found');
     if (user.role === 'admin') return hw;
-    await this.assertCanViewHomework(user, hw);
     const scope = await this.assertManagerOrAdmin(user);
     if (
       scope.role === 'teacher' &&
@@ -1912,26 +1985,35 @@ export class HomeworkService {
     return hw;
   }
 
+  private async requireAssignableHomework(user: JwtPayload, id: string) {
+    const hw = await this.homeworks.findOne({ where: { id } });
+    if (!hw) throw new NotFoundException('Homework not found');
+    await this.assertCanAssignHomework(user, hw);
+    return hw;
+  }
+
+  private async assertCanAssignHomework(user: JwtPayload, hw: HomeworkEntity) {
+    if (user.role === 'admin') return;
+    if (await this.isHomeworkOwner(user, hw)) return;
+    if (
+      (user.role === 'teacher' || user.role === 'tutor') &&
+      (await this.hasHomeworkAccessGrant(user.sub, hw.id))
+    ) {
+      return;
+    }
+    throw new ForbiddenException('Not your homework');
+  }
+
   private async assertCanViewHomework(user: JwtPayload, hw: HomeworkEntity) {
     if (user.role === 'admin') return;
     if (user.role === 'teacher') {
-      const teacherId = await this.resolveTeacherId(user);
-      if (
-        this.ownerTypeForHomework(hw) === 'teacher' &&
-        (hw.createdByUserId === user.sub || (teacherId && hw.teacherId === teacherId))
-      ) {
-        return;
-      }
+      if (await this.isHomeworkOwner(user, hw)) return;
+      if (await this.hasHomeworkAccessGrant(user.sub, hw.id)) return;
       throw new ForbiddenException('Not your homework');
     }
     if (user.role === 'tutor') {
-      const tutorId = await this.resolveTutorId(user);
-      if (
-        this.ownerTypeForHomework(hw) === 'tutor' &&
-        (hw.createdByUserId === user.sub || (tutorId && hw.tutorId === tutorId))
-      ) {
-        return;
-      }
+      if (await this.isHomeworkOwner(user, hw)) return;
+      if (await this.hasHomeworkAccessGrant(user.sub, hw.id)) return;
       throw new ForbiddenException('Not your homework');
     }
     if (user.role === 'student') {
@@ -1955,6 +2037,169 @@ export class HomeworkService {
       return;
     }
     throw new ForbiddenException('Access denied');
+  }
+
+  private async isHomeworkOwner(user: JwtPayload, hw: HomeworkEntity): Promise<boolean> {
+    if (user.role === 'admin') return true;
+    if (user.role === 'teacher') {
+      const teacherId = await this.resolveTeacherId(user);
+      return (
+        this.ownerTypeForHomework(hw) === 'teacher' &&
+        (hw.createdByUserId === user.sub || (!!teacherId && hw.teacherId === teacherId))
+      );
+    }
+    if (user.role === 'tutor') {
+      const tutorId = await this.resolveTutorId(user);
+      return (
+        this.ownerTypeForHomework(hw) === 'tutor' &&
+        (hw.createdByUserId === user.sub || (!!tutorId && hw.tutorId === tutorId))
+      );
+    }
+    return false;
+  }
+
+  private async hasHomeworkAccessGrant(userId: string, homeworkId: string): Promise<boolean> {
+    const grant = await this.homeworkAccess.findOne({
+      where: { homeworkId, granteeUserId: userId },
+      select: ['id'],
+    });
+    return Boolean(grant);
+  }
+
+  private async resolveAccessRole(
+    user: JwtPayload,
+    hw: HomeworkEntity,
+  ): Promise<HomeworkAccessRole> {
+    if (user.role === 'admin' || (await this.isHomeworkOwner(user, hw))) {
+      return 'owner';
+    }
+    return 'shared';
+  }
+
+  private async resolveAccessRoles(
+    user: JwtPayload,
+    homeworks: HomeworkEntity[],
+  ): Promise<Map<string, HomeworkAccessRole>> {
+    const map = new Map<string, HomeworkAccessRole>();
+    if (homeworks.length === 0) return map;
+    if (user.role === 'admin') {
+      for (const hw of homeworks) map.set(hw.id, 'owner');
+      return map;
+    }
+
+    const ownerChecks = await Promise.all(
+      homeworks.map(async (hw) => [hw.id, await this.isHomeworkOwner(user, hw)] as const),
+    );
+    const ownedIds = new Set(ownerChecks.filter(([, owned]) => owned).map(([id]) => id));
+    for (const hw of homeworks) {
+      map.set(hw.id, ownedIds.has(hw.id) ? 'owner' : 'shared');
+    }
+    return map;
+  }
+
+  async grantAccess(user: JwtPayload, dto: HomeworkAccessGrantDto) {
+    await this.assertManagerOrAdmin(user);
+    const homeworkIds = [...new Set(dto.homework_ids)];
+    const granteeUserIds = [...new Set(dto.grantee_user_ids)];
+
+    for (const homeworkId of homeworkIds) {
+      await this.requireOwnedHomework(user, homeworkId);
+    }
+
+    const grantees = await this.users.find({ where: { id: In(granteeUserIds) } });
+    if (grantees.length !== granteeUserIds.length) {
+      throw new BadRequestException('One or more grantee users not found');
+    }
+    for (const grantee of grantees) {
+      if (grantee.role !== 'teacher' && grantee.role !== 'tutor' && grantee.role !== 'admin') {
+        throw new BadRequestException(
+          'Homework access can only be granted to teachers, tutors, or admins',
+        );
+      }
+      if (grantee.id === user.sub) {
+        throw new BadRequestException('Cannot grant homework access to yourself');
+      }
+    }
+
+    let created = 0;
+    let skipped = 0;
+    for (const homeworkId of homeworkIds) {
+      for (const granteeUserId of granteeUserIds) {
+        const existing = await this.homeworkAccess.findOne({
+          where: { homeworkId, granteeUserId },
+        });
+        if (existing) {
+          skipped += 1;
+          continue;
+        }
+        await this.homeworkAccess.save(
+          this.homeworkAccess.create({
+            homeworkId,
+            granteeUserId,
+            grantedByUserId: user.sub,
+          }),
+        );
+        created += 1;
+      }
+    }
+    return { ok: true, created, skipped };
+  }
+
+  async revokeAccess(user: JwtPayload, dto: HomeworkAccessRevokeDto) {
+    await this.assertManagerOrAdmin(user);
+    const homeworkIds = [...new Set(dto.homework_ids)];
+    const granteeUserIds = [...new Set(dto.grantee_user_ids)];
+
+    for (const homeworkId of homeworkIds) {
+      await this.requireOwnedHomework(user, homeworkId);
+    }
+
+    const result = await this.homeworkAccess.delete({
+      homeworkId: In(homeworkIds),
+      granteeUserId: In(granteeUserIds),
+    });
+    return { ok: true, removed: result.affected ?? 0 };
+  }
+
+  async listAccess(user: JwtPayload, homeworkId: string) {
+    await this.requireOwnedHomework(user, homeworkId);
+    const rows = await this.homeworkAccess.find({
+      where: { homeworkId },
+      order: { createdAt: 'DESC' },
+    });
+    if (rows.length === 0) return [];
+
+    const userIds = [
+      ...new Set(
+        rows.flatMap((row) =>
+          [row.granteeUserId, row.grantedByUserId].filter(Boolean) as string[],
+        ),
+      ),
+    ];
+    const users = await this.users.find({ where: { id: In(userIds) } });
+    const byId = new Map(users.map((u) => [u.id, u]));
+
+    return rows.map((row) => {
+      const grantee = byId.get(row.granteeUserId);
+      const grantedBy = row.grantedByUserId ? byId.get(row.grantedByUserId) : null;
+      return {
+        id: row.id,
+        homework_id: row.homeworkId,
+        grantee_user_id: row.granteeUserId,
+        grantee_name: this.userDisplayName(grantee),
+        grantee_email: grantee?.email ?? null,
+        grantee_role: grantee?.role ?? null,
+        granted_by_user_id: row.grantedByUserId,
+        granted_by_name: this.userDisplayName(grantedBy),
+        created_at: row.createdAt,
+      };
+    });
+  }
+
+  private userDisplayName(user: UserEntity | null | undefined): string | null {
+    if (!user) return null;
+    const name = [user.lastName, user.firstName].filter(Boolean).join(' ').trim();
+    return name || user.email || null;
   }
 
   private async requireMutableAttempt(user: JwtPayload, attemptId: string) {
@@ -2006,7 +2251,11 @@ export class HomeworkService {
     return row.status;
   }
 
-  private toHomeworkDto(hw: HomeworkEntity, ownerInfo: HomeworkOwnerInfo | null) {
+  private toHomeworkDto(
+    hw: HomeworkEntity,
+    ownerInfo: HomeworkOwnerInfo | null,
+    accessRole: HomeworkAccessRole = 'owner',
+  ) {
     return {
       id: hw.id,
       title: hw.title,
@@ -2020,6 +2269,8 @@ export class HomeworkService {
       owner_id: ownerInfo?.ownerId ?? null,
       owner_name: ownerInfo?.ownerName ?? null,
       created_by_user_id: hw.createdByUserId,
+      access_role: accessRole,
+      is_shared: accessRole === 'shared',
       pass_score_percent: hw.passScorePercent != null ? Number(hw.passScorePercent) : null,
       item_count: hw.items?.length,
       created_at: hw.createdAt,

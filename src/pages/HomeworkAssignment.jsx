@@ -154,6 +154,9 @@ export default function HomeworkAssignment() {
             {homeworks.map((h) => (
               <option key={h.id} value={h.id}>
                 {h.title}
+                {h.access_role === 'shared' || h.is_shared
+                  ? ` (доступно · ${h.owner_name || 'коллега'})`
+                  : ''}
               </option>
             ))}
           </select>

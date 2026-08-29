@@ -230,6 +230,11 @@ export const assessment = {
     return apiFetch(`/assessment/results/${resultId}`);
   },
 
+  /** Student-visible per-question feedback (own result; read-only). */
+  getResultFeedback(resultId) {
+    return apiFetch(`/assessment/results/${resultId}/feedback`);
+  },
+
   listResults(params) {
     return apiFetch(`/assessment/results${toQuery(params)}`);
   },

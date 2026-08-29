@@ -86,6 +86,7 @@ import { WebPushAndNotificationEvents1746300000000 } from './migrations/17463000
 import { ChatMemberListPrefs1746400000000 } from './migrations/1746400000000-ChatMemberListPrefs';
 import { HomeworkGradingMode1746500000000 } from './migrations/1746500000000-HomeworkGradingMode';
 import { AssessmentExamDescription1746600000000 } from './migrations/1746600000000-AssessmentExamDescription';
+import { HomeworkAccess1746700000000 } from './migrations/1746700000000-HomeworkAccess';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -175,6 +176,7 @@ export default new DataSource({
     ChatMemberListPrefs1746400000000,
     HomeworkGradingMode1746500000000,
     AssessmentExamDescription1746600000000,
+    HomeworkAccess1746700000000,
   ],
   synchronize: false,
 });

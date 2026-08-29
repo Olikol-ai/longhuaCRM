@@ -56,6 +56,25 @@ describe('SPA route ACL (menu is not security)', () => {
     );
   });
 
+  it('allowlists StudentExamFeedback for student (and staff) without opening admin exam pages', () => {
+    assert.match(
+      routing,
+      /'\/StudentExamFeedback': \['admin', 'teacher', 'tutor', 'student'\]/,
+    );
+    assert.match(routing, /'\/StudentExams': \['student'\]/);
+    assert.match(routing, /'\/AssessmentExams': \['admin', 'teacher', 'tutor'\]/);
+    assert.match(app, /path="\/StudentExamFeedback"[\s\S]*PathAccessGuard/);
+    assert.doesNotMatch(
+      app,
+      /path="\/StudentExamFeedback"[\s\S]{0,120}StudentRoute/,
+    );
+    const adminExamLine = routing
+      .split('\n')
+      .find((l) => l.includes("'/AssessmentExams'"));
+    assert.ok(adminExamLine);
+    assert.doesNotMatch(adminExamLine, /'student'/);
+  });
+
   it('denies tutors and tutor_students on HSK Academy and Exam Content', () => {
     for (const path of [
       'HskAcademy',

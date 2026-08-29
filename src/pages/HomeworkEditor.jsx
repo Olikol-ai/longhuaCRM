@@ -53,6 +53,7 @@ export default function HomeworkEditor() {
   const [loading, setLoading] = useState(Boolean(id));
   const [loadError, setLoadError] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [isShared, setIsShared] = useState(false);
   const [libraryQuestions, setLibraryQuestions] = useState([]);
   const [libraryReading, setLibraryReading] = useState([]);
   const [libraryListening, setLibraryListening] = useState([]);
@@ -96,6 +97,7 @@ export default function HomeworkEditor() {
     if (!id) {
       setLoading(false);
       setLoadError(null);
+      setIsShared(false);
       return;
     }
     let cancelled = false;
@@ -105,6 +107,7 @@ export default function HomeworkEditor() {
       try {
         const hw = await api.homework.get(id);
         if (cancelled) return;
+        setIsShared(hw.access_role === 'shared' || hw.is_shared === true);
         const tasks = (hw.tasks || []).map((task, idx) => ({
           localKey: task.id || `existing-${idx}`,
           task_kind: task.task_kind,
@@ -253,6 +256,14 @@ export default function HomeworkEditor() {
     });
 
   const handleSave = async (publishAfter = false) => {
+    if (isShared) {
+      toast({
+        title: 'Только просмотр',
+        description: 'Общий шаблон нельзя редактировать. Вы можете назначить его своим ученикам.',
+        variant: 'destructive',
+      });
+      return;
+    }
     if (!form.title.trim() || form.title.trim().length < 2) {
       toast({ title: 'Укажите название', variant: 'destructive' });
       return;
@@ -355,11 +366,16 @@ export default function HomeworkEditor() {
       <div className="min-w-0 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-foreground break-words">
-            {id ? 'Изменить домашнее задание' : 'Новое домашнее задание'}
+            {isShared
+              ? 'Просмотр домашнего задания'
+              : id
+                ? 'Изменить домашнее задание'
+                : 'Новое домашнее задание'}
           </h1>
           <p className="text-sm text-muted-foreground mt-1 break-words">
-            Название, описание, состав вопросов и настройки. Учеников и срок сдачи настройте при
-            назначении.
+            {isShared
+              ? 'Шаблон доступен вам для назначения ученикам. Редактировать оригинал нельзя.'
+              : 'Название, описание, состав вопросов и настройки. Учеников и срок сдачи настройте при назначении.'}
           </p>
         </div>
         {id ? (
@@ -571,7 +587,7 @@ export default function HomeworkEditor() {
           К списку
         </Button>
         <Button
-          disabled={saving}
+          disabled={saving || isShared}
           onClick={() => handleSave(false)}
           className="gap-2 w-full sm:w-auto"
           data-testid="homework-save"
@@ -580,7 +596,7 @@ export default function HomeworkEditor() {
           Сохранить
         </Button>
         <Button
-          disabled={saving}
+          disabled={saving || isShared}
           onClick={() => handleSave(true)}
           className="gap-2 w-full sm:w-auto"
         >

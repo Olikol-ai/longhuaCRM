@@ -7,7 +7,7 @@ import { toast } from '@/components/ui/use-toast';
 import { createPageUrl } from '@/utils';
 import ExamAssignmentCard from '@/components/assessment/ExamAssignmentCard';
 import { useStudentExamCards } from '@/hooks/useStudentExamCards';
-import { EXAM_UI_STATUS } from '@/lib/assessment-ui';
+import { EXAM_UI_STATUS, isExamResultReviewed } from '@/lib/assessment-ui';
 import { userFacingError } from '@/lib/userFacingError';
 
 export default function StudentExams() {
@@ -60,7 +60,42 @@ export default function StudentExams() {
       });
       return;
     }
-    goTake(attemptId);
+
+    let result = card.result;
+    if (!result?.id) {
+      try {
+        result = await api.assessment.getResultByAttempt(attemptId);
+      } catch (err) {
+        toast({
+          title: 'Результат недоступен',
+          description: userFacingError(err, 'Не удалось загрузить результат.'),
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    if (!isExamResultReviewed(result)) {
+      toast({
+        title: 'Ожидает проверки',
+        description:
+          'Преподаватель ещё не проверил работу. Разбор ответов появится после проверки.',
+      });
+      return;
+    }
+
+    if (!result?.id) {
+      toast({
+        title: 'Результат недоступен',
+        description: 'Идентификатор результата не найден.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    navigate(
+      `${createPageUrl('StudentExamFeedback')}?resultId=${encodeURIComponent(result.id)}`,
+    );
   };
 
   if (loading) {

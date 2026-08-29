@@ -10,6 +10,7 @@ import { HomeworkAttemptAnswerEntity } from './homework-attempt-answer.entity';
 import { HomeworkAttemptAnswerSelectionEntity } from './homework-attempt-answer-selection.entity';
 import { HomeworkResultEntity } from './homework-result.entity';
 import { HomeworkTaskEntity } from './homework-task.entity';
+import { HomeworkAccessEntity } from './homework-access.entity';
 
 export const HOMEWORK_ENTITIES = [
   HomeworkEntity,
@@ -24,6 +25,7 @@ export const HOMEWORK_ENTITIES = [
   HomeworkAttemptAnswerEntity,
   HomeworkAttemptAnswerSelectionEntity,
   HomeworkResultEntity,
+  HomeworkAccessEntity,
 ] as const;
 
 export {
@@ -39,4 +41,5 @@ export {
   HomeworkAttemptAnswerEntity,
   HomeworkAttemptAnswerSelectionEntity,
   HomeworkResultEntity,
+  HomeworkAccessEntity,
 };

@@ -21,6 +21,7 @@ import { HomeworkModule } from './modules/homework/homework.module';
 import { VideoModule } from './modules/video/video.module';
 import { CertificatesModule } from './modules/certificates/certificates.module';
 import { CoursesModule } from './modules/courses/courses.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { GroupsModule } from './modules/groups/groups.module';
 import { HealthModule } from './modules/health/health.module';
 import { LessonsModule } from './modules/lessons/lessons.module';
@@ -122,6 +123,7 @@ function resolveEnvFilePaths(): string[] {
     TeacherStudentContactsModule,
     TutorsModule,
     CoursesModule,
+    DashboardModule,
     GroupsModule,
     LessonsModule,
     LessonSeriesModule,

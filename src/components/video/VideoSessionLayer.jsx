@@ -14,6 +14,7 @@ import {
   ClipboardCheck,
   Info,
   PictureInPicture2,
+  Volume2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -139,6 +140,7 @@ export default function VideoSessionLayer() {
     linkQuality,
     participantCount,
     livePresence,
+    audioUnlockNeeded,
     chatUnread,
     chatToast,
     railTab,
@@ -155,6 +157,7 @@ export default function VideoSessionLayer() {
     setLinkQuality,
     setParticipantCount,
     setLivePresence,
+    setAudioUnlockNeeded,
     setChatUnread,
     setChatToast,
     setRailTab,
@@ -521,6 +524,7 @@ export default function VideoSessionLayer() {
       onConnectionStatus={setConnectionStatus}
       onParticipantCount={setParticipantCount}
       onPresenceChange={setLivePresence}
+      onAudioUnlockNeeded={setAudioUnlockNeeded}
       onScreenSharingChanged={handleScreenSharingChanged}
       onLinkQualityChanged={(quality) => setLinkQuality(quality || 'unknown')}
     />
@@ -528,21 +532,13 @@ export default function VideoSessionLayer() {
 
   return (
     <>
-      {/* React-owned parking lot for the Jitsi host. The live iframe node is
-          reparented into CRM stage or Document PiP stage without remount. */}
+      {/* Live Jitsi host lives in the CRM stage. Park is only a fallback
+          reparent target when PiP closes and stage is momentarily gone. */}
       <div
         data-jitsi-park=""
-        className="pointer-events-none fixed left-0 top-0 z-0 h-0 w-0 overflow-hidden opacity-0"
+        className="pointer-events-none fixed left-[-9999px] top-0 z-0 h-px w-px overflow-hidden opacity-0"
         aria-hidden
-      >
-        <div
-          ref={jitsiHostRef}
-          className="absolute inset-0 h-full w-full"
-          data-testid="lesson-video-jitsi-host"
-        >
-          {jitsiEmbed}
-        </div>
-      </div>
+      />
 
       {isPip ? (
         <div
@@ -641,7 +637,35 @@ export default function VideoSessionLayer() {
               ref={crmStageRef}
               className="absolute inset-0"
               data-testid="lesson-video-crm-stage"
-            />
+            >
+              <div
+                ref={jitsiHostRef}
+                className="absolute inset-0 h-full w-full"
+                data-testid="lesson-video-jitsi-host"
+              >
+                {jitsiEmbed}
+              </div>
+            </div>
+
+            {audioUnlockNeeded && !isMini ? (
+              <div
+                className="absolute inset-x-0 bottom-16 z-30 flex justify-center px-3 sm:bottom-20"
+                data-testid="lesson-video-audio-unlock"
+              >
+                <Button
+                  type="button"
+                  size="lg"
+                  className="min-h-12 gap-2 rounded-2xl bg-brand px-5 text-brand-foreground shadow-xl"
+                  onClick={() => {
+                    void jitsiRef.current?.unlockRemoteAudio?.();
+                    setAudioUnlockNeeded(false);
+                  }}
+                >
+                  <Volume2 className="h-5 w-5" aria-hidden />
+                  Нажмите, чтобы включить звук
+                </Button>
+              </div>
+            ) : null}
 
             {!isMini ? (
               <LessonVideoFilmstrip

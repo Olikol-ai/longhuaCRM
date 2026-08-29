@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { api } from '@/api';
 import { ResultStatusBadge } from '@/components/assessment/StatusBadges';
@@ -17,8 +17,22 @@ import {
   fromDatetimeLocalValue,
 } from '@/lib/assessment-admin';
 import { unwrapItems } from '@/lib/assessment-ui';
+import {
+  filterExamResults,
+  isExamResultPending,
+} from '@/lib/teacher-work-history';
+
+const SEGMENT_TABS = [
+  { id: 'all', label: 'Все' },
+  { id: 'pending', label: 'На проверке' },
+  { id: 'completed', label: 'Завершённые' },
+];
 
 export default function TeacherAssessmentResults() {
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const segment = params.get('tab') || 'all';
+
   const [exams, setExams] = useState([]);
   const [students, setStudents] = useState([]);
 
@@ -49,6 +63,11 @@ export default function TeacherAssessmentResults() {
     });
   }, []);
 
+  const visible = useMemo(
+    () => filterExamResults(results, segment === 'all' ? 'all' : segment),
+    [results, segment],
+  );
+
   const applyFilters = () => {
     setApplied({
       examId,
@@ -57,6 +76,13 @@ export default function TeacherAssessmentResults() {
       from: fromDatetimeLocalValue(fromLocal),
       to: fromDatetimeLocalValue(toLocal),
     });
+  };
+
+  const openResult = (row) => {
+    if (!row?.id) return;
+    navigate(
+      `${createPageUrl('TeacherAssessmentReviewDetail')}?id=${encodeURIComponent(row.id)}`,
+    );
   };
 
   const columns = [
@@ -88,12 +114,12 @@ export default function TeacherAssessmentResults() {
     {
       id: 'date',
       header: 'Дата',
-      cell: (row) => formatDateTime(row.finished_at || row.created_at),
+      cell: (row) => formatDateTime(row.finished_at || row.updated_at || row.created_at),
     },
   ];
 
   return (
-    <PageShell>
+    <PageShell className="min-w-0 overflow-x-hidden">
       <PageHeader
         title={
           <div>
@@ -108,7 +134,7 @@ export default function TeacherAssessmentResults() {
             </h1>
           </div>
         }
-        description="Итоги попыток ваших учеников"
+        description="Постоянная история сдач и проверок (только ваши ученики)"
         actions={
           <Button variant="outline" size="sm" onClick={() => reload()}>
             <RefreshCw className="h-4 w-4 mr-2" />
@@ -117,7 +143,33 @@ export default function TeacherAssessmentResults() {
         }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+      <div
+        className="flex flex-wrap gap-2 min-w-0"
+        data-testid="teacher-results-segments"
+      >
+        {SEGMENT_TABS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => {
+              const next = new URLSearchParams(params);
+              if (item.id === 'all') next.delete('tab');
+              else next.set('tab', item.id);
+              setParams(next, { replace: true });
+            }}
+            className={`inline-flex min-h-10 items-center rounded-lg px-3 text-sm ${
+              segment === item.id
+                ? 'bg-brand/10 text-brand font-medium'
+                : 'text-muted-foreground hover:bg-muted'
+            }`}
+            data-testid={`teacher-results-tab-${item.id}`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 min-w-0">
         <select
           className="min-h-11 md:min-h-10 h-11 md:h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
           value={examId}
@@ -186,9 +238,22 @@ export default function TeacherAssessmentResults() {
         </div>
       ) : (
         <ResponsiveTable
-          rows={results}
+          rows={visible}
           columns={columns}
           cardTitle={(row) => row.exam_name || 'Экзамен'}
+          onRowClick={openResult}
+          cardActions={(row) => (
+            <Button
+              size="sm"
+              className="w-full sm:w-auto"
+              onClick={(e) => {
+                e.stopPropagation();
+                openResult(row);
+              }}
+            >
+              {isExamResultPending(row) ? 'Проверить' : 'Открыть разбор'}
+            </Button>
+          )}
           empty="Результатов пока нет"
         />
       )}

@@ -91,6 +91,20 @@ export class AssessmentResultsController {
     return this.results.finalizeReview(resultId, user);
   }
 
+  @Get(':resultId/feedback')
+  @Roles('admin', 'teacher', 'tutor', 'student')
+  @ApiOperation({
+    summary:
+      'Student-visible per-question feedback (own result only; read-only)',
+  })
+  @ApiResponse({ status: 200, description: 'Student feedback bundle' })
+  getStudentFeedback(
+    @CurrentUser() user: JwtPayload,
+    @Param('resultId', ParseUUIDPipe) resultId: string,
+  ) {
+    return this.results.getStudentFeedback(resultId, user);
+  }
+
   @Get(':resultId')
   @Roles('admin', 'teacher', 'tutor', 'student')
   @ApiOperation({ summary: 'Get result by id' })

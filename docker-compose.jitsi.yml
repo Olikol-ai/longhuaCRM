@@ -55,8 +55,10 @@ services:
       JWT_ACCEPTED_ISSUERS: ${JWT_ACCEPTED_ISSUERS:-${JWT_APP_ID}}
       JWT_ACCEPTED_AUDIENCES: ${JWT_ACCEPTED_AUDIENCES:-jitsi}
       JWT_ALLOW_EMPTY: 0
-      # Prefer JVB only — P2P↔bridge handoff caused mid-lesson disconnects.
-      ENABLE_P2P: ${ENABLE_P2P:-0}
+      # 1:1 lessons need P2P — JVB UDP ICE has been failing (0s oversending).
+      ENABLE_P2P: ${ENABLE_P2P:-1}
+      ENABLE_COLIBRI_WEBSOCKET: ${ENABLE_COLIBRI_WEBSOCKET:-1}
+      ENABLE_XMPP_WEBSOCKET: ${ENABLE_XMPP_WEBSOCKET:-1}
       TZ: ${TZ:-Europe/Minsk}
       DEFAULT_LANGUAGE: ru
     networks:
@@ -141,6 +143,10 @@ services:
       JVB_PORT: ${JVB_PORT:-10000}
       JVB_STUN_SERVERS: ${JVB_STUN_SERVERS:-meet-jit-si-turnrelay.jitsi.net:443}
       JVB_ADVERTISE_IPS: ${JVB_ADVERTISE_IPS}
+      # Do not offer docker bridge IPs (172.*) to internet clients.
+      JVB_ADVERTISE_PRIVATE_CANDIDATES: ${JVB_ADVERTISE_PRIVATE_CANDIDATES:-false}
+      ENABLE_COLIBRI_WEBSOCKET: ${ENABLE_COLIBRI_WEBSOCKET:-1}
+      JVB_WS_SERVER_ID: ${JVB_WS_SERVER_ID:-172.19.0.2}
       TZ: ${TZ:-Europe/Minsk}
     depends_on:
       - prosody
