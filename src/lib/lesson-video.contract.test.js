@@ -83,6 +83,12 @@ describe('lesson-video helpers', () => {
 
     assert.equal(config.p2p?.enabled, true);
     assert.equal(config.startSilent, false);
+    assert.equal(config.startWithAudioMuted, true);
+    assert.equal(config.startWithVideoMuted, true);
+    assert.equal(config.ignoreStartMuted, true);
+    assert.equal(config.startAudioMuted, undefined);
+    assert.equal(config.startVideoMuted, undefined);
+    assert.deepEqual(config.videoQuality?.codecPreferenceOrder?.[0], 'VP8');
     assert.equal(config.openBridgeChannel, 'websocket');
     assert.equal(config.filmstrip?.disableStageFilmstrip, false);
 
@@ -261,6 +267,25 @@ describe('Video lesson UI contract', () => {
     assert.match(layer, /LessonVideoSideRail/);
     assert.match(layer, /LessonVideoControls/);
     assert.match(controls, /Завершить|Выйти/);
+    assert.match(controls, /Поделиться/);
+    assert.match(controls, /Завершить демонстрацию/);
+    assert.match(controls, /lesson-video-dock-ping|Внимание/);
+    assert.match(layer, /handleShareScreenClick/);
+    assert.match(layer, /LessonVideoNotificationLayer/);
+    assert.match(layer, /persistentSlot|lesson-video-top-stack/);
+    assert.match(layer, /embedded/);
+    assert.match(
+      readFileSync(join(root, 'components/video/LessonVideoNotificationLayer.jsx'), 'utf8'),
+      /lesson-video-top-stack|persistentSlot/,
+    );
+    assert.match(
+      readFileSync(join(root, 'components/video/LessonVideoScreenShareBar.jsx'), 'utf8'),
+      /embedded/,
+    );
+    assert.match(layer, /isLocal === false/);
+    assert.match(embed, /screenSharingStatusChanged/);
+    assert.match(embed, /endpointTextMessageReceived/);
+    assert.match(embed, /isSharingScreen/);
     assert.match(rail, /Материалы/);
     assert.match(rail, /Домашнее задание|ДЗ/);
     assert.match(rail, /Чат/);
@@ -320,6 +345,7 @@ describe('Video lesson UI contract', () => {
     assert.match(page, /Повторить подключение|Повторить/);
     assert.match(embed, /joinedOnceRef|conferenceFailed|connectionFailed/);
     assert.match(embed, /isTransientVideoError|videoDiag|transient/);
+    assert.match(embed, /intentionalLeaveRef|onUnexpectedLeave|markIntentionalLeave/);
     assert.match(embed, /JitsiMeetExternalAPI/);
     assert.match(embed, /loadJitsiExternalApi/);
     assert.match(embed, /executeCommand\('displayName'/);
@@ -332,8 +358,9 @@ describe('Video lesson UI contract', () => {
     assert.match(layer, /crmTheme=\{theme/);
     assert.match(layer, /bg-background|bg-card/);
     assert.match(layer, /LessonVideoFilmstrip|remoteOrLocalShare/);
-    assert.match(layer, /transient|refreshSessionToken/);
-    assert.match(sessionCtx, /refreshSessionToken|tokenExpiresAt/);
+    assert.match(layer, /transient|softRemountConference|refreshSessionToken/);
+    assert.match(sessionCtx, /refreshSessionToken|tokenExpiresAt|softRemountConference/);
+    assert.doesNotMatch(layer, /onLeft=\{\(\) => endSession\(\)\}/);
     assert.doesNotMatch(layer, /isDark|neutral-950|prefers-color-scheme/);
     assert.match(controls, /bg-card\/95|border-border/);
     assert.doesNotMatch(controls, /neutral-950|bg-black\/|isDark/);

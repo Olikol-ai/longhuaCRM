@@ -4,9 +4,12 @@ import {
   Shield,
   Clock,
   UserCheck,
-  BookOpen,
+  UserPlus,
 } from 'lucide-react';
 import { getRoleLabel } from '@/lib/locale-by';
+import { displayRole } from '@/lib/user-account-role';
+
+export { displayRole };
 
 export const ROLE_CONFIG = {
   admin: {
@@ -22,20 +25,6 @@ export const ROLE_CONFIG = {
     text: 'text-emerald-700 dark:text-emerald-300',
     dot: 'bg-emerald-500',
     icon: GraduationCap,
-  },
-  tutor: {
-    label: getRoleLabel('tutor'),
-    bg: 'bg-sky-100 dark:bg-sky-950/40',
-    text: 'text-sky-700 dark:text-sky-300',
-    dot: 'bg-sky-500',
-    icon: BookOpen,
-  },
-  tutor_student: {
-    label: getRoleLabel('tutor_student'),
-    bg: 'bg-cyan-100 dark:bg-cyan-950/40',
-    text: 'text-cyan-700 dark:text-cyan-300',
-    dot: 'bg-cyan-500',
-    icon: UserCheck,
   },
   student: {
     label: getRoleLabel('student'),
@@ -58,65 +47,58 @@ export const ROLE_CONFIG = {
     dot: 'bg-muted-foreground',
     icon: UserCheck,
   },
+  sales_manager: {
+    label: getRoleLabel('sales_manager'),
+    bg: 'bg-violet-100 dark:bg-violet-950/40',
+    text: 'text-violet-700 dark:text-violet-300',
+    dot: 'bg-violet-500',
+    icon: UserCheck,
+  },
+  registration: {
+    label: getRoleLabel('registration'),
+    bg: 'bg-orange-100 dark:bg-orange-950/40',
+    text: 'text-orange-700 dark:text-orange-300',
+    dot: 'bg-orange-500',
+    icon: UserPlus,
+  },
 };
 
-export const ALL_ROLE_OPTIONS = ['admin', 'teacher', 'tutor', 'student', 'pending', 'user'];
-
-/** Nested filters inside Аккаунты — only overview + pending queue (not entity directories). */
-export const ACCOUNT_FILTER_TABS = [
-  { value: 'all', label: 'Все' },
-  { value: 'pending', label: 'Ожидают роли' },
+/** Roles available in admin filters and edit dialog (no legacy tutor roles). */
+export const REGISTRY_ROLE_OPTIONS = [
+  { value: 'admin', label: ROLE_CONFIG.admin.label },
+  { value: 'teacher', label: ROLE_CONFIG.teacher.label },
+  { value: 'student', label: ROLE_CONFIG.student.label },
+  { value: 'sales_manager', label: ROLE_CONFIG.sales_manager.label },
+  { value: 'pending', label: ROLE_CONFIG.pending.label },
+  { value: 'user', label: ROLE_CONFIG.user.label },
+  { value: 'registration', label: ROLE_CONFIG.registration.label },
 ];
 
-export function displayRole(role) {
-  if (!role) return 'pending';
-  return role;
-}
+/** Full role option objects for UserEditDialog selects. */
+export const ALL_ROLE_OPTIONS = REGISTRY_ROLE_OPTIONS;
 
-/** Profiles visible in Students tab: active + linked user has student role (or no linked account). */
-export function visibleStudents(students, users) {
-  const roleByUserId = new Map(users.map((u) => [u.id, displayRole(u.role)]));
-  const seenUserIds = new Set();
-  return students.filter((s) => {
-    if (s.status === 'inactive') return false;
-    if (!s.user_id) return true;
-    const role = roleByUserId.get(s.user_id);
-    if (role !== 'student') return false;
-    if (seenUserIds.has(s.user_id)) return false;
-    seenUserIds.add(s.user_id);
-    return true;
-  });
-}
+export const REGISTRY_STATUS_OPTIONS = [
+  { value: 'active', label: 'Активен' },
+  { value: 'pending', label: 'Ожидает подтверждения' },
+  { value: 'blocked', label: 'Заблокирован' },
+];
 
-/** Profiles visible in Teachers tab: active + linked user has teacher role (or no linked account). */
-export function visibleTeachers(teachers, users) {
-  const roleByUserId = new Map(users.map((u) => [u.id, displayRole(u.role)]));
-  const seenUserIds = new Set();
-  return teachers.filter((t) => {
-    if (t.status === 'inactive') return false;
-    if (!t.user_id) return true;
-    const role = roleByUserId.get(t.user_id);
-    if (role !== 'teacher') return false;
-    if (seenUserIds.has(t.user_id)) return false;
-    seenUserIds.add(t.user_id);
-    return true;
-  });
-}
+/** Account presence filter (distinct from role / entity lifecycle status). */
+export const ACCOUNT_STATUS_OPTIONS = [
+  { value: 'active_account', label: 'Активный аккаунт' },
+  { value: 'no_account', label: 'Без аккаунта' },
+  { value: 'pending_registration', label: 'Ожидает регистрации' },
+  { value: 'blocked', label: 'Заблокирован' },
+];
 
-/** Profiles visible in Tutors tab: active/pending + linked user has tutor role (or no linked account). */
-export function visibleTutors(tutors, users) {
-  const roleByUserId = new Map(users.map((u) => [u.id, displayRole(u.role)]));
-  const seenUserIds = new Set();
-  return tutors.filter((t) => {
-    if (t.status === 'inactive') return false;
-    if (!t.user_id) return true;
-    const role = roleByUserId.get(t.user_id);
-    if (role !== 'tutor') return false;
-    if (seenUserIds.has(t.user_id)) return false;
-    seenUserIds.add(t.user_id);
-    return true;
-  });
-}
+export const ACCOUNT_STATUS_LABEL = {
+  active_account: 'Активный аккаунт',
+  no_account: 'Без аккаунта',
+  pending_registration: 'Ожидает регистрации',
+  blocked: 'Заблокирован',
+};
+
+export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 export function showOrphanStudentsNotice(result, toast) {
   const orphans = result?.orphanStudents;

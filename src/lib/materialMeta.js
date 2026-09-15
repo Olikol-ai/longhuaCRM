@@ -186,7 +186,37 @@ export function resolveMaterialTypeKey(material) {
       return 'link';
     }
   }
-  return material?.file_type || material?.fileType || 'other';
+  const stored = material?.file_type || material?.fileType;
+  if (stored && stored !== 'other' && stored !== 'link') {
+    return stored;
+  }
+
+  const mime = String(material?.mime_type || material?.mimeType || '').toLowerCase();
+  const name = String(
+    material?.original_filename
+    || material?.originalFilename
+    || material?.stored_filename
+    || material?.file_url
+    || material?.fileUrl
+    || '',
+  ).toLowerCase();
+  const ext = name.includes('.') ? name.split('.').pop() : '';
+
+  if (mime.includes('zip') || ext === 'zip') return 'archive';
+  if (mime.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+    return 'image';
+  }
+  if (['doc', 'docx', 'xls', 'xlsx'].includes(ext)) return 'other';
+  if (mime === 'application/pdf' || ext === 'pdf') return 'pdf';
+  if (['ppt', 'pptx'].includes(ext)) return 'pptx';
+  if (isAudioMaterial(material)) return 'audio';
+  if (isVideoMaterial(material)) return 'video';
+
+  return stored || 'other';
+}
+
+export function isArchiveMaterial(material) {
+  return resolveMaterialTypeKey(material) === 'archive';
 }
 
 export function describeMaterialOpen(material, extras = {}) {

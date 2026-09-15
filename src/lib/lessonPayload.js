@@ -137,8 +137,14 @@ export function toLessonWritePayload(input) {
     delete payload.primaryTeacherStudentContactId;
   }
 
-  // Group lessons are driven by membership; do not also send a primary student.
-  if (payload.groupId) {
+  // Trial lessons are teacher-only — never keep student/group targets.
+  if (payload.lessonType === 'trial') {
+    delete payload.groupId;
+    delete payload.primaryStudentId;
+    delete payload.primaryTutorStudentId;
+    delete payload.primaryTeacherStudentContactId;
+  } else if (payload.groupId) {
+    // Group lessons are driven by membership; do not also send a primary student.
     delete payload.primaryStudentId;
     delete payload.primaryTutorStudentId;
     delete payload.primaryTeacherStudentContactId;

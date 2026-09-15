@@ -36,6 +36,7 @@ import { ScheduleModule as ScheduleDomainModule } from './modules/schedule/sched
 import { SpaModule } from './modules/spa/spa.module';
 import { applySpaStaticFileHeaders } from './modules/spa/spa-cache-headers';
 import { StudentsModule } from './modules/students/students.module';
+import { StudentBalancesModule } from './modules/student-balances/student-balances.module';
 import { TeachersModule } from './modules/teachers/teachers.module';
 import { TeacherStudentContactsModule } from './modules/teacher-student-contacts/teacher-student-contacts.module';
 import { TutorsModule } from './modules/tutors/tutors.module';
@@ -49,6 +50,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
 import { ChatsModule } from './modules/chats/chats.module';
 import { ExamAcademyModule } from './modules/exam-academy/exam-academy.module';
 import { ExamContentModule } from './modules/exam-content/exam-content.module';
+import { B2bSalesModule } from './modules/b2b-sales/b2b-sales.module';
 
 const serveFrontend = process.env.SERVE_FRONTEND !== 'false';
 
@@ -119,6 +121,7 @@ function resolveEnvFilePaths(): string[] {
     AuthModule,
     UsersModule,
     StudentsModule,
+    StudentBalancesModule,
     TeachersModule,
     TeacherStudentContactsModule,
     TutorsModule,
@@ -146,6 +149,7 @@ function resolveEnvFilePaths(): string[] {
     ChatsModule,
     ExamAcademyModule,
     ExamContentModule,
+    B2bSalesModule,
     HealthModule,
     ...(serveFrontend
       ? [

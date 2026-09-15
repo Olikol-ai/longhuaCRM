@@ -137,7 +137,7 @@ export class UpdateLessonDto {
   completionAttendance?: 'attended' | 'missed';
 
   @IsOptional()
-  @IsEnum(['individual', 'group'])
+  @IsEnum(['individual', 'group', 'trial'])
   lessonType?: LessonType;
 
   @IsOptional()

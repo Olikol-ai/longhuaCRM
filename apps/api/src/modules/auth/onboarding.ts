@@ -9,6 +9,7 @@ export const DASHBOARD_ROLES = [
   'tutor',
   'student',
   'tutor_student',
+  'sales_manager',
 ] as const;
 export type DashboardRole = (typeof DASHBOARD_ROLES)[number];
 
@@ -22,11 +23,20 @@ export type OnboardingState = (typeof ONBOARDING_STATES)[number];
 
 export const ONBOARDING_PATH = '/auth/pending-approval';
 
-const LEGACY_UNASSIGNED_ROLES = new Set(['', 'pending', 'user', 'pending-role']);
+/** DB values that mean the account is waiting for admin role assignment. */
+export const AWAITING_ROLE_DB_VALUES = new Set(['', 'pending', 'pending-role']);
+
+/** DB value set when admin explicitly assigns «Нет роли». */
+export const EXPLICIT_NO_ROLE_DB_VALUE = 'user';
+
+const NON_DASHBOARD_ROLE_DB_VALUES = new Set([
+  ...AWAITING_ROLE_DB_VALUES,
+  EXPLICIT_NO_ROLE_DB_VALUE,
+]);
 
 /** Normalize DB role to dashboard role or null (unassigned). */
 export function normalizeUserRole(role: string | null | undefined): DashboardRole | null {
-  if (!role || LEGACY_UNASSIGNED_ROLES.has(role)) {
+  if (!role || NON_DASHBOARD_ROLE_DB_VALUES.has(role)) {
     return null;
   }
   if ((DASHBOARD_ROLES as readonly string[]).includes(role)) {
@@ -35,15 +45,46 @@ export function normalizeUserRole(role: string | null | undefined): DashboardRol
   return null;
 }
 
-/** Persistable role value for DB (empty string = unassigned). */
+/** Persistable role value for DB. Empty string = awaiting role assignment. */
 export function toDbRole(role: string | null | undefined): string {
-  if (!role || LEGACY_UNASSIGNED_ROLES.has(role)) {
+  if (!role) {
+    return '';
+  }
+  if (role === EXPLICIT_NO_ROLE_DB_VALUE) {
+    return EXPLICIT_NO_ROLE_DB_VALUE;
+  }
+  if (role === 'pending' || role === 'pending-role') {
     return '';
   }
   if ((DASHBOARD_ROLES as readonly string[]).includes(role)) {
     return role;
   }
   return '';
+}
+
+export function isExplicitNoRole(role: string | null | undefined): boolean {
+  return role === EXPLICIT_NO_ROLE_DB_VALUE;
+}
+
+/**
+ * Admin UI / directory role key — distinct from dashboard `role`.
+ * `pending` = awaiting assignment; `user` = intentional no role.
+ */
+export function getAccountRole(
+  status: string | null | undefined,
+  dbRole: string | null | undefined,
+): string {
+  if (getOnboardingState(status, dbRole) === 'awaiting_role') {
+    return 'pending';
+  }
+  const dashboard = normalizeUserRole(dbRole);
+  if (dashboard) {
+    return dashboard;
+  }
+  if (isExplicitNoRole(dbRole)) {
+    return EXPLICIT_NO_ROLE_DB_VALUE;
+  }
+  return 'pending';
 }
 
 export function getOnboardingState(
@@ -56,6 +97,9 @@ export function getOnboardingState(
   }
   if (normalizedStatus === 'pending') {
     return 'needs_verification';
+  }
+  if (normalizedStatus === 'active' && isExplicitNoRole(role)) {
+    return 'active';
   }
   const dashboardRole = normalizeUserRole(role);
   if (normalizedStatus === 'active' && !dashboardRole) {
@@ -85,6 +129,8 @@ export function getRedirectPath(
       return '/StudentDashboard';
     case 'tutor_student':
       return '/Profile';
+    case 'sales_manager':
+      return '/SalesManagerDashboard';
     default:
       return ONBOARDING_PATH;
   }

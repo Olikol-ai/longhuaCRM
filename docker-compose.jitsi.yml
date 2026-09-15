@@ -28,6 +28,7 @@ services:
     volumes:
       - ${CONFIG:-~/.jitsi-meet-cfg}/web:/config:Z
       - ${CONFIG:-~/.jitsi-meet-cfg}/transcripts:/usr/share/jitsi-meet/transcripts:Z
+      - /opt/longhuaCRM/jitsi/plugin.head.html:/usr/share/jitsi-meet/plugin.head.html:ro
     environment:
       ENABLE_AUTH: ${ENABLE_AUTH:-1}
       ENABLE_GUESTS: ${ENABLE_GUESTS:-0}
@@ -97,6 +98,15 @@ services:
       JWT_ACCEPTED_AUDIENCES: ${JWT_ACCEPTED_AUDIENCES:-jitsi}
       JWT_ALLOW_EMPTY: 0
       TZ: ${TZ:-Europe/Minsk}
+      # TURN/STUN discovery for browsers (XEP-0215). Shared secret → time-limited creds.
+      # TURN_HOST must be origin public IP (not Cloudflare-proxied meet.* DNS).
+      TURN_HOST: ${TURN_HOST:-}
+      TURN_PORT: ${TURN_PORT:-3478}
+      TURN_TRANSPORT: ${TURN_TRANSPORT:-udp,tcp}
+      TURN_CREDENTIALS: ${TURN_CREDENTIALS:-}
+      TURN_TTL: ${TURN_TTL:-86400}
+      STUN_HOST: ${STUN_HOST:-}
+      STUN_PORT: ${STUN_PORT:-3478}
     networks:
       meet.jitsi:
         aliases:
@@ -152,6 +162,36 @@ services:
       - prosody
     networks:
       meet.jitsi:
+
+  # Production TURN/STUN for browsers behind NAT/CGNAT.
+  # Prosody advertises time-limited credentials via XEP-0215 (TURN_CREDENTIALS).
+  # Host networking avoids Docker NAT rewriting of relay candidates.
+  # IMPORTANT: TURN_HOST must be the origin public IP (JVB_ADVERTISE_IPS), NOT a
+  # Cloudflare-proxied hostname — UDP/TCP 3478 is not proxied by CF orange-cloud.
+  coturn:
+    image: coturn/coturn:4.6.2-r12
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - /opt/longhuaCRM/jitsi/coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    environment:
+      TURN_CREDENTIALS: ${TURN_CREDENTIALS}
+      TURN_REALM: ${TURN_REALM:-meet.longhuachinese.online}
+      JVB_ADVERTISE_IPS: ${JVB_ADVERTISE_IPS}
+      TURN_LOCAL_IP: ${TURN_LOCAL_IP:-192.168.0.140}
+      TZ: ${TZ:-Europe/Minsk}
+    # Override entrypoint so we can inject shared secret + external-ip from env.
+    entrypoint:
+      - turnserver
+    command:
+      - -c
+      - /etc/coturn/turnserver.conf
+      - --static-auth-secret=${TURN_CREDENTIALS}
+      - --realm=${TURN_REALM:-meet.longhuachinese.online}
+      # public/private form required when origin is behind NAT
+      - --external-ip=${JVB_ADVERTISE_IPS}/${TURN_LOCAL_IP:-192.168.0.140}
+      - --listening-ip=0.0.0.0
+      - --relay-ip=${TURN_LOCAL_IP:-192.168.0.140}    # No depends_on on prosody — coturn is independent; clients discover it via Prosody.
 
 networks:
   meet.jitsi:

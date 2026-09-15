@@ -189,14 +189,14 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-border sticky top-0 bg-card z-10">
-          <div>
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <Card className="max-w-2xl w-full max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
+        <div className="flex items-start justify-between gap-3 p-4 sm:p-6 border-b border-border sticky top-0 bg-card z-10">
+          <div className="min-w-0">
             <h2 className="text-lg font-bold text-foreground">
               {step === 1 ? "Выберите материалы" : "Кому выдать доступ"}
             </h2>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-muted-foreground mt-1 break-words">
               {step === 1
                 ? `Выбрано ${selectedMaterials.size} материалов`
                 : `Тип: ${targetType === "student" ? "ученик" : targetType === "group" ? "группа" : "курс"} · выбрано ${selectedTargets.size}`}
@@ -205,13 +205,13 @@ export default function GrantAccessModal({ user, materialIds, onClose, onSuccess
           <button
             type="button"
             onClick={onClose}
-            className="p-2 hover:bg-muted rounded-lg transition-colors"
+            className="p-2 min-h-touch min-w-touch inline-flex items-center justify-center hover:bg-muted rounded-lg transition-colors shrink-0"
           >
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-4 sm:p-6 space-y-4">
           {error && (
             <div className="rounded-lg bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 text-sm px-4 py-3">
               {error}

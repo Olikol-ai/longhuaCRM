@@ -2,6 +2,7 @@
  * Shared materials upload limits and extension allowlist.
  * Used by Multer, SecureFilesService, and error messages.
  */
+import { extname } from 'path';
 
 /** Default 2 GiB — textbooks ~100–300 MB and video lessons need headroom. */
 export const DEFAULT_MATERIALS_MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024;
@@ -31,6 +32,14 @@ export const MATERIALS_ALLOWED_EXTENSIONS = new Set([
   '.gif',
   '.webp',
   '.zip',
+]);
+
+/** Browser/OS ZIP MIME variants (Android/Windows often send x-zip-compressed). */
+export const MATERIALS_ZIP_MIME_TYPES = new Set([
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/zip-compressed',
+  'multipart/x-zip',
 ]);
 
 const MIME_BY_EXT: Record<string, string> = {
@@ -90,6 +99,66 @@ export function formatMaterialsMaxUploadLabel(bytes = getMaterialsMaxUploadBytes
 
 export function guessMimeFromExtension(extension: string): string {
   return MIME_BY_EXT[extension.toLowerCase()] || 'application/octet-stream';
+}
+
+export function isZipMimeType(mimeType?: string | null): boolean {
+  const mime = String(mimeType || '')
+    .toLowerCase()
+    .split(';')[0]
+    .trim();
+  return MATERIALS_ZIP_MIME_TYPES.has(mime);
+}
+
+/**
+ * Resolve a safe allowlisted extension for an upload.
+ * ZIP may arrive without a usable filename extension (mobile content pickers).
+ */
+export function resolveMaterialsUploadExtension(
+  originalName: string,
+  mimeType?: string | null,
+): string {
+  const extension = extname(originalName || '').toLowerCase();
+  if (MATERIALS_ALLOWED_EXTENSIONS.has(extension)) {
+    return extension;
+  }
+  // Non-empty unknown/disallowed extension must not be overridden by MIME
+  // (prevents malware.exe + application/zip from being stored as .zip).
+  if (extension) {
+    return extension;
+  }
+  if (isZipMimeType(mimeType)) {
+    return '.zip';
+  }
+  return extension;
+}
+
+export function isAllowedMaterialsUpload(
+  originalName: string,
+  mimeType?: string | null,
+): boolean {
+  return MATERIALS_ALLOWED_EXTENSIONS.has(
+    resolveMaterialsUploadExtension(originalName, mimeType),
+  );
+}
+
+/**
+ * Multer historically decodes Content-Disposition filenames as latin1.
+ * Recover UTF-8 (e.g. Cyrillic) when the classic mojibake pattern is present.
+ */
+export function decodeUploadOriginalName(originalName?: string | null): string {
+  const raw = String(originalName || '').trim() || 'upload';
+  if (!/[ÐÑÃ]/.test(raw)) {
+    return raw;
+  }
+  try {
+    const decoded = Buffer.from(raw, 'latin1').toString('utf8');
+    if (decoded && !decoded.includes('\uFFFD')) {
+      return decoded;
+    }
+  } catch {
+    // keep raw
+  }
+  return raw;
 }
 
 export function detectMaterialFileKind(filename: string): MaterialUploadFileKind {

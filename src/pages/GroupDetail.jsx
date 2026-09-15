@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "@/api";
 import {
   ArrowLeft,
+  Building2,
   CalendarRange,
   Loader2,
   Plus,
@@ -118,6 +119,7 @@ export default function GroupDetail() {
   const lessons = workspace?.lessons ?? [];
   const seriesList = workspace?.series ?? [];
   const activeSeries = workspace?.active_series ?? workspace?.activeSeries;
+  const counterparty = workspace?.counterparty ?? null;
 
   const memberStudentIds = useMemo(
     () => new Set(members.map((m) => m.student_id ?? m.studentId).filter(Boolean)),
@@ -289,6 +291,47 @@ export default function GroupDetail() {
 
       {activeTab === "overview" && (
         <div className="grid md:grid-cols-2 gap-4">
+          {counterparty && (
+            <div className="md:col-span-2 border rounded-xl p-4 bg-card space-y-2">
+              <h3 className="font-semibold flex items-center gap-2">
+                <Building2 className="h-4 w-4" /> Контрагент
+              </h3>
+              <p className="text-base font-medium">{counterparty.organization_name}</p>
+              {counterparty.unp && (
+                <p className="text-sm text-muted-foreground">УНП: {counterparty.unp}</p>
+              )}
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 text-sm">
+                <div>
+                  <span className="text-muted-foreground block">Менеджер</span>
+                  <span className="font-medium">{counterparty.sales_manager_name || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">Ученики</span>
+                  <span className="font-medium">{counterparty.students_count ?? members.length}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">Стоимость</span>
+                  <span className="font-medium">
+                    {counterparty.contract_amount
+                      ? `${Number(counterparty.contract_amount).toLocaleString("ru-RU")} ${counterparty.contract_currency || "BYN"}`
+                      : "—"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">Оплачено</span>
+                  <span className="font-medium">
+                    {Number(counterparty.paid_amount ?? 0).toLocaleString("ru-RU")} {counterparty.contract_currency || "BYN"}
+                  </span>
+                </div>
+              </div>
+              <p className="text-sm pt-1">
+                <span className="text-muted-foreground">Задолженность: </span>
+                <span className={Number(counterparty.debt_amount ?? 0) > 0 ? "text-amber-600 font-semibold" : "text-emerald-600 font-semibold"}>
+                  {Number(counterparty.debt_amount ?? 0).toLocaleString("ru-RU")} {counterparty.contract_currency || "BYN"}
+                </span>
+              </p>
+            </div>
+          )}
           <div className="border rounded-xl p-4 bg-card space-y-2">
             <h3 className="font-semibold flex items-center gap-2"><BookOpen className="h-4 w-4" /> Основная информация</h3>
             <p className="text-sm"><span className="text-muted-foreground">Преподаватель:</span> {resolveAssignedTeacherLabel(group.teacher_id, teachers)}</p>

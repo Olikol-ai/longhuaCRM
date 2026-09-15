@@ -136,7 +136,7 @@ export class CreateLessonDto {
   status?: LessonStatus;
 
   @IsOptional()
-  @IsEnum(['individual', 'group'])
+  @IsEnum(['individual', 'group', 'trial'])
   lessonType?: LessonType;
 
   @IsOptional()

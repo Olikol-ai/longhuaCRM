@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { X, Edit2, Trash2, CheckCircle2, XCircle, Video, Clock, Calendar, RefreshCw, Users, Loader2, MapPin } from "lucide-react";
+import { api } from "@/api";
 import { resolveLessonTeacherLabel } from "@/lib/teacherLabels";
 import { resolveLessonStudentNames } from "@/lib/studentLabels";
 import LessonAttendancePanel from "@/components/groups/LessonAttendancePanel";
@@ -19,6 +20,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+const OUTSIDE_AVAILABILITY_MESSAGE =
+  "Преподаватель не указал это время как свободное.";
 
 export const STATUS_LABELS = {
   planned: "Запланировано",
@@ -121,15 +125,22 @@ export default function LessonDetailModal({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [outsideAvailabilityOpen, setOutsideAvailabilityOpen] = useState(false);
+  const [pendingOutsideUpdate, setPendingOutsideUpdate] = useState(null);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const isGroupLesson = Boolean(form.group_id || lesson.group_id || lesson.lesson_type === "group");
+  const isTrialLesson = Boolean(
+    form.lesson_type === "trial"
+    || lesson.lesson_type === "trial"
+    || lesson.lessonType === "trial",
+  );
   const canMarkAttendance =
     Boolean(isTeacher) && !isAdmin && lesson.status === "planned" && isGroupLesson;
   const showAdminStatusActions =
     Boolean(isAdmin) && lesson.status === "planned";
-  const canChangeStudents = Boolean(isAdmin || isTeacher || isTutor);
+  const canChangeStudents = Boolean(isAdmin || isTeacher || isTutor) && !isTrialLesson;
   const wasInSeries = lessonBelongsToSeries(lesson);
 
   const activeContacts = (Array.isArray(contacts) ? contacts : []).filter(
@@ -164,12 +175,18 @@ export default function LessonDetailModal({
             room: form.room,
             meeting_link: form.meeting_link,
             notes: form.notes,
-            lesson_type: isGroupLesson ? "group" : "individual",
-            ...(isGroupLesson
-              ? { group_id: form.group_id || lesson.group_id }
-              : form.student_target_type === "contact"
-                ? { teacher_student_contact_id: contactId }
-                : { primary_student_id: primaryStudentId }),
+            lesson_type: isTrialLesson
+              ? "trial"
+              : isGroupLesson
+                ? "group"
+                : "individual",
+            ...(isTrialLesson
+              ? {}
+              : isGroupLesson
+                ? { group_id: form.group_id || lesson.group_id }
+                : form.student_target_type === "contact"
+                  ? { teacher_student_contact_id: contactId }
+                  : { primary_student_id: primaryStudentId }),
           };
 
     return {
@@ -185,10 +202,10 @@ export default function LessonDetailModal({
     return false;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const primaryStudentId =
       form.primary_student_id || form.student_id || "";
-    if (!isGroupLesson && isAdmin) {
+    if (!isGroupLesson && !isTrialLesson && isAdmin) {
       if (form.student_target_type === "contact" && !form.teacher_student_contact_id) {
         alert("Выберите ученика преподавателя");
         return;
@@ -211,7 +228,46 @@ export default function LessonDetailModal({
       return;
     }
 
-    void submitUpdate(payload);
+    await maybeWarnOutsideAvailabilityThenSubmit(payload);
+  };
+
+  const slotChangedVsLesson = (payload) => {
+    const nextDate = payload.date || lesson.date;
+    const nextStart = payload.start_time || lesson.start_time;
+    const nextDuration = Number(payload.duration ?? lesson.duration ?? 60);
+    const nextTeacher = payload.teacher_id || lesson.teacher_id;
+    return (
+      nextDate !== lesson.date
+      || String(nextStart).slice(0, 5) !== String(lesson.start_time || "").slice(0, 5)
+      || nextDuration !== Number(lesson.duration ?? 60)
+      || nextTeacher !== lesson.teacher_id
+    );
+  };
+
+  const maybeWarnOutsideAvailabilityThenSubmit = async (payload, scope) => {
+    const teacherId = payload.teacher_id || lesson.teacher_id;
+    if (
+      isAdmin
+      && teacherId
+      && slotChangedVsLesson(payload)
+      && payload.status !== "cancelled"
+    ) {
+      try {
+        const result = await api.schedule.checkTeacherAvailability(teacherId, {
+          date: payload.date || lesson.date,
+          start_time: payload.start_time || lesson.start_time,
+          duration: Number(payload.duration ?? lesson.duration ?? 60),
+        });
+        if (!result?.available) {
+          setPendingOutsideUpdate({ payload, scope });
+          setOutsideAvailabilityOpen(true);
+          return;
+        }
+      } catch {
+        // If the advisory check fails, still allow admin save — backend conflicts remain.
+      }
+    }
+    await submitUpdate(payload, scope);
   };
 
   const requestStatusChange = (status, extra = {}) => {
@@ -347,7 +403,14 @@ export default function LessonDetailModal({
                 )}
                 {isAdmin && (
                   <div className="min-w-0">
-                    {isGroupLesson ? (
+                    {isTrialLesson ? (
+                      <>
+                        <label className="block text-xs font-medium text-muted-foreground mb-1">Тип занятия</label>
+                        <p className="text-sm text-foreground px-3 py-2 border border-border rounded-lg bg-muted break-words [overflow-wrap:anywhere]">
+                          Пробное занятие — без ученика. Оплата преподавателю: 10 BYN после проведения.
+                        </p>
+                      </>
+                    ) : isGroupLesson ? (
                       <>
                         <label className="block text-xs font-medium text-muted-foreground mb-1">Группа</label>
                         <p className="text-sm text-foreground px-3 py-2 border border-border rounded-lg bg-muted break-words [overflow-wrap:anywhere]">
@@ -598,9 +661,50 @@ export default function LessonDetailModal({
               return;
             }
             if (!pendingPayload) return;
-            void submitUpdate(pendingPayload, applyScope);
+            setScopeDialogOpen(false);
+            void maybeWarnOutsideAvailabilityThenSubmit(pendingPayload, applyScope);
           }}
         />
+
+      <AlertDialog
+        open={outsideAvailabilityOpen}
+        onOpenChange={(open) => {
+          if (!open && !saving) {
+            setOutsideAvailabilityOpen(false);
+            setPendingOutsideUpdate(null);
+          }
+        }}
+      >
+        <AlertDialogContent className="max-w-[min(100%,24rem)] mx-4">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Время вне заявленного графика</AlertDialogTitle>
+            <AlertDialogDescription>
+              ⚠️ {OUTSIDE_AVAILABILITY_MESSAGE}
+              {" "}
+              Вы можете всё равно назначить занятие.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2">
+            <AlertDialogCancel disabled={saving} className="w-full sm:w-auto">
+              Отмена
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={saving}
+              className="w-full sm:w-auto"
+              onClick={(e) => {
+                e.preventDefault();
+                if (!pendingOutsideUpdate) return;
+                const { payload, scope } = pendingOutsideUpdate;
+                setOutsideAvailabilityOpen(false);
+                setPendingOutsideUpdate(null);
+                void submitUpdate(payload, scope);
+              }}
+            >
+              {saving ? "Сохранение..." : "Всё равно назначить"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </>
     );
   }
@@ -865,7 +969,8 @@ export default function LessonDetailModal({
             return;
           }
           if (!pendingPayload) return;
-          void submitUpdate(pendingPayload, applyScope);
+          setScopeDialogOpen(false);
+          void maybeWarnOutsideAvailabilityThenSubmit(pendingPayload, applyScope);
         }}
       />
 
@@ -944,6 +1049,46 @@ export default function LessonDetailModal({
               ) : (
                 "Подтвердить"
               )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={outsideAvailabilityOpen}
+        onOpenChange={(open) => {
+          if (!open && !saving) {
+            setOutsideAvailabilityOpen(false);
+            setPendingOutsideUpdate(null);
+          }
+        }}
+      >
+        <AlertDialogContent className="max-w-[min(100%,24rem)] mx-4">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Время вне заявленного графика</AlertDialogTitle>
+            <AlertDialogDescription>
+              ⚠️ {OUTSIDE_AVAILABILITY_MESSAGE}
+              {" "}
+              Вы можете всё равно назначить занятие.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2">
+            <AlertDialogCancel disabled={saving} className="w-full sm:w-auto">
+              Отмена
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={saving}
+              className="w-full sm:w-auto"
+              onClick={(e) => {
+                e.preventDefault();
+                if (!pendingOutsideUpdate) return;
+                const { payload, scope } = pendingOutsideUpdate;
+                setOutsideAvailabilityOpen(false);
+                setPendingOutsideUpdate(null);
+                void submitUpdate(payload, scope);
+              }}
+            >
+              {saving ? "Сохранение..." : "Всё равно назначить"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

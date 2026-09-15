@@ -1,5 +1,6 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { B2bSalesModule } from '../b2b-sales/b2b-sales.module';
 import { LessonSeriesModule } from '../lesson-series/lesson-series.module';
 import { LessonsModule } from '../lessons/lessons.module';
 import { GroupEntity } from './entities/group.entity';
@@ -13,6 +14,7 @@ import { GroupsService } from './groups.service';
     TypeOrmModule.forFeature([GroupEntity, GroupMemberEntity]),
     LessonSeriesModule,
     LessonsModule,
+    forwardRef(() => B2bSalesModule),
   ],
   controllers: [GroupsController],
   providers: [GroupsRepository, GroupsService],

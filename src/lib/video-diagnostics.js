@@ -71,47 +71,58 @@ export function clearVideoDiag() {
   }
 }
 
-/** Classify whether a conference error is transient (keep session) vs fatal. */
-export function isTransientVideoError(raw) {
-  const text = String(
+function videoErrorText(raw) {
+  return String(
     typeof raw === 'string'
       ? raw
       : raw?.message || raw?.error || raw?.error?.message || raw?.code || '',
   )
     .trim()
     .toLowerCase();
+}
 
-  if (!text) return true;
-
-  // Auth / permission — user must rejoin with a fresh token or grant devices.
-  if (
+/** Auth/JWT errors — refresh token + controlled remount, do not navigate away. */
+export function isAuthVideoError(raw) {
+  const text = videoErrorText(raw);
+  if (!text) return false;
+  return (
     text.includes('token') ||
     text.includes('jwt') ||
     text.includes('unauthorized') ||
+    text.includes('not-authorized') ||
+    text.includes('expir')
+  );
+}
+
+/** Device permission errors — user action required; keep CRM session for retry. */
+export function isMediaPermissionVideoError(raw) {
+  const text = videoErrorText(raw);
+  return (
     text.includes('not-allowed') ||
     text.includes('permission') ||
     text.includes('denied') ||
     text.includes('getusermedia')
-  ) {
-    return false;
-  }
+  );
+}
 
-  // Network / ICE / bridge flaps — Jitsi usually recovers without remount.
-  if (
-    text.includes('timeout') ||
-    text.includes('timed out') ||
-    text.includes('ice') ||
-    text.includes('network') ||
-    text.includes('offline') ||
-    text.includes('connection') ||
-    text.includes('conference') ||
-    text.includes('websocket') ||
-    text.includes('session-terminate') ||
-    text.includes('unavailable') ||
-    text.includes('failed to fetch')
-  ) {
-    return true;
-  }
-
+/**
+ * Transient = keep CRM session, prefer soft recovery (no endSession).
+ * Almost all network/conference flaps are transient. Auth is "soft remount",
+ * not endSession. Only blank unknown after join still treated as recoverable.
+ */
+export function isTransientVideoError(raw) {
+  const text = videoErrorText(raw);
+  if (!text) return true;
+  if (isMediaPermissionVideoError(raw)) return false;
+  if (isAuthVideoError(raw)) return false;
   return true;
+}
+
+/** True when CRM must call endSession (not soft remount / interrupt). */
+export function isUnrecoverableVideoFailure(raw) {
+  // Media permission is recoverable via user grant + retry on same page.
+  // Auth is recoverable via token refresh + remount.
+  // Nothing else should destroy the lesson shell automatically.
+  void raw;
+  return false;
 }

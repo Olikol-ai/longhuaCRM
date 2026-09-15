@@ -49,6 +49,16 @@ describe('resolveLessonStudentLabel', () => {
     ];
     assert.equal(resolveLessonStudentLabel(lesson, students), 'Бабаева Наталья');
   });
+
+  it('labels trial lessons without inventing a student', () => {
+    assert.equal(
+      resolveLessonStudentLabel({
+        lesson_type: 'trial',
+        teacher_id: 't1',
+      }),
+      'Пробное занятие',
+    );
+  });
 });
 
 describe('resolveStudentLabel', () => {

@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { TeacherEntity } from '../../teachers/entities/teacher.entity';
+import { OrganizationEntity } from '../../b2b-sales/entities/organization.entity';
 
 export type GroupStatus = 'active' | 'inactive' | 'archived';
 
@@ -34,6 +35,20 @@ export class GroupEntity {
     default: 'active',
   })
   status: GroupStatus;
+
+  @Index('IDX_GROUP_ORGANIZATION_ID')
+  @Column({ name: 'organization_id', type: 'uuid', nullable: true })
+  organizationId: string | null;
+
+  @ManyToOne(() => OrganizationEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'organization_id' })
+  organization?: OrganizationEntity | null;
+
+  @Column({ name: 'contract_amount', type: 'numeric', precision: 12, scale: 2, nullable: true })
+  contractAmount: string | null;
+
+  @Column({ name: 'contract_currency', type: 'varchar', length: 8, default: 'BYN' })
+  contractCurrency: string;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

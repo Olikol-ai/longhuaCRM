@@ -10,6 +10,10 @@ import { filterToEntityWhere } from '../../common/utils/api-record.util';
 import { JwtPayload } from '../auth/auth.service';
 import { TeacherAccessService } from '../../common/access/teacher-access.service';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
+import {
+  isTrialLessonType,
+  TRIAL_LESSON_TEACHER_PAYMENT_BYN,
+} from '../lessons/lesson-trial';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { UserEntity } from '../users/entities/user.entity';
 import { TeacherMonthlyPayoutEntity } from './entities/teacher-monthly-payout.entity';
@@ -134,7 +138,7 @@ export class TeacherPaymentsService {
         status: 'completed',
         date: Between(startDate, endDate),
       },
-      select: ['id', 'teacherId', 'date', 'duration', 'startTime'],
+      select: ['id', 'teacherId', 'date', 'duration', 'startTime', 'lessonType'],
     });
 
     const teacherIds = [
@@ -201,8 +205,10 @@ export class TeacherPaymentsService {
       const lessonAmount =
         accrued != null && Number.isFinite(accrued)
           ? Math.round(accrued * 100) / 100
-          : Math.round(Number(teacher.hourlyRate ?? 0) * (duration / 60) * 100) /
-            100;
+          : isTrialLessonType(lesson.lessonType)
+            ? TRIAL_LESSON_TEACHER_PAYMENT_BYN
+            : Math.round(Number(teacher.hourlyRate ?? 0) * (duration / 60) * 100) /
+              100;
 
       const current = byTeacher.get(lesson.teacherId) ?? {
         lessonsCount: 0,
@@ -256,7 +262,7 @@ export class TeacherPaymentsService {
         status: 'completed',
         date: Between(startDate, endDate),
       },
-      select: ['id', 'date', 'startTime', 'duration'],
+      select: ['id', 'date', 'startTime', 'duration', 'lessonType'],
       order: { date: 'ASC', startTime: 'ASC' },
     });
 
@@ -278,7 +284,9 @@ export class TeacherPaymentsService {
       const amount =
         accrued != null && Number.isFinite(accrued)
           ? Math.round(accrued * 100) / 100
-          : Math.round(hourlyRate * (duration / 60) * 100) / 100;
+          : isTrialLessonType(lesson.lessonType)
+            ? TRIAL_LESSON_TEACHER_PAYMENT_BYN
+            : Math.round(hourlyRate * (duration / 60) * 100) / 100;
       return {
         lessonId: lesson.id,
         date: lesson.date,
@@ -362,9 +370,13 @@ export class TeacherPaymentsService {
       return null;
     }
 
-    const hourlyRate = Number(resolvedTeacher.hourlyRate ?? 0);
-    const hours = (lesson.duration ?? 60) / 60;
-    const amount = Math.round(hourlyRate * hours * 100) / 100;
+    const amount = isTrialLessonType(lesson.lessonType)
+      ? TRIAL_LESSON_TEACHER_PAYMENT_BYN
+      : (() => {
+          const hourlyRate = Number(resolvedTeacher.hourlyRate ?? 0);
+          const hours = (lesson.duration ?? 60) / 60;
+          return Math.round(hourlyRate * hours * 100) / 100;
+        })();
 
     const payload = {
       teacherId: lesson.teacherId,

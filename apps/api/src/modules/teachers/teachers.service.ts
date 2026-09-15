@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, In, Repository } from 'typeorm';
 import { TeacherAccessService } from '../../common/access/teacher-access.service';
+import { normalizeRole } from '../../common/constants/roles';
 import { JwtPayload } from '../auth/auth.service';
 import { ChatMembershipSyncService } from '../chats/services/chat-membership-sync.service';
 import { LessonEntity, LessonStatus } from '../lessons/entities/lesson.entity';
@@ -41,31 +42,11 @@ export class TeachersService {
     private readonly chatMembershipSync?: ChatMembershipSyncService,
   ) {}
 
-  async findAll(actor: JwtPayload): Promise<TeacherEntity[]> {
-    const where = await this.teacherAccess.scopeTeacherFilter(actor, {});
-    const rows = await this.repository.filter(where as FindOptionsWhere<TeacherEntity>);
-    return this.applyUserTelegram(rows);
-  }
-
   /**
    * Canonical active teachers for salary / admin directories.
    * Requires: Teacher.status=active, linked User exists, role=teacher, status=active.
    */
-  async findActive(): Promise<TeacherEntity[]> {
-    const rows = await this.userRepo.manager
-      .getRepository(TeacherEntity)
-      .createQueryBuilder('t')
-      .innerJoin(UserEntity, 'u', 'u.id = t.user_id')
-      .where('t.status = :teacherStatus', { teacherStatus: 'active' })
-      .andWhere('u.role = :role', { role: 'teacher' })
-      .andWhere('u.status = :userStatus', { userStatus: 'active' })
-      .orderBy('t.name', 'ASC')
-      .getMany();
-    return this.applyUserTelegram(rows);
-  }
-
-  /** Same SSOT as findActive — COUNT for Admin Dashboard. */
-  async countActive(): Promise<number> {
+  private buildActiveDirectoryQuery() {
     return this.userRepo.manager
       .getRepository(TeacherEntity)
       .createQueryBuilder('t')
@@ -73,7 +54,31 @@ export class TeachersService {
       .where('t.status = :teacherStatus', { teacherStatus: 'active' })
       .andWhere('u.role = :role', { role: 'teacher' })
       .andWhere('u.status = :userStatus', { userStatus: 'active' })
-      .getCount();
+      .orderBy('t.name', 'ASC');
+  }
+
+  async findActive(): Promise<TeacherEntity[]> {
+    const rows = await this.buildActiveDirectoryQuery().getMany();
+    return this.applyUserTelegram(rows);
+  }
+
+  /** Same SSOT as findActive — COUNT for Admin Dashboard. */
+  async countActive(): Promise<number> {
+    return this.buildActiveDirectoryQuery().getCount();
+  }
+
+  async findAll(actor: JwtPayload): Promise<TeacherEntity[]> {
+    const role = normalizeRole(actor.role);
+    if (this.teacherAccess.isAdmin(actor) || role === 'student') {
+      return this.findActive();
+    }
+    if (role === 'teacher') {
+      const rows = await this.buildActiveDirectoryQuery()
+        .andWhere('t.user_id = :userId', { userId: actor.sub })
+        .getMany();
+      return this.applyUserTelegram(rows);
+    }
+    throw new ForbiddenException('Forbidden');
   }
 
   async findById(actor: JwtPayload, id: string): Promise<TeacherEntity> {

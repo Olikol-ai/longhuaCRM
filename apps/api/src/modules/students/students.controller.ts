@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -16,6 +17,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { JwtPayload } from '../auth/auth.service';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { FilterQueryDto } from './dto/filter-query.dto';
+import { MergeStudentsDto } from './dto/merge-students.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { StudentsService } from './students.service';
 
@@ -52,6 +54,15 @@ export class StudentsController {
     return this.studentsService.findPaymentOptions(user);
   }
 
+  @Get('merge-candidates')
+  @Roles('admin')
+  findMergeCandidates(
+    @Query('primaryStudentId') primaryStudentId: string,
+    @Query('search') search?: string,
+  ) {
+    return this.studentsService.findMergeCandidates({ primaryStudentId, search });
+  }
+
   @Get(':id')
   findById(
     @CurrentUser() user: JwtPayload,
@@ -79,6 +90,16 @@ export class StudentsController {
     @Body() dto: UpdateStudentDto,
   ) {
     return this.studentsService.update(user, id, dto);
+  }
+
+  @Post(':id/merge')
+  @Roles('admin')
+  mergeStudents(
+    @CurrentUser() actor: JwtPayload,
+    @Param('id', ParseUUIDPipe) primaryStudentId: string,
+    @Body() dto: MergeStudentsDto,
+  ) {
+    return this.studentsService.mergeStudents(primaryStudentId, dto.secondaryStudentId, actor);
   }
 
   @Delete(':id')

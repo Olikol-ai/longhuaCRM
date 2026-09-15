@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsUUID } from 'class-validator';
+import { IsEnum, IsNumberString, IsOptional, IsString, IsUUID } from 'class-validator';
 import { IsRequiredText } from '../../../common/validators/is-required-text.decorator';
 import { GroupStatus } from '../entities/group.entity';
 
@@ -13,4 +13,16 @@ export class CreateGroupDto {
   @IsOptional()
   @IsEnum(['active', 'inactive', 'archived'])
   status?: GroupStatus;
+
+  @IsOptional()
+  @IsUUID()
+  organizationId?: string;
+
+  @IsOptional()
+  @IsNumberString()
+  contractAmount?: string;
+
+  @IsOptional()
+  @IsString()
+  contractCurrency?: string;
 }

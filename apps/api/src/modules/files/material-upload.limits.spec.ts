@@ -1,7 +1,11 @@
 import {
+  decodeUploadOriginalName,
   detectMaterialFileKind,
   getMaterialsMaxUploadBytes,
+  isAllowedMaterialsUpload,
+  isZipMimeType,
   MATERIALS_ALLOWED_EXTENSIONS,
+  resolveMaterialsUploadExtension,
 } from './material-upload.limits';
 
 describe('material-upload.limits', () => {
@@ -20,6 +24,23 @@ describe('material-upload.limits', () => {
       expect(MATERIALS_ALLOWED_EXTENSIONS.has(ext)).toBe(true);
     }
     expect(MATERIALS_ALLOWED_EXTENSIONS.has('.exe')).toBe(false);
+  });
+
+  it('allows ZIP by extension and by browser MIME when extension is missing', () => {
+    expect(isAllowedMaterialsUpload('pack.zip')).toBe(true);
+    expect(isAllowedMaterialsUpload('pack', 'application/zip')).toBe(true);
+    expect(isAllowedMaterialsUpload('blob', 'application/x-zip-compressed')).toBe(true);
+    expect(resolveMaterialsUploadExtension('blob', 'application/zip')).toBe('.zip');
+    expect(isZipMimeType('application/x-zip-compressed; charset=binary')).toBe(true);
+    expect(isAllowedMaterialsUpload('malware.exe', 'application/zip')).toBe(false);
+    expect(isAllowedMaterialsUpload('notes.bin', 'application/octet-stream')).toBe(false);
+  });
+
+  it('recovers Cyrillic filenames from multer latin1 mojibake', () => {
+    const utf8 = 'Учебник_HSK3.zip';
+    const mojibake = Buffer.from(utf8, 'utf8').toString('latin1');
+    expect(decodeUploadOriginalName(mojibake)).toBe(utf8);
+    expect(decodeUploadOriginalName('plain.zip')).toBe('plain.zip');
   });
 
   it('detects audio/video/pdf kinds', () => {

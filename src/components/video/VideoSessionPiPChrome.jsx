@@ -4,6 +4,7 @@ import {
   Video,
   VideoOff,
   MonitorUp,
+  MonitorOff,
   Users,
   MessageCircle,
   Maximize2,
@@ -132,12 +133,16 @@ export default function VideoSessionPiPChrome({
         </PipIconButton>
         {!isStudent ? (
           <PipIconButton
-            label="Демонстрация экрана"
+            label={screenSharing ? 'Завершить демонстрацию' : 'Поделиться'}
             active={screenSharing}
             onClick={onShareScreen}
             testId="lesson-video-pip-screen"
           >
-            <MonitorUp className="h-4 w-4" />
+            {screenSharing ? (
+              <MonitorOff className="h-4 w-4" />
+            ) : (
+              <MonitorUp className="h-4 w-4" />
+            )}
           </PipIconButton>
         ) : null}
         <PipIconButton

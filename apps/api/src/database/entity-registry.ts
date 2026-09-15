@@ -30,6 +30,7 @@ import { LessonSeriesSlotEntity } from '../modules/lesson-series/entities/lesson
 import { SeriesExclusionEntity } from '../modules/schedule/entities/series-exclusion.entity';
 import { SeriesStudentEntity } from '../modules/schedule/entities/series-student.entity';
 import { StudentEntity } from '../modules/students/entities/student.entity';
+import { StudentLessonBalanceAdjustmentEntity } from '../modules/student-balances/entities/student-lesson-balance-adjustment.entity';
 import { TeacherEntity } from '../modules/teachers/entities/teacher.entity';
 import { TutorEntity } from '../modules/tutors/entities/tutor.entity';
 import { TutorStudentEntity } from '../modules/tutors/entities/tutor-student.entity';
@@ -54,12 +55,14 @@ import { HOMEWORK_ENTITIES } from '../modules/homework/entities';
 import { CHAT_ENTITIES } from '../modules/chats/entities';
 import { EXAM_ACADEMY_ENTITIES } from '../modules/exam-academy/entities';
 import { EXAM_CONTENT_ENTITIES } from '../modules/exam-content/entities';
+import { B2B_SALES_ENTITIES } from '../modules/b2b-sales/entities';
 
 /** All v2 domain entities for TypeORM registration. */
 export const ALL_V2_ENTITIES = [
   UserEntity,
   PendingRegistrationEntity,
   StudentEntity,
+  StudentLessonBalanceAdjustmentEntity,
   TeacherEntity,
   TutorEntity,
   TutorStudentEntity,
@@ -113,4 +116,5 @@ export const ALL_V2_ENTITIES = [
   ...CHAT_ENTITIES,
   ...EXAM_ACADEMY_ENTITIES,
   ...EXAM_CONTENT_ENTITIES,
+  ...B2B_SALES_ENTITIES,
 ];

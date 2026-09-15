@@ -102,7 +102,6 @@ describe('Student balance SSOT contract', () => {
 
   it('key CRM screens render balance via LessonBalanceDisplay', () => {
     const files = [
-      'src/pages/UserManagement.jsx',
       'src/pages/StudentDetail.jsx',
       'src/pages/StudentDashboard.jsx',
       'src/pages/LowBalanceStudents.jsx',

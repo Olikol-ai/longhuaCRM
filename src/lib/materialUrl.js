@@ -6,6 +6,7 @@ import {
   CANVA_ACCESS_NOTICE,
   classifyMaterialOpenUrl,
   describeMaterialOpen,
+  isArchiveMaterial,
   isCanvaMaterial,
   isExternalLinkMaterial,
   storedMaterialUrl,
@@ -84,10 +85,16 @@ async function notifyCanvaAccessModel(material) {
  * Do NOT fetch+blob the whole file first (that blocked UI for large PDFs for minutes).
  * Do NOT await chat/unread/socket work — materials open independently of Layout badge sync.
  * Do NOT proxy Canva through Longhua. External URLs are opened as stored.
+ * ZIP archives cannot be previewed in-browser — download instead of a blank tab.
  */
 export async function openMaterial(material) {
   if (isOfflineMode() || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
     throw new OfflineMutationError(OFFLINE_OPEN_FILE_MESSAGE);
+  }
+
+  if (isArchiveMaterial(material)) {
+    await downloadMaterialFile(material, material?.original_filename || material?.title || 'archive.zip');
+    return null;
   }
 
   logMaterialOpenDiagnostics(material);

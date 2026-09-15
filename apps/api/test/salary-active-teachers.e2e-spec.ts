@@ -273,6 +273,20 @@ describe('Active teachers filtering for salary (e2e)', () => {
     });
   });
 
+  it('GET /teachers list matches /teachers/active SSOT for admin', async () => {
+    const list = await api(app)
+      .get('/api/teachers')
+      .set(authHeader(adminToken))
+      .expect(200);
+    const active = await api(app)
+      .get('/api/teachers/active')
+      .set(authHeader(adminToken))
+      .expect(200);
+    const listIds = new Set((list.body as Array<{ id: string }>).map((r) => r.id));
+    const activeIds = new Set((active.body as Array<{ id: string }>).map((r) => r.id));
+    expect(listIds).toEqual(activeIds);
+  });
+
   it('migration repair leaves no active teachers without valid users', async () => {
     const orphans = await ds.query(`
       SELECT t.id

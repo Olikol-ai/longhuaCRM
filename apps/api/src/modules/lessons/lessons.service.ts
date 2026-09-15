@@ -578,6 +578,12 @@ export class LessonsService {
   async create(actor: JwtPayload | null, dto: CreateLessonDto): Promise<LessonEntity> {
     const normalized = this.normalizeCreateLessonDto(dto);
 
+    if (normalized.lessonType === 'trial' && normalized.tutorId) {
+      throw new BadRequestException(
+        'Пробные занятия доступны только преподавателям школы',
+      );
+    }
+
     if (actor) {
       await this.assertCanCreateLesson(actor, normalized);
       this.assertLessonCreateLeadTime(actor, normalized.date, normalized.startTime);
@@ -595,16 +601,19 @@ export class LessonsService {
 
     const duration = normalized.duration ?? 60;
     const participant = assertLessonParticipant(normalized);
-    const lessonType =
-      normalized.lessonType ??
-      (participant.kind === 'group' ? 'group' : 'individual');
-    const contactId = participant.primaryTeacherStudentContactId;
+    const isTrial = participant.kind === 'trial' || normalized.lessonType === 'trial';
+    const lessonType: LessonEntity['lessonType'] = isTrial
+      ? 'trial'
+      : (normalized.lessonType ??
+        (participant.kind === 'group' ? 'group' : 'individual'));
+    const contactId = isTrial ? undefined : participant.primaryTeacherStudentContactId;
 
     await this.scheduleService.assertAvailableForLesson(
       normalized.teacherId,
       normalized.date,
       normalized.startTime,
       duration,
+      { enforce: this.shouldEnforceTeacherAvailability(actor) },
     );
     await this.scheduleService.assertNoScheduleConflicts(
       normalized.teacherId,
@@ -613,13 +622,17 @@ export class LessonsService {
       duration,
     );
 
-    const createStudentIds = await this.resolveCreateStudentIdsForConflict(normalized);
-    await this.scheduleService.assertNoStudentScheduleConflicts(
-      createStudentIds,
-      normalized.date,
-      normalized.startTime,
-      duration,
-    );
+    const createStudentIds = isTrial
+      ? []
+      : await this.resolveCreateStudentIdsForConflict(normalized);
+    if (!isTrial) {
+      await this.scheduleService.assertNoStudentScheduleConflicts(
+        createStudentIds,
+        normalized.date,
+        normalized.startTime,
+        duration,
+      );
+    }
 
     const created = await this.dataSource.transaction(async (manager) => {
       const teacher = await manager.getRepository(TeacherEntity).findOne({
@@ -643,14 +656,16 @@ export class LessonsService {
           lock: { mode: 'pessimistic_write' },
         });
       }
-      await this.scheduleService.assertNoStudentScheduleConflicts(
-        createStudentIds,
-        normalized.date,
-        normalized.startTime,
-        duration,
-      );
+      if (!isTrial) {
+        await this.scheduleService.assertNoStudentScheduleConflicts(
+          createStudentIds,
+          normalized.date,
+          normalized.startTime,
+          duration,
+        );
+      }
 
-      if (normalized.groupId) {
+      if (!isTrial && normalized.groupId) {
         const group = await manager.getRepository(GroupEntity).findOne({
           where: { id: normalized.groupId },
         });
@@ -664,7 +679,7 @@ export class LessonsService {
         }
       }
 
-      if (normalized.primaryStudentId && !normalized.groupId) {
+      if (!isTrial && normalized.primaryStudentId && !normalized.groupId) {
         const student = await manager.getRepository(StudentEntity).findOne({
           where: { id: normalized.primaryStudentId },
         });
@@ -678,7 +693,7 @@ export class LessonsService {
         }
       }
 
-      if (contactId && !normalized.groupId) {
+      if (!isTrial && contactId && !normalized.groupId) {
         const contact = await manager
           .getRepository(TeacherStudentContactEntity)
           .findOne({ where: { id: contactId } });
@@ -693,12 +708,12 @@ export class LessonsService {
           teacherId: normalized.teacherId as string,
           tutorId: null,
           seriesId: normalized.seriesId ?? null,
-          groupId: normalized.groupId ?? null,
-          primaryStudentId: normalized.groupId
+          groupId: isTrial ? null : (normalized.groupId ?? null),
+          primaryStudentId: isTrial || normalized.groupId
             ? null
             : (normalized.primaryStudentId ?? null),
           primaryTutorStudentId: null,
-          primaryTeacherStudentContactId: normalized.groupId
+          primaryTeacherStudentContactId: isTrial || normalized.groupId
             ? null
             : (contactId ?? null),
           date: normalized.date,
@@ -903,6 +918,22 @@ export class LessonsService {
       dto.primaryTeacherStudentContactId ||
       dto.teacherStudentContactId ||
       undefined;
+
+    // Trial is typed explicitly — strip any accidental student/group binding.
+    if (dto.lessonType === 'trial') {
+      return {
+        ...dto,
+        groupId: undefined,
+        primaryStudentId: undefined,
+        primaryTutorStudentId: undefined,
+        primaryTeacherStudentContactId: undefined,
+        studentId: undefined,
+        tutorStudentId: undefined,
+        teacherStudentContactId: undefined,
+        lessonType: 'trial',
+      };
+    }
+
     return {
       ...dto,
       primaryStudentId,
@@ -965,6 +996,82 @@ export class LessonsService {
     if (isLessonCreateTooSoon(date, startTime)) {
       throw new BadRequestException(LESSON_CREATE_LEAD_TIME_MESSAGE);
     }
+  }
+
+  /**
+   * Declared teacher availability is a planning hint for admins / system series fill.
+   * Teachers creating for themselves still must stay within their preferred schedule.
+   * Overlapping lessons remain blocked for everyone via assertNoScheduleConflicts.
+   */
+  private shouldEnforceTeacherAvailability(actor: JwtPayload | null): boolean {
+    if (!actor) {
+      return false;
+    }
+    return normalizeRole(actor.role) !== 'admin';
+  }
+
+  /**
+   * Preflight schedule slot for bulk series date moves (following / all).
+   * Does not mutate — callers run this before any occurrence UPDATE.
+   */
+  async assertOccurrenceRescheduleSlot(
+    lessonId: string,
+    newDate: string,
+    startTime: string,
+    duration: number,
+    options?: { enforceAvailability?: boolean },
+  ): Promise<void> {
+    const before = await this.repository.findById(lessonId);
+    if (!before) {
+      throw new NotFoundException('Lesson not found');
+    }
+    if (before.status === 'cancelled') {
+      return;
+    }
+
+    const normalizedStart = this.scheduleService.normalizeTime(startTime).slice(0, 5);
+    const normalizedDuration = duration ?? before.duration ?? 60;
+
+    if (before.tutorId && !before.teacherId) {
+      await this.scheduleService.assertNoTutorScheduleConflicts(
+        before.tutorId,
+        newDate,
+        normalizedStart,
+        normalizedDuration,
+        lessonId,
+      );
+    } else if (before.teacherId) {
+      await this.scheduleService.assertAvailableForLesson(
+        before.teacherId,
+        newDate,
+        normalizedStart,
+        normalizedDuration,
+        { enforce: options?.enforceAvailability !== false },
+      );
+      await this.scheduleService.assertNoScheduleConflicts(
+        before.teacherId,
+        newDate,
+        normalizedStart,
+        normalizedDuration,
+        lessonId,
+      );
+    }
+
+    const participantLesson = {
+      ...before,
+      date: newDate,
+      startTime: normalizedStart,
+      duration: normalizedDuration,
+    };
+    const studentIds =
+      await this.lessonConfirmations.resolveParticipantStudentIds(participantLesson);
+    await this.scheduleService.assertNoStudentScheduleConflicts(
+      studentIds,
+      newDate,
+      normalizedStart,
+      normalizedDuration,
+      lessonId,
+    );
   }
 
   async update(actor: JwtPayload, id: string, dto: UpdateLessonDto): Promise<LessonEntity> {
@@ -1077,7 +1184,13 @@ export class LessonsService {
           id,
         );
       } else if (teacherId) {
-        await this.scheduleService.assertAvailableForLesson(teacherId, date, startTime, duration);
+        await this.scheduleService.assertAvailableForLesson(
+          teacherId,
+          date,
+          startTime,
+          duration,
+          { enforce: this.shouldEnforceTeacherAvailability(actor) },
+        );
         await this.scheduleService.assertNoScheduleConflicts(
           teacherId,
           date,
@@ -1132,6 +1245,19 @@ export class LessonsService {
     // completionAttendance is only a completion hint — not a lessons column.
     const { completionAttendance: _completionAttendance, ...lessonFields } =
       payload as UpdateLessonDto & { completionAttendance?: 'attended' | 'missed' };
+
+    const nextLessonType =
+      (lessonFields.lessonType as LessonEntity['lessonType'] | undefined) ??
+      before.lessonType;
+    if (nextLessonType === 'trial') {
+      Object.assign(lessonFields, {
+        lessonType: 'trial',
+        groupId: null,
+        primaryStudentId: null,
+        primaryTutorStudentId: null,
+        primaryTeacherStudentContactId: null,
+      });
+    }
 
     // Rolling weekly series: moving one occurrence must leave an exception on the
     // original series weekday so cron never recreates that date.
@@ -1743,8 +1869,9 @@ export class LessonsService {
       !lesson.groupId &&
       !!lesson.primaryTeacherStudentContactId;
     const isGroup = !!lesson.groupId;
+    const isTrial = lesson.lessonType === 'trial';
 
-    if (!isCrmIndividual && !isContactIndividual && !isGroup) {
+    if (!isCrmIndividual && !isContactIndividual && !isGroup && !isTrial) {
       return null;
     }
 
@@ -2527,6 +2654,10 @@ export class LessonsService {
     dto: CreateLessonDto,
     manager: EntityManager,
   ): Promise<string[]> {
+    if (dto.lessonType === 'trial') {
+      return [];
+    }
+
     if (dto.groupId) {
       const members = await manager.getRepository(GroupMemberEntity).find({
         where: { groupId: dto.groupId },

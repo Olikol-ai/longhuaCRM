@@ -18,11 +18,15 @@ describe('Student registration without referral', () => {
     );
   });
 
-  it('admin Students tab exposes awaiting teacher assignment filter', () => {
+  it('admin user registry supports unassigned student filter via API param', () => {
+    const apiClient = readFileSync(join(root, 'src/api/users.api.js'), 'utf8');
     const page = readFileSync(join(root, 'src/pages/UserManagement.jsx'), 'utf8');
-    assert.match(page, /Ожидают назначения преподавателя/);
-    assert.match(page, /pending_assignment/);
-    assert.match(page, /students-filter-pending-assignment/);
+    assert.match(apiClient, /registry\(/);
+    assert.match(apiClient, /\/users\/registry/);
+    assert.match(page, /assignedTeacherId/);
+    assert.match(page, /Без преподавателя/);
+    assert.doesNotMatch(page, /id:\s*"students"/);
+    assert.doesNotMatch(page, /Ожидают назначения преподавателя/);
   });
 
   it('student profile sync clears orphan teacher without invite', () => {

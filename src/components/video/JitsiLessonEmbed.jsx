@@ -13,6 +13,7 @@ import {
   resizeJitsiEmbed,
 } from '@/lib/lesson-video';
 import {
+  isAuthVideoError,
   isTransientVideoError,
   videoDiag,
   videoDiagError,
@@ -25,6 +26,10 @@ import {
  *
  * Conference identity (domain + room) mounts once. JWT / displayName / subject
  * updates must NOT dispose+recreate the iframe (that was breaking the UI).
+ *
+ * Temporary disconnect ≠ leave. Only markIntentionalLeave()/hangup from CRM
+ * may call onLeft → endSession. Unexpected videoConferenceLeft triggers
+ * onUnexpectedLeave for soft remount while CRM session stays alive.
  *
  * On unmount every listener, timer and ResizeObserver must be cleared so
  * hangup/leave never leaks WebRTC callbacks into a disposed conference.
@@ -41,7 +46,10 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     crmUserId = null,
     crmEmail = null,
     crmTheme = 'light',
+    /** True after this CRM session already reached connected at least once. */
+    recoveryMode = false,
     onLeft,
+    onUnexpectedLeave,
     onJoined,
     onError,
     onAudioMuteChanged,
@@ -52,19 +60,24 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     onScreenSharingChanged,
     onLinkQualityChanged,
     onAudioUnlockNeeded,
+    onEndpointTextMessage,
   },
   ref,
 ) {
   const containerRef = useRef(null);
   const apiRef = useRef(null);
   const joinedOnceRef = useRef(false);
+  const intentionalLeaveRef = useRef(false);
+  const effectGenRef = useRef(0);
   const bootJwtRef = useRef(jwt);
   const displayNameRef = useRef(displayName);
   const subjectRef = useRef(subject);
   const crmUserIdRef = useRef(crmUserId);
   const crmEmailRef = useRef(crmEmail);
   const crmThemeRef = useRef(crmTheme === 'dark' ? 'dark' : 'light');
+  const recoveryModeRef = useRef(Boolean(recoveryMode));
   const onLeftRef = useRef(onLeft);
+  const onUnexpectedLeaveRef = useRef(onUnexpectedLeave);
   const onJoinedRef = useRef(onJoined);
   const onErrorRef = useRef(onError);
   const onAudioMuteChangedRef = useRef(onAudioMuteChanged);
@@ -75,6 +88,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
   const onScreenSharingChangedRef = useRef(onScreenSharingChanged);
   const onLinkQualityChangedRef = useRef(onLinkQualityChanged);
   const onAudioUnlockNeededRef = useRef(onAudioUnlockNeeded);
+  const onEndpointTextMessageRef = useRef(onEndpointTextMessage);
   /** @type {React.MutableRefObject<Map<string, object>>} */
   const presenceMapRef = useRef(new Map());
   const [booting, setBooting] = useState(true);
@@ -86,7 +100,9 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     crmUserIdRef.current = crmUserId;
     crmEmailRef.current = crmEmail;
     crmThemeRef.current = crmTheme === 'dark' ? 'dark' : 'light';
+    recoveryModeRef.current = Boolean(recoveryMode);
     onLeftRef.current = onLeft;
+    onUnexpectedLeaveRef.current = onUnexpectedLeave;
     onJoinedRef.current = onJoined;
     onErrorRef.current = onError;
     onAudioMuteChangedRef.current = onAudioMuteChanged;
@@ -97,13 +113,17 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     onScreenSharingChangedRef.current = onScreenSharingChanged;
     onLinkQualityChangedRef.current = onLinkQualityChanged;
     onAudioUnlockNeededRef.current = onAudioUnlockNeeded;
+    onEndpointTextMessageRef.current = onEndpointTextMessage;
+    if (jwt) bootJwtRef.current = jwt;
   }, [
     displayName,
     subject,
     crmUserId,
     crmEmail,
     crmTheme,
+    recoveryMode,
     onLeft,
+    onUnexpectedLeave,
     onJoined,
     onError,
     onAudioMuteChanged,
@@ -114,6 +134,8 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     onScreenSharingChanged,
     onLinkQualityChanged,
     onAudioUnlockNeeded,
+    onEndpointTextMessage,
+    jwt,
   ]);
 
   useEffect(() => {
@@ -128,14 +150,82 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
   }, [displayName, subject]);
 
   useImperativeHandle(ref, () => ({
+    markIntentionalLeave: () => {
+      intentionalLeaveRef.current = true;
+    },
     executeCommand: (command, ...args) => {
       try {
+        if (command === 'hangup') {
+          intentionalLeaveRef.current = true;
+        }
+        if (
+          command === 'toggleAudio' ||
+          command === 'toggleVideo' ||
+          command === 'toggleShareScreen' ||
+          command === 'setAudioMute' ||
+          command === 'setVideoMute'
+        ) {
+          const api = apiRef.current;
+          videoDiag('jitsi_command', {
+            command,
+            args: args.length ? args.slice(0, 2) : undefined,
+            beforeAudioMuted:
+              typeof api?.isAudioMuted === 'function' ? api.isAudioMuted() : null,
+            beforeVideoMuted:
+              typeof api?.isVideoMuted === 'function' ? api.isVideoMuted() : null,
+            localId: api?.getMyUserId?.() || null,
+            source: 'crm_shell',
+          });
+        }
         apiRef.current?.executeCommand?.(command, ...args);
-      } catch {
-        // ignore
+        // One-shot sync after share toggle — events can lag behind the picker.
+        if (command === 'toggleShareScreen') {
+          const api = apiRef.current;
+          window.setTimeout(() => {
+            void (async () => {
+              try {
+                const sharing = await api?.isSharingScreen?.();
+                if (typeof sharing === 'boolean') {
+                  videoDiag('screen_share_sync', {
+                    on: sharing,
+                    source: 'isSharingScreen_after_toggle',
+                  });
+                  onScreenSharingChangedRef.current?.(sharing, {
+                    isLocal: true,
+                    source: 'isSharingScreen_after_toggle',
+                  });
+                  const localId = api?.getMyUserId?.();
+                  if (localId) {
+                    // presence patch happens inside listener path; keep map in sync
+                    const existing = presenceMapRef.current.get(localId);
+                    if (existing) {
+                      presenceMapRef.current.set(localId, {
+                        ...existing,
+                        screenSharing: sharing,
+                      });
+                    }
+                  }
+                }
+              } catch (err) {
+                videoDiagWarn('screen_share_sync_failed', {
+                  message: err?.message || String(err),
+                });
+              }
+            })();
+          }, 600);
+        }
+      } catch (err) {
+        videoDiagError('jitsi_command_failed', {
+          command,
+          message: err?.message || String(err),
+        });
       }
     },
     dispose: () => {
+      videoDiag('jitsi_api_dispose', {
+        source: 'imperative_dispose',
+        room: roomName || null,
+      });
       try {
         apiRef.current?.dispose?.();
       } catch {
@@ -198,16 +288,25 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
 
   useEffect(() => {
     let cancelled = false;
+    const generation = ++effectGenRef.current;
     let bootTimeout = null;
     let syncInterval = null;
+    let mediaProbeTimer = null;
+    let participantSyncTimer = null;
     /** @type {Array<[string, Function]>} */
     const boundListeners = [];
     joinedOnceRef.current = false;
+    intentionalLeaveRef.current = false;
     presenceMapRef.current = new Map();
     setBooting(true);
-    onConnectionStatusRef.current?.('connecting');
+    onConnectionStatusRef.current?.(
+      recoveryModeRef.current ? 'reconnecting' : 'connecting',
+    );
     onPresenceChangeRef.current?.([]);
     onLinkQualityChangedRef.current?.('unknown', null);
+
+    const stillCurrent = () =>
+      !cancelled && effectGenRef.current === generation;
 
     const host = domain || parseJitsiDomain(roomUrl);
     const name = roomName || '';
@@ -217,6 +316,8 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
       host,
       room: name,
       hasJwt: Boolean(bootJwt),
+      generation,
+      recoveryMode: recoveryModeRef.current,
     });
 
     if (!host || !name || !containerRef.current) return undefined;
@@ -289,6 +390,14 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
         };
 
         const api = new JitsiMeetExternalAPI(host, options);
+        videoDiag('jitsi_api_created', {
+          host,
+          room: name,
+          crmUserId: crmUserIdRef.current || null,
+          startWithAudioMuted: true,
+          startWithVideoMuted: true,
+          ignoreStartMuted: true,
+        });
         if (cancelled) {
           try {
             api.dispose?.();
@@ -597,21 +706,46 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
         };
 
         const reportLeave = (reason = 'left') => {
-          videoDiag('conference_left', { reason, joined: joinedOnceRef.current });
-          if (!joinedOnceRef.current) return;
-          onConnectionStatusRef.current?.('idle');
-          onLinkQualityChangedRef.current?.('unknown', null);
-          onLeftRef.current?.();
+          if (!stillCurrent()) return;
+          const intentional = intentionalLeaveRef.current;
+          videoDiag('conference_left', {
+            reason,
+            joined: joinedOnceRef.current,
+            intentional,
+            recoveryMode: recoveryModeRef.current,
+            generation,
+          });
+          if (!joinedOnceRef.current && !recoveryModeRef.current) return;
+
+          if (intentional) {
+            onConnectionStatusRef.current?.('left');
+            onLinkQualityChangedRef.current?.('unknown', null);
+            onLeftRef.current?.({ intentional: true, reason });
+            return;
+          }
+
+          // Temporary drop / bridge failure — keep CRM session, soft remount.
+          onConnectionStatusRef.current?.('interrupted');
+          onLinkQualityChangedRef.current?.('lost', 0);
+          onConnectionStatusRef.current?.('reconnecting');
+          onUnexpectedLeaveRef.current?.({ reason, generation });
         };
 
         /**
-         * Fatal → notify parent to end/remount.
-         * Transient network flaps → soft reconnect UI only (Jitsi recovers itself).
+         * Soft network flaps → interrupted/reconnecting (never endSession).
+         * Auth → parent remounts with fresh JWT.
+         * Boot failures while recovering → soft remount path, not endSession.
          */
         const reportError = (err, source = 'error') => {
-          if (cancelled) return;
+          if (!stillCurrent()) return;
           const mapped = mapVideoConferenceError(err);
-          const transient = isTransientVideoError(err) && joinedOnceRef.current;
+          const authLike = isAuthVideoError(err) || mapped.code === 'auth';
+          const hadLiveSession =
+            joinedOnceRef.current || recoveryModeRef.current;
+          const transient =
+            (isTransientVideoError(err) && hadLiveSession) ||
+            (hadLiveSession && !authLike && !isMediaPermissionLike(err));
+
           const stack =
             err instanceof Error
               ? err.stack
@@ -619,7 +753,28 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
                 ? String(err.stack)
                 : undefined;
 
-          if (transient) {
+          if (authLike && hadLiveSession) {
+            videoDiagWarn('conference_error_auth', {
+              source,
+              code: mapped.code,
+              message: mapped.description,
+            });
+            setBooting(false);
+            onConnectionStatusRef.current?.('reconnecting');
+            onErrorRef.current?.(
+              Object.assign(new Error(mapped.description), {
+                title: mapped.title,
+                code: mapped.code || 'auth',
+                fatal: false,
+                transient: false,
+                auth: true,
+                source,
+              }),
+            );
+            return;
+          }
+
+          if (transient || (hadLiveSession && source !== 'missing_jwt')) {
             videoDiagWarn('conference_error_transient', {
               source,
               code: mapped.code,
@@ -663,22 +818,56 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
             Object.assign(new Error(mapped.description), {
               title: mapped.title,
               code: mapped.code,
-              fatal: true,
+              fatal: false,
               transient: false,
               source,
             }),
           );
         };
 
+        function isMediaPermissionLike(raw) {
+          const text = String(
+            typeof raw === 'string'
+              ? raw
+              : raw?.message || raw?.error || raw?.code || '',
+          ).toLowerCase();
+          return (
+            text.includes('not-allowed') ||
+            text.includes('permission') ||
+            text.includes('denied') ||
+            text.includes('getusermedia')
+          );
+        }
+
         listen(api, 'videoConferenceJoined', (e) => {
+          if (!stillCurrent()) return;
           joinedOnceRef.current = true;
           setBooting(false);
           onConnectionStatusRef.current?.('connected');
+          const joinedLocalId = e?.id || api.getMyUserId?.();
+          let joinedAudioMuted = null;
+          let joinedVideoMuted = null;
+          try {
+            joinedAudioMuted =
+              typeof api.isAudioMuted === 'function' ? api.isAudioMuted() : null;
+          } catch {
+            // ignore
+          }
+          try {
+            joinedVideoMuted =
+              typeof api.isVideoMuted === 'function' ? api.isVideoMuted() : null;
+          } catch {
+            // ignore
+          }
           videoDiag('conference_joined', {
-            participantId: e?.id || api.getMyUserId?.() || null,
+            participantId: joinedLocalId || null,
             room: name,
             crmUserId: crmUserIdRef.current || null,
             p2pEnabled: true,
+            audioMuted: joinedAudioMuted,
+            videoMuted: joinedVideoMuted,
+            recoveryMode: recoveryModeRef.current,
+            generation,
           });
           resizeJitsiEmbed(api, containerRef.current, {
             crmTheme: crmThemeRef.current,
@@ -690,7 +879,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           } catch {
             // ignore
           }
-          const localId = e?.id || api.getMyUserId?.();
+          const localId = joinedLocalId;
           const localExtras = {
             crmUserId: crmUserIdRef.current || null,
             email: crmEmailRef.current || null,
@@ -715,6 +904,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
             } catch {
               // older Jitsi builds may not support participant properties
             }
+            collapsePresenceByCrmUser(localId);
           }
           // Sync mute flags from Jitsi (source of truth for local mic).
           try {
@@ -741,8 +931,8 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           onAudioUnlockNeededRef.current?.(true);
           syncParticipants();
           // Prove media path: after remotes join, connectionQuality must leave 0.
-          window.setTimeout(() => {
-            if (cancelled || !joinedOnceRef.current) return;
+          mediaProbeTimer = window.setTimeout(() => {
+            if (!stillCurrent() || !joinedOnceRef.current) return;
             const online = Array.from(presenceMapRef.current.values()).filter(
               (r) => r.online,
             );
@@ -796,39 +986,154 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
         });
         listen(api, 'audioMuteStatusChanged', (e) => {
           const muted = Boolean(e?.muted);
-          onAudioMuteChangedRef.current?.(muted);
-          const pid = e?.id || e?.participantId || api.getMyUserId?.();
-          patchPresence(pid, { audioMuted: muted });
+          const localId = api.getMyUserId?.();
+          const pid = e?.id || e?.participantId || localId;
+          const isLocal =
+            !e?.id && !e?.participantId
+              ? true
+              : pid === localId || e?.id === localId;
+          videoDiag('audio_mute_changed', {
+            muted,
+            isLocal,
+            participantId: pid || null,
+            localId: localId || null,
+            source: isLocal ? 'jitsi_local_event' : 'jitsi_remote_event',
+          });
+          // Drive CRM dock ONLY from local mute — remote events must not flip our mic.
+          if (isLocal) {
+            onAudioMuteChangedRef.current?.(muted);
+          }
+          if (pid) patchPresence(pid, { audioMuted: muted });
         });
         listen(api, 'videoMuteStatusChanged', (e) => {
           const muted = Boolean(e?.muted);
-          videoMutedRef.current = muted;
-          onVideoMuteChangedRef.current?.(muted);
-          const pid = e?.id || e?.participantId || api.getMyUserId?.();
-          patchPresence(pid, { videoMuted: muted });
+          const localId = api.getMyUserId?.();
+          const pid = e?.id || e?.participantId || localId;
+          const isLocal =
+            !e?.id && !e?.participantId
+              ? true
+              : pid === localId || e?.id === localId;
+          videoDiag('video_mute_changed', {
+            muted,
+            isLocal,
+            participantId: pid || null,
+            localId: localId || null,
+            source: isLocal ? 'jitsi_local_event' : 'jitsi_remote_event',
+          });
+          if (isLocal) {
+            videoMutedRef.current = muted;
+            onVideoMuteChangedRef.current?.(muted);
+          }
+          if (pid) patchPresence(pid, { videoMuted: muted });
         });
         listen(api, 'screenSharingStatusChanged', (e) => {
-          const on = Boolean(e?.on);
+          const on = Boolean(
+            e?.on ?? e?.sharing ?? e?.enabled ?? e?.isSharing,
+          );
           const details = e?.details || e?.data || {};
           const sourceType =
             details.sourceType ||
             details.desktopSharingSourceType ||
             e?.sourceType ||
             null;
-          videoDiag('screen_share', { on, sourceType });
+          const localId = api.getMyUserId?.();
+          const eventId = e?.id ?? e?.participantId ?? null;
+          // External API docs: this event is for the local user; id may be absent.
+          const isLocal = !eventId || eventId === localId;
+          videoDiag('screen_share', {
+            on,
+            sourceType,
+            isLocal,
+            participantId: eventId || localId || null,
+            localId: localId || null,
+            localAudioMuted:
+              typeof api.isAudioMuted === 'function' ? api.isAudioMuted() : null,
+            localVideoMuted:
+              typeof api.isVideoMuted === 'function' ? api.isVideoMuted() : null,
+            rawKeys: e && typeof e === 'object' ? Object.keys(e) : [],
+          });
           onScreenSharingChangedRef.current?.(on, {
             sourceType,
             details,
+            isLocal,
+            participantId: eventId || localId || null,
           });
-          const pid = e?.id || e?.participantId || api.getMyUserId?.();
-          patchPresence(pid, { screenSharing: on });
+          const pid = eventId || (isLocal ? localId : null);
+          if (pid) patchPresence(pid, { screenSharing: on });
           if (on) {
             try {
               api.executeCommand('setTileView', false);
             } catch {
               // ignore
             }
+            // Ensure remote desktop track is on the stage (not a black/empty tile).
+            if (!isLocal && pid) {
+              try {
+                api.executeCommand('pinParticipant', pid);
+                api.executeCommand('setLargeVideoParticipant', pid);
+                videoDiag('screen_share_pin_remote', { participantId: pid });
+              } catch (err) {
+                videoDiagWarn('screen_share_pin_failed', {
+                  participantId: pid,
+                  message: err?.message || String(err),
+                });
+              }
+            }
           }
+        });
+        listen(api, 'contentSharingParticipantsChanged', (e) => {
+          const list = Array.isArray(e)
+            ? e
+            : Array.isArray(e?.data)
+              ? e.data
+              : Array.isArray(e?.participantIds)
+                ? e.participantIds
+                : [];
+          const localId = api.getMyUserId?.();
+          const ids = list
+            .map((row) =>
+              typeof row === 'string'
+                ? row
+                : row?.id || row?.participantId || null,
+            )
+            .filter(Boolean);
+          videoDiag('content_sharing_participants', {
+            ids,
+            localId: localId || null,
+          });
+          // Remote presence only — do not infer local dock state from this roster
+          // (incomplete lists briefly omit the local id and would flip the button).
+          for (const [pid, row] of presenceMapRef.current.entries()) {
+            if (!row.online || pid === localId) continue;
+            const sharing = ids.includes(pid);
+            if (Boolean(row.screenSharing) !== sharing) {
+              patchPresence(pid, { screenSharing: sharing });
+              if (sharing) {
+                try {
+                  api.executeCommand('setTileView', false);
+                  api.executeCommand('pinParticipant', pid);
+                  api.executeCommand('setLargeVideoParticipant', pid);
+                } catch {
+                  // ignore
+                }
+              }
+            }
+          }
+          // Local dock: confirm with External API (source of truth for "am I sharing?").
+          void (async () => {
+            try {
+              const sharing = await api.isSharingScreen?.();
+              if (typeof sharing !== 'boolean') return;
+              onScreenSharingChangedRef.current?.(sharing, {
+                isLocal: true,
+                source: 'contentSharingParticipantsChanged+isSharingScreen',
+                participantId: localId || null,
+              });
+              if (localId) patchPresence(localId, { screenSharing: sharing });
+            } catch {
+              // ignore
+            }
+          })();
         });
         listen(api, 'raiseHandUpdated', (e) => {
           const pid = e?.id || e?.participantId;
@@ -839,7 +1144,30 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
             Number(e?.handRaised) > 0;
           patchPresence(pid, { handRaised: raised });
         });
+        listen(api, 'endpointTextMessageReceived', (e) => {
+          const senderId =
+            e?.senderInfo?.id ||
+            e?.from ||
+            e?.senderId ||
+            e?.participantId ||
+            null;
+          const text =
+            e?.eventData?.text ||
+            e?.data?.text ||
+            e?.text ||
+            (typeof e?.data === 'string' ? e.data : null);
+          videoDiag('endpoint_text_message', {
+            senderId,
+            textPreview: String(text || '').slice(0, 80),
+          });
+          onEndpointTextMessageRef.current?.({
+            senderId,
+            text,
+            raw: e,
+          });
+        });
         listen(api, 'participantJoined', (e) => {
+          if (!stillCurrent()) return;
           const pid = e?.id;
           const extras = extractIdentityExtras(e || {});
           videoDiag('participant_joined', {
@@ -854,12 +1182,13 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           });
           markOnline(pid, e?.displayName, extras);
           // Re-read roster so jwt/email identity lands ASAP (dedupe reconnects).
-          window.setTimeout(() => {
-            if (!cancelled) syncParticipants();
+          participantSyncTimer = window.setTimeout(() => {
+            if (stillCurrent()) syncParticipants();
           }, 250);
           syncParticipants();
         });
         listen(api, 'participantLeft', (e) => {
+          if (!stillCurrent()) return;
           videoDiag('participant_left', {
             id: e?.id || null,
             room: name,
@@ -874,6 +1203,7 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           syncParticipants();
         });
         listen(api, 'participantPropertyChanged', (e) => {
+          if (!stillCurrent()) return;
           const pid = e?.id || e?.participantId;
           if (!pid) return;
           const key = e?.property || e?.key;
@@ -885,12 +1215,15 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
               room: name,
             });
             patchPresence(pid, { crmUserId: String(value) });
+            collapsePresenceByCrmUser(pid);
           }
           if (key === 'crmEmail' && value) {
             patchPresence(pid, { email: String(value).toLowerCase() });
+            collapsePresenceByCrmUser(pid);
           }
         });
         listen(api, 'displayNameChange', (e) => {
+          if (!stillCurrent()) return;
           const pid = e?.id;
           if (!pid) return;
           const existing = presenceMapRef.current.get(pid);
@@ -903,11 +1236,14 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           });
         });
         listen(api, 'connectionInterrupted', () => {
+          if (!stillCurrent()) return;
           videoDiagWarn('connection_interrupted', {
             room: name,
             visibility: document.visibilityState,
             online: navigator.onLine,
+            generation,
           });
+          onConnectionStatusRef.current?.('interrupted');
           onConnectionStatusRef.current?.('reconnecting');
           onLinkQualityChangedRef.current?.('lost', 0);
           const localId = api.getMyUserId?.();
@@ -920,9 +1256,11 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           }
         });
         listen(api, 'connectionRestored', () => {
+          if (!stillCurrent()) return;
           videoDiag('connection_restored', {
             room: name,
             visibility: document.visibilityState,
+            generation,
           });
           onConnectionStatusRef.current?.(
             joinedOnceRef.current ? 'connected' : 'connecting',
@@ -931,8 +1269,12 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           if (localId) {
             patchPresence(localId, { reconnecting: false });
           }
+          // Remote tracks often need a user-gesture unlock after ICE restore.
+          onAudioUnlockNeededRef.current?.(true);
+          syncParticipants();
         });
         listen(api, 'connectionQualityChanged', (e) => {
+          if (!stillCurrent()) return;
           const score = Number(e?.connectionQuality);
           const quality = mapLinkQualityScore(score);
           const localId = api.getMyUserId?.();
@@ -951,13 +1293,17 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
           if (isLocal) {
             onLinkQualityChangedRef.current?.(quality, score);
             if (quality === 'lost') {
+              onConnectionStatusRef.current?.('interrupted');
               onConnectionStatusRef.current?.('reconnecting');
             } else if (quality === 'poor' || quality === 'fair') {
               onConnectionStatusRef.current?.('degraded');
+            } else if (joinedOnceRef.current && (quality === 'good' || quality === 'excellent')) {
+              onConnectionStatusRef.current?.('connected');
             }
           }
         });
         listen(api, 'participantConnectionStatusChanged', (e) => {
+          if (!stillCurrent()) return;
           const pid = e?.id || e?.participantId;
           if (!pid) return;
           const status = String(e?.connectionStatus || e?.status || '').toLowerCase();
@@ -976,13 +1322,13 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
 
         applyIdentity();
         syncInterval = window.setInterval(() => {
-          if (!cancelled && joinedOnceRef.current) syncParticipants();
+          if (stillCurrent() && joinedOnceRef.current) syncParticipants();
         }, 5000);
         bootTimeout = window.setTimeout(() => {
-          if (!cancelled) setBooting(false);
+          if (stillCurrent()) setBooting(false);
         }, 12_000);
       } catch (err) {
-        if (!cancelled) {
+        if (stillCurrent()) {
           setBooting(false);
           onConnectionStatusRef.current?.('failed');
           onErrorRef.current?.(err);
@@ -994,14 +1340,24 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
       cancelled = true;
       if (bootTimeout) window.clearTimeout(bootTimeout);
       if (syncInterval) window.clearInterval(syncInterval);
+      if (mediaProbeTimer) window.clearTimeout(mediaProbeTimer);
+      if (participantSyncTimer) window.clearTimeout(participantSyncTimer);
       const api = apiRef.current;
+      videoDiag('jitsi_api_dispose', {
+        source: 'effect_cleanup',
+        room: name,
+        joined: joinedOnceRef.current,
+        generation,
+      });
       detachAll(api);
       try {
         api?.dispose?.();
       } catch {
         // ignore
       }
-      apiRef.current = null;
+      if (effectGenRef.current === generation) {
+        apiRef.current = null;
+      }
       presenceMapRef.current = new Map();
       onPresenceChangeRef.current?.([]);
       onParticipantCountRef.current?.(0);
@@ -1059,6 +1415,60 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     }
   }, [crmTheme]);
 
+  // Temporary: accept iframe getStats summaries (plugin.head.html telemetry).
+  // Mute icons are explicitly NOT treated as proof of media.
+  useEffect(() => {
+    const onMessage = (event) => {
+      const data = event?.data;
+      if (!data || data.source !== 'longhua-jitsi-media-telemetry') return;
+      const payload = data.payload || {};
+      const classification = payload.classification || {};
+      videoDiag('media_path_rtp', {
+        classification: classification.likelyCase || null,
+        localAudioSending: classification.localAudioSending ?? null,
+        localVideoSending: classification.localVideoSending ?? null,
+        remoteAudioReceiving: classification.remoteAudioReceiving ?? null,
+        remoteVideoReceiving: classification.remoteVideoReceiving ?? null,
+        iceConnected: classification.iceConnected ?? null,
+        iceFailed: classification.iceFailed ?? null,
+        pcCount: Array.isArray(payload.peerConnections)
+          ? payload.peerConnections.length
+          : 0,
+        iceStates: Array.isArray(payload.peerConnections)
+          ? payload.peerConnections.map((p) => p?.iceConnectionState || null)
+          : [],
+        outboundAudioPackets:
+          payload.peerConnections?.[0]?.outbound?.audio?.packetsSent ?? null,
+        outboundVideoPackets:
+          payload.peerConnections?.[0]?.outbound?.video?.packetsSent ?? null,
+        inboundAudioPackets:
+          payload.peerConnections?.[0]?.inbound?.audio?.packetsReceived ?? null,
+        inboundVideoPackets:
+          payload.peerConnections?.[0]?.inbound?.video?.packetsReceived ?? null,
+        selectedLocalCandidateType:
+          payload.peerConnections?.[0]?.localCandidate?.type ?? null,
+        selectedRemoteCandidateType:
+          payload.peerConnections?.[0]?.remoteCandidate?.type ?? null,
+        note: 'RTP/ICE evidence — not mute-icon state',
+      });
+      if (
+        classification.localAudioSending &&
+        classification.localVideoSending &&
+        !classification.remoteAudioReceiving &&
+        !classification.remoteVideoReceiving
+      ) {
+        videoDiagError('media_path_one_way_or_dead_remote', {
+          classification: classification.likelyCase || null,
+          iceFailed: classification.iceFailed ?? null,
+          iceConnected: classification.iceConnected ?? null,
+        });
+        onConnectionStatusRef.current?.('degraded');
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
   // Visibility / network soft recovery — never remount the conference.
   useEffect(() => {
     let onlineTimer = null;
@@ -1074,18 +1484,21 @@ const JitsiLessonEmbed = forwardRef(function JitsiLessonEmbed(
     const onOnline = () => {
       if (!joinedOnceRef.current) return;
       videoDiagWarn('browser_online', { joined: true });
+      onConnectionStatusRef.current?.('interrupted');
       onConnectionStatusRef.current?.('reconnecting');
       onLinkQualityChangedRef.current?.('fair', null);
       if (onlineTimer) window.clearTimeout(onlineTimer);
       onlineTimer = window.setTimeout(() => {
         if (joinedOnceRef.current) {
           onConnectionStatusRef.current?.('connected');
+          onAudioUnlockNeededRef.current?.(true);
         }
       }, 1200);
     };
     const onOffline = () => {
       if (!joinedOnceRef.current) return;
       videoDiagWarn('browser_offline', { joined: true });
+      onConnectionStatusRef.current?.('interrupted');
       onConnectionStatusRef.current?.('reconnecting');
       onLinkQualityChangedRef.current?.('lost', 0);
     };

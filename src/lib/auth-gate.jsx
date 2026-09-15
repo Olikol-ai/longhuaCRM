@@ -1,7 +1,7 @@
 import { getToken } from '@/api';
 import { PageLoading } from '@/design-system';
 
-const VALID_DASHBOARD_ROLES = new Set(['admin', 'teacher', 'tutor', 'student', 'tutor_student']);
+const VALID_DASHBOARD_ROLES = new Set(['admin', 'teacher', 'tutor', 'student', 'tutor_student', 'sales_manager']);
 
 export function AuthLoadingScreen() {
   return <PageLoading fullScreen label="Загрузка сессии" />;
@@ -18,7 +18,7 @@ export function hasPartialSessionState({ isAuthenticated, user }) {
   if (!token && isAuthenticated) return true;
   if (isAuthenticated && !user) return true;
   if (!isAuthenticated && user) return true;
-  if (isAuthenticated && user?.onboarding_state === 'active' && !isValidDashboardRole(user?.role)) {
+  if (isAuthenticated && user?.onboarding_state === 'active' && !isValidDashboardRole(user?.role) && user?.account_role !== 'user') {
     return true;
   }
   return false;

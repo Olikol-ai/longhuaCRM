@@ -1,1107 +1,689 @@
-import { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '@/api';
 import {
-  Users, GraduationCap, Shield, Trash2,
-  ChevronDown, Loader2, Plus, Pencil, Eye, CheckCircle2, BookOpen
-} from "lucide-react";
-import LessonBalanceDisplay from "@/components/students/LessonBalanceDisplay";
-import { Link } from "react-router-dom";
-import { createPageUrl } from "@/utils";
-import StudentFormDialog from "@/components/students/StudentFormDialog";
-import TeacherFormDialog from "@/components/teachers/TeacherFormDialog";
-import TeacherDetailModal from "@/components/teachers/TeacherDetailModal";
-import DeleteConfirmModal from "@/components/common/DeleteConfirmModal";
-import { Button, EmptyState, SearchField } from "@/design-system";
-import { toast } from "@/components/ui/use-toast";
+  Button,
+  EmptyState,
+  PageLoading,
+  SearchField,
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/design-system';
+import ExcelColumnFilter from '@/components/users/ExcelColumnFilter';
+import DateRangeColumnFilter from '@/components/users/DateRangeColumnFilter';
+import UserEditDialog from '@/components/users/UserEditDialog';
+import StudentMergeDialog from '@/components/users/StudentMergeDialog';
+import StudentFormDialog from '@/components/students/StudentFormDialog';
+import MobileFilterToolbar from '@/components/responsive/MobileFilterToolbar';
+import { MobileMultiSelect, MobileSelectField } from '@/components/responsive/MobileFilterFields';
+import MobileFilterChips from '@/components/responsive/MobileFilterChips';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
-  ALL_ROLE_OPTIONS,
-  ACCOUNT_FILTER_TABS,
+  buildRegistryQuery,
+  getUserDisplayName,
+  hasActiveFilters,
+  parseRegistryFilters,
+  serializeRegistryFilters,
+  toggleSort,
+} from '@/lib/user-registry.utils';
+import { userFacingError } from '@/lib/userFacingError';
+import { displayRole } from '@/lib/user-account-role';
+import { toast } from '@/components/ui/use-toast';
+import {
+  Loader2,
+  Trash2,
+  Users,
+  UserPlus,
+  ChevronUp,
+  ChevronDown,
+  ChevronRight,
+  MoreVertical,
+} from 'lucide-react';
+import {
+  PAGE_SIZE_OPTIONS,
+  REGISTRY_ROLE_OPTIONS,
+  REGISTRY_STATUS_OPTIONS,
+  ACCOUNT_STATUS_OPTIONS,
+  ACCOUNT_STATUS_LABEL,
   ROLE_CONFIG,
-  displayRole,
   showOrphanStudentsNotice,
-  visibleStudents,
-  visibleTeachers,
-  visibleTutors,
-} from "./userManagement.constants";
-import { resolveAssignedTeacherLabel } from "@/lib/teacherLabels";
-import { formatHourlyRateShort } from "@/lib/formatters";
-import { getRoleLabel } from "@/lib/locale-by";
+} from './userManagement.constants';
 
-const showOrphanNotice = (result) => showOrphanStudentsNotice(result, toast);
-
-function RoleBadge({ role }) {
+function RoleBadge({ user, role }) {
   const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.user;
   const Icon = cfg.icon;
+  const accountHint = user?.entry_type === 'student_profile'
+    ? ' · Без аккаунта'
+    : role === 'student' && user?.has_account
+      ? ' · Аккаунт'
+      : '';
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${cfg.bg} ${cfg.text}`}>
-      <Icon className="w-3 h-3" /> {cfg.label}
+      <Icon className="w-3 h-3" /> {cfg.label}{accountHint}
     </span>
   );
 }
 
-// Dropdown using portal so it never clips
-function RoleDropdown({ userId, currentRole, onChangeRole, disabled }) {
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
-  const btnRef = useRef(null);
-
-  const options = ALL_ROLE_OPTIONS.filter(r => r !== currentRole);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (e) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
-
-  const handleOpen = () => {
-    if (disabled) return;
-    const rect = btnRef.current.getBoundingClientRect();
-    const menuHeight = options.length * 44 + 8;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const top = spaceBelow >= menuHeight
-      ? rect.bottom + 4
-      : rect.top - menuHeight - 4;
-    const left = Math.min(rect.left, window.innerWidth - 180);
-    setPos({ top, left });
-    setOpen(true);
-  };
-
-  return (
-    <>
-      <button
-        type="button"
-        ref={btnRef}
-        onClick={handleOpen}
-        disabled={disabled}
-        className="flex items-center gap-1.5 min-h-touch px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted border border-border rounded-lg hover:bg-muted/80 transition-colors disabled:opacity-40"
-      >
-        Сменить роль <ChevronDown className="w-3 h-3" />
-      </button>
-
-      {open && createPortal(
-        <>
-          <div className="fixed inset-0 z-[100]" onClick={() => setOpen(false)} />
-          <div
-            className="fixed z-[101] bg-card rounded-xl shadow-xl border border-border overflow-hidden min-w-[180px]"
-            style={{ top: pos.top, left: pos.left }}
-          >
-            <div className="px-3 py-2 border-b border-border">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Выбрать роль</p>
-            </div>
-            {options.map(role => {
-              const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.user;
-              const Icon = cfg.icon;
-              return (
-                <button
-                  type="button"
-                  key={role}
-                  onClick={() => { onChangeRole(userId, role); setOpen(false); }}
-                  className="w-full flex items-center gap-3 min-h-touch px-3 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
-                >
-                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
-                  <Icon className="w-3.5 h-3.5 text-muted-foreground" />
-                  {cfg.label}
-                </button>
-              );
-            })}
-          </div>
-        </>,
-        document.body
-      )}
-    </>
-  );
+function StatusBadge({ user }) {
+  const key = user?.display_status || user?.account_status || user?.status;
+  const label = ACCOUNT_STATUS_LABEL[key]
+    || REGISTRY_STATUS_OPTIONS.find((s) => s.value === key)?.label
+    || key;
+  const cls = key === 'active_account' || key === 'active'
+    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+    : key === 'blocked'
+      ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+      : key === 'no_account'
+        ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300'
+        : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300';
+  return <span className={`inline-flex px-2 py-0.5 rounded-md text-xs font-semibold ${cls}`}>{label}</span>;
 }
 
-function ConfirmDeleteModal({ user, onConfirm, onCancel }) {
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === "Escape") onCancel();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel]);
+function formatContact(value) {
+  if (value == null || value === '') return '—';
+  return value;
+}
 
-  return createPortal(
-    <div
-      className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4"
-      onClick={onCancel}
-      role="presentation"
-    >
-      <div
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="user-delete-title"
-        className="bg-card rounded-2xl shadow-2xl max-w-sm w-full p-6 border border-border"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950/40 flex items-center justify-center mx-auto mb-4">
-          <Trash2 className="w-5 h-5 text-red-600" />
-        </div>
-        <h3 id="user-delete-title" className="text-base font-bold text-foreground text-center mb-1">Удалить пользователя?</h3>
+function formatLessonBalance(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  if (Number.isNaN(n)) return String(value);
+  return `${n} зан.`;
+}
+
+function SortIndicator({ active, dir }) {
+  if (!active) return null;
+  return dir === 'asc'
+    ? <ChevronUp className="w-3.5 h-3.5 inline" />
+    : <ChevronDown className="w-3.5 h-3.5 inline" />;
+}
+
+function draftFromFilters(filters) {
+  return {
+    roles: [...(filters.roles || [])],
+    accountStatuses: [...(filters.accountStatuses || [])],
+    statuses: [...(filters.statuses || [])],
+    assignedTeacherId: filters.assignedTeacherId || '',
+    createdFrom: filters.createdFrom || '',
+    createdTo: filters.createdTo || '',
+    datePreset: filters.datePreset || '',
+  };
+}
+
+function buildFilterChips(filters, teacherOptions) {
+  const chips = [];
+  for (const role of filters.roles || []) {
+    const label = REGISTRY_ROLE_OPTIONS.find((r) => r.value === role)?.label || role;
+    chips.push({ id: `role:${role}`, label: `Роль: ${label}` });
+  }
+  for (const status of filters.accountStatuses || []) {
+    const label = ACCOUNT_STATUS_OPTIONS.find((s) => s.value === status)?.label || status;
+    chips.push({ id: `accountStatus:${status}`, label: `Аккаунт: ${label}` });
+  }
+  for (const status of filters.statuses || []) {
+    const label = REGISTRY_STATUS_OPTIONS.find((s) => s.value === status)?.label || status;
+    chips.push({ id: `status:${status}`, label: `Статус: ${label}` });
+  }
+  if (filters.assignedTeacherId) {
+    const label = teacherOptions.find((t) => t.value === filters.assignedTeacherId)?.label
+      || filters.assignedTeacherId;
+    chips.push({ id: 'teacher', label: `Преподаватель: ${label}` });
+  }
+  if (filters.createdFrom || filters.createdTo) {
+    const from = filters.createdFrom
+      ? new Date(filters.createdFrom).toLocaleDateString('ru-RU')
+      : '…';
+    const to = filters.createdTo
+      ? new Date(filters.createdTo).toLocaleDateString('ru-RU')
+      : '…';
+    chips.push({ id: 'dates', label: `Дата: ${from} – ${to}` });
+  }
+  return chips;
+}
+
+function ConfirmDeleteModal({ user, onConfirm, onCancel, loading }) {
+  if (!user) return null;
+  const isPendingRegistration = user.entry_type === 'pending_registration';
+  const isStudentProfile = user.entry_type === 'student_profile';
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4" onClick={onCancel} role="presentation">
+      <div className="bg-card rounded-2xl shadow-2xl max-w-sm w-full p-6 border border-border" onClick={(e) => e.stopPropagation()} role="alertdialog">
+        <h3 className="text-base font-bold text-center mb-1">
+          {isPendingRegistration
+            ? 'Удалить незавершённую регистрацию?'
+            : isStudentProfile
+              ? 'Удалить ученика без аккаунта?'
+              : 'Удалить пользователя?'}
+        </h3>
         <p className="text-sm text-muted-foreground text-center mb-6">
-          <span className="font-semibold text-foreground">{
-            user.full_name
-              || (user.first_name && user.last_name
-                ? `${user.last_name} ${user.first_name}`
-                : user.email)
-          }</span> будет удалён безвозвратно.
+          <span className="font-semibold text-foreground">{getUserDisplayName(user)}</span>
+          {isPendingRegistration
+            ? ' будет удалена из реестра без создания аккаунта.'
+            : isStudentProfile
+              ? ' будет удалён вместе с операционными связями. История платежей сохранится.'
+              : ' будет удалён.'}
         </p>
         <div className="flex gap-3">
-          <Button type="button" intent="outline" className="flex-1" onClick={onCancel}>
-            Отмена
-          </Button>
-          <Button type="button" intent="danger" className="flex-1" onClick={onConfirm}>
-            Удалить
+          <Button type="button" intent="outline" className="flex-1 min-h-touch" onClick={onCancel} disabled={loading}>Отмена</Button>
+          <Button type="button" intent="danger" className="flex-1 min-h-touch" onClick={onConfirm} disabled={loading}>
+            {loading ? 'Удаление...' : 'Удалить'}
           </Button>
         </div>
       </div>
-    </div>,
-    document.body
-  );
-}
-
-// ─── Tab: Accounts ─────────────────────────────────────────────────────────────
-function AccountsTab({ entries, loading, onReload, onRoleChange }) {
-  const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");
-  const [updating, setUpdating] = useState(null);
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
-
-  const changeRole = async (userId, newRole) => {
-    setUpdating(userId);
-    try {
-      await onRoleChange(userId, newRole);
-    } finally {
-      setUpdating(null);
-    }
-  };
-
-  const deleteUser = async (u) => {
-    setUpdating(u.id);
-    setDeleteConfirm(null);
-    try {
-      const result = await api.users.delete(u.id);
-      showOrphanNotice(result);
-      await onReload();
-    } catch (err) {
-      alert(err?.message || "Не удалось удалить пользователя");
-    } finally {
-      setUpdating(null);
-    }
-  };
-
-  const FILTER_TABS = ACCOUNT_FILTER_TABS;
-  const activeFilter = FILTER_TABS.some((tab) => tab.value === roleFilter)
-    ? roleFilter
-    : "all";
-
-  const pendingCount = entries.filter((u) => displayRole(u.role) === "pending").length;
-
-  const getFullName = (entry) => {
-    // Prefer composed full_name / Student.name from directory API (SSOT).
-    if (entry.full_name) {
-      return entry.full_name;
-    }
-    if (entry.first_name && entry.last_name) {
-      return `${entry.last_name} ${entry.first_name}`;
-    }
-    return entry.email || 'Без имени';
-  };
-
-  const filtered = entries.filter((u) => {
-    const role = displayRole(u.role);
-    const matchRole = activeFilter === "all" || role === activeFilter;
-    const fullName = getFullName(u);
-    const matchSearch = !search ||
-      fullName.toLowerCase().includes(search.toLowerCase()) ||
-      (u.email || "").toLowerCase().includes(search.toLowerCase());
-    return matchRole && matchSearch;
-  });
-
-  return (
-    <div className="space-y-4">
-      {/* Filter pills: Все / Ожидают роли (entity lists live on top-level tabs) */}
-      <div className="flex flex-wrap gap-2">
-        {FILTER_TABS.map(tab => {
-          const count = tab.value === "all" ? entries.length : pendingCount;
-          const active = activeFilter === tab.value;
-          const cfg = tab.value === "pending" ? ROLE_CONFIG.pending : null;
-          return (
-            <button key={tab.value} type="button" onClick={() => setRoleFilter(tab.value)}
-              className={`flex items-center gap-2 min-h-touch px-3 py-1.5 rounded-lg text-sm font-medium transition-all border ${
-                active
-                  ? (cfg ? `${cfg.bg} ${cfg.text} border-transparent` : "bg-foreground text-background border-transparent")
-                  : "bg-card text-muted-foreground border-border hover:border-border"
-              }`}>
-              {tab.label}
-              <span className={`text-xs px-1.5 py-0.5 rounded-md font-bold ${active ? "bg-white/30 dark:bg-white/10" : "bg-muted text-muted-foreground"}`}>
-                {count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Search */}
-      <SearchField
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Поиск по имени или email..."
-        className="max-w-sm"
-        aria-label="Поиск по имени или email"
-      />
-
-      {/* Table */}
-      {loading ? (
-        <div className="flex justify-center py-16 bg-card rounded-2xl border border-border">
-          <Loader2 className="w-6 h-6 animate-spin text-brand" />
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="bg-card rounded-2xl border border-border">
-          <EmptyState preset="generic" title="Пользователи не найдены" icon={Users} />
-        </div>
-      ) : (
-        <>
-          {/* Mobile cards */}
-          <div className="lg:hidden space-y-3">
-            {filtered.map((u) => {
-              const role = displayRole(u.role);
-              const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.user;
-              const displayName = getFullName(u);
-              const initials = displayName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
-              const isUpd = updating === u.id;
-              const hasAccount = u.has_account !== false;
-              const rowKey = hasAccount ? u.id : `${u.entry_type}:${u.id}`;
-              return (
-                <div key={rowKey} className={`bg-card rounded-2xl border border-border p-4 ${isUpd ? "opacity-60" : ""}`}>
-                  <div className="flex items-start gap-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${cfg.bg} ${cfg.text}`}>
-                      {initials}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-foreground truncate">{displayName}</p>
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">{u.email || "—"}</p>
-                      {!hasAccount && (
-                        <p className="text-[11px] text-amber-600 font-medium mt-0.5">Профиль без аккаунта</p>
-                      )}
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <RoleBadge role={role} />
-                        {u.created_date && (
-                          <span className="text-[11px] text-muted-foreground">
-                            {new Date(u.created_date).toLocaleDateString("ru-RU")}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {isUpd && <Loader2 className="w-4 h-4 animate-spin text-brand flex-shrink-0" />}
-                  </div>
-                  <div className="mt-3 pt-3 border-t border-border flex flex-wrap items-center gap-2">
-                    {hasAccount ? (
-                      <>
-                        <RoleDropdown userId={u.id} currentRole={role} onChangeRole={changeRole} disabled={isUpd} />
-                        <button
-                          type="button"
-                          onClick={() => setDeleteConfirm(u)}
-                          disabled={isUpd}
-                          className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/50 disabled:opacity-40"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" /> Удалить
-                        </button>
-                      </>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Назначьте роль через регистрацию</span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Desktop table */}
-          <div className="hidden lg:block bg-card rounded-2xl border border-border overflow-x-auto">
-            <table className="w-full text-sm min-w-[640px]">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Пользователь</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Эл. почта</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Роль</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:table-cell">Дата</th>
-                  <th className="px-5 py-3.5 w-40"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((u) => {
-                  const role = displayRole(u.role);
-                  const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.user;
-                  const displayName = getFullName(u);
-                  const initials = displayName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
-                  const isUpd = updating === u.id;
-                  const hasAccount = u.has_account !== false;
-                  const rowKey = hasAccount ? u.id : `${u.entry_type}:${u.id}`;
-                  return (
-                    <tr key={rowKey} className={`border-b border-border last:border-0 ${isUpd ? "opacity-60" : "hover:bg-muted/50"} transition-colors`}>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${cfg.bg} ${cfg.text}`}>
-                            {initials}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-medium text-foreground truncate">{displayName}</p>
-                            {!hasAccount && (
-                              <p className="text-[11px] text-amber-600 font-medium mt-0.5">Профиль без аккаунта</p>
-                            )}
-                          </div>
-                          {isUpd && <Loader2 className="w-3.5 h-3.5 animate-spin text-brand flex-shrink-0" />}
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5 text-muted-foreground text-xs">{u.email || "—"}</td>
-                      <td className="px-5 py-3.5"><RoleBadge role={role} /></td>
-                      <td className="px-5 py-3.5 text-muted-foreground text-xs hidden lg:table-cell">
-                        {u.created_date ? new Date(u.created_date).toLocaleDateString("ru-RU") : "—"}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        {hasAccount ? (
-                          <div className="flex items-center justify-end gap-2">
-                            <RoleDropdown userId={u.id} currentRole={role} onChangeRole={changeRole} disabled={isUpd} />
-                            <button type="button" onClick={() => setDeleteConfirm(u)} disabled={isUpd}
-                              className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-400 rounded-lg transition-colors disabled:opacity-40">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">Назначьте роль через регистрацию</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {deleteConfirm && (
-        <ConfirmDeleteModal user={deleteConfirm} onConfirm={() => deleteUser(deleteConfirm)} onCancel={() => setDeleteConfirm(null)} />
-      )}
     </div>
   );
 }
 
-// ─── Tab: Students ─────────────────────────────────────────────────────────────
-function StudentsTab({ students, teachers, loading, onReload }) {
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all"); // all | pending_assignment | unassigned
-  const [showForm, setShowForm] = useState(false);
-  const [editStudent, setEditStudent] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
-
-  const STATUS_STYLE = {
-    active:   "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
-    inactive: "bg-muted text-muted-foreground border-border",
-    paused:   "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
-    pending_assignment: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800",
-  };
-  const STATUS_LABEL = {
-    active: "Активен",
-    inactive: "Неактивен",
-    paused: "Пауза",
-    pending_assignment: "Ожидает назначения",
-  };
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      const result = await api.students.delete(deleteTarget.id);
-      showOrphanNotice(result);
-      setDeleteTarget(null);
-      await onReload();
-    } catch (err) {
-      alert(err?.message || "Не удалось удалить ученика");
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const getTeacherName = (id) => resolveAssignedTeacherLabel(id, teachers);
-
-  const awaitingAssignment = students.filter(
-    (s) => s.status === "pending_assignment" || !s.assigned_teacher,
-  );
-
-  const filtered = students.filter((s) => {
-    const q = search.toLowerCase();
-    const matchesSearch =
-      (s.name || "").toLowerCase().includes(q) ||
-      (s.email || "").toLowerCase().includes(q);
-    if (!matchesSearch) return false;
-    if (filter === "pending_assignment") {
-      return s.status === "pending_assignment" || !s.assigned_teacher;
-    }
-    return true;
-  });
+function UserMobileCard({ user, onOpen, onDelete }) {
+  const role = displayRole(user);
+  const name = getUserDisplayName(user);
+  const roleLabel = ROLE_CONFIG[role]?.label || role;
+  const statusKey = user?.display_status || user?.account_status || user?.status;
+  const statusLabel = ACCOUNT_STATUS_LABEL[statusKey]
+    || REGISTRY_STATUS_OPTIONS.find((s) => s.value === statusKey)?.label
+    || statusKey
+    || '—';
+  const balanceLabel = formatLessonBalance(user.lesson_balance);
+  const canOpen = user.entry_type !== 'pending_registration';
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <SearchField
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Поиск учеников..."
-          className="flex-1 max-w-full sm:max-w-sm"
-          aria-label="Поиск учеников"
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setFilter("all")}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-              filter === "all"
-                ? "bg-brand-soft text-brand border-brand/30"
-                : "bg-card text-muted-foreground border-border"
-            }`}
-          >
-            Все
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilter("pending_assignment")}
-            data-testid="students-filter-pending-assignment"
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-              filter === "pending_assignment"
-                ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800"
-                : "bg-card text-muted-foreground border-border"
-            }`}
-          >
-            Ожидают назначения преподавателя
-            {awaitingAssignment.length > 0 ? ` (${awaitingAssignment.length})` : ""}
-          </button>
+    <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+      <button
+        type="button"
+        className="w-full text-left p-4 min-h-touch flex items-start gap-3"
+        onClick={() => canOpen && onOpen(user)}
+        disabled={!canOpen}
+      >
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <p className="text-base font-semibold text-foreground truncate">{name}</p>
+          <p className="text-sm text-muted-foreground">
+            {roleLabel}
+            <span className="mx-1.5 text-border">·</span>
+            {statusLabel}
+          </p>
+          {user.assigned_teacher_name ? (
+            <p className="text-sm text-muted-foreground truncate">
+              Преподаватель: {user.assigned_teacher_name}
+            </p>
+          ) : null}
+          {balanceLabel ? (
+            <p className="text-sm text-muted-foreground">Баланс: {balanceLabel}</p>
+          ) : null}
+          {user.email ? (
+            <p className="text-xs text-muted-foreground/80 truncate">{formatContact(user.email)}</p>
+          ) : null}
         </div>
-        <div className="flex items-center gap-3 justify-between sm:justify-end sm:ml-auto">
-          <span className="text-sm text-muted-foreground">{students.length} учеников</span>
-          <Button type="button" intent="primary" onClick={() => { setEditStudent(null); setShowForm(true); }}>
-            <Plus className="w-4 h-4" /> Добавить
-          </Button>
-        </div>
+        {canOpen ? (
+          <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground mt-1" aria-hidden />
+        ) : null}
+      </button>
+      <div className="flex items-center justify-end border-t border-border px-2 py-1">
+        <button
+          type="button"
+          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2.5 min-h-touch text-sm text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+          onClick={() => onDelete(user)}
+          aria-label={`Удалить ${name}`}
+        >
+          <MoreVertical className="h-4 w-4" aria-hidden />
+          <span>Удалить</span>
+        </button>
       </div>
-
-      {loading ? (
-        <div className="flex justify-center py-16 bg-card rounded-2xl border border-border">
-          <Loader2 className="w-6 h-6 animate-spin text-brand" />
-        </div>
-      ) : (
-        <>
-          <div className="lg:hidden space-y-3">
-            {filtered.length === 0 ? (
-              <div className="bg-card rounded-2xl border border-border">
-                <EmptyState preset="generic" title="Ученики не найдены" icon={Users} />
-              </div>
-            ) : filtered.map(s => (
-              <div key={s.id} className="bg-card rounded-2xl border border-border p-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-full bg-brand-soft dark:bg-brand-soft/40 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xs font-bold text-brand">{(s.name || "?")[0].toUpperCase()}</span>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-foreground truncate">{s.name}</p>
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">{s.email || "—"}</p>
-                    <p className="text-xs text-muted-foreground mt-1 truncate">Преподаватель: {getTeacherName(s.assigned_teacher)}</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-1 text-sm">
-                        Баланс: <LessonBalanceDisplay row={s} />
-                      </span>
-                      <span className={`inline-flex px-2 py-0.5 rounded-md text-xs font-semibold border ${STATUS_STYLE[s.status] || STATUS_STYLE.active}`}>
-                        {STATUS_LABEL[s.status] || "Активен"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-3 pt-3 border-t border-border flex flex-wrap gap-2">
-                  <Link to={createPageUrl("StudentDetail") + `?id=${s.id}`} className="flex-1 min-w-[7rem]">
-                    <button type="button" className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-brand bg-brand-soft dark:bg-brand-soft/40 rounded-lg hover:bg-brand-muted">
-                      <Eye className="w-3.5 h-3.5" /> Просмотр
-                    </button>
-                  </Link>
-                  <button type="button" onClick={() => { setEditStudent(s); setShowForm(true); }}
-                    className="flex-1 min-w-[7rem] inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-foreground bg-muted rounded-lg hover:bg-muted">
-                    <Pencil className="w-3.5 h-3.5" /> Изменить
-                  </button>
-                  <button type="button" onClick={() => setDeleteTarget(s)}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/50">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="hidden lg:block bg-card rounded-2xl border border-border overflow-x-auto">
-            <table className="w-full text-sm min-w-[720px]">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Имя</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Эл. почта</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Преподаватель</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Баланс</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Статус</th>
-                  <th className="px-5 py-3.5 w-28"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(s => (
-                  <tr key={s.id} className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors">
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-brand-soft dark:bg-brand-soft/40 flex items-center justify-center flex-shrink-0">
-                          <span className="text-xs font-bold text-brand">{(s.name || "?")[0].toUpperCase()}</span>
-                        </div>
-                        <span className="font-medium text-foreground">{s.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-muted-foreground text-xs">{s.email || "—"}</td>
-                    <td className="px-5 py-3.5 text-muted-foreground text-xs">{getTeacherName(s.assigned_teacher)}</td>
-                    <td className="px-5 py-3.5">
-                      <LessonBalanceDisplay row={s} />
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className={`inline-flex px-2 py-0.5 rounded-md text-xs font-semibold border ${STATUS_STYLE[s.status] || STATUS_STYLE.active}`}>
-                        {STATUS_LABEL[s.status] || "Активен"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center justify-end gap-1">
-                        <Link to={createPageUrl("StudentDetail") + `?id=${s.id}`}>
-                          <button type="button" className="p-2 text-muted-foreground hover:text-brand hover:bg-brand-soft dark:bg-brand-soft/40 rounded-lg transition-colors" title="Просмотр">
-                            <Eye className="w-4 h-4" />
-                          </button>
-                        </Link>
-                        <button type="button" onClick={() => { setEditStudent(s); setShowForm(true); }}
-                          className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors" title="Редактировать">
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button type="button" onClick={() => setDeleteTarget(s)}
-                          className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-400 rounded-lg transition-colors" title="Удалить">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filtered.length === 0 && (
-                  <tr><td colSpan={6} className="text-center py-12 text-muted-foreground">Ученики не найдены</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {deleteTarget && (
-        <DeleteConfirmModal
-          title="Удалить ученика"
-          description={`Вы уверены, что хотите удалить «${deleteTarget.name}»? Все уроки будут удалены.`}
-          onConfirm={handleDelete}
-          onCancel={() => setDeleteTarget(null)}
-          loading={deleting}
-        />
-      )}
-      <StudentFormDialog open={showForm} onOpenChange={setShowForm} student={editStudent} onSave={onReload} />
     </div>
   );
 }
-
-// ─── Tab: Teachers ─────────────────────────────────────────────────────────────
-function TeachersTab({ teachers, students, loading, onReload }) {
-  const [lessons, setLessons] = useState([]);
-  const [search, setSearch] = useState("");
-  const [showForm, setShowForm] = useState(false);
-  const [editTeacher, setEditTeacher] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
-  const [viewTeacher, setViewTeacher] = useState(null);
-
-  useEffect(() => {
-    api.lessons.list().then(setLessons).catch(() => setLessons([]));
-  }, [teachers]);
-
-  const hasActiveLessons = (id) => lessons.some(l => l.teacher_id === id && l.status === "planned");
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      const result = await api.teachers.delete(deleteTarget.id);
-      showOrphanNotice(result);
-      setDeleteTarget(null);
-      await onReload();
-    } catch (err) {
-      alert(err?.message || "Не удалось удалить преподавателя");
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const getStudentCount = (id) => students.filter(s => s.assigned_teacher === id && s.status === "active").length;
-  const filtered = teachers.filter(t => (t.name || "").toLowerCase().includes(search.toLowerCase()));
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <SearchField
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Поиск преподавателей..."
-          className="flex-1 max-w-full sm:max-w-sm"
-          aria-label="Поиск преподавателей"
-        />
-        <div className="flex items-center gap-3 justify-between sm:justify-end sm:ml-auto">
-          <span className="text-sm text-muted-foreground">{teachers.length} преподавателей</span>
-          <Button type="button" intent="primary" onClick={() => { setEditTeacher(null); setShowForm(true); }}>
-            <Plus className="w-4 h-4" /> Добавить
-          </Button>
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="flex justify-center py-16 bg-card rounded-2xl border border-border">
-          <Loader2 className="w-6 h-6 animate-spin text-brand" />
-        </div>
-      ) : (
-        <>
-          <div className="lg:hidden space-y-3">
-            {filtered.length === 0 ? (
-              <div className="bg-card rounded-2xl border border-border">
-                <EmptyState preset="generic" title="Преподаватели не найдены" icon={GraduationCap} />
-              </div>
-            ) : filtered.map(t => (
-              <div key={t.id} className="bg-card rounded-2xl border border-border p-4">
-                <button type="button" className="w-full text-left" onClick={() => setViewTeacher(t)}>
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-bold text-emerald-600">{(t.name || "?")[0].toUpperCase()}</span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-foreground truncate">{t.name}</p>
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">{t.email}</p>
-                      <p className="text-xs text-muted-foreground mt-1 truncate">{t.specializations || "—"}</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                        <span className="font-medium text-foreground">{formatHourlyRateShort(t.hourly_rate || 0)}</span>
-                        <span className="text-muted-foreground">Ученики: {getStudentCount(t.id)}</span>
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border ${t.status === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800" : "bg-muted text-muted-foreground border-border"}`}>
-                          {t.status === "active" ? <><CheckCircle2 className="w-3 h-3" /> Активен</> : "Неактивен"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </button>
-                <div className="mt-3 pt-3 border-t border-border flex flex-wrap gap-2">
-                  <button type="button" onClick={() => setViewTeacher(t)}
-                    className="flex-1 min-w-[7rem] inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-brand bg-brand-soft dark:bg-brand-soft/40 rounded-lg hover:bg-brand-muted">
-                    <Eye className="w-3.5 h-3.5" /> Просмотр
-                  </button>
-                  <button type="button" onClick={() => { setEditTeacher(t); setShowForm(true); }}
-                    className="flex-1 min-w-[7rem] inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-foreground bg-muted rounded-lg hover:bg-muted">
-                    <Pencil className="w-3.5 h-3.5" /> Изменить
-                  </button>
-                  <button type="button" onClick={() => setDeleteTarget(t)}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/50">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="hidden lg:block bg-card rounded-2xl border border-border overflow-x-auto">
-            <table className="w-full text-sm min-w-[720px]">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Имя</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Специализация</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ставка</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ученики</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Статус</th>
-                  <th className="px-5 py-3.5 w-24"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(t => (
-                  <tr key={t.id} className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => setViewTeacher(t)}>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center flex-shrink-0">
-                          <span className="text-xs font-bold text-emerald-600">{(t.name || "?")[0].toUpperCase()}</span>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-medium text-foreground">{t.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{t.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-muted-foreground text-xs">{t.specializations || "—"}</td>
-                    <td className="px-5 py-3.5 text-foreground font-medium">{formatHourlyRateShort(t.hourly_rate || 0)}</td>
-                    <td className="px-5 py-3.5 text-foreground">{getStudentCount(t.id)}</td>
-                    <td className="px-5 py-3.5">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border ${t.status === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800" : "bg-muted text-muted-foreground border-border"}`}>
-                        {t.status === "active" ? <><CheckCircle2 className="w-3 h-3" /> Активен</> : "Неактивен"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center justify-end gap-1">
-                        <button type="button" onClick={(e) => { e.stopPropagation(); setEditTeacher(t); setShowForm(true); }}
-                          className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors" title="Редактировать">
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); setDeleteTarget(t); }}
-                          className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-400 rounded-lg transition-colors" title="Удалить">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filtered.length === 0 && (
-                  <tr><td colSpan={6} className="text-center py-12 text-muted-foreground">Преподаватели не найдены</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {deleteTarget && (
-        <DeleteConfirmModal
-          title="Удалить преподавателя"
-          description={hasActiveLessons(deleteTarget.id)
-            ? `У «${deleteTarget.name}» есть активные уроки.`
-            : `Удалить «${deleteTarget.name}»?`}
-          onConfirm={handleDelete}
-          onCancel={() => setDeleteTarget(null)}
-          loading={deleting}
-        />
-      )}
-      {viewTeacher && (
-        <TeacherDetailModal
-          teacher={viewTeacher}
-          students={students}
-          onEdit={(t) => { setViewTeacher(null); setEditTeacher(t); setShowForm(true); }}
-          onDelete={(id) => { setViewTeacher(null); setDeleteTarget(teachers.find(t => t.id === id)); }}
-          onClose={() => setViewTeacher(null)}
-        />
-      )}
-      <TeacherFormDialog open={showForm} onOpenChange={setShowForm} teacher={editTeacher} onSave={onReload} />
-    </div>
-  );
-}
-
-// ─── Tab: Tutors ───────────────────────────────────────────────────────────────
-function TutorsTab({ tutors, students, loading, onReload }) {
-  const [lessons, setLessons] = useState([]);
-  const [search, setSearch] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
-
-  useEffect(() => {
-    api.lessons.list().then(setLessons).catch(() => setLessons([]));
-  }, [tutors]);
-
-  const tutorName = (t) => t.display_name || t.name || "—";
-
-  const hasActiveLessons = (id) =>
-    lessons.some((l) => l.tutor_id === id && l.status === "planned");
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      await api.tutors.delete(deleteTarget.id);
-      setDeleteTarget(null);
-      await onReload();
-    } catch (err) {
-      alert(err?.message || "Не удалось удалить репетитора");
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const getStudentCount = (id) =>
-    students.filter((s) => s.assigned_tutor === id && s.status === "active").length;
-
-  const filtered = tutors.filter((t) =>
-    tutorName(t).toLowerCase().includes(search.toLowerCase())
-    || (t.email || "").toLowerCase().includes(search.toLowerCase()),
-  );
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <SearchField
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Поиск репетиторов..."
-          className="flex-1 max-w-full sm:max-w-sm"
-          aria-label="Поиск репетиторов"
-        />
-        <div className="flex items-center gap-3 justify-between sm:justify-end sm:ml-auto">
-          <span className="text-sm text-muted-foreground">{tutors.length} репетиторов</span>
-        </div>
-      </div>
-
-      <p className="text-xs text-muted-foreground">
-        Назначьте роль «Репетитор» во вкладке «Аккаунты» — профиль создаётся автоматически.
-      </p>
-
-      {loading ? (
-        <div className="flex justify-center py-16 bg-card rounded-2xl border border-border">
-          <Loader2 className="w-6 h-6 animate-spin text-brand" />
-        </div>
-      ) : (
-        <>
-          <div className="lg:hidden space-y-3">
-            {filtered.length === 0 ? (
-              <div className="bg-card rounded-2xl border border-border">
-                <EmptyState preset="generic" title="Репетиторы не найдены" icon={BookOpen} />
-              </div>
-            ) : filtered.map((t) => (
-              <div key={t.id} className="bg-card rounded-2xl border border-border p-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-full bg-sky-50 dark:bg-sky-950/40 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xs font-bold text-sky-600">
-                      {(tutorName(t) || "?")[0].toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-foreground truncate">{tutorName(t)}</p>
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">{t.email || "—"}</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                      <span className="text-muted-foreground">Ученики: {getStudentCount(t.id)}</span>
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border ${t.status === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800" : "bg-muted text-muted-foreground border-border"}`}>
-                        {t.status === "active" ? <><CheckCircle2 className="w-3 h-3" /> Активен</> : t.status === "pending" ? "Ожидает" : "Неактивен"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-3 pt-3 border-t border-border flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTarget(t)}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/50"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" /> Удалить профиль
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="hidden lg:block bg-card rounded-2xl border border-border overflow-x-auto">
-            <table className="w-full text-sm min-w-[640px]">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Имя</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Эл. почта</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ученики</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Статус</th>
-                  <th className="px-5 py-3.5 w-24"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((t) => (
-                  <tr key={t.id} className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors">
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-sky-50 dark:bg-sky-950/40 flex items-center justify-center flex-shrink-0">
-                          <span className="text-xs font-bold text-sky-600">
-                            {(tutorName(t) || "?")[0].toUpperCase()}
-                          </span>
-                        </div>
-                        <p className="font-medium text-foreground">{tutorName(t)}</p>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-muted-foreground text-xs">{t.email || "—"}</td>
-                    <td className="px-5 py-3.5 text-foreground">{getStudentCount(t.id)}</td>
-                    <td className="px-5 py-3.5">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border ${t.status === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800" : "bg-muted text-muted-foreground border-border"}`}>
-                        {t.status === "active" ? <><CheckCircle2 className="w-3 h-3" /> Активен</> : t.status === "pending" ? "Ожидает" : "Неактивен"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTarget(t)}
-                          className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-400 rounded-lg transition-colors"
-                          title="Удалить"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filtered.length === 0 && (
-                  <tr><td colSpan={5} className="text-center py-12 text-muted-foreground">Репетиторы не найдены</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {deleteTarget && (
-        <DeleteConfirmModal
-          title="Удалить репетитора"
-          description={hasActiveLessons(deleteTarget.id)
-            ? `У «${tutorName(deleteTarget)}» есть запланированные уроки. Профиль будет удалён, уроки сохранятся без привязки.`
-            : `Удалить профиль «${tutorName(deleteTarget)}»?`}
-          onConfirm={handleDelete}
-          onCancel={() => setDeleteTarget(null)}
-          loading={deleting}
-        />
-      )}
-    </div>
-  );
-}
-
-// ─── Main ───────────────────────────────────────────────────────────────────────
-const TABS = [
-  { id: "accounts", label: "Аккаунты", icon: Shield },
-  { id: "students", label: "Ученики", icon: Users },
-  { id: "teachers", label: "Преподаватели", icon: GraduationCap },
-  { id: "tutors", label: "Репетиторы", icon: BookOpen },
-];
 
 export default function UserManagement() {
-  const [activeTab, setActiveTab] = useState("accounts");
-  const [directoryEntries, setDirectoryEntries] = useState([]);
-  const [students, setStudents] = useState([]);
-  const [teachers, setTeachers] = useState([]);
-  const [tutors, setTutors] = useState([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = useMemo(() => parseRegistryFilters(searchParams), [searchParams]);
+  const [searchInput, setSearchInput] = useState(filters.search);
+  const debouncedSearch = useDebouncedValue(searchInput, 350);
+
+  const [data, setData] = useState({ items: [], total: 0, page: 1, limit: 25, page_count: 0 });
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
-  const loadGenerationRef = useRef(0);
+  const [loadError, setLoadError] = useState('');
+  const [teachers, setTeachers] = useState([]);
+  const [editUser, setEditUser] = useState(null);
+  const [createStudentOpen, setCreateStudentOpen] = useState(false);
+  const [mergeUser, setMergeUser] = useState(null);
+  const [deleteUser, setDeleteUser] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [draftFilters, setDraftFilters] = useState(() => draftFromFilters(filters));
 
-  const accountUsers = directoryEntries.filter((entry) => entry.has_account !== false);
-
-  const loadAll = async () => {
-    const generation = loadGenerationRef.current + 1;
-    loadGenerationRef.current = generation;
-    setLoading(true);
-    setLoadError("");
-    try {
-      const [directory, s, t, tutorsList] = await Promise.all([
-        api.users.directory(),
-        api.students.list("-created_date"),
-        api.teachers.list("-created_date"),
-        api.tutors.list("-created_date"),
-      ]);
-      if (loadGenerationRef.current !== generation) {
-        return;
-      }
-      setDirectoryEntries(Array.isArray(directory) ? directory : []);
-      setStudents(Array.isArray(s) ? s : []);
-      setTeachers(Array.isArray(t) ? t : []);
-      setTutors(Array.isArray(tutorsList) ? tutorsList : []);
-    } catch (err) {
-      if (loadGenerationRef.current !== generation) {
-        return;
-      }
-      setLoadError(err?.message || "Не удалось загрузить данные");
-    } finally {
-      if (loadGenerationRef.current === generation) {
-        setLoading(false);
-      }
-    }
-  };
+  const updateFilters = useCallback((patch) => {
+    const next = { ...filters, ...patch, page: patch.page ?? 1 };
+    setSearchParams(serializeRegistryFilters(next), { replace: true });
+  }, [filters, setSearchParams]);
 
   useEffect(() => {
-    loadAll();
-  }, []);
+    if (debouncedSearch !== filters.search) {
+      updateFilters({ search: debouncedSearch });
+    }
+  }, [debouncedSearch, filters.search, updateFilters]);
 
-  const handleRoleChange = async (userId, newRole) => {
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError('');
     try {
-      await api.users.update(userId, { role: newRole, status: "active" });
-      await loadAll();
-      toast({
-        title: "Роль обновлена",
-        description: `Пользователю назначена роль «${ROLE_CONFIG[newRole]?.label || getRoleLabel(newRole)}»`,
+      const result = await api.users.registry(buildRegistryQuery(filters));
+      setData({
+        items: Array.isArray(result.items) ? result.items : [],
+        total: result.total ?? 0,
+        page: result.page ?? filters.page,
+        limit: result.limit ?? filters.limit,
+        page_count: result.page_count ?? 0,
       });
     } catch (err) {
-      toast({
-        title: "Не удалось изменить роль",
-        description: err?.message || "Попробуйте ещё раз",
-        variant: "destructive",
-      });
-      throw err;
+      setLoadError(err?.message || 'Не удалось загрузить пользователей');
+    } finally {
+      setLoading(false);
+    }
+  }, [filters]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    api.teachers.list().then((rows) => setTeachers(Array.isArray(rows) ? rows : [])).catch(() => setTeachers([]));
+  }, []);
+
+  const teacherFilterOptions = useMemo(() => [
+    { value: 'none', label: 'Без преподавателя' },
+    ...teachers.map((t) => ({ value: t.id, label: t.name || t.email || t.id })),
+  ], [teachers]);
+
+  const filterChips = useMemo(
+    () => buildFilterChips(filters, teacherFilterOptions),
+    [filters, teacherFilterOptions],
+  );
+
+  const panelFilterCount = filterChips.length;
+
+  const resetAllFilters = () => {
+    setSearchInput('');
+    setSearchParams(new URLSearchParams(), { replace: true });
+  };
+
+  const removeChip = (chipId) => {
+    if (chipId.startsWith('role:')) {
+      const role = chipId.slice(5);
+      updateFilters({ roles: filters.roles.filter((r) => r !== role) });
+      return;
+    }
+    if (chipId.startsWith('accountStatus:')) {
+      const status = chipId.slice('accountStatus:'.length);
+      updateFilters({ accountStatuses: filters.accountStatuses.filter((s) => s !== status) });
+      return;
+    }
+    if (chipId.startsWith('status:')) {
+      const status = chipId.slice(7);
+      updateFilters({ statuses: filters.statuses.filter((s) => s !== status) });
+      return;
+    }
+    if (chipId === 'teacher') {
+      updateFilters({ assignedTeacherId: '' });
+      return;
+    }
+    if (chipId === 'dates') {
+      updateFilters({ createdFrom: '', createdTo: '', datePreset: '' });
     }
   };
 
-  const displayStudents = visibleStudents(students, accountUsers);
-  const displayTeachers = visibleTeachers(teachers, accountUsers);
-  const displayTutors = visibleTutors(tutors, accountUsers);
+  const openMobileFilters = () => {
+    setDraftFilters(draftFromFilters(filters));
+    setMobileFiltersOpen(true);
+  };
+
+  const applyMobileFilters = () => {
+    updateFilters({ ...draftFilters, page: 1 });
+    setMobileFiltersOpen(false);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteUser) return;
+    setDeleting(true);
+    try {
+      const isPendingRegistration = deleteUser.entry_type === 'pending_registration';
+      const isStudentProfile = deleteUser.entry_type === 'student_profile';
+      const result = isPendingRegistration
+        ? await api.users.deletePendingRegistration(deleteUser.id)
+        : isStudentProfile
+          ? await api.students.delete(deleteUser.id)
+          : await api.users.delete(deleteUser.id);
+      if (!isPendingRegistration && !isStudentProfile) {
+        showOrphanStudentsNotice(result, toast);
+      }
+      setDeleteUser(null);
+      await load();
+      toast({
+        title: isPendingRegistration
+          ? 'Регистрация удалена'
+          : isStudentProfile
+            ? 'Ученик удалён'
+            : 'Пользователь удалён',
+      });
+    } catch (err) {
+      toast({
+        title: 'Не удалось удалить пользователя',
+        description: userFacingError(err, 'Попробуйте ещё раз'),
+        variant: 'destructive',
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const rangeFrom = data.total === 0 ? 0 : (data.page - 1) * data.limit + 1;
+  const rangeTo = Math.min(data.page * data.limit, data.total);
+  const filtersActive = hasActiveFilters(filters);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto w-full min-w-0">
-      <div className="mb-6">
-        <h1 className="text-xl sm:text-2xl font-bold text-foreground">Пользователи</h1>
-        <p className="text-sm text-muted-foreground mt-1">Управление аккаунтами, учениками, преподавателями и репетиторами</p>
-        {loadError && (
-          <p className="mt-2 text-sm text-red-600">{loadError}</p>
-        )}
-      </div>
-
-      <div className="mb-6 -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
-        <div className="flex gap-1 bg-muted rounded-xl p-1 w-max min-w-full sm:min-w-0 sm:w-fit">
-          {TABS.map(tab => {
-            const Icon = tab.icon;
-            return (
-              <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
-                  activeTab === tab.id ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-                }`}>
-                <Icon className="w-4 h-4 shrink-0" /> {tab.label}
-              </button>
-            );
-          })}
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full min-w-0">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Пользователи</h1>
+          <p className="text-sm text-muted-foreground mt-1">Единый реестр аккаунтов системы</p>
+          {loadError && <p className="text-sm text-red-600 mt-2">{loadError}</p>}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            intent="primary"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setCreateStudentOpen(true)}
+            data-testid="admin-create-student"
+          >
+            <UserPlus className="h-4 w-4" aria-hidden />
+            Создать ученика
+          </Button>
+          {filtersActive && (
+            <Button type="button" intent="outline" size="sm" className="hidden lg:inline-flex" onClick={resetAllFilters}>
+              Сбросить фильтры
+            </Button>
+          )}
         </div>
       </div>
 
-      {activeTab === "accounts" && (
-        <AccountsTab
-          entries={directoryEntries}
-          loading={loading}
-          onReload={loadAll}
-          onRoleChange={handleRoleChange}
+      {/* Mobile: search → filters → chips */}
+      <div className="lg:hidden mb-4">
+        <MobileFilterToolbar
+          searchValue={searchInput}
+          onSearchChange={(e) => setSearchInput(e.target.value)}
+          searchPlaceholder="Поиск пользователей…"
+          searchAriaLabel="Поиск пользователей"
+          activeFilterCount={panelFilterCount}
+          onOpenFilters={openMobileFilters}
+          chips={filterChips}
+          onRemoveChip={removeChip}
+          onClearAll={panelFilterCount > 0 ? resetAllFilters : undefined}
         />
-      )}
-      {activeTab === "students" && (
-        <StudentsTab
-          students={displayStudents}
-          teachers={displayTeachers}
-          loading={loading}
-          onReload={loadAll}
+      </div>
+
+      {/* Desktop: search only; filters stay in table headers */}
+      <div className="hidden lg:flex flex-col sm:flex-row gap-3 mb-4">
+        <SearchField
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="Поиск пользователей..."
+          className="flex-1 max-w-full sm:max-w-md"
+          aria-label="Поиск пользователей"
         />
+      </div>
+
+      {filtersActive && (
+        <div className="hidden lg:block mb-4">
+          <MobileFilterChips
+            chips={filterChips}
+            onRemove={removeChip}
+            onClearAll={resetAllFilters}
+          />
+        </div>
       )}
-      {activeTab === "teachers" && (
-        <TeachersTab
-          teachers={displayTeachers}
-          students={displayStudents}
-          loading={loading}
-          onReload={loadAll}
-        />
+
+      {loading && data.items.length === 0 ? (
+        <PageLoading label="Загрузка пользователей" />
+      ) : data.items.length === 0 ? (
+        <EmptyState preset="generic" title="Пользователи не найдены" icon={Users} />
+      ) : (
+        <>
+          <div className="lg:hidden space-y-3">
+            {data.items.map((user) => (
+              <UserMobileCard
+                key={user.id}
+                user={user}
+                onOpen={setEditUser}
+                onDelete={setDeleteUser}
+              />
+            ))}
+          </div>
+
+          <div className="hidden lg:block bg-card rounded-2xl border border-border overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/30">
+                    <th className="text-left px-4 py-3">
+                      <button type="button" className="inline-flex items-center gap-1" onClick={() => updateFilters(toggleSort(filters.sort, filters.sortDir, 'name'))}>
+                        Пользователь <SortIndicator active={filters.sort === 'name'} dir={filters.sortDir} />
+                      </button>
+                    </th>
+                    <th className="text-left px-4 py-3">Email</th>
+                    <th className="text-left px-4 py-3">
+                      <ExcelColumnFilter label="Роль" options={REGISTRY_ROLE_OPTIONS} value={filters.roles} active={filters.roles.length > 0} onApply={(roles) => updateFilters({ roles })} />
+                    </th>
+                    <th className="text-left px-4 py-3">
+                      <ExcelColumnFilter label="Статус аккаунта" options={ACCOUNT_STATUS_OPTIONS} value={filters.accountStatuses} active={filters.accountStatuses.length > 0} onApply={(accountStatuses) => updateFilters({ accountStatuses })} />
+                    </th>
+                    <th className="text-left px-4 py-3">
+                      <ExcelColumnFilter label="Статус" options={REGISTRY_STATUS_OPTIONS} value={filters.statuses} active={filters.statuses.length > 0} onApply={(statuses) => updateFilters({ statuses })} />
+                    </th>
+                    <th className="text-left px-4 py-3 hidden xl:table-cell">
+                      <ExcelColumnFilter label="Преподаватель" options={teacherFilterOptions} value={filters.assignedTeacherId ? [filters.assignedTeacherId] : []} active={Boolean(filters.assignedTeacherId)} onApply={(values) => updateFilters({ assignedTeacherId: values[0] ?? '' })} />
+                    </th>
+                    <th className="text-left px-4 py-3">
+                      <button type="button" className="inline-flex items-center gap-1 mr-2" onClick={() => updateFilters(toggleSort(filters.sort, filters.sortDir, 'created_date'))}>
+                        Дата регистрации <SortIndicator active={filters.sort === 'created_date'} dir={filters.sortDir} />
+                      </button>
+                      <DateRangeColumnFilter value={{ from: filters.createdFrom, to: filters.createdTo, preset: filters.datePreset }} active={Boolean(filters.createdFrom || filters.createdTo)} onApply={({ from, to, preset }) => updateFilters({ createdFrom: from, createdTo: to, datePreset: preset })} />
+                    </th>
+                    <th className="px-4 py-3 w-16"> </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.items.map((user) => {
+                    const role = displayRole(user);
+                    const name = getUserDisplayName(user);
+                    const registryStatusLabel = REGISTRY_STATUS_OPTIONS.find((s) => s.value === user.status)?.label
+                      || user.status
+                      || '—';
+                    return (
+                      <tr
+                        key={user.id}
+                        className="border-b border-border last:border-0 hover:bg-muted/40 cursor-pointer"
+                        onClick={() => {
+                          if (user.entry_type === 'pending_registration') return;
+                          setEditUser(user);
+                        }}
+                      >
+                        <td className="px-4 py-3 font-medium">{name}</td>
+                        <td className="px-4 py-3 text-muted-foreground text-xs">{formatContact(user.email)}</td>
+                        <td className="px-4 py-3"><RoleBadge user={user} role={role} /></td>
+                        <td className="px-4 py-3"><StatusBadge user={user} /></td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground">{registryStatusLabel}</td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground hidden xl:table-cell">
+                          {user.assigned_teacher_name || '—'}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground">
+                          {user.created_date ? new Date(user.created_date).toLocaleDateString('ru-RU') : '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            className="p-2 text-muted-foreground hover:text-red-500 rounded-lg"
+                            onClick={(e) => { e.stopPropagation(); setDeleteUser(user); }}
+                            aria-label="Удалить"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
-      {activeTab === "tutors" && (
-        <TutorsTab
-          tutors={displayTutors}
-          students={displayStudents}
-          loading={loading}
-          onReload={loadAll}
+
+      <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          {data.total > 0 ? `${rangeFrom}–${rangeTo} из ${data.total}` : '0 пользователей'}
+          {loading && <Loader2 className="inline w-4 h-4 ml-2 animate-spin" />}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            className="rounded-lg border bg-background px-3 py-2 text-sm min-h-touch"
+            value={filters.limit}
+            onChange={(e) => updateFilters({ limit: Number(e.target.value), page: 1 })}
+            aria-label="Строк на странице"
+          >
+            {PAGE_SIZE_OPTIONS.map((n) => (
+              <option key={n} value={n}>{n} / стр.</option>
+            ))}
+          </select>
+          <Button type="button" intent="outline" className="min-h-touch" disabled={filters.page <= 1} onClick={() => updateFilters({ page: filters.page - 1 })}>
+            Назад
+          </Button>
+          <span className="text-sm text-muted-foreground px-1">{filters.page} / {Math.max(data.page_count, 1)}</span>
+          <Button type="button" intent="outline" className="min-h-touch" disabled={filters.page >= data.page_count} onClick={() => updateFilters({ page: filters.page + 1 })}>
+            Вперёд
+          </Button>
+        </div>
+      </div>
+
+      <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
+        <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto flex flex-col gap-0 p-0">
+          <SheetHeader className="px-4 pt-4 pb-2 border-b border-border shrink-0">
+            <SheetTitle>Фильтры</SheetTitle>
+          </SheetHeader>
+          <div className="space-y-5 px-4 py-4 overflow-y-auto flex-1 min-h-0">
+            <MobileMultiSelect
+              label="Роль"
+              options={REGISTRY_ROLE_OPTIONS}
+              value={draftFilters.roles}
+              onChange={(roles) => setDraftFilters((d) => ({ ...d, roles }))}
+            />
+            <MobileMultiSelect
+              label="Статус аккаунта"
+              options={ACCOUNT_STATUS_OPTIONS}
+              value={draftFilters.accountStatuses}
+              onChange={(accountStatuses) => setDraftFilters((d) => ({ ...d, accountStatuses }))}
+            />
+            <MobileMultiSelect
+              label="Статус"
+              options={REGISTRY_STATUS_OPTIONS}
+              value={draftFilters.statuses}
+              onChange={(statuses) => setDraftFilters((d) => ({ ...d, statuses }))}
+            />
+            <MobileSelectField
+              label="Преподаватель ученика"
+              value={draftFilters.assignedTeacherId}
+              onChange={(assignedTeacherId) => setDraftFilters((d) => ({ ...d, assignedTeacherId }))}
+              options={teacherFilterOptions}
+              emptyLabel="Все преподаватели"
+            />
+            <div className="grid grid-cols-1 gap-3">
+              <label className="block space-y-1.5">
+                <span className="text-sm font-semibold text-foreground">Дата регистрации с</span>
+                <input
+                  type="date"
+                  className="w-full min-h-touch rounded-xl border border-border bg-background px-3 text-base"
+                  value={draftFilters.createdFrom ? draftFilters.createdFrom.slice(0, 10) : ''}
+                  onChange={(e) => setDraftFilters((d) => ({
+                    ...d,
+                    createdFrom: e.target.value ? `${e.target.value}T00:00:00.000Z` : '',
+                    datePreset: '',
+                  }))}
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-sm font-semibold text-foreground">Дата регистрации по</span>
+                <input
+                  type="date"
+                  className="w-full min-h-touch rounded-xl border border-border bg-background px-3 text-base"
+                  value={draftFilters.createdTo ? draftFilters.createdTo.slice(0, 10) : ''}
+                  onChange={(e) => setDraftFilters((d) => ({
+                    ...d,
+                    createdTo: e.target.value ? `${e.target.value}T23:59:59.999Z` : '',
+                    datePreset: '',
+                  }))}
+                />
+              </label>
+            </div>
+          </div>
+          <SheetFooter className="px-4 py-3 border-t border-border flex flex-row gap-2 shrink-0 safe-pb">
+            <Button
+              type="button"
+              intent="outline"
+              className="flex-1 min-h-touch"
+              onClick={() => {
+                setDraftFilters({
+                  roles: [],
+                  accountStatuses: [],
+                  statuses: [],
+                  assignedTeacherId: '',
+                  createdFrom: '',
+                  createdTo: '',
+                  datePreset: '',
+                });
+              }}
+            >
+              Сбросить
+            </Button>
+            <Button type="button" className="flex-1 min-h-touch" onClick={applyMobileFilters}>
+              Применить
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      <UserEditDialog
+        user={editUser}
+        open={Boolean(editUser)}
+        onOpenChange={(open) => { if (!open) setEditUser(null); }}
+        onSaved={load}
+        onMerge={() => {
+          setMergeUser(editUser);
+          setEditUser(null);
+        }}
+      />
+
+      <StudentFormDialog
+        open={createStudentOpen}
+        onOpenChange={setCreateStudentOpen}
+        student={null}
+        onSave={load}
+      />
+
+      <StudentMergeDialog
+        user={mergeUser}
+        open={Boolean(mergeUser)}
+        onOpenChange={(open) => { if (!open) setMergeUser(null); }}
+        onMerged={load}
+      />
+
+      {deleteUser && (
+        <ConfirmDeleteModal
+          user={deleteUser}
+          onConfirm={handleDelete}
+          onCancel={() => setDeleteUser(null)}
+          loading={deleting}
         />
       )}
     </div>

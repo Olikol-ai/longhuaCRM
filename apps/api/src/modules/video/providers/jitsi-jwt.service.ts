@@ -103,6 +103,8 @@ export class JitsiJwtService {
           recording: false,
           transcription: false,
           'outbound-call': false,
+          // Explicit allow — Jitsi gates desktop share on "true"===String(feature).
+          'screen-sharing': true,
         },
         room: input.subject
           ? {

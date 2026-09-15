@@ -226,22 +226,22 @@ export default function AccessControlModal({ material, course, folders = [], onC
     : students.filter((s) => !s.user_id);
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div
-        className="bg-card rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto border border-border"
+        className="bg-card rounded-t-2xl sm:rounded-2xl max-w-2xl w-full max-h-[92dvh] sm:max-h-[85vh] overflow-y-auto border border-border"
         data-testid="access-control-modal"
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card z-10">
-          <div>
+        <div className="flex items-start justify-between gap-3 px-4 sm:px-6 py-4 border-b border-border sticky top-0 bg-card z-10">
+          <div className="min-w-0">
             <h2 className="text-lg font-bold text-foreground">Материал</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">{material.title}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 break-words">{material.title}</p>
           </div>
-          <button type="button" onClick={onClose} className="p-2 hover:bg-muted rounded-xl transition-colors">
+          <button type="button" onClick={onClose} className="p-2 min-h-touch min-w-touch inline-flex items-center justify-center hover:bg-muted rounded-xl transition-colors shrink-0">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
 
-        <div className="px-6 pt-3 flex gap-2 border-b border-border">
+        <div className="px-4 sm:px-6 pt-3 flex gap-2 border-b border-border overflow-x-auto">
           <button
             type="button"
             onClick={() => setTab("info")}
@@ -262,7 +262,7 @@ export default function AccessControlModal({ material, course, folders = [], onC
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-4 sm:p-6 space-y-6">
           {error && (
             <div className="rounded-lg bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 text-sm px-4 py-3">
               {error}
@@ -355,13 +355,16 @@ export default function AccessControlModal({ material, course, folders = [], onC
                   return (
                   <div
                     key={row.tutor_student_id || row.user_id}
-                    className="flex items-center justify-between gap-3 p-3 rounded-xl border border-border"
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-xl border border-border"
                     data-testid={`access-personal-${row.tutor_student_id || row.user_id}`}
                   >
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground">{row.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {row.email || row.user_id || (row.tutor_student_id ? "Локальный ученик" : "")}
+                      <p className="text-sm font-medium text-foreground break-words">{row.name}</p>
+                      <p className="text-xs text-muted-foreground break-all">
+                        {row.email
+                          || (row.tutor_student_id && !row.user_id
+                            ? "Локальный ученик"
+                            : "")}
                       </p>
                       <AccessSourceBadges
                         sources={[{ type: "personal", label: row.label }]}
@@ -371,7 +374,7 @@ export default function AccessControlModal({ material, course, folders = [], onC
                     <Button
                       variant="outline"
                       size="sm"
-                      className="shrink-0 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-950/50"
+                      className="w-full sm:w-auto shrink-0 min-h-touch text-red-600 dark:text-red-400 border-red-200 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-950/50"
                       disabled={revokingKey === revokeKey}
                       onClick={() => handleRevokePersonal(row)}
                     >
@@ -482,8 +485,8 @@ export default function AccessControlModal({ material, course, folders = [], onC
                       className="rounded accent-brand"
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-foreground">{s.name || s.email || "Ученик"}</p>
-                      <p className="text-xs text-muted-foreground">{s.email}</p>
+                      <p className="text-sm text-foreground break-words">{s.name || s.email || "Ученик"}</p>
+                      <p className="text-xs text-muted-foreground break-all">{s.email}</p>
                     </div>
                   </label>
                 ))

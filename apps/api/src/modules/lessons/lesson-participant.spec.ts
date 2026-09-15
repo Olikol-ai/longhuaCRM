@@ -93,6 +93,15 @@ describe('lesson-participant', () => {
         }),
       ).toBeNull();
     });
+
+    it('accepts trial without student or group', () => {
+      expect(
+        resolveLessonParticipant({
+          teacherId: TEACHER_ID,
+          lessonType: 'trial',
+        }),
+      ).toEqual({ kind: 'trial' });
+    });
   });
 
   describe('assertLessonParticipant', () => {
@@ -109,6 +118,24 @@ describe('lesson-participant', () => {
           lessonType: 'individual',
         }),
       ).toThrow('Выберите ученика для индивидуального урока');
+    });
+
+    it('allows trial without a student target', () => {
+      expect(
+        assertLessonParticipant({
+          teacherId: TEACHER_ID,
+          lessonType: 'trial',
+        }),
+      ).toEqual({ kind: 'trial' });
+    });
+
+    it('rejects trial for tutor-only owner', () => {
+      expect(() =>
+        assertLessonParticipant({
+          tutorId: TUTOR_ID,
+          lessonType: 'trial',
+        }),
+      ).toThrow('Пробные занятия доступны только преподавателям школы');
     });
 
     it('throws when both CRM student and contact are set', () => {
@@ -136,6 +163,12 @@ describe('lesson-participant', () => {
           lessonType: 'individual',
         }),
       ).toBe(false);
+      expect(
+        isValidLessonParticipant({
+          teacherId: TEACHER_ID,
+          lessonType: 'trial',
+        }),
+      ).toBe(true);
     });
   });
 

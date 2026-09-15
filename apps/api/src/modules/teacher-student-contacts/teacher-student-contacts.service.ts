@@ -187,7 +187,11 @@ export class TeacherStudentContactsService {
     return linked;
   }
 
-  /** When admin reassigns a school student, keep the teacher notebook owner in sync. */
+  /**
+   * When admin assigns / reassigns a school student, keep the teacher notebook in sync.
+   * Creates a linked contact if none exists so the student appears in the teacher's CRM
+   * even before the pupil has a User account (same model as manual "Добавить ученика").
+   */
   async syncTeacherOwnerFromLinkedStudent(
     studentId: string,
     teacherId: string | null,
@@ -195,9 +199,37 @@ export class TeacherStudentContactsService {
     if (!studentId || !teacherId) {
       return;
     }
-    await this.contactRepo.update(
-      { linkedStudentId: studentId, ownerType: 'teacher' },
-      { ownerId: teacherId },
+
+    const existing = await this.contactRepo.find({
+      where: { linkedStudentId: studentId, ownerType: 'teacher' },
+    });
+
+    if (existing.length > 0) {
+      await this.contactRepo.update(
+        { linkedStudentId: studentId, ownerType: 'teacher' },
+        { ownerId: teacherId, status: 'active' },
+      );
+      return;
+    }
+
+    const student = await this.dataSource.getRepository(StudentEntity).findOne({
+      where: { id: studentId },
+    });
+    if (!student) {
+      return;
+    }
+
+    await this.contactRepo.save(
+      this.contactRepo.create({
+        id: randomUUID(),
+        ownerType: 'teacher',
+        ownerId: teacherId,
+        name: String(student.name || '').trim() || 'Без имени',
+        phone: student.phone ?? null,
+        comment: student.notes ?? null,
+        linkedStudentId: studentId,
+        status: 'active',
+      }),
     );
   }
 

@@ -486,7 +486,7 @@ export default function MaterialManager() {
       ) : (
         <>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Материалы уроков</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {isTutor
@@ -494,12 +494,12 @@ export default function MaterialManager() {
               : 'Библиотека файлов и ссылок по курсам'}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full sm:w-auto">
           {canBulkUserAccess && (
             <Button
               variant="outline"
               onClick={() => setView('users-access')}
-              className="gap-2"
+              className="gap-2 w-full sm:w-auto min-h-touch"
               data-testid="materials-open-user-access"
             >
               <Users className="h-4 w-4" />
@@ -507,7 +507,7 @@ export default function MaterialManager() {
             </Button>
           )}
           {canCreateMaterials && (
-            <Button onClick={openCreate} className="bg-primary hover:bg-primary/90 gap-2">
+            <Button onClick={openCreate} className="bg-primary hover:bg-primary/90 gap-2 w-full sm:w-auto min-h-touch">
               <Plus className="h-4 w-4" />
               Добавить материал
             </Button>
@@ -563,16 +563,16 @@ export default function MaterialManager() {
           />
 
           {selectedIds.size > 0 && canAccess && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/30 dark:border-brand/50 bg-brand-soft/50 dark:bg-brand-soft/30 px-4 py-3">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3 rounded-xl border border-brand/30 dark:border-brand/50 bg-brand-soft/50 dark:bg-brand-soft/30 px-4 py-3">
               <span className="text-sm text-brand-hover dark:text-brand">
                 Выбрано: {selectedIds.size}
               </span>
-              <div className="flex gap-2">
-                <Button onClick={() => setShowGrant(true)} className="bg-primary hover:bg-primary/90 gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <Button onClick={() => setShowGrant(true)} className="bg-primary hover:bg-primary/90 gap-2 w-full sm:w-auto min-h-touch">
                   <Lock className="h-4 w-4" />
                   Предоставить доступ
                 </Button>
-                <Button variant="outline" onClick={() => setSelectedIds(new Set())}>Сбросить</Button>
+                <Button variant="outline" onClick={() => setSelectedIds(new Set())} className="w-full sm:w-auto min-h-touch">Сбросить</Button>
               </div>
             </div>
           )}

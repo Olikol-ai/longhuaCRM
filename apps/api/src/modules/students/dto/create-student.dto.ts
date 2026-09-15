@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsEmail, IsEnum, IsInt, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsEmail, IsEnum, IsInt, IsOptional, IsString, IsUUID, ValidateIf } from 'class-validator';
 import { IsRequiredText } from '../../../common/validators/is-required-text.decorator';
 import { StudentStatus } from '../entities/student.entity';
 
@@ -19,8 +19,9 @@ export class CreateStudentDto {
   lastName?: string;
 
   @IsOptional()
+  @ValidateIf((_o, v) => v !== null && v !== undefined && String(v).trim() !== '')
   @IsEmail()
-  email?: string;
+  email?: string | null;
 
   @IsOptional()
   @IsString()
@@ -34,13 +35,16 @@ export class CreateStudentDto {
   @IsString()
   telegramUsername?: string;
 
+  /** Optional school teacher assignment (TeacherEntity.id). null/omit = unassigned. */
   @IsOptional()
+  @ValidateIf((_o, v) => v !== null && v !== undefined && String(v).trim() !== '')
   @IsUUID()
-  assignedTeacherId?: string;
+  assignedTeacherId?: string | null;
 
   @IsOptional()
+  @ValidateIf((_o, v) => v !== null && v !== undefined && String(v).trim() !== '')
   @IsUUID()
-  assignedTutorId?: string;
+  assignedTutorId?: string | null;
 
   @IsOptional()
   @Type(() => Number)
@@ -64,6 +68,7 @@ export class CreateStudentDto {
   status?: StudentStatus;
 
   @IsOptional()
+  @ValidateIf((_o, v) => v !== null && v !== undefined && String(v).trim() !== '')
   @IsUUID()
-  userId?: string;
+  userId?: string | null;
 }

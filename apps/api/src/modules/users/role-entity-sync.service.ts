@@ -1,13 +1,14 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, IsNull, Repository } from 'typeorm';
 import { filterToEntityWhere } from '../../common/utils/api-record.util';
 import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { TutorEntity } from '../tutors/entities/tutor.entity';
 import { TutorStudentEntity } from '../tutors/entities/tutor-student.entity';
 import { MaterialAccessEntity } from '../materials/entities/material-access.entity';
+import { SalesCommissionsService } from '../b2b-sales/sales-commissions.service';
 import {
   composeDisplayName,
   resolveNameParts,
@@ -34,6 +35,7 @@ export class RoleEntitySyncService {
     private readonly userRepo: Repository<UserEntity>,
     @InjectRepository(MaterialAccessEntity)
     private readonly materialAccessRepo: Repository<MaterialAccessEntity>,
+    private readonly salesCommissions: SalesCommissionsService,
   ) {}
 
   /**
@@ -92,6 +94,15 @@ export class RoleEntitySyncService {
       await this.detachTeachersForUser(teacherRepo, user.id);
       await this.detachTutorStudentsForUser(tutorStudentRepo, user.id);
       await this.ensureTutorProfile(tutorRepo, user);
+      return;
+    }
+
+    if (role === 'sales_manager') {
+      await this.detachTeachersForUser(teacherRepo, user.id);
+      await this.detachTutorsForUser(tutorRepo, user.id);
+      await this.detachStudentsForUser(studentRepo, user.id);
+      await this.detachTutorStudentsForUser(tutorStudentRepo, user.id);
+      await this.salesCommissions.ensureProfile(user.id, '0');
       return;
     }
 
@@ -433,6 +444,46 @@ export class RoleEntitySyncService {
     void manager;
   }
 
+  private phoneDigits(phone: string | null | undefined): string {
+    return String(phone ?? '').replace(/\D/g, '');
+  }
+
+  /**
+   * Teacher-created notebook students often have no email. On invite registration,
+   * resolve the orphan by invite teacher + normalized phone (never by name alone).
+   */
+  private async findOrphanStudentForInvite(
+    studentRepo: Repository<StudentEntity>,
+    user: RoleEntityUserContext,
+    inviteTeacherId: string | null,
+  ): Promise<StudentEntity | null> {
+    if (!inviteTeacherId) {
+      return null;
+    }
+    const digits = this.phoneDigits(user.phone);
+    if (digits.length < 9) {
+      return null;
+    }
+
+    const orphans = await studentRepo.find({
+      where: {
+        assignedTeacherId: inviteTeacherId,
+        userId: IsNull(),
+      },
+      order: { createdAt: 'DESC' },
+      take: 50,
+    });
+
+    return (
+      orphans.find(
+        (orphan) =>
+          orphan.status !== 'inactive' &&
+          !orphan.mergedIntoStudentId &&
+          this.phoneDigits(orphan.phone) === digits,
+      ) ?? null
+    );
+  }
+
   private async ensureStudentProfile(
     studentRepo: Repository<StudentEntity>,
     user: RoleEntityUserContext,
@@ -442,17 +493,20 @@ export class RoleEntitySyncService {
       applyTeacherAssignment?: boolean;
     },
   ): Promise<void> {
+    const inviteTeacherId = options?.assignedTeacherId ?? null;
+    const applyTeacher = Boolean(options?.applyTeacherAssignment);
+
     let row =
       (await studentRepo.findOne({ where: { userId: user.id } })) ??
-      (user.email ? await studentRepo.findOne({ where: { email: user.email } }) : null);
+      (user.email ? await studentRepo.findOne({ where: { email: user.email } }) : null) ??
+      (await this.findOrphanStudentForInvite(studentRepo, user, inviteTeacherId));
 
     if (row?.userId && row.userId !== user.id) {
       row = null;
     }
 
-    const inviteTeacherId = options?.assignedTeacherId ?? null;
-    const applyTeacher = Boolean(options?.applyTeacherAssignment);
     const wasUnlinked = Boolean(row && !row.userId);
+    const phone = (user.phone ?? '').trim();
 
     if (row) {
       row.userId = user.id;
@@ -460,6 +514,9 @@ export class RoleEntitySyncService {
       row.name = this.displayName(user);
       row.firstName = user.firstName || row.firstName;
       row.lastName = user.lastName || row.lastName;
+      if (phone) {
+        row.phone = phone;
+      }
 
       if (applyTeacher) {
         if (inviteTeacherId) {
@@ -497,6 +554,7 @@ export class RoleEntitySyncService {
         id: randomUUID(),
         name: this.displayName(user),
         email: user.email,
+        phone: phone || null,
         firstName: user.firstName || '',
         lastName: user.lastName || '',
         userId: user.id,

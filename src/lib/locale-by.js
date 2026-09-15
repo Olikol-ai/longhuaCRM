@@ -9,8 +9,10 @@ export const ROLE_LABEL = {
   tutor: 'Репетитор',
   student: 'Ученик',
   tutor_student: 'Ученик репетитора',
+  sales_manager: 'Менеджер по продажам',
   pending: 'Ожидает роли',
-  user: 'Без роли',
+  user: 'Нет роли',
+  registration: 'Незавершённая регистрация',
 };
 
 /** Profile / entity lifecycle (users, teachers, tutors, students, groups). */
@@ -71,7 +73,7 @@ export function localizeLabel(map, value, fallback = '—') {
 }
 
 export function localizeRole(role) {
-  return localizeLabel(ROLE_LABEL, role, 'Без роли');
+  return localizeLabel(ROLE_LABEL, role, 'Нет роли');
 }
 
 /** Alias for UI — never render raw role keys from the API. */
@@ -87,6 +89,7 @@ export const ROLE_BADGE_CLASS = {
   tutor_student: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300',
   pending: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
   user: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+  registration: 'bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300',
 };
 
 export function getRoleBadgeClass(role) {

@@ -35,6 +35,10 @@ describe('DmRequestsPanel close button contract', () => {
     assert.match(dialog, /\[&_svg\]:size-4/);
     assert.match(dialog, /size-11/);
     assert.match(dialog, /md:size-9/);
+    assert.match(dialog, /safe-area-inset-top/);
+    assert.match(dialog, /safe-area-inset-right/);
+    assert.match(dialog, /min-h-\[44px\]/);
+    assert.match(dialog, /min-w-\[44px\]/);
     const sheet = read('components/ui/sheet.jsx');
     assert.match(sheet, /overlayCloseButtonClassName/);
     assert.match(sheet, /showClose/);

@@ -243,7 +243,14 @@ export default function LessonVideoSideRail({
               next.senderName ||
               next.senderUser?.firstName ||
               'Участник',
+            senderName:
+              next.sender_name ||
+              next.senderName ||
+              next.senderUser?.firstName ||
+              'Участник',
+            senderUserId: next.senderUserId || next.sender_user_id || null,
             body: messageBody(next),
+            messageId: next.id || next.messageId || null,
           });
         }
       },

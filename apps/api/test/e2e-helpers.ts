@@ -13,6 +13,7 @@ import { getDatabaseDataSourceOptions, resolvePostgresConnectionConfig } from '.
 import { PendingRegistrationEntity } from '../src/modules/auth/entities/pending-registration.entity';
 import { MailService } from '../src/modules/mail/mail.service';
 import { UserEntity } from '../src/modules/users/entities/user.entity';
+import { assertSafeTestDatabase } from './database-guard';
 
 export type CreateTestAppOptions = {
   mockMailSuccess?: boolean;
@@ -24,6 +25,7 @@ export type AuthSession = {
 };
 
 export async function ensureDatabaseReady(): Promise<void> {
+  assertSafeTestDatabase();
   const connection = resolvePostgresConnectionConfig();
   const adminDs = new DataSource({
     type: 'postgres',

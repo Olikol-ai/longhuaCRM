@@ -41,6 +41,7 @@ export function createJitsiGuestToken(input: JitsiGuestTokenInput): string {
         recording: false,
         transcription: false,
         'outbound-call': false,
+        'screen-sharing': true,
       },
       room: input.subject
         ? {

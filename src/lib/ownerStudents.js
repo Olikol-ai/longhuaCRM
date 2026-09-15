@@ -103,6 +103,11 @@ export function buildOwnerStudentRows(ownerType, sources = {}) {
       const linkedSchool = linkedId
         ? schoolStudents.find((s) => s.id === linkedId)
         : null;
+      // Same physical pupil: contact already linked to a registered CRM student.
+      // Showing both would duplicate the teacher notebook after invite registration.
+      if (linkedSchool && hasUserAccount(linkedSchool) && !isInactiveStatus(linkedSchool)) {
+        continue;
+      }
       // Teacher SSOT: prefer school Student from list; else API contact payload
       // (listMine already replaces lessonBalance with Student for linked teachers).
       const lessonBalance =

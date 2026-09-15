@@ -87,6 +87,10 @@ export class StudentEntity {
   @JoinColumn({ name: 'user_id' })
   user?: UserEntity | null;
 
+  /** Set when this profile was merged into another student (admin merge). */
+  @Column({ name: 'merged_into_student_id', type: 'uuid', nullable: true })
+  mergedIntoStudentId: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

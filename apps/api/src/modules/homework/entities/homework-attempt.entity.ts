@@ -45,8 +45,8 @@ export class HomeworkAttemptEntity {
   tutorStudentId: string | null;
 
   @Index('IDX_HOMEWORK_ATTEMPTS_USER')
-  @Column({ name: 'user_id', type: 'uuid' })
-  userId: string;
+  @Column({ name: 'user_id', type: 'uuid', nullable: true })
+  userId: string | null;
 
   @Column({ type: 'varchar', length: 32, default: HomeworkAttemptStatus.Started })
   status: HomeworkAttemptStatus;

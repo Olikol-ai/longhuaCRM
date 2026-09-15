@@ -11,6 +11,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import LessonBalanceDisplay from "@/components/students/LessonBalanceDisplay";
 
 const DROPDOWN_Z = "z-[200]";
@@ -18,6 +28,8 @@ const AVAILABLE_DEBOUNCE_MS = 400;
 const LESSON_CREATE_LEAD_HOURS = 2;
 const LESSON_CREATE_LEAD_MESSAGE =
   "Урок должен быть запланирован не ранее чем за 2 часа до начала";
+const OUTSIDE_AVAILABILITY_MESSAGE =
+  "Преподаватель не указал это время как свободное.";
 
 function normalizeAvailableList(data) {
   if (Array.isArray(data)) return data;
@@ -56,6 +68,8 @@ export default function LessonModal({
   const [recurring, setRecurring] = useState(false);
   const [recurrenceUntil, setRecurrenceUntil] = useState("");
   const [saving, setSaving] = useState(false);
+  const [outsideAvailabilityOpen, setOutsideAvailabilityOpen] = useState(false);
+  const [pendingOutsidePayload, setPendingOutsidePayload] = useState(null);
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [teacherSchedule, setTeacherSchedule] = useState({ hasSchedule: false, slots: [] });
   const [availableTeachers, setAvailableTeachers] = useState([]);
@@ -183,25 +197,59 @@ export default function LessonModal({
     form.teacher_id &&
     form.date &&
     form.start_time &&
-    (form.lesson_type === "group"
-      ? form.group_id
-      : form.student_target_type === "contact"
-        ? form.teacher_student_contact_id
-        : form.primary_student_id),
+    (form.lesson_type === "trial"
+      ? true
+      : form.lesson_type === "group"
+        ? form.group_id
+        : form.student_target_type === "contact"
+          ? form.teacher_student_contact_id
+          : form.primary_student_id),
   );
 
-  const validateTeacherAvailability = async (lessonDate, startTime, duration) => {
-    if (!form.teacher_id || !lessonDate || !startTime) return true;
-    const result = await api.schedule.checkTeacherAvailability(form.teacher_id, {
+  const checkTeacherAvailability = async (lessonDate, startTime, duration) => {
+    if (!form.teacher_id || !lessonDate || !startTime) {
+      return { available: true };
+    }
+    return api.schedule.checkTeacherAvailability(form.teacher_id, {
       date: lessonDate,
       start_time: startTime,
       duration,
     });
-    if (!result?.available) {
-      alert(result?.message || "Преподаватель в это время не работает. Урок не может быть назначен.");
-      return false;
+  };
+
+  const buildCreatePayload = (duration) => ({
+    teacher_id: form.teacher_id,
+    date: form.date,
+    start_time: form.start_time,
+    duration,
+    meeting_link: form.meeting_link,
+    status: form.status,
+    lesson_format: form.lesson_format,
+    notes: form.notes,
+    lesson_type: form.lesson_type,
+    ...(form.lesson_type === "trial"
+      ? {}
+      : form.lesson_type === "group"
+        ? { group_id: form.group_id }
+        : form.student_target_type === "contact"
+          ? { teacher_student_contact_id: form.teacher_student_contact_id }
+          : { primary_student_id: form.primary_student_id }),
+    ...(recurring && recurrenceUntil
+      ? { recurrence_until: recurrenceUntil }
+      : {}),
+  });
+
+  const commitSave = async (payload) => {
+    setSaving(true);
+    try {
+      await onSave(payload, recurring);
+    } catch (err) {
+      alert(err?.message || "Не удалось создать урок");
+    } finally {
+      setSaving(false);
+      setOutsideAvailabilityOpen(false);
+      setPendingOutsidePayload(null);
     }
-    return true;
   };
 
   const handleSave = async () => {
@@ -233,42 +281,33 @@ export default function LessonModal({
     }
 
     const duration = +form.duration;
-    // Backend creates a rolling horizon; frontend only needs the first slot free.
-    const datesToCheck = [form.date];
+    const payload = buildCreatePayload(duration);
 
     setSaving(true);
     try {
-      for (const lessonDate of datesToCheck) {
-        const ok = await validateTeacherAvailability(lessonDate, form.start_time, duration);
-        if (!ok) return;
+      const result = await checkTeacherAvailability(form.date, form.start_time, duration);
+      if (!result?.available) {
+        if (isAdmin) {
+          setPendingOutsidePayload(payload);
+          setOutsideAvailabilityOpen(true);
+          setSaving(false);
+          return;
+        }
+        alert(result?.message || "Преподаватель в это время не работает. Урок не может быть назначен.");
+        setSaving(false);
+        return;
       }
-
-      const payload = {
-        teacher_id: form.teacher_id,
-        date: form.date,
-        start_time: form.start_time,
-        duration,
-        meeting_link: form.meeting_link,
-        status: form.status,
-        lesson_format: form.lesson_format,
-        notes: form.notes,
-        lesson_type: form.lesson_type,
-        ...(form.lesson_type === "group"
-          ? { group_id: form.group_id }
-          : form.student_target_type === "contact"
-            ? { teacher_student_contact_id: form.teacher_student_contact_id }
-            : { primary_student_id: form.primary_student_id }),
-        ...(recurring && recurrenceUntil
-          ? { recurrence_until: recurrenceUntil }
-          : {}),
-      };
-
       await onSave(payload, recurring);
     } catch (err) {
       alert(err?.message || "Не удалось создать урок");
     } finally {
       setSaving(false);
     }
+  };
+
+  const confirmOutsideAvailability = () => {
+    if (!pendingOutsidePayload || saving) return;
+    void commitSave(pendingOutsidePayload);
   };
 
   const availablePanel = showAvailablePanel ? (
@@ -294,7 +333,13 @@ export default function LessonModal({
       )}
       {selectedTeacherBusy && (
         <p className="mt-3 text-xs text-amber-900 border-t border-amber-200/70 pt-3">
-          Выбранный преподаватель уже имеет занятие в это время.
+          Выбранный преподаватель уже имеет занятие в это время
+          {isAdmin ? " или находится вне своего заявленного графика." : "."}
+        </p>
+      )}
+      {isAdmin && form.teacher_id && !availableLoading && !availableError && !availableIds.has(form.teacher_id) && (
+        <p className="mt-2 text-xs text-amber-900">
+          Вне графика преподавателя — администратор может назначить занятие после подтверждения.
         </p>
       )}
       {form.teacher_id && !selectedTeacherBusy && !availableLoading && !availableError && availableIds.has(form.teacher_id) && (
@@ -369,11 +414,22 @@ export default function LessonModal({
                     <SelectContent className={DROPDOWN_Z}>
                       <SelectItem value="individual">Индивидуальный</SelectItem>
                       <SelectItem value="group">Групповой</SelectItem>
+                      <SelectItem value="trial">Пробное занятие</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                {form.lesson_type === "individual" ? (
+                {form.lesson_type === "trial" ? (
+                  <div className="col-span-2 rounded-xl border border-border bg-muted/40 p-3 text-sm space-y-1">
+                    <p className="font-medium text-foreground">Пробное занятие</p>
+                    <p className="text-muted-foreground text-xs">
+                      Ученик и группа не указываются. Занятие закрепляется за преподавателем.
+                    </p>
+                    <p className="text-foreground text-xs">
+                      Оплата преподавателю: <span className="font-semibold">10 BYN</span> (фиксированная, после проведения)
+                    </p>
+                  </div>
+                ) : form.lesson_type === "individual" ? (
                   <>
                     <div className="col-span-2">
                       <label className="block text-xs font-medium text-muted-foreground mb-1">Тип ученика *</label>
@@ -595,5 +651,45 @@ export default function LessonModal({
     </div>
   );
 
-  return createPortal(modal, document.body);
+  return createPortal(
+    <>
+      {modal}
+      <AlertDialog
+        open={outsideAvailabilityOpen}
+        onOpenChange={(open) => {
+          if (!open && !saving) {
+            setOutsideAvailabilityOpen(false);
+            setPendingOutsidePayload(null);
+          }
+        }}
+      >
+        <AlertDialogContent className="max-w-[min(100%,24rem)] mx-4 z-[120]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Время вне заявленного графика</AlertDialogTitle>
+            <AlertDialogDescription>
+              ⚠️ {OUTSIDE_AVAILABILITY_MESSAGE}
+              {" "}
+              Вы можете всё равно назначить занятие.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2">
+            <AlertDialogCancel disabled={saving} className="w-full sm:w-auto">
+              Отмена
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={saving}
+              className="w-full sm:w-auto"
+              onClick={(e) => {
+                e.preventDefault();
+                confirmOutsideAvailability();
+              }}
+            >
+              {saving ? "Создание..." : "Всё равно назначить"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>,
+    document.body,
+  );
 }

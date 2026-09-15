@@ -122,6 +122,20 @@ describe('Homework module architecture', () => {
     assert.match(layout, /Домашние задания/);
   });
 
+  it('admin sidebar uses Проверочные работы for homework (no duplicate HomeworkList nav item)', () => {
+    const layout = readFileSync(join(root, 'src/Layout.jsx'), 'utf8');
+    const adminNavMatch = layout.match(/const adminNav = \[([\s\S]*?)\];/);
+    assert.ok(adminNavMatch, 'adminNav must exist');
+    const adminNav = adminNavMatch[1];
+    assert.doesNotMatch(adminNav, /page:\s*"HomeworkList"/);
+    assert.doesNotMatch(adminNav, /Домашние задания/);
+    assert.match(adminNav, /page:\s*"AdminAssessment"/);
+    assert.match(adminNav, /Проверочные работы/);
+    // Homework pages still activate AdminAssessment (hub), not a separate menu row.
+    assert.match(layout, /assessmentWorkspacePages/);
+    assert.match(layout, /'HomeworkList'/);
+  });
+
   it('AssessmentScoringService exposes shared scoreFromData', () => {
     const scoring = readFileSync(
       join(root, 'apps/api/src/modules/assessment/services/assessment-scoring.service.ts'),

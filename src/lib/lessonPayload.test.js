@@ -95,4 +95,20 @@ describe('toLessonWritePayload', () => {
     assert.equal(payload.isRecurring, undefined);
     assert.equal(payload.recurrenceSeriesId, undefined);
   });
+
+  it('keeps trial type and strips student/group targets', () => {
+    const payload = toLessonWritePayload({
+      teacher_id: '11111111-1111-4111-8111-111111111111',
+      lesson_type: 'trial',
+      student_id: '22222222-2222-4222-8222-222222222222',
+      group_id: '44444444-4444-4444-8444-444444444444',
+      date: '2026-09-15',
+      start_time: '18:30',
+      duration: 60,
+    });
+    assert.equal(payload.lessonType, 'trial');
+    assert.equal(payload.teacherId, '11111111-1111-4111-8111-111111111111');
+    assert.equal(payload.primaryStudentId, undefined);
+    assert.equal(payload.groupId, undefined);
+  });
 });

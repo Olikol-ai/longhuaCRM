@@ -192,6 +192,26 @@ export default function MaterialTable({
                     Изменить
                   </button>
                 ) : null}
+                {canAccess ? (
+                  <button
+                    type="button"
+                    className="inline-flex items-center px-3 py-2 min-h-touch text-sm rounded-lg border border-border"
+                    onClick={() => onAccess(mat)}
+                    data-testid={`material-access-btn-mobile-${mat.id}`}
+                  >
+                    Доступ
+                  </button>
+                ) : null}
+                {mayEdit(mat) ? (
+                  <button
+                    type="button"
+                    className="inline-flex items-center px-3 py-2 min-h-touch text-sm rounded-lg border border-red-200 text-red-600 dark:border-red-900 dark:text-red-400"
+                    disabled={deletingId === mat.id}
+                    onClick={() => onDelete(mat.id)}
+                  >
+                    Удалить
+                  </button>
+                ) : null}
               </div>
             </div>
           );

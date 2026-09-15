@@ -2,7 +2,7 @@ import { IsEnum, IsOptional, IsString } from 'class-validator';
 
 export class UpdateUserDto {
   @IsOptional()
-  @IsEnum(['admin', 'teacher', 'tutor', 'student', 'tutor_student', 'pending', 'user'])
+  @IsEnum(['admin', 'teacher', 'tutor', 'student', 'tutor_student', 'pending', 'user', 'sales_manager'])
   role?: string;
 
   @IsOptional()

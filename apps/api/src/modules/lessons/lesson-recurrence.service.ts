@@ -4,9 +4,10 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { LessonAccessService } from '../../common/access/lesson-access.service';
+import { normalizeRole } from '../../common/constants/roles';
 import { JwtPayload } from '../auth/auth.service';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import {
@@ -46,6 +47,12 @@ const SERIES_FANOUT_KEYS: Array<keyof UpdateLessonDto> = [
   'notes',
 ];
 
+type SeriesDateMove = {
+  lessonId: string;
+  oldDate: string;
+  newDate: string;
+};
+
 @Injectable()
 export class LessonRecurrenceService {
   private readonly logger = new Logger(LessonRecurrenceService.name);
@@ -58,6 +65,8 @@ export class LessonRecurrenceService {
     private readonly lessonsService: LessonsService,
     private readonly exceptions: LessonRecurrenceExceptionsService,
     private readonly lessonAccess: LessonAccessService,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
   ) {}
 
   async createWeeklySeries(
@@ -78,18 +87,28 @@ export class LessonRecurrenceService {
     }
 
     const lessonType =
-      dto.lessonType ?? (dto.groupId ? 'group' : 'individual');
+      dto.lessonType === 'trial'
+        ? 'trial'
+        : (dto.lessonType ?? (dto.groupId ? 'group' : 'individual'));
     const lessonFormat = dto.lessonFormat ?? 'online';
+    const isTrial = lessonType === 'trial';
 
     const series = await this.seriesRepo.save(
       this.seriesRepo.create({
         teacherId: dto.teacherId ?? null,
         tutorId: dto.tutorId ?? null,
-        groupId: dto.groupId ?? null,
-        primaryStudentId: dto.primaryStudentId ?? dto.studentId ?? null,
-        primaryTutorStudentId: dto.primaryTutorStudentId ?? dto.tutorStudentId ?? null,
-        primaryTeacherStudentContactId:
-          dto.primaryTeacherStudentContactId ?? dto.teacherStudentContactId ?? null,
+        groupId: isTrial ? null : (dto.groupId ?? null),
+        primaryStudentId: isTrial
+          ? null
+          : (dto.primaryStudentId ?? dto.studentId ?? null),
+        primaryTutorStudentId: isTrial
+          ? null
+          : (dto.primaryTutorStudentId ?? dto.tutorStudentId ?? null),
+        primaryTeacherStudentContactId: isTrial
+          ? null
+          : (dto.primaryTeacherStudentContactId ??
+            dto.teacherStudentContactId ??
+            null),
         weekday,
         startDate,
         startTime,
@@ -146,66 +165,74 @@ export class LessonRecurrenceService {
   ): Promise<number> {
     if (series.status !== 'active') return 0;
 
-    return this.exceptions.withSeriesLock(series.id, async () => {
-      const today = this.todayInMinsk();
-      let startFrom = today;
-      if (fromDateInclusive && fromDateInclusive > startFrom) {
-        startFrom = fromDateInclusive;
-      }
-      if (series.startDate && series.startDate > startFrom) {
-        startFrom = series.startDate;
-      }
-      // Horizon is measured from the series window, not only from "today",
-      // so scheduling a series that starts weeks ahead still gets a full buffer.
-      const horizonEnd = this.addDays(startFrom, RECURRENCE_HORIZON_WEEKS * 7);
-      const hardEnd =
-        series.untilDate && series.untilDate < horizonEnd ? series.untilDate : horizonEnd;
-      if (startFrom > hardEnd) {
-        return 0;
-      }
+    return this.exceptions.withSeriesLock(series.id, async () =>
+      this.fillHorizonCore(actor, series, fromDateInclusive),
+    );
+  }
 
-      const existing = await this.lessonRepo.find({
-        where: {
-          recurrenceSeriesId: series.id,
-        },
-        select: ['id', 'date', 'status'],
-      });
-      // Any remaining lesson row for this series occupies its current date.
-      // Cancelled / completed / missed must also block regeneration of that date.
-      const occupiedDates = new Set(existing.map((row) => row.date));
-      // Exceptions cover dates whose lesson was moved away, deleted, or detached.
-      const skipped = await this.exceptions.listSkippedDates(series.id);
-      for (const date of skipped) {
-        occupiedDates.add(date);
-      }
+  private async fillHorizonCore(
+    actor: JwtPayload | null,
+    series: LessonRecurrenceSeriesEntity,
+    fromDateInclusive?: string,
+  ): Promise<number> {
+    const today = this.todayInMinsk();
+    let startFrom = today;
+    if (fromDateInclusive && fromDateInclusive > startFrom) {
+      startFrom = fromDateInclusive;
+    }
+    if (series.startDate && series.startDate > startFrom) {
+      startFrom = series.startDate;
+    }
+    // Horizon is measured from the series window, not only from "today",
+    // so scheduling a series that starts weeks ahead still gets a full buffer.
+    const horizonEnd = this.addDays(startFrom, RECURRENCE_HORIZON_WEEKS * 7);
+    const hardEnd =
+      series.untilDate && series.untilDate < horizonEnd ? series.untilDate : horizonEnd;
+    if (startFrom > hardEnd) {
+      return 0;
+    }
 
-      let cursor = this.firstWeekdayOnOrAfter(startFrom, series.weekday);
-      let created = 0;
-
-      while (cursor <= hardEnd) {
-        if (!occupiedDates.has(cursor)) {
-          // Final gate under the same series lock (defense in depth vs TOCTOU).
-          if (await this.exceptions.hasSkippedDate(series.id, cursor)) {
-            occupiedDates.add(cursor);
-            cursor = this.addDays(cursor, 7);
-            continue;
-          }
-          try {
-            await this.createOccurrence(actor, series, cursor);
-            created += 1;
-            occupiedDates.add(cursor);
-          } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            this.logger.warn(
-              `Skip recurrence ${series.id} on ${cursor}: ${message}`,
-            );
-          }
-        }
-        cursor = this.addDays(cursor, 7);
-      }
-
-      return created;
+    const existing = await this.lessonRepo.find({
+      where: {
+        recurrenceSeriesId: series.id,
+      },
+      select: ['id', 'date', 'status'],
     });
+    // Any remaining lesson row for this series occupies its current date.
+    // Cancelled / completed / missed must also block regeneration of that date.
+    const occupiedDates = new Set(existing.map((row) => row.date));
+    // Exceptions cover dates whose lesson was moved away, deleted, or detached.
+    const skipped = await this.exceptions.listSkippedDates(series.id);
+    for (const date of skipped) {
+      occupiedDates.add(date);
+    }
+
+    let cursor = this.firstWeekdayOnOrAfter(startFrom, series.weekday);
+    let created = 0;
+
+    while (cursor <= hardEnd) {
+      if (!occupiedDates.has(cursor)) {
+        // Final gate under the same series lock (defense in depth vs TOCTOU).
+        if (await this.exceptions.hasSkippedDate(series.id, cursor)) {
+          occupiedDates.add(cursor);
+          cursor = this.addDays(cursor, 7);
+          continue;
+        }
+        try {
+          await this.createOccurrence(actor, series, cursor);
+          created += 1;
+          occupiedDates.add(cursor);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          this.logger.warn(
+            `Skip recurrence ${series.id} on ${cursor}: ${message}`,
+          );
+        }
+      }
+      cursor = this.addDays(cursor, 7);
+    }
+
+    return created;
   }
 
   private async createOccurrence(
@@ -366,8 +393,26 @@ export class LessonRecurrenceService {
       return this.lessonsService.update(actor, lessonId, lessonPatch);
     }
 
+    const originalAnchorDate = this.normalizeDate(String(lesson.date));
+    const newAnchorDate = lessonPatch.date
+      ? this.normalizeDate(lessonPatch.date)
+      : null;
+    const dateShiftRequested = Boolean(
+      newAnchorDate && newAnchorDate !== originalAnchorDate,
+    );
+
     this.applyTemplatePatch(series, lessonPatch, recurrence);
-    await this.seriesRepo.save(series);
+
+    if (lessonPatch.startTime !== undefined) {
+      series.startTime = this.normalizeTime(lessonPatch.startTime);
+    }
+    if (dateShiftRequested && newAnchorDate) {
+      series.weekday = this.weekdayFromDate(newAnchorDate);
+      if (scope === 'all') {
+        const dayShift = this.daysBetween(originalAnchorDate, newAnchorDate);
+        series.startDate = this.addDays(series.startDate, dayShift);
+      }
+    }
 
     const siblings = await this.lessonRepo.find({
       where: {
@@ -378,7 +423,9 @@ export class LessonRecurrenceService {
     });
 
     const targets = siblings.filter((sibling) => {
-      if (scope === 'following' && sibling.date < lesson.date) return false;
+      const siblingDate = this.normalizeDate(String(sibling.date));
+      const anchorDate = this.normalizeDate(String(lesson.date));
+      if (scope === 'following' && siblingDate < anchorDate) return false;
       return true;
     });
 
@@ -388,11 +435,8 @@ export class LessonRecurrenceService {
       );
     }
 
-    // Build per-sibling patch: fan-out supported fields including status.
-    // Keep each occurrence on its own calendar date (weekday shift handled below).
     const fanoutPatch = this.buildSeriesFanoutPatch(lessonPatch, series);
 
-    // Preflight ACL for every target BEFORE any mutation (no partial series).
     for (const sibling of targets) {
       await this.lessonAccess.assertCanWriteLesson(
         actor,
@@ -401,48 +445,126 @@ export class LessonRecurrenceService {
       );
     }
 
-    // Serialize against fillHorizon / concurrent series edits, then apply.
-    // Updates go through LessonsService so existing business rules stay intact.
-    // If any sibling fails, throw — caller sees failure; remaining unprocessed
-    // siblings stay planned. Preflight ACL minimizes mid-loop auth failures.
-    await this.exceptions.withSeriesLock(series.id, async () => {
-      for (const sibling of targets) {
-        await this.lessonsService.update(actor, sibling.id, {
-          ...fanoutPatch,
-          // Never overwrite occurrence date on fan-out unless regenerating below
-          date: undefined,
-        });
-      }
-    });
-
-    // If date/time of "following/all" moved weekday, regenerate from anchor
-    if (lessonPatch.date || lessonPatch.startTime) {
-      const anchorDate = lessonPatch.date
-        ? this.normalizeDate(lessonPatch.date)
-        : lesson.date;
-      series.weekday = this.weekdayFromDate(anchorDate);
-      series.startTime = this.normalizeTime(
-        lessonPatch.startTime ?? series.startTime,
+    let dateMoves: SeriesDateMove[] = [];
+    if (dateShiftRequested && newAnchorDate && (scope === 'following' || scope === 'all')) {
+      dateMoves = this.computeSeriesDateMoves(
+        siblings,
+        scope,
+        originalAnchorDate,
+        newAnchorDate,
+        lessonId,
       );
-      await this.seriesRepo.save(series);
-
-      if (scope === 'following' || scope === 'all') {
-        if (scope === 'all') {
-          series.startDate = anchorDate;
-          await this.seriesRepo.save(series);
-        }
-        await this.regenerateFrom(actor, series, anchorDate, lessonId);
+      for (const move of dateMoves) {
+        await this.lessonsService.assertOccurrenceRescheduleSlot(
+          move.lessonId,
+          move.newDate,
+          series.startTime,
+          series.duration,
+          {
+            enforceAvailability:
+              normalizeRole(actor.role) !== 'admin',
+          },
+        );
       }
-    } else {
-      await this.fillHorizon(actor, series);
     }
+
+    await this.exceptions.withSeriesLock(series.id, async () => {
+      await this.dataSource.transaction(async (manager) => {
+        if (Object.keys(fanoutPatch).length > 0) {
+          await this.applyFanoutViaManager(targets, fanoutPatch, manager);
+        }
+
+        if (dateMoves.length > 0) {
+          await this.applySeriesDateMoves(series, dateMoves, manager);
+        }
+
+        await manager.getRepository(LessonRecurrenceSeriesEntity).save(series);
+      });
+
+      const fillFrom =
+        dateShiftRequested && newAnchorDate
+          ? scope === 'all'
+            ? series.startDate
+            : newAnchorDate
+          : undefined;
+      await this.fillHorizonCore(actor, series, fillFrom);
+    });
 
     return this.lessonsService.findById(actor, lessonId);
   }
 
   /**
+   * Compute calendar moves for following/all date shifts.
+   * Uses uniform day offset so weekly spacing is preserved across month/year boundaries.
+   */
+  computeSeriesDateMoves(
+    planned: Array<Pick<LessonEntity, 'id' | 'date'>>,
+    scope: 'following' | 'all',
+    originalAnchorDate: string,
+    newAnchorDate: string,
+    keepLessonId: string,
+  ): SeriesDateMove[] {
+    const anchorDate = this.normalizeDate(String(originalAnchorDate));
+    const targetDate = this.normalizeDate(String(newAnchorDate));
+    const dayShift = this.daysBetween(anchorDate, targetDate);
+    const moves: SeriesDateMove[] = [];
+
+    for (const row of planned) {
+      const rowDate = this.normalizeDate(String(row.date));
+      if (scope === 'following' && rowDate < anchorDate && row.id !== keepLessonId) {
+        continue;
+      }
+      const newDate =
+        row.id === keepLessonId ? targetDate : this.addDays(rowDate, dayShift);
+      if (rowDate !== newDate) {
+        moves.push({ lessonId: row.id, oldDate: rowDate, newDate });
+      }
+    }
+
+    return moves;
+  }
+
+  private async applyFanoutViaManager(
+    targets: LessonEntity[],
+    fanoutPatch: UpdateLessonDto,
+    manager: EntityManager,
+  ): Promise<void> {
+    const lessonRepo = manager.getRepository(LessonEntity);
+    for (const sibling of targets) {
+      await lessonRepo.update(sibling.id, fanoutPatch as Partial<LessonEntity>);
+    }
+  }
+
+  private async applySeriesDateMoves(
+    series: LessonRecurrenceSeriesEntity,
+    moves: SeriesDateMove[],
+    manager: EntityManager,
+  ): Promise<void> {
+    const lessonRepo = manager.getRepository(LessonEntity);
+
+    for (const move of moves) {
+      await this.exceptions.markSkipped(
+        series.id,
+        move.oldDate,
+        'rescheduled',
+        move.lessonId,
+        manager,
+      );
+      await lessonRepo.update(move.lessonId, {
+        date: move.newDate,
+        startTime: series.startTime,
+        duration: series.duration,
+        isRecurring: true,
+        recurrenceSeriesId: series.id,
+        reminder24hSent: false,
+        reminder15mSent: false,
+      });
+    }
+  }
+
+  /**
    * Fields that fan out to series siblings. `date` is excluded (per-occurrence);
-   * weekday/time shifts use regenerateFrom when date/startTime change.
+   * weekday/time shifts use applySeriesDateMoves when date changes.
    */
   private buildSeriesFanoutPatch(
     lessonPatch: UpdateLessonDto,
@@ -513,35 +635,6 @@ export class LessonRecurrenceService {
     }
 
     return patch;
-  }
-
-  private async regenerateFrom(
-    actor: JwtPayload,
-    series: LessonRecurrenceSeriesEntity,
-    fromDate: string,
-    keepLessonId: string,
-  ): Promise<void> {
-    const future = await this.lessonRepo.find({
-      where: {
-        recurrenceSeriesId: series.id,
-        status: 'planned',
-      },
-    });
-    for (const row of future) {
-      if (row.date < fromDate) continue;
-      if (row.id === keepLessonId) {
-        await this.lessonRepo.update(row.id, {
-          date: fromDate,
-          startTime: series.startTime,
-          duration: series.duration,
-          isRecurring: true,
-          recurrenceSeriesId: series.id,
-        });
-        continue;
-      }
-      await this.lessonsService.delete(row.id, { skipRecurrenceException: true });
-    }
-    await this.fillHorizon(actor, series, fromDate);
   }
 
   private async stopSeries(
@@ -637,6 +730,14 @@ export class LessonRecurrenceService {
     const [year, month, day] = dateStr.split('-').map(Number);
     const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
     return weekday === 0 ? 6 : weekday - 1;
+  }
+
+  daysBetween(fromDate: string, toDate: string): number {
+    const [y1, m1, d1] = fromDate.split('-').map(Number);
+    const [y2, m2, d2] = toDate.split('-').map(Number);
+    const t1 = Date.UTC(y1, m1 - 1, d1);
+    const t2 = Date.UTC(y2, m2 - 1, d2);
+    return Math.round((t2 - t1) / 86_400_000);
   }
 
   private firstWeekdayOnOrAfter(dateStr: string, weekday: number): string {

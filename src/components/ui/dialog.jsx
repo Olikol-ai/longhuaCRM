@@ -28,10 +28,15 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
 /**
  * Shared overlay close control — icon fully inside a DS-sized square hit target.
- * size-11 / md:size-9 matches Design System IconButton; SVG locked to size-4.
+ * size-11 (=44px) on mobile for touch; md:size-9 on desktop.
+ * Position includes safe-area insets so the control stays below notch/status bar
+ * (absolute children ignore parent padding / safe-pt).
  */
 export const overlayCloseButtonClassName =
-  "absolute right-4 top-4 z-20 box-border inline-flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-lg opacity-70 ring-offset-background transition-opacity hover:opacity-100 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground md:size-9 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
+  "absolute z-20 box-border inline-flex size-11 min-h-[44px] min-w-[44px] shrink-0 items-center justify-center overflow-hidden rounded-lg opacity-70 ring-offset-background transition-opacity hover:opacity-100 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground " +
+  "right-[max(1rem,env(safe-area-inset-right,0px))] top-[max(1rem,env(safe-area-inset-top,0px))] " +
+  "md:right-4 md:top-4 md:size-9 md:min-h-0 md:min-w-0 " +
+  "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
 
 const DialogContent = React.forwardRef(({ className, children, ...props }, ref) => (
   <DialogPortal>

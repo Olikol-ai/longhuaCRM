@@ -72,11 +72,19 @@ export function buildJitsiConfigOverwrite(options = {}) {
     toolbarButtons: [],
     buttonsWithNotifyClick: [],
     disableProfile: true,
-    startWithAudioMuted: false,
-    startWithVideoMuted: false,
-    /** Override host default (nth joiner muted) — CRM lessons are small rooms. */
-    startAudioMuted: 0,
-    startVideoMuted: 0,
+    /**
+     * Join muted once (local preference). Do NOT use startAudioMuted/startVideoMuted
+     * numeric policy here: value 0 means “everyone starts muted” and is pushed to
+     * Jicofo as start-muted-from-focus, which remutes local tracks again after the
+     * user has already unmuted (e.g. on Jingle / P2P session establish).
+     */
+    startWithAudioMuted: true,
+    startWithVideoMuted: true,
+    /**
+     * Ignore Jicofo START_MUTED_FROM_FOCUS after join so a later focus policy
+     * cannot force mute() again on tracks the user already turned on.
+     */
+    ignoreStartMuted: true,
     /** Never join without creating local A/V tracks (breaks two-way audio). */
     startSilent: false,
     enableNoAudioDetection: true,
@@ -104,6 +112,20 @@ export function buildJitsiConfigOverwrite(options = {}) {
       disableResizable: true,
       // Keep thumbnails visible when someone shares (Zoom-like stage + strip).
       disableStageFilmstrip: false,
+      // Prefer a single camera PiP beside the shared stage.
+      stageFilmstripParticipants: 1,
+    },
+    /**
+     * Host config.js prefers AV1 first on the JVB path; AV1 screen-share often
+     * arrives as a black remote tile. Prefer VP8 for both P2P and bridge.
+     */
+    videoQuality: {
+      codecPreferenceOrder: ['VP8', 'VP9', 'H264', 'AV1'],
+      mobileCodecPreferenceOrder: ['VP8', 'H264', 'VP9', 'AV1'],
+    },
+    desktopSharingFrameRate: {
+      min: 5,
+      max: 15,
     },
     /**
      * Lessons are 1:1 (teacher↔student). P2P avoids the videobridge when ICE to
@@ -117,6 +139,13 @@ export function buildJitsiConfigOverwrite(options = {}) {
       // Prefer stable codecs on mobile Safari / Chrome.
       codecPreferenceOrder: ['VP8', 'VP9', 'H264', 'AV1'],
       mobileCodecPreferenceOrder: ['VP8', 'H264', 'VP9', 'AV1'],
+      // Keep STUN when overwriting host p2p (otherwise only host candidates).
+      // Production still needs a Longhua TURN/coturn for hard NAT — STUN ≠ TURN.
+      stunServers: [
+        { urls: 'stun:46.53.182.183:3478' },
+        { urls: 'stun:meet-jit-si-turnrelay.jitsi.net:443' },
+        { urls: 'stun:stun.l.google.com:19302' },
+      ],
     },
     /**
      * Prefer WebSocket bridge channel when on JVB (more reliable than SCTP
@@ -170,8 +199,8 @@ export function buildJitsiInterfaceConfigOverwrite() {
     SETTINGS_SECTIONS: ['devices', 'language'],
     HIDE_INVITE_MORE_HEADER: true,
     DISABLE_FOCUS_INDICATOR: true,
-    /** Compact thumbnails beside/above stage — Zoom-like on phones. */
-    FILM_STRIP_MAX_HEIGHT: 96,
+    /** Compact thumbnails — enlarged for screen-share camera PiP readability. */
+    FILM_STRIP_MAX_HEIGHT: 140,
     VERTICAL_FILMSTRIP: true,
     TILE_VIEW_MAX_COLUMNS: 2,
     /** Prefer remote screen share on the large stage automatically. */
@@ -260,11 +289,24 @@ export function resizeJitsiEmbed(api, container, options = {}) {
   }
 }
 
-/** Connection status labels for the lesson video shell. */
+/**
+ * Connection status for the lesson video shell.
+ *
+ * Lifecycle (soft network flap — session MUST stay alive):
+ *   connecting → connected → interrupted → reconnecting → connected
+ *
+ * Terminal (only intentional hangup / confirmed leave / unrecoverable):
+ *   … → left → idle (CRM endSession)
+ */
 export const VIDEO_CONNECTION_STATUS = {
   idle: { id: 'idle', label: 'Ожидание', tone: 'muted' },
   connecting: { id: 'connecting', label: 'Подключаемся…', tone: 'warn' },
   connected: { id: 'connected', label: 'На связи', tone: 'ok' },
+  interrupted: {
+    id: 'interrupted',
+    label: 'Связь прервана',
+    tone: 'warn',
+  },
   reconnecting: {
     id: 'reconnecting',
     label: 'Восстановление…',
@@ -272,10 +314,23 @@ export const VIDEO_CONNECTION_STATUS = {
   },
   degraded: { id: 'degraded', label: 'Слабое соединение', tone: 'warn' },
   failed: { id: 'failed', label: 'Нет соединения', tone: 'bad' },
+  left: { id: 'left', label: 'Вы вышли', tone: 'muted' },
 };
 
 export function videoConnectionMeta(status) {
   return VIDEO_CONNECTION_STATUS[status] || VIDEO_CONNECTION_STATUS.idle;
+}
+
+/** Statuses that mean the CRM video session should keep running. */
+export function isLiveVideoConnectionStatus(status) {
+  return (
+    status === 'connecting' ||
+    status === 'connected' ||
+    status === 'interrupted' ||
+    status === 'reconnecting' ||
+    status === 'degraded' ||
+    status === 'failed'
+  );
 }
 
 /**

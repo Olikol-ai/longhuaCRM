@@ -15,11 +15,14 @@ import { STORAGE_NAMESPACE } from '../../common/storage/storage.constants';
 import { StorageService } from '../../common/storage/storage.service';
 import { MaterialEntity } from '../materials/entities/material.entity';
 import {
+  decodeUploadOriginalName,
   detectMaterialFileKind,
   formatMaterialsMaxUploadLabel,
   getMaterialsMaxUploadBytes,
   guessMimeFromExtension,
-  MATERIALS_ALLOWED_EXTENSIONS,
+  isAllowedMaterialsUpload,
+  isZipMimeType,
+  resolveMaterialsUploadExtension,
 } from './material-upload.limits';
 import {
   classifyMaterialFileUrl,
@@ -134,11 +137,16 @@ export class SecureFilesService implements OnModuleInit {
       );
     }
 
-    const originalName = file.originalname || 'upload';
-    const extension = extname(originalName).toLowerCase();
-    if (!MATERIALS_ALLOWED_EXTENSIONS.has(extension)) {
+    const originalName = decodeUploadOriginalName(file.originalname);
+    if (!isAllowedMaterialsUpload(originalName, file.mimetype)) {
       throw new BadRequestException('File type is not allowed');
     }
+
+    const extension = resolveMaterialsUploadExtension(originalName, file.mimetype);
+    // Ensure storage key keeps a real extension when mobile pickers omit ".zip".
+    const storageName = extname(originalName).toLowerCase()
+      ? originalName
+      : `${originalName}${extension}`;
 
     const mimeType =
       (file.mimetype && file.mimetype !== 'application/octet-stream'
@@ -151,13 +159,13 @@ export class SecureFilesService implements OnModuleInit {
         stored = this.storage.saveFromPath(
           STORAGE_NAMESPACE.Materials,
           file.path,
-          originalName,
+          storageName,
         );
       } else if (file.buffer?.length) {
         stored = this.storage.saveBuffer(
           STORAGE_NAMESPACE.Materials,
           file.buffer,
-          originalName,
+          storageName,
         );
       } else {
         throw new BadRequestException('File is required');
@@ -179,9 +187,9 @@ export class SecureFilesService implements OnModuleInit {
       url: stored.publicKey,
       mimeType,
       sizeBytes: stored.sizeBytes,
-      originalName,
+      originalName: storageName,
       storedName: basename(stored.absolutePath),
-      fileType: detectMaterialFileKind(originalName),
+      fileType: detectMaterialFileKind(storageName),
     };
   }
 
@@ -207,9 +215,15 @@ export class SecureFilesService implements OnModuleInit {
       `material.stream materialId=${payload.materialId} sizeBytes=${resolved.size} ` +
         `setupMs=${Date.now() - started}`,
     );
+    const contentType =
+      material.mimeType?.trim() || this.guessContentType(material.fileUrl);
+    const disposition = isZipMimeType(contentType)
+      || String(material.fileUrl || '').toLowerCase().endsWith('.zip')
+      ? 'attachment'
+      : 'inline';
     return new StreamableFile(resolved.stream, {
-      type: material.mimeType?.trim() || this.guessContentType(material.fileUrl),
-      disposition: buildContentDisposition('inline', resolved.filename),
+      type: contentType,
+      disposition: buildContentDisposition(disposition, resolved.filename),
       length: resolved.size,
     });
   }

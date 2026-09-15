@@ -27,6 +27,16 @@ export type AvailabilityCheckResult = {
   slotsForDay: AvailabilitySlot[];
 };
 
+/** Options for hard availability gating on lesson assignment. */
+export type AssertAvailabilityOptions = {
+  /**
+   * When false, declared teacher availability is advisory only
+   * (admin may assign outside the preferred schedule).
+   * Default: true.
+   */
+  enforce?: boolean;
+};
+
 const UNAVAILABLE_MESSAGE =
   'Преподаватель в это время не работает. Урок не может быть назначен.';
 
@@ -276,7 +286,13 @@ export class ScheduleService {
     date: string,
     startTime: string,
     duration: number,
+    options?: AssertAvailabilityOptions,
   ): Promise<void> {
+    // Admin assignment: preferred schedule is advisory, not a hard block.
+    // Real lesson/booking overlaps stay enforced via assertNoScheduleConflicts.
+    if (options?.enforce === false) {
+      return;
+    }
     const result = await this.evaluateAvailability(teacherId, date, startTime, duration);
     if (!result.available) {
       throw new BadRequestException(result.message ?? UNAVAILABLE_MESSAGE);

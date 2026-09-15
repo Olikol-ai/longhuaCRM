@@ -104,3 +104,9 @@ export function TutorRoute({ children, allowAdmin = true }) {
   if (allowAdmin) roles.push('admin');
   return <RoleGuard roles={roles}>{children}</RoleGuard>;
 }
+
+export function SalesManagerRoute({ children, allowAdmin = true }) {
+  const roles = ['sales_manager'];
+  if (allowAdmin) roles.push('admin');
+  return <RoleGuard roles={roles}>{children}</RoleGuard>;
+}

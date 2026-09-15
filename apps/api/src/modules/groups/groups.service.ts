@@ -8,6 +8,7 @@ import { TeacherAccessService } from '../../common/access/teacher-access.service
 import { JwtPayload } from '../auth/auth.service';
 import { LessonSeriesService } from '../lesson-series/lesson-series.service';
 import { LessonsService } from '../lessons/lessons.service';
+import { B2bDashboardService } from '../b2b-sales/b2b-dashboard.service';
 import { GroupEntity } from './entities/group.entity';
 import { GroupMemberEntity } from './entities/group-member.entity';
 import { AddGroupMemberDto } from './dto/add-group-member.dto';
@@ -22,6 +23,7 @@ export class GroupsService {
     private readonly teacherAccess: TeacherAccessService,
     private readonly lessonSeriesService: LessonSeriesService,
     private readonly lessonsService: LessonsService,
+    private readonly b2bDashboard: B2bDashboardService,
   ) {}
 
   async findAll(actor: JwtPayload): Promise<GroupEntity[]> {
@@ -43,11 +45,23 @@ export class GroupsService {
       name: dto.name.trim(),
       status: dto.status ?? 'active',
       teacherId: dto.teacherId?.trim() ? dto.teacherId : null,
+      organizationId: dto.organizationId?.trim() ? dto.organizationId : null,
+      contractAmount: dto.contractAmount ?? null,
+      contractCurrency: dto.contractCurrency ?? 'BYN',
     });
   }
 
   async update(id: string, dto: UpdateGroupDto): Promise<GroupEntity> {
-    const row = await this.repository.update(id, dto);
+    const patch: Partial<GroupEntity> = {};
+    if (dto.name !== undefined) patch.name = dto.name.trim();
+    if (dto.status !== undefined) patch.status = dto.status;
+    if (dto.teacherId !== undefined) patch.teacherId = dto.teacherId?.trim() ? dto.teacherId : null;
+    if (dto.organizationId !== undefined) {
+      patch.organizationId = dto.organizationId?.trim() ? dto.organizationId : null;
+    }
+    if (dto.contractAmount !== undefined) patch.contractAmount = dto.contractAmount;
+    if (dto.contractCurrency !== undefined) patch.contractCurrency = dto.contractCurrency ?? 'BYN';
+    const row = await this.repository.update(id, patch);
     if (!row) {
       throw new NotFoundException('Group not found');
     }
@@ -110,11 +124,14 @@ export class GroupsService {
     const activeSeries =
       series.find((row) => row.status === 'active') ?? series[0] ?? null;
 
+    const counterparty = await this.b2bDashboard.getGroupCounterpartySummary(groupId);
+
     return {
       group,
       members,
       series,
       activeSeries,
+      counterparty,
       lessons: lessons.sort((a, b) => {
         const dateCompare = String(a.date ?? '').localeCompare(String(b.date ?? ''));
         if (dateCompare !== 0) {

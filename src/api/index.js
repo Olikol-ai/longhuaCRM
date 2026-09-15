@@ -17,6 +17,7 @@ import { payments } from './payments.api';
 import { schedule } from './schedule';
 import { settings } from './settings.api';
 import { users } from './users.api';
+import { balances } from './balances.api';
 import { students } from './students.api';
 import { teachers } from './teachers.api';
 import { tutors } from './tutors.api';
@@ -27,6 +28,7 @@ import { teacherPayments } from './teacher-payments.api';
 import { lessonSeries } from './lesson-series.api';
 import { telegram } from './telegram.api';
 import { cryptoApi } from './crypto.api';
+import { b2b } from './b2b.api';
 import { apiUpload } from './http';
 
 export { getToken, setToken, apiFetch, TOKEN_KEY, onTokenChange } from './http';
@@ -40,6 +42,7 @@ export { auth } from './auth';
 export { functions } from './functions';
 export { schedule } from './schedule';
 export { students } from './students.api';
+export { balances } from './balances.api';
 export { teachers } from './teachers.api';
 export { tutors } from './tutors.api';
 export { teacherInvites } from './teacher-invites.api';
@@ -59,6 +62,7 @@ export { teacherPayments } from './teacher-payments.api';
 export { lessonSeries } from './lesson-series.api';
 export { telegram } from './telegram.api';
 export { cryptoApi } from './crypto.api';
+export { b2b } from './b2b.api';
 
 /** Unified API client — all frontend requests go through /api/* */
 export const api = {
@@ -70,6 +74,7 @@ export const api = {
   homework,
   video,
   students,
+  balances,
   teachers,
   tutors,
   teacherInvites,
@@ -89,6 +94,7 @@ export const api = {
   lessonSeries,
   telegram,
   crypto: cryptoApi,
+  b2b,
   functions,
   schedule,
   uploads: {

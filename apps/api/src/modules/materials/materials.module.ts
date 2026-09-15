@@ -8,6 +8,7 @@ import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { TutorEntity } from '../tutors/entities/tutor.entity';
 import { TutorStudentEntity } from '../tutors/entities/tutor-student.entity';
+import { UserEntity } from '../users/entities/user.entity';
 import { MaterialAccessEntity } from './entities/material-access.entity';
 import { MaterialCourseGrantEntity } from './entities/material-course-grant.entity';
 import { MaterialFolderEntity } from './entities/material-folder.entity';
@@ -33,6 +34,7 @@ import { MaterialAccessService } from './material-access.service';
       TeacherEntity,
       TutorEntity,
       TutorStudentEntity,
+      UserEntity,
       GroupEntity,
       GroupMemberEntity,
       EnrollmentEntity,

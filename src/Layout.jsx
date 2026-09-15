@@ -21,6 +21,8 @@ import {
   NotebookPen,
   MessageSquare,
   Bell,
+  Briefcase,
+  Wallet,
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import { useAuth } from "@/lib/AuthContext";
@@ -48,12 +50,13 @@ const adminNav = [
   { name: "Главная", icon: LayoutDashboard, page: "Dashboard" },
   { name: "Чаты", icon: MessageSquare, page: "Chats" },
   { name: "Расписание", icon: Calendar, page: "Schedule" },
+  { name: "Баланс", icon: Wallet, page: "Balance" },
   { name: "Панель управления", icon: Layers, page: "AdminPanel" },
   { name: "Пользователи", icon: Users, page: "UserManagement" },
+  { name: "Продажи B2B", icon: Briefcase, page: "B2bSales" },
   { name: "Группы", icon: Users, page: "Groups" },
   { name: "Сертификаты", icon: Award, page: "Certificates" },
   { name: "Платежи", icon: CreditCard, page: "Payments" },
-  { name: "Домашние задания", icon: NotebookPen, page: "HomeworkList" },
   { name: "Материалы", icon: BookOpen, page: "MaterialsHub" },
   { name: "HSK Academy", icon: Award, page: "HskAcademy" },
   { name: "Студия HSK", icon: BookOpen, page: "ExamContent" },
@@ -113,12 +116,19 @@ const tutorStudentNav = [
   { name: "Настройки", icon: Settings, page: "Settings" },
 ];
 
+const salesManagerNav = [
+  { name: "Мои продажи", icon: Briefcase, page: "SalesManagerDashboard" },
+  { name: "Дневник продаж", icon: BookOpen, page: "SalesDiary" },
+  { name: "Настройки", icon: Settings, page: "Settings" },
+];
+
 const NAV_BY_ROLE = {
   admin: adminNav,
   teacher: teacherNav,
   tutor: tutorNav,
   student: studentNav,
   tutor_student: tutorStudentNav,
+  sales_manager: salesManagerNav,
 };
 
 export default function Layout({ children, currentPageName }) {

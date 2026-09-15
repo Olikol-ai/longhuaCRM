@@ -33,6 +33,7 @@ describe('TeacherStudentContactsService private notebook', () => {
     findOne: jest.fn(),
     create: jest.fn((row: unknown) => row),
     save: jest.fn(async (row: unknown) => row),
+    update: jest.fn().mockResolvedValue({ affected: 1 }),
   };
 
   const historyRepo = {
@@ -130,6 +131,44 @@ describe('TeacherStudentContactsService private notebook', () => {
       }),
     );
     expect(row.linkedStudentId).toBe('stu-linked-1');
+  });
+
+  it('syncTeacherOwnerFromLinkedStudent creates notebook contact when missing', async () => {
+    contactRepo.find.mockResolvedValue([]);
+    dataSource.getRepository.mockReturnValue({
+      findOne: jest.fn().mockResolvedValue({
+        id: 'stu-1',
+        name: 'Новый ученик',
+        phone: '+375291110000',
+        notes: 'admin create',
+      }),
+    });
+
+    await service.syncTeacherOwnerFromLinkedStudent('stu-1', teacherId);
+
+    expect(contactRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ownerType: 'teacher',
+        ownerId: teacherId,
+        name: 'Новый ученик',
+        phone: '+375291110000',
+        linkedStudentId: 'stu-1',
+        status: 'active',
+      }),
+    );
+    expect(contactRepo.save).toHaveBeenCalled();
+  });
+
+  it('syncTeacherOwnerFromLinkedStudent updates existing notebook owner', async () => {
+    contactRepo.find.mockResolvedValue([{ id: 'c-old', linkedStudentId: 'stu-1' }]);
+
+    await service.syncTeacherOwnerFromLinkedStudent('stu-1', teacherId);
+
+    expect(contactRepo.update).toHaveBeenCalledWith(
+      { linkedStudentId: 'stu-1', ownerType: 'teacher' },
+      { ownerId: teacherId, status: 'active' },
+    );
+    expect(contactRepo.create).not.toHaveBeenCalled();
   });
 
   it('tutor can create contact under tutor owner', async () => {

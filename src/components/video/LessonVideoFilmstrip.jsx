@@ -14,8 +14,9 @@ function initials(name) {
 }
 
 /**
- * Zoom-like participant thumbnails over the stage while someone shares a screen.
- * Pins via External API (real video stays in the Jitsi stage/filmstrip iframe).
+ * Bottom-right teacher camera chrome while screen share fills the stage.
+ * Real video stays in the Jitsi filmstrip (styled via plugin.head.html);
+ * this CRM tile is a pin/fallback control, not a second media connection.
  */
 export default function LessonVideoFilmstrip({
   visible = false,
@@ -24,6 +25,8 @@ export default function LessonVideoFilmstrip({
   onSelect,
   onPin,
   compact = true,
+  /** Prefer showing the screen-sharer's camera identity (teacher). */
+  preferScreenSharer = true,
 }) {
   const [orientation, setOrientation] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(orientation: landscape)').matches
@@ -45,15 +48,23 @@ export default function LessonVideoFilmstrip({
 
   const list = useMemo(() => {
     const online = (participants || []).filter((p) => p?.online && p?.id);
-    // Prefer non-sharers in the strip (share already fills the stage).
+    if (online.length === 0) return [];
+
+    if (preferScreenSharer) {
+      const sharer = online.find((p) => p.screenSharing);
+      // Show camera identity for the person sharing (not a roster of everyone).
+      if (sharer) return [sharer];
+    }
+
     const sorted = [...online].sort((a, b) => {
       const aShare = a.screenSharing ? 1 : 0;
       const bShare = b.screenSharing ? 1 : 0;
       if (aShare !== bShare) return aShare - bShare;
       return String(a.displayName || '').localeCompare(String(b.displayName || ''), 'ru');
     });
-    return sorted;
-  }, [participants]);
+    // At most one PiP tile — avoid a permanent participants strip.
+    return sorted.slice(0, 1);
+  }, [participants, preferScreenSharer]);
 
   if (!visible || list.length === 0) return null;
 
@@ -63,18 +74,18 @@ export default function LessonVideoFilmstrip({
     <div
       className={cn(
         'pointer-events-none absolute z-[25] flex gap-2',
-        landscape
-          ? 'right-2 top-2 max-h-[min(70%,22rem)] flex-col overflow-y-auto overflow-x-hidden pr-0.5'
-          : 'right-2 top-2 max-w-[calc(100%-1rem)] flex-row overflow-x-auto overflow-y-hidden pb-0.5',
+        // Bottom-right over screen share (above dock safe area).
+        'bottom-[5.75rem] right-2 sm:bottom-[6.5rem] sm:right-3',
+        landscape ? 'flex-col' : 'flex-col',
       )}
       data-testid="lesson-video-filmstrip"
       data-orientation={orientation}
       role="list"
-      aria-label="Участники"
+      aria-label="Камера преподавателя"
     >
       {list.map((p) => {
         const isPinned = pinnedId && pinnedId === p.id;
-        const label = p.displayName || 'Участник';
+        const label = p.displayName || 'Преподаватель';
         const videoOff = p.videoMuted !== false && p.videoMuted !== null ? p.videoMuted : false;
         const audioOff = Boolean(p.audioMuted);
         return (
@@ -86,25 +97,21 @@ export default function LessonVideoFilmstrip({
               'border-white/25 bg-black/55 text-white',
               isPinned && 'ring-2 ring-brand ring-offset-1 ring-offset-black/40',
               compact
-                ? landscape
-                  ? 'h-[4.75rem] w-[5.5rem]'
-                  : 'h-[4.25rem] w-[5.25rem]'
-                : landscape
-                  ? 'h-28 w-36'
-                  : 'h-24 w-32',
+                ? 'h-[5.5rem] w-[7.25rem] sm:h-[6.5rem] sm:w-[8.5rem]'
+                : 'h-28 w-36 sm:h-32 sm:w-40',
             )}
           >
             <button
               type="button"
               className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 px-1 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/70"
               onClick={() => onSelect?.(p.id, label)}
-              aria-label={`Показать ${label}`}
+              aria-label={`Камера: ${label}`}
               data-testid={`lesson-video-thumb-${p.id}`}
             >
               <span
                 className={cn(
                   'flex items-center justify-center rounded-full bg-brand/90 font-semibold text-white',
-                  compact ? 'h-8 w-8 text-[11px]' : 'h-10 w-10 text-xs',
+                  compact ? 'h-9 w-9 text-[11px]' : 'h-11 w-11 text-xs',
                 )}
                 aria-hidden
               >

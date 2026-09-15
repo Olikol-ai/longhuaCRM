@@ -12,6 +12,8 @@
     "migration:revert": "npm run typeorm -- migration:revert -d src/database/data-source.ts",
     "mail:test": "ts-node -r tsconfig-paths/register scripts/send-test-mail.ts",
     "seed:assessment-demo": "ts-node -r tsconfig-paths/register scripts/seed-assessment-demo.ts",
+    "db:audit": "ts-node -r tsconfig-paths/register scripts/audit-database-integrity.ts",
+    "db:repair": "ts-node -r tsconfig-paths/register scripts/repair-database-integrity.ts",
     "test": "jest --config ./jest.config.json",
     "test:e2e": "jest --config ./test/jest-e2e.json --runInBand"
   },

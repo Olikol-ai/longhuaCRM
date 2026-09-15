@@ -1,15 +1,17 @@
 import { UserEntity } from './entities/user.entity';
-import { getOnboardingContext } from '../auth/onboarding';
+import { getAccountRole, getOnboardingContext } from '../auth/onboarding';
 
 export function userToRecord(row: UserEntity): Record<string, unknown> {
   const fullName =
     row.firstName && row.lastName ? `${row.lastName} ${row.firstName}` : row.email;
   const onboarding = getOnboardingContext(row);
+  const account_role = getAccountRole(row.status, row.role);
 
   return {
     id: row.id,
     email: row.email,
     role: onboarding.role,
+    account_role,
     status: onboarding.status,
     onboarding_state: onboarding.onboarding_state,
     redirect_path: onboarding.redirect_path,

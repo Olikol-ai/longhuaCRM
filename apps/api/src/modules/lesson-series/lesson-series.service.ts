@@ -195,11 +195,13 @@ export class LessonSeriesService {
       }
 
       try {
+        // Preferred schedule is advisory; real overlaps still block.
         await this.scheduleService.assertAvailableForLesson(
           teacherId,
           dateStr,
           series.startTime,
           duration,
+          { enforce: false },
         );
         await this.scheduleService.assertNoScheduleConflicts(
           teacherId,
@@ -289,11 +291,13 @@ export class LessonSeriesService {
 
         const slotLabel = `${dateStr} ${slot.startTime}`;
         try {
+          // Slots already come from availability; keep conflict check only.
           await this.scheduleService.assertAvailableForLesson(
             teacherId,
             dateStr,
             slot.startTime,
             duration,
+            { enforce: false },
           );
           await this.scheduleService.assertNoScheduleConflicts(
             teacherId,

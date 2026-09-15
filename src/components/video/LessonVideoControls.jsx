@@ -4,12 +4,14 @@ import {
   Video,
   VideoOff,
   MonitorUp,
+  MonitorOff,
   PhoneOff,
   MessageCircle,
   BookOpen,
   Users,
   Settings,
   Hand,
+  BellRing,
   Minimize2,
   PictureInPicture2,
 } from 'lucide-react';
@@ -80,6 +82,7 @@ export default function LessonVideoControls({
   onOpenMaterials,
   onOpenSettings,
   onRaiseHand,
+  onAttentionPing,
   onMinimize,
   documentPipSupported = false,
   onFloatOverWindows,
@@ -105,7 +108,7 @@ export default function LessonVideoControls({
       aria-label="Управление видеоуроком"
     >
       <DockButton
-        label="Микрофон"
+        label={audioMuted ? 'Микрофон выкл.' : 'Микрофон вкл.'}
         active={audioMuted}
         onClick={onToggleAudio}
         testId="lesson-video-dock-mic"
@@ -113,7 +116,7 @@ export default function LessonVideoControls({
         {audioMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
       </DockButton>
       <DockButton
-        label="Камера"
+        label={videoMuted ? 'Камера выкл.' : 'Камера вкл.'}
         active={videoMuted}
         onClick={onToggleVideo}
         testId="lesson-video-dock-cam"
@@ -122,17 +125,21 @@ export default function LessonVideoControls({
       </DockButton>
       {!isStudent ? (
         <DockButton
-          label="Экран"
+          label={screenSharing ? 'Завершить демонстрацию' : 'Поделиться'}
           active={screenSharing}
           onClick={onShareScreen}
           testId="lesson-video-dock-screen"
           className={
             screenSharing
-              ? '!bg-amber-500/20 !text-amber-900 hover:!bg-amber-500/30 dark:!text-amber-100'
+              ? '!w-auto !min-w-12 px-2 sm:!w-auto sm:!min-w-[5.5rem] !bg-amber-500/20 !text-amber-900 hover:!bg-amber-500/30 dark:!text-amber-100 [&_span.hidden]:!max-w-[6.5rem]'
               : undefined
           }
         >
-          <MonitorUp className="h-5 w-5" />
+          {screenSharing ? (
+            <MonitorOff className="h-5 w-5" />
+          ) : (
+            <MonitorUp className="h-5 w-5" />
+          )}
         </DockButton>
       ) : null}
       <DockButton
@@ -200,6 +207,16 @@ export default function LessonVideoControls({
           testId="lesson-video-dock-hand"
         >
           <Hand className="h-5 w-5" />
+        </DockButton>
+      ) : null}
+
+      {isStudent && onAttentionPing ? (
+        <DockButton
+          label="Внимание"
+          onClick={onAttentionPing}
+          testId="lesson-video-dock-ping"
+        >
+          <BellRing className="h-5 w-5" />
         </DockButton>
       ) : null}
 

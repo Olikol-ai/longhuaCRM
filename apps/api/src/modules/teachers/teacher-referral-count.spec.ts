@@ -94,6 +94,7 @@ describe('Teacher referral student counts', () => {
     };
     const userRepo = { findOne: jest.fn(), save: jest.fn() };
     const materialAccessRepo = { update: jest.fn().mockResolvedValue({ affected: 0 }) };
+    const salesCommissions = { ensureProfile: jest.fn().mockResolvedValue(undefined) };
 
     const sync = new RoleEntitySyncService(
       studentRepo as never,
@@ -102,6 +103,7 @@ describe('Teacher referral student counts', () => {
       tutorStudentRepo as never,
       userRepo as never,
       materialAccessRepo as never,
+      salesCommissions as never,
     );
 
     const user = {

@@ -6,6 +6,7 @@ import {
   Video,
   VideoOff,
   MonitorUp,
+  MonitorOff,
   Maximize2,
   PhoneOff,
   MessageCircle,
@@ -43,7 +44,12 @@ import LessonVideoSideRail from '@/components/video/LessonVideoSideRail';
 import LessonVideoLeaveDialog from '@/components/video/LessonVideoLeaveDialog';
 import LessonVideoChatToast from '@/components/video/LessonVideoChatToast';
 import LessonVideoScreenShareBar from '@/components/video/LessonVideoScreenShareBar';
+import LessonVideoNotificationLayer from '@/components/video/LessonVideoNotificationLayer';
 import LessonVideoSharePreview from '@/components/video/LessonVideoSharePreview';
+import {
+  encodeVideoPingPayload,
+  parseVideoPingPayload,
+} from '@/lib/video-call-notifications';
 import LessonVideoLinkQuality from '@/components/video/LessonVideoLinkQuality';
 import LessonVideoParticipantsPanel from '@/components/video/LessonVideoParticipantsPanel';
 import LessonVideoAttendancePanel from '@/components/video/LessonVideoAttendancePanel';
@@ -51,6 +57,7 @@ import LessonVideoInfoPanel from '@/components/video/LessonVideoInfoPanel';
 import VideoScreenShareAudioHint from '@/components/video/VideoScreenShareAudioHint';
 import LessonVideoFilmstrip from '@/components/video/LessonVideoFilmstrip';
 import { useDocumentVideoPiP } from '@/components/video/useDocumentVideoPiP';
+import { useVideoControlsIdle } from '@/hooks/useVideoControlsIdle';
 import { videoDiagWarn } from '@/lib/video-diagnostics';
 
 function formatClock(t) {
@@ -165,6 +172,8 @@ export default function VideoSessionLayer() {
     setMiniPos,
     setMiniPinned,
     setLeaveOpen,
+    softRemountConference,
+    everConnectedRef,
     endSession,
     refreshSessionToken,
     minimize,
@@ -184,6 +193,21 @@ export default function VideoSessionLayer() {
     screenSharing ||
       (livePresence || []).some((p) => p?.online && p?.screenSharing),
   );
+
+  const controlsIdleEnabled = Boolean(active && mode === 'full');
+  const controlsHoldOpen =
+    participantsOpen ||
+    settingsOpen ||
+    attendanceOpen ||
+    infoOpen ||
+    sheetOpen ||
+    leaveOpen ||
+    shareAudioHintOpen;
+  const { controlsVisible, bumpControls } = useVideoControlsIdle({
+    enabled: controlsIdleEnabled,
+    idleMs: 5000,
+    holdOpen: controlsHoldOpen,
+  });
 
   useEffect(() => {
     if (!active) return undefined;
@@ -293,6 +317,44 @@ export default function VideoSessionLayer() {
     }
   }, []);
 
+  const handleScreenSharingChanged = useCallback(
+    (on, meta) => {
+      // Local dock “Поделиться / Завершить” tracks ONLY our own share.
+      // Remote share is reflected via livePresence + ScreenShareBar.
+      if (meta?.isLocal === false) {
+        return;
+      }
+      const sharing = Boolean(on);
+      setScreenSharing(sharing);
+      if (sharing) {
+        setShareLabel(shareLabelFromMeta(meta || {}));
+        setShareStartedAt(Date.now());
+      } else {
+        setShareLabel('экран');
+      }
+    },
+    [setScreenSharing],
+  );
+
+  /** Start share (hint → picker) or stop active local share via Jitsi toggle. */
+  const handleShareScreenClick = useCallback(() => {
+    if (screenSharing) {
+      executeCommand('toggleShareScreen');
+      return;
+    }
+    setShareAudioHintOpen(true);
+  }, [screenSharing, executeCommand]);
+
+  const startScreenShare = useCallback(() => {
+    executeCommand('toggleShareScreen');
+  }, [executeCommand]);
+
+  const changeShareSource = useCallback(() => {
+    // Stop current share, then reopen the start flow so the native picker appears again.
+    executeCommand('toggleShareScreen');
+    window.setTimeout(() => setShareAudioHintOpen(true), 400);
+  }, [executeCommand]);
+
   const documentPip = useDocumentVideoPiP({
     active,
     enabled: isDesktop,
@@ -311,7 +373,7 @@ export default function VideoSessionLayer() {
     onToggleVideo: () => executeCommand('toggleVideo'),
     onShareScreen: () => {
       focusOpenerWindow();
-      setShareAudioHintOpen(true);
+      handleShareScreenClick();
     },
     onOpenChat: () => {
       focusOpenerWindow();
@@ -403,22 +465,6 @@ export default function VideoSessionLayer() {
     }
   }, [session?.lessonId]);
 
-  const handleScreenSharingChanged = useCallback(
-    (on, meta) => {
-      setScreenSharing(Boolean(on));
-      if (on) {
-        setShareLabel(shareLabelFromMeta(meta || {}));
-        setShareStartedAt(Date.now());
-      }
-    },
-    [setScreenSharing],
-  );
-
-  const changeShareSource = useCallback(() => {
-    executeCommand('toggleShareScreen');
-    window.setTimeout(() => setShareAudioHintOpen(true), 400);
-  }, [executeCommand]);
-
   if (!active || !session) return null;
 
   const access = session.access || {};
@@ -475,22 +521,29 @@ export default function VideoSessionLayer() {
       crmUserId={session.crmUserId}
       crmEmail={session.crmEmail}
       crmTheme={theme === 'dark' ? 'dark' : 'light'}
-      onLeft={() => endSession()}
+      recoveryMode={Boolean(everConnectedRef.current)}
+      onLeft={(detail) => {
+        if (detail?.intentional) {
+          endSession();
+        }
+      }}
+      onUnexpectedLeave={(detail) => {
+        videoDiagWarn('session_unexpected_leave', {
+          reason: detail?.reason || null,
+        });
+        void softRemountConference(detail?.reason || 'unexpected_leave');
+      }}
       onJoined={() => setConnectionStatus('connected')}
       onError={(err) => {
         const transient = Boolean(err?.transient) || err?.fatal === false;
-        if (transient) {
-          videoDiagWarn('session_soft_error', {
-            code: err?.code || null,
-            message: err?.message || null,
-            source: err?.source || null,
-          });
-          // Soft banner already via connectionStatus=reconnecting — do not kill the lesson.
-          return;
-        }
         const authLike =
+          Boolean(err?.auth) ||
           err?.code === 'missing_jwt' ||
-          /token|jwt|unauthorized|auth/i.test(String(err?.message || err?.code || ''));
+          err?.code === 'auth' ||
+          /token|jwt|unauthorized|auth|expir/i.test(
+            String(err?.message || err?.code || ''),
+          );
+
         if (authLike) {
           videoDiagWarn('session_auth_error_remount', {
             code: err?.code || null,
@@ -500,24 +553,57 @@ export default function VideoSessionLayer() {
             title: 'Обновляем доступ к уроку…',
             description: 'Переподключаемся с новым токеном.',
           });
-          void refreshSessionToken({ remount: true }).then((ok) => {
+          void softRemountConference('auth_error').then((ok) => {
             if (!ok) {
               toast({
                 title: err?.title || 'Ошибка видеоурока',
-                description: err?.message || 'Не удалось продолжить конференцию',
+                description:
+                  err?.message ||
+                  'Не удалось обновить доступ. Остаёмся в уроке — попробуйте ещё раз.',
                 variant: 'destructive',
               });
-              endSession();
+              setConnectionStatus('failed');
             }
           });
           return;
         }
+
+        if (transient || everConnectedRef?.current) {
+          videoDiagWarn('session_soft_error', {
+            code: err?.code || null,
+            message: err?.message || null,
+            source: err?.source || null,
+          });
+          setConnectionStatus('reconnecting');
+          // Soft banner via connectionStatus — do not kill the lesson.
+          return;
+        }
+
+        const mediaPermission =
+          err?.code === 'media_permission' ||
+          /permission|not-allowed|getusermedia|denied/i.test(
+            String(err?.message || err?.code || ''),
+          );
+        if (mediaPermission) {
+          toast({
+            title: err?.title || 'Нет доступа к камере или микрофону',
+            description:
+              err?.message ||
+              'Разрешите устройства в браузере и нажмите повторное подключение.',
+            variant: 'destructive',
+          });
+          setConnectionStatus('failed');
+          return;
+        }
+
+        // First-join failure: keep session so user can retry without leaving the page.
         toast({
           title: err?.title || 'Ошибка видеоурока',
-          description: err?.message || 'Не удалось продолжить конференцию',
+          description: err?.message || 'Не удалось подключиться. Попробуйте снова.',
           variant: 'destructive',
         });
-        endSession();
+        setConnectionStatus('failed');
+        void softRemountConference('boot_failed');
       }}
       onAudioMuteChanged={setAudioMuted}
       onVideoMuteChanged={setVideoMuted}
@@ -527,6 +613,25 @@ export default function VideoSessionLayer() {
       onAudioUnlockNeeded={setAudioUnlockNeeded}
       onScreenSharingChanged={handleScreenSharingChanged}
       onLinkQualityChanged={(quality) => setLinkQuality(quality || 'unknown')}
+      onEndpointTextMessage={(payload) => {
+        if (session?.isStudent) return;
+        const parsed = parseVideoPingPayload(payload?.text);
+        if (!parsed) return;
+        const senderId = payload?.senderId || null;
+        const fromPresence = (livePresence || []).find((p) => p.id === senderId);
+        window.dispatchEvent(
+          new CustomEvent('lh-video-ping', {
+            detail: {
+              displayName:
+                parsed.name ||
+                fromPresence?.displayName ||
+                'Ученик',
+              crmUserId: parsed.crmUserId || fromPresence?.crmUserId || null,
+              participantId: senderId,
+            },
+          }),
+        );
+      }}
     />
   );
 
@@ -632,6 +737,12 @@ export default function VideoSessionLayer() {
             )}
             style={isMini ? { height: miniSize.h } : undefined}
             data-testid="lesson-video-stage"
+            onPointerDownCapture={(e) => {
+              // Touch / click near bottom reveals dock (iframe eats most stage events).
+              if (!controlsVisible && e.clientY > window.innerHeight * 0.62) {
+                bumpControls();
+              }
+            }}
           >
             <div
               ref={crmStageRef}
@@ -669,7 +780,9 @@ export default function VideoSessionLayer() {
 
             {!isMini ? (
               <LessonVideoFilmstrip
-                visible={remoteOrLocalShare}
+                // Real camera PiP lives in the Jitsi filmstrip (plugin.head.html).
+                // CRM tile would duplicate a permanent participants strip — keep off.
+                visible={false}
                 participants={livePresence}
                 pinnedId={pinnedParticipantId}
                 compact={!isDesktop}
@@ -707,31 +820,95 @@ export default function VideoSessionLayer() {
 
             {!isMini ? (
               <>
-                <LessonVideoChatToast
-                  notification={chatToast}
-                  onOpenChat={() => {
-                    openStudyPanel('chat');
-                    setChatToast(null);
-                  }}
-                  onDismiss={() => setChatToast(null)}
-                />
-                <LessonVideoScreenShareBar
-                  visible={remoteOrLocalShare}
-                  shareLabel={shareLabel}
-                  startedAt={shareStartedAt}
-                  isLocalShare={screenSharing}
-                  onStopShare={
-                    screenSharing
-                      ? () => executeCommand('toggleShareScreen')
-                      : undefined
-                  }
-                  onChangeSource={screenSharing ? changeShareSource : undefined}
-                />
+                {!session.isStudent ? (
+                  <LessonVideoNotificationLayer
+                    enabled
+                    lessonId={session.lessonId}
+                    screenSharing={Boolean(screenSharing)}
+                    chatPanelOpen={sheetOpen && railTab === 'chat'}
+                    participantsOpen={participantsOpen}
+                    livePresence={livePresence}
+                    localCrmUserId={session.crmUserId}
+                    chatToast={chatToast}
+                    onConsumeChatToast={() => setChatToast(null)}
+                    onOpenChat={() => {
+                      openStudyPanel('chat');
+                      setChatToast(null);
+                    }}
+                    onOpenParticipants={() => setParticipantsOpen(true)}
+                    onPinParticipant={pinParticipant}
+                    persistentSlot={
+                      <LessonVideoScreenShareBar
+                        embedded
+                        visible={remoteOrLocalShare}
+                        shareLabel={shareLabel}
+                        startedAt={shareStartedAt}
+                        isLocalShare={screenSharing}
+                        onStopShare={
+                          screenSharing
+                            ? () => executeCommand('toggleShareScreen')
+                            : undefined
+                        }
+                        onChangeSource={
+                          screenSharing ? changeShareSource : undefined
+                        }
+                      />
+                    }
+                  />
+                ) : (
+                  <>
+                    <LessonVideoChatToast
+                      notification={chatToast}
+                      onOpenChat={() => {
+                        openStudyPanel('chat');
+                        setChatToast(null);
+                      }}
+                      onDismiss={() => setChatToast(null)}
+                    />
+                    <LessonVideoScreenShareBar
+                      visible={remoteOrLocalShare}
+                      shareLabel={shareLabel}
+                      startedAt={shareStartedAt}
+                      isLocalShare={screenSharing}
+                      onStopShare={
+                        screenSharing
+                          ? () => executeCommand('toggleShareScreen')
+                          : undefined
+                      }
+                      onChangeSource={
+                        screenSharing ? changeShareSource : undefined
+                      }
+                    />
+                  </>
+                )}
                 <LessonVideoSharePreview
                   visible={screenSharing}
                   shareLabel={shareLabel}
                 />
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center overflow-x-hidden px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-10 sm:px-3">
+                <div
+                  className={cn(
+                    'absolute bottom-0 z-20 flex justify-center overflow-x-hidden px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-16 sm:px-3',
+                    // Leave the bottom-right camera PiP clickable while dock is hidden.
+                    controlsVisible
+                      ? 'pointer-events-none inset-x-0'
+                      : 'pointer-events-auto left-0 right-[7.75rem] sm:right-[12rem]',
+                  )}
+                  data-testid="lesson-video-controls-hotzone"
+                  onPointerMove={() => bumpControls()}
+                  onPointerDown={() => bumpControls()}
+                >
+                  <div
+                    className={cn(
+                      'pointer-events-auto w-full max-w-[min(100%,42rem)] transition-all duration-300 ease-out',
+                      controlsVisible
+                        ? 'translate-y-0 opacity-100'
+                        : 'pointer-events-none translate-y-3 opacity-0',
+                    )}
+                    data-controls-visible={controlsVisible ? '1' : '0'}
+                    onPointerMove={() => bumpControls()}
+                    onPointerDown={() => bumpControls()}
+                    onFocusCapture={() => bumpControls()}
+                  >
                   <LessonVideoControls
                     audioMuted={audioMuted}
                     videoMuted={videoMuted}
@@ -746,7 +923,7 @@ export default function VideoSessionLayer() {
                     onParticipantsOpenChange={setParticipantsOpen}
                     onToggleAudio={() => executeCommand('toggleAudio')}
                     onToggleVideo={() => executeCommand('toggleVideo')}
-                    onShareScreen={() => setShareAudioHintOpen(true)}
+                    onShareScreen={handleShareScreenClick}
                     onHangup={() => requestEnd(endSession)}
                     onOpenChat={() => openStudyPanel('chat')}
                     onOpenMaterials={() => openStudyPanel('materials')}
@@ -768,8 +945,35 @@ export default function VideoSessionLayer() {
                           }
                         : undefined
                     }
+                    onAttentionPing={
+                      session.isStudent
+                        ? () => {
+                            try {
+                              executeCommand(
+                                'sendEndpointTextMessage',
+                                '',
+                                encodeVideoPingPayload({
+                                  displayName: session.displayName,
+                                  crmUserId: session.crmUserId,
+                                }),
+                              );
+                              toast({
+                                title: 'Запрос отправлен',
+                                description: 'Преподаватель получит уведомление.',
+                              });
+                            } catch {
+                              toast({
+                                title: 'Не удалось отправить',
+                                description: 'Попробуйте поднять руку.',
+                                variant: 'destructive',
+                              });
+                            }
+                          }
+                        : undefined
+                    }
                     onOpenSettings={() => setSettingsOpen(true)}
                   />
+                  </div>
                 </div>
               </>
             ) : null}
@@ -806,10 +1010,19 @@ export default function VideoSessionLayer() {
                 size="icon"
                 variant={screenSharing ? 'secondary' : 'outline'}
                 className="h-8 w-8 min-h-8 min-w-8"
-                aria-label="Демонстрация экрана"
-                onClick={() => setShareAudioHintOpen(true)}
+                aria-label={
+                  screenSharing ? 'Завершить демонстрацию' : 'Поделиться'
+                }
+                title={
+                  screenSharing ? 'Завершить демонстрацию' : 'Поделиться'
+                }
+                onClick={handleShareScreenClick}
               >
-                <MonitorUp className="h-3.5 w-3.5" />
+                {screenSharing ? (
+                  <MonitorOff className="h-3.5 w-3.5" />
+                ) : (
+                  <MonitorUp className="h-3.5 w-3.5" />
+                )}
               </Button>
               <Button
                 type="button"
@@ -1076,7 +1289,7 @@ export default function VideoSessionLayer() {
       <VideoScreenShareAudioHint
         open={shareAudioHintOpen}
         onOpenChange={setShareAudioHintOpen}
-        onContinue={() => executeCommand('toggleShareScreen')}
+        onContinue={startScreenShare}
       />
     </>
   );

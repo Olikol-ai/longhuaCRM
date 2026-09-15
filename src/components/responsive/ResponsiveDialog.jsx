@@ -46,7 +46,7 @@ export function ResponsiveDialog({
         side="bottom"
         className={cn(
           fullscreenOnMobile
-            ? 'inset-x-0 bottom-0 top-0 h-dvh max-h-dvh rounded-none p-4 safe-pt safe-pb'
+            ? 'inset-x-0 bottom-0 top-0 h-dvh max-h-dvh rounded-none p-4 safe-pt safe-pb overflow-y-auto'
             : 'inset-x-0 bottom-0 max-h-[min(92dvh,100%)] rounded-t-2xl p-4 safe-pb overflow-y-auto',
           className,
         )}

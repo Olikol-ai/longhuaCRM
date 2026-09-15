@@ -111,7 +111,7 @@ export class CreateRecurringLessonDto {
   duration?: number;
 
   @IsOptional()
-  @IsEnum(['individual', 'group'])
+  @IsEnum(['individual', 'group', 'trial'])
   lessonType?: LessonType;
 
   @IsOptional()

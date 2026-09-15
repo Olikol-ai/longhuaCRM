@@ -12,6 +12,7 @@ export const ROLE_ENTRY_PATHS = {
   tutor: '/tutor',
   student: '/student',
   tutor_student: '/tutor-student',
+  sales_manager: '/sales-manager',
 };
 
 export const ROLE_DASHBOARD_PATHS = {
@@ -20,6 +21,7 @@ export const ROLE_DASHBOARD_PATHS = {
   tutor: '/TutorDashboard',
   student: '/StudentDashboard',
   tutor_student: '/Profile',
+  sales_manager: '/SalesManagerDashboard',
 };
 
 /** Roles that may open a path. Exact match first; then prefix rules. */
@@ -32,10 +34,14 @@ const EXACT_ROUTE_ACCESS = {
 
   '/Dashboard': ['admin'],
   '/Schedule': ['admin'],
+  '/Balance': ['admin'],
   '/UserManagement': ['admin'],
   '/LowBalanceStudents': ['admin'],
   '/AdminPanel': ['admin'],
   '/Groups': ['admin'],
+  '/B2bSales': ['admin'],
+  '/SalesManagerDashboard': ['admin', 'sales_manager'],
+  '/SalesDiary': ['admin', 'sales_manager'],
   '/Certificates': ['admin'],
   '/Payments': ['admin', 'teacher'],
   '/AdminAssessment': ['admin'],
@@ -105,7 +111,7 @@ const EXACT_ROUTE_ACCESS = {
   '/teacher': ['teacher'],
   '/tutor': ['tutor'],
   '/student': ['student'],
-  '/tutor-student': ['tutor_student'],
+  '/sales-manager': ['sales_manager'],
 };
 
 const PREFIX_ROUTE_ACCESS = [
@@ -119,6 +125,7 @@ const PREFIX_ROUTE_ACCESS = [
 export function isOnboarding(user) {
   return user?.onboarding_state === 'needs_verification'
     || user?.onboarding_state === 'awaiting_role'
+    || user?.account_role === 'user'
     || user?.onboarding_state === 'blocked';
 }
 
@@ -133,7 +140,8 @@ export function getRoleHomePath(role) {
     role === 'teacher' ||
     role === 'tutor' ||
     role === 'student' ||
-    role === 'tutor_student'
+    role === 'tutor_student' ||
+    role === 'sales_manager'
   ) {
     return ROLE_ENTRY_PATHS[role];
   }
@@ -146,7 +154,8 @@ export function getRoleDashboardPath(role) {
     role === 'teacher' ||
     role === 'tutor' ||
     role === 'student' ||
-    role === 'tutor_student'
+    role === 'tutor_student' ||
+    role === 'sales_manager'
   ) {
     return ROLE_DASHBOARD_PATHS[role];
   }

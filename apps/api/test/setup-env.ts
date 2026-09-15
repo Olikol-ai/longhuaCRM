@@ -1,6 +1,7 @@
 import { config as loadEnv } from 'dotenv';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { assertSafeTestDatabase } from './database-guard';
 
 const rootEnv = join(__dirname, '../../../.env');
 if (existsSync(rootEnv)) {
@@ -15,6 +16,8 @@ if (!process.env.E2E_DATABASE_URL && defaultDatabaseUrl) {
 if (process.env.E2E_DATABASE_URL) {
   process.env.DATABASE_URL = process.env.E2E_DATABASE_URL;
 }
+
+assertSafeTestDatabase();
 
 // Force test mode so TypeORM dropSchema/synchronize run (do not keep NODE_ENV=development from .env).
 process.env.NODE_ENV = 'test';

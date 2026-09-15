@@ -11,6 +11,7 @@ import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { AuditService } from '../audit/audit.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UserRegistryQueryDto } from './dto/user-registry-query.dto';
 import { ProfileRelationsService } from './profile-relations.service';
 import { RoleEntitySyncService } from './role-entity-sync.service';
 import {
@@ -20,6 +21,8 @@ import {
   userToDirectoryEntry,
 } from './user-directory.mapper';
 import { userToRecord } from './user.mapper';
+import { UserDeletionService } from './user-deletion.service';
+import { UserRegistryService } from './user-registry.service';
 import { UsersRepository } from './users.repository';
 import { UserEntity } from './entities/user.entity';
 import { TutorEntity } from '../tutors/entities/tutor.entity';
@@ -42,6 +45,8 @@ export class UsersService {
     private readonly audit: AuditService,
     private readonly roleEntitySync: RoleEntitySyncService,
     private readonly profileRelations: ProfileRelationsService,
+    private readonly userDeletion: UserDeletionService,
+    private readonly userRegistry: UserRegistryService,
     @InjectRepository(StudentEntity)
     private readonly studentRepo: Repository<StudentEntity>,
     @InjectRepository(TeacherEntity)
@@ -54,6 +59,26 @@ export class UsersService {
   async list(): Promise<Record<string, unknown>[]> {
     const users = await this.usersRepository.findAll();
     return users.filter((user) => user.status !== 'blocked').map(userToRecord);
+  }
+
+  async registry(query: UserRegistryQueryDto) {
+    return this.userRegistry.query(query);
+  }
+
+  async getRegistryItem(id: string): Promise<Record<string, unknown>> {
+    const row = await this.userRegistry.findRegistryItem(id);
+    if (row) {
+      return row;
+    }
+    const pending = await this.userRegistry.findPendingRegistryItem(id);
+    if (pending) {
+      return pending;
+    }
+    const studentProfile = await this.userRegistry.findStudentRegistryItem(id);
+    if (!studentProfile) {
+      throw new NotFoundException('User not found');
+    }
+    return studentProfile;
   }
 
   async listDirectory(): Promise<Record<string, unknown>[]> {
@@ -150,7 +175,7 @@ export class UsersService {
 
         if (
           dto.role !== undefined &&
-          ['admin', 'teacher', 'tutor', 'student'].includes(String(dto.role))
+          ['admin', 'teacher', 'tutor', 'student', 'sales_manager'].includes(String(dto.role))
         ) {
           row.status = 'active';
           row.verificationCode = null;
@@ -209,14 +234,19 @@ export class UsersService {
     return userToRecord(saved);
   }
 
-  async delete(id: string): Promise<{ ok: true; orphanStudents: unknown[] }> {
+  async delete(id: string, actor?: JwtPayload): Promise<{ ok: true; orphanStudents: unknown[] }> {
+    if (actor?.sub && actor.sub === id) {
+      throw new ForbiddenException('Cannot delete your own account');
+    }
     const row = await this.usersRepository.findById(id);
     if (!row) {
       throw new NotFoundException('User not found');
     }
-    const { orphanStudents } = await this.profileRelations.deleteProfilesForUser(id);
-    await this.usersRepository.delete(id);
-    return { ok: true, orphanStudents };
+    return this.userDeletion.deleteUser(id);
+  }
+
+  deletePendingRegistration(id: string): Promise<{ ok: true }> {
+    return this.userDeletion.deletePendingRegistration(id);
   }
 
   findById(id: string): Promise<UserEntity | null> {

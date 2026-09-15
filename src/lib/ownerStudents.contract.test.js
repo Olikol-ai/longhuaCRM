@@ -73,6 +73,32 @@ describe('ownerStudents helpers', () => {
     const manual = rows.find((r) => r.source === 'contact');
     assert.equal(manual?.lesson_balance, 7);
   });
+
+  it('hides manual contact when linked school student is already registered', () => {
+    const rows = buildOwnerStudentRows('teacher', {
+      schoolStudents: [
+        {
+          id: 's1',
+          name: 'Аня',
+          user_id: 'u1',
+          lesson_balance: 2,
+          status: 'active',
+        },
+      ],
+      contacts: [
+        {
+          id: 'c1',
+          name: 'Аня',
+          linked_student_id: 's1',
+          status: 'active',
+          lesson_balance: 2,
+        },
+      ],
+    });
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].kind, STUDENT_KIND.REGISTERED);
+    assert.equal(rows[0].source, 'school_student');
+  });
 });
 
 describe('Students UI contract', () => {

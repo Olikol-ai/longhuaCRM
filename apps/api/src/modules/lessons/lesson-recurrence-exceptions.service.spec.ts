@@ -267,6 +267,7 @@ describe('LessonRecurrenceService.fillHorizon respects exceptions', () => {
       lessonsService as never,
       exceptions as never,
       { assertCanWriteLesson: jest.fn() } as never,
+      { transaction: jest.fn(async (work: (manager: unknown) => Promise<unknown>) => work({})) } as never,
     );
 
     // Freeze "today" before the series window so horizon walks the full range.
@@ -377,6 +378,7 @@ describe('LessonRecurrenceService.fillHorizon respects exceptions', () => {
       lessonsService as never,
       exceptions as never,
       { assertCanWriteLesson: jest.fn() } as never,
+      { transaction: jest.fn(async (work: (manager: unknown) => Promise<unknown>) => work({})) } as never,
     );
     jest.spyOn(svc as never, 'todayInMinsk' as never).mockReturnValue('2026-08-01' as never);
 

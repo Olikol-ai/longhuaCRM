@@ -1,0 +1,355 @@
+<!-- LonghuaCRM: screen-share camera PiP + temporary media-path telemetry. -->
+<style id="longhua-filmstrip-pip">
+.vertical-filmstrip .filmstrip {
+  z-index: 6 !important;
+}
+.vertical-filmstrip .filmstrip .filmstrip__videos#remoteVideos,
+.vertical-filmstrip .filmstrip .remote-videos {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-end !important;
+  align-items: flex-end !important;
+  height: 100% !important;
+  padding-bottom: 5.5rem !important;
+  box-sizing: border-box !important;
+  gap: 0.5rem !important;
+}
+.vertical-filmstrip .filmstrip .videocontainer,
+.vertical-filmstrip .filmstripLocalVideoThumbnail .videocontainer,
+.vertical-filmstrip #filmstripLocalVideoThumbnail {
+  width: 11rem !important;
+  height: 8.25rem !important;
+  max-height: 8.25rem !important;
+  border-radius: 0.75rem !important;
+  overflow: hidden !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45) !important;
+  margin: 0 0.5rem 0.35rem 0 !important;
+}
+@media (max-width: 480px) {
+  .vertical-filmstrip .filmstrip .videocontainer,
+  .vertical-filmstrip .filmstripLocalVideoThumbnail .videocontainer,
+  .vertical-filmstrip #filmstripLocalVideoThumbnail {
+    width: 7.5rem !important;
+    height: 5.6rem !important;
+    max-height: 5.6rem !important;
+    margin: 0 0.35rem 0.25rem 0 !important;
+  }
+  .vertical-filmstrip .filmstrip .filmstrip__videos#remoteVideos,
+  .vertical-filmstrip .filmstrip .remote-videos {
+    padding-bottom: 4.75rem !important;
+  }
+}
+</style>
+<script id="longhua-media-path-telemetry">
+/**
+ * Temporary: sample RTCPeerConnection getStats inside the Jitsi iframe and
+ * postMessage a compact RTP/ICE summary to the CRM parent.
+ * Mute icons are NOT used — only bytes/packets/ICE state.
+ */
+(function longhuaMediaPathTelemetry() {
+  if (window.__lhMediaTelemetryStarted) return;
+  window.__lhMediaTelemetryStarted = true;
+
+  var INTERVAL_MS = 8000;
+  var lastPost = 0;
+
+  function safeNum(v) {
+    var n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function summarizePc(pc, index) {
+    return pc.getStats().then(function (report) {
+      var inbound = { audio: null, video: null };
+      var outbound = { audio: null, video: null };
+      var pair = null;
+      var localCand = null;
+      var remoteCand = null;
+
+      report.forEach(function (r) {
+        if (!r || !r.type) return;
+        if (r.type === 'inbound-rtp' && (r.kind === 'audio' || r.kind === 'video')) {
+          inbound[r.kind] = {
+            ssrc: r.ssrc || null,
+            packetsReceived: safeNum(r.packetsReceived),
+            bytesReceived: safeNum(r.bytesReceived),
+            packetsLost: safeNum(r.packetsLost),
+            jitter: safeNum(r.jitter),
+            codecId: r.codecId || null,
+          };
+        }
+        if (r.type === 'outbound-rtp' && (r.kind === 'audio' || r.kind === 'video')) {
+          outbound[r.kind] = {
+            ssrc: r.ssrc || null,
+            packetsSent: safeNum(r.packetsSent),
+            bytesSent: safeNum(r.bytesSent),
+            codecId: r.codecId || null,
+          };
+        }
+        if (r.type === 'candidate-pair' && (r.selected || r.nominated) && r.state === 'succeeded') {
+          pair = {
+            state: r.state,
+            currentRoundTripTime: safeNum(r.currentRoundTripTime),
+            availableOutgoingBitrate: safeNum(r.availableOutgoingBitrate),
+            localCandidateId: r.localCandidateId || null,
+            remoteCandidateId: r.remoteCandidateId || null,
+          };
+        }
+        if (r.type === 'local-candidate' && pair && r.id === pair.localCandidateId) {
+          localCand = {
+            type: r.candidateType || null,
+            protocol: r.protocol || null,
+            address: r.address || r.ip || null,
+          };
+        }
+        if (r.type === 'remote-candidate' && pair && r.id === pair.remoteCandidateId) {
+          remoteCand = {
+            type: r.candidateType || null,
+            protocol: r.protocol || null,
+            address: r.address || r.ip || null,
+          };
+        }
+      });
+
+      var tracks = [];
+      try {
+        pc.getSenders().forEach(function (s) {
+          var t = s.track;
+          if (!t) return;
+          tracks.push({
+            dir: 'send',
+            kind: t.kind,
+            id: t.id,
+            readyState: t.readyState,
+            muted: t.muted,
+            enabled: t.enabled,
+          });
+        });
+        pc.getReceivers().forEach(function (s) {
+          var t = s.track;
+          if (!t) return;
+          tracks.push({
+            dir: 'recv',
+            kind: t.kind,
+            id: t.id,
+            readyState: t.readyState,
+            muted: t.muted,
+            enabled: t.enabled,
+          });
+        });
+      } catch (e) {
+        /* ignore */
+      }
+
+      return {
+        pcIndex: index,
+        connectionState: pc.connectionState || null,
+        iceConnectionState: pc.iceConnectionState || null,
+        iceGatheringState: pc.iceGatheringState || null,
+        signalingState: pc.signalingState || null,
+        inbound: inbound,
+        outbound: outbound,
+        selectedPair: pair,
+        localCandidate: localCand,
+        remoteCandidate: remoteCand,
+        tracks: tracks,
+      };
+    });
+  }
+
+  function collectDomMedia() {
+    var nodes = Array.prototype.slice.call(
+      document.querySelectorAll('audio, video'),
+    );
+    return nodes.slice(0, 24).map(function (el, i) {
+      var stream = el.srcObject;
+      var streamTracks = [];
+      try {
+        if (stream && stream.getTracks) {
+          streamTracks = stream.getTracks().map(function (t) {
+            return {
+              kind: t.kind,
+              id: t.id,
+              readyState: t.readyState,
+              muted: t.muted,
+              enabled: t.enabled,
+            };
+          });
+        }
+      } catch (e) {
+        /* ignore */
+      }
+      return {
+        i: i,
+        tag: el.tagName,
+        paused: el.paused,
+        muted: el.muted,
+        ended: el.ended,
+        readyState: el.readyState,
+        currentTime: safeNum(el.currentTime),
+        videoWidth: el.videoWidth || null,
+        videoHeight: el.videoHeight || null,
+        srcObjectTracks: streamTracks,
+      };
+    });
+  }
+
+  function classify(snapshot) {
+    var pcs = snapshot.peerConnections || [];
+    var hasOutA = pcs.some(function (p) {
+      return p.outbound && p.outbound.audio && (p.outbound.audio.packetsSent || 0) > 0;
+    });
+    var hasOutV = pcs.some(function (p) {
+      return p.outbound && p.outbound.video && (p.outbound.video.packetsSent || 0) > 0;
+    });
+    var hasInA = pcs.some(function (p) {
+      return p.inbound && p.inbound.audio && (p.inbound.audio.packetsReceived || 0) > 0;
+    });
+    var hasInV = pcs.some(function (p) {
+      return p.inbound && p.inbound.video && (p.inbound.video.packetsReceived || 0) > 0;
+    });
+    var iceFailed = pcs.some(function (p) {
+      return p.iceConnectionState === 'failed' || p.connectionState === 'failed';
+    });
+    var iceConnected = pcs.some(function (p) {
+      return (
+        p.iceConnectionState === 'connected' ||
+        p.iceConnectionState === 'completed' ||
+        p.connectionState === 'connected'
+      );
+    });
+    return {
+      localAudioSending: hasOutA,
+      localVideoSending: hasOutV,
+      remoteAudioReceiving: hasInA,
+      remoteVideoReceiving: hasInV,
+      iceFailed: iceFailed,
+      iceConnected: iceConnected,
+      /** Heuristic case letter for CRM diagnostics (A–F). */
+      likelyCase:
+        !hasOutA && !hasOutV
+          ? 'A_or_B_no_outbound_rtp'
+          : iceFailed || (!hasInA && !hasInV && iceConnected === false)
+            ? 'C_remote_not_receiving_ice'
+            : !hasInA && !hasInV && (hasOutA || hasOutV)
+              ? 'C_outbound_ok_inbound_zero'
+              : 'media_rtp_present_check_playback',
+    };
+  }
+
+  function post(snapshot) {
+    var now = Date.now();
+    if (now - lastPost < INTERVAL_MS - 500) return;
+    lastPost = now;
+    snapshot.classification = classify(snapshot);
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage(
+          { source: 'longhua-jitsi-media-telemetry', payload: snapshot },
+          '*',
+        );
+      }
+    } catch (e) {
+      /* ignore */
+    }
+    try {
+      console.info('[longhua-media-telemetry]', snapshot.classification, {
+        pcs: (snapshot.peerConnections || []).length,
+        ice: (snapshot.peerConnections || []).map(function (p) {
+          return p.iceConnectionState;
+        }),
+      });
+    } catch (e2) {
+      /* ignore */
+    }
+  }
+
+  function sample() {
+    var pcs = [];
+    try {
+      if (typeof window.pc === 'object' && window.pc && window.pc.getStats) {
+        pcs.push(window.pc);
+      }
+    } catch (e) {
+      /* ignore */
+    }
+    // Chromium exposes RTCPeerConnection instances via performance.getEntries? No.
+    // Hook constructor once so we see all PCs Jitsi creates.
+    var hooked = window.__lhRtcPcs || [];
+    for (var i = 0; i < hooked.length; i++) {
+      try {
+        if (hooked[i] && hooked[i].connectionState !== 'closed') pcs.push(hooked[i]);
+      } catch (e3) {
+        /* ignore */
+      }
+    }
+
+    var uniq = [];
+    var seen = [];
+    pcs.forEach(function (pc) {
+      if (seen.indexOf(pc) >= 0) return;
+      seen.push(pc);
+      uniq.push(pc);
+    });
+
+    Promise.all(
+      uniq.slice(0, 4).map(function (pc, idx) {
+        return summarizePc(pc, idx).catch(function () {
+          return {
+            pcIndex: idx,
+            error: 'getStats_failed',
+            connectionState: pc.connectionState || null,
+            iceConnectionState: pc.iceConnectionState || null,
+          };
+        });
+      }),
+    ).then(function (peerConnections) {
+      post({
+        t: new Date().toISOString(),
+        href: String(location.href || '').slice(0, 120),
+        peerConnections: peerConnections,
+        domMedia: collectDomMedia(),
+      });
+    });
+  }
+
+  try {
+    var OrigPC = window.RTCPeerConnection;
+    if (OrigPC && !window.__lhRtcHooked) {
+      window.__lhRtcHooked = true;
+      window.__lhRtcPcs = [];
+      window.RTCPeerConnection = function (...args) {
+        var pc = new OrigPC(...args);
+        try {
+          window.__lhRtcPcs.push(pc);
+          if (window.__lhRtcPcs.length > 8) {
+            window.__lhRtcPcs = window.__lhRtcPcs.filter(function (p) {
+              try {
+                return p && p.connectionState !== 'closed';
+              } catch (e) {
+                return false;
+              }
+            });
+          }
+        } catch (e4) {
+          /* ignore */
+        }
+        return pc;
+      };
+      window.RTCPeerConnection.prototype = OrigPC.prototype;
+      Object.keys(OrigPC).forEach(function (k) {
+        try {
+          window.RTCPeerConnection[k] = OrigPC[k];
+        } catch (e5) {
+          /* ignore */
+        }
+      });
+    }
+  } catch (e6) {
+    /* ignore */
+  }
+
+  setInterval(sample, INTERVAL_MS);
+  setTimeout(sample, 2500);
+})();
+</script>

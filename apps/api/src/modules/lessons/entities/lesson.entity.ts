@@ -47,7 +47,9 @@ export function isScheduleOccupyingLessonStatus(
 }
 
 export type LessonFormat = 'online' | 'offline';
-export type LessonType = 'individual' | 'group';
+/** `trial` = пробное занятие (без ученика/группы, фикс. оплата преподавателю). */
+export type LessonType = 'individual' | 'group' | 'trial';
+export const LESSON_TYPES = ['individual', 'group', 'trial'] as const satisfies ReadonlyArray<LessonType>;
 
 @Entity('lessons')
 export class LessonEntity {
@@ -142,7 +144,7 @@ export class LessonEntity {
   @Column({
     name: 'lesson_type',
     type: 'enum',
-    enum: ['individual', 'group'],
+    enum: LESSON_TYPES,
     default: 'individual',
   })
   lessonType: LessonType;

@@ -21,4 +21,17 @@ export const students = {
   paymentOptions() {
     return apiFetch('/students/payment-options');
   },
+
+  mergeCandidates({ primaryStudentId, search = '' } = {}) {
+    const params = new URLSearchParams({ primaryStudentId });
+    if (search.trim()) params.set('search', search.trim());
+    return apiFetch(`/students/merge-candidates?${params.toString()}`);
+  },
+
+  merge(primaryStudentId, secondaryStudentId) {
+    return apiFetch(`/students/${primaryStudentId}/merge`, {
+      method: 'POST',
+      body: JSON.stringify({ secondaryStudentId }),
+    });
+  },
 };

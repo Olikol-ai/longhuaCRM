@@ -6,6 +6,7 @@ function makeHelpers() {
   const svc = Object.create(LessonRecurrenceService.prototype) as LessonRecurrenceService;
   return {
     weekdayFromDate: (d: string) => svc.weekdayFromDate(d),
+    daysBetween: (from: string, to: string) => svc.daysBetween(from, to),
     addDays: (d: string, n: number) =>
       (svc as unknown as { addDays(dateStr: string, days: number): string }).addDays(d, n),
     firstWeekdayOnOrAfter: (d: string, wd: number) =>
@@ -23,11 +24,19 @@ describe('LessonRecurrenceService date helpers', () => {
   it('weekdayFromDate uses Mon=0 … Sun=6 in UTC calendar dates', () => {
     expect(h.weekdayFromDate('2026-08-03')).toBe(0);
     expect(h.weekdayFromDate('2026-08-09')).toBe(6);
+    expect(h.weekdayFromDate('2026-09-01')).toBe(1); // Tuesday
+    expect(h.weekdayFromDate('2026-09-02')).toBe(2); // Wednesday
+  });
+
+  it('daysBetween counts signed calendar offset', () => {
+    expect(h.daysBetween('2026-09-01', '2026-09-02')).toBe(1);
+    expect(h.daysBetween('2026-12-31', '2027-01-01')).toBe(1);
   });
 
   it('addDays keeps ISO calendar arithmetic across month boundary', () => {
     expect(h.addDays('2026-08-29', 7)).toBe('2026-09-05');
     expect(h.addDays('2026-08-01', 7)).toBe('2026-08-08');
+    expect(h.addDays('2026-09-01', 1)).toBe('2026-09-02');
   });
 
   it('firstWeekdayOnOrAfter finds next matching weekday', () => {
@@ -41,6 +50,7 @@ describe('LessonRecurrenceService series fan-out', () => {
     lessonsService: Record<string, unknown>;
     lessonAccess?: Record<string, unknown>;
     siblings?: Array<Record<string, unknown>>;
+    dataSource?: Record<string, unknown>;
   }) {
     const lessonRepo = {
       findOne: jest.fn(async () => ({
@@ -65,6 +75,13 @@ describe('LessonRecurrenceService series fan-out', () => {
         },
       ]),
       update: jest.fn(),
+      save: jest.fn(),
+    };
+    const lessonRepoUpdates: Array<{ id: string; patch: unknown }> = [];
+    const managerLessonRepo = {
+      update: jest.fn(async (id: string, patch: unknown) => {
+        lessonRepoUpdates.push({ id, patch });
+      }),
       save: jest.fn(),
     };
     const seriesRepo = {
@@ -103,14 +120,29 @@ describe('LessonRecurrenceService series fan-out', () => {
     const lessonAccess = opts.lessonAccess ?? {
       assertCanWriteLesson: jest.fn(async () => ({})),
     };
+    const dataSource = opts.dataSource ?? {
+      transaction: jest.fn(async (work: (manager: unknown) => Promise<unknown>) =>
+        work({
+          getRepository: () => ({
+            save: seriesRepo.save,
+            update: managerLessonRepo.update,
+          }),
+        }),
+      ),
+    };
 
-    return new LessonRecurrenceService(
+    const svc = new LessonRecurrenceService(
       seriesRepo as never,
       lessonRepo as never,
       opts.lessonsService as never,
       exceptions as never,
       lessonAccess as never,
+      dataSource as never,
     );
+
+    jest.spyOn(svc as never, 'fillHorizonCore' as never).mockResolvedValue(0 as never);
+
+    return { svc, lessonRepoUpdates, managerLessonRepo };
   }
 
   it('routes cancelled + applyScope via cancelWithScope', async () => {
@@ -119,7 +151,7 @@ describe('LessonRecurrenceService series fan-out', () => {
       update: jest.fn(),
       findById: jest.fn(),
     };
-    const svc = buildSvc({ lessonsService });
+    const { svc } = buildSvc({ lessonsService });
 
     await svc.applyLessonUpdateWithRecurrence(
       { sub: 'u1', role: 'teacher' } as never,
@@ -141,11 +173,12 @@ describe('LessonRecurrenceService series fan-out', () => {
       cancelWithScope: jest.fn(),
       update: jest.fn(async (_a: unknown, id: string) => ({ id, status: 'planned' })),
       findById: jest.fn(async () => ({ id: 'lesson-1', status: 'planned' })),
+      assertOccurrenceRescheduleSlot: jest.fn(),
     };
     const lessonAccess = {
       assertCanWriteLesson: jest.fn(async () => ({ notes: 'hi' })),
     };
-    const svc = buildSvc({ lessonsService, lessonAccess });
+    const { svc, lessonRepoUpdates } = buildSvc({ lessonsService, lessonAccess });
 
     await svc.applyLessonUpdateWithRecurrence(
       { sub: 'u1', role: 'teacher' } as never,
@@ -155,16 +188,12 @@ describe('LessonRecurrenceService series fan-out', () => {
     );
 
     expect(lessonAccess.assertCanWriteLesson).toHaveBeenCalledTimes(2);
-    expect(lessonsService.update).toHaveBeenCalledTimes(2);
-    expect(lessonsService.update).toHaveBeenCalledWith(
-      expect.anything(),
-      'lesson-1',
-      expect.objectContaining({ notes: 'hi' }),
-    );
-    expect(lessonsService.update).toHaveBeenCalledWith(
-      expect.anything(),
-      'lesson-2',
-      expect.objectContaining({ notes: 'hi' }),
+    expect(lessonRepoUpdates).toHaveLength(2);
+    expect(lessonRepoUpdates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'lesson-1', patch: expect.objectContaining({ notes: 'hi' }) }),
+        expect.objectContaining({ id: 'lesson-2', patch: expect.objectContaining({ notes: 'hi' }) }),
+      ]),
     );
   });
 
@@ -176,11 +205,12 @@ describe('LessonRecurrenceService series fan-out', () => {
         status: 'completed',
       })),
       findById: jest.fn(async () => ({ id: 'lesson-1', status: 'completed' })),
+      assertOccurrenceRescheduleSlot: jest.fn(),
     };
     const lessonAccess = {
       assertCanWriteLesson: jest.fn(async () => ({ status: 'completed' })),
     };
-    const svc = buildSvc({ lessonsService, lessonAccess });
+    const { svc, lessonRepoUpdates } = buildSvc({ lessonsService, lessonAccess });
 
     await svc.applyLessonUpdateWithRecurrence(
       { sub: 'u1', role: 'admin' } as never,
@@ -189,7 +219,7 @@ describe('LessonRecurrenceService series fan-out', () => {
       { applyScope: 'series' },
     );
 
-    expect(lessonsService.update).toHaveBeenCalledTimes(2);
+    expect(lessonRepoUpdates).toHaveLength(2);
     expect(lessonsService.cancelWithScope).not.toHaveBeenCalled();
   });
 
@@ -198,6 +228,7 @@ describe('LessonRecurrenceService series fan-out', () => {
       cancelWithScope: jest.fn(),
       update: jest.fn(),
       findById: jest.fn(),
+      assertOccurrenceRescheduleSlot: jest.fn(),
     };
     const lessonAccess = {
       assertCanWriteLesson: jest
@@ -205,7 +236,7 @@ describe('LessonRecurrenceService series fan-out', () => {
         .mockResolvedValueOnce({})
         .mockRejectedValueOnce(new ForbiddenException('Forbidden')),
     };
-    const svc = buildSvc({ lessonsService, lessonAccess });
+    const { svc } = buildSvc({ lessonsService, lessonAccess });
 
     await expect(
       svc.applyLessonUpdateWithRecurrence(
@@ -224,8 +255,9 @@ describe('LessonRecurrenceService series fan-out', () => {
       cancelWithScope: jest.fn(),
       update: jest.fn(async () => ({ id: 'lesson-1', status: 'planned' })),
       findById: jest.fn(),
+      assertOccurrenceRescheduleSlot: jest.fn(),
     };
-    const svc = buildSvc({ lessonsService });
+    const { svc } = buildSvc({ lessonsService });
 
     await svc.applyLessonUpdateWithRecurrence(
       { sub: 'u1', role: 'admin' } as never,
@@ -248,11 +280,12 @@ describe('LessonRecurrenceService series fan-out', () => {
       update: jest.fn(async (_a: unknown, id: string) => ({ id, status: 'planned' })),
       findById: jest.fn(async () => ({ id: 'lesson-1' })),
       create: jest.fn(),
+      assertOccurrenceRescheduleSlot: jest.fn(),
     };
     const lessonAccess = {
       assertCanWriteLesson: jest.fn(async () => ({})),
     };
-    const svc = buildSvc({ lessonsService, lessonAccess });
+    const { svc, lessonRepoUpdates } = buildSvc({ lessonsService, lessonAccess });
 
     await expect(
       svc.applyLessonUpdateWithRecurrence(
@@ -263,6 +296,6 @@ describe('LessonRecurrenceService series fan-out', () => {
       ),
     ).resolves.toBeTruthy();
 
-    expect(lessonsService.update).toHaveBeenCalled();
+    expect(lessonRepoUpdates.length).toBeGreaterThan(0);
   });
 });

@@ -27,6 +27,11 @@ export function normalizeSessionUser(raw) {
   }
 
   const role = isValidDashboardRole(raw.role) ? raw.role : null;
+  const account_role = typeof raw.account_role === 'string' && raw.account_role.trim()
+    ? raw.account_role.trim()
+    : typeof raw.accountRole === 'string' && raw.accountRole.trim()
+      ? raw.accountRole.trim()
+      : null;
   const first_name = String(raw.first_name ?? raw.firstName ?? '').trim();
   const last_name = String(raw.last_name ?? raw.lastName ?? '').trim();
   const full_name = String(raw.full_name ?? raw.fullName ?? '').trim();
@@ -47,6 +52,7 @@ export function normalizeSessionUser(raw) {
     id,
     email,
     role,
+    account_role,
     first_name,
     last_name,
     name,
@@ -99,5 +105,8 @@ export function clearInFlightEstablish() {
 }
 
 export function isActiveSessionWithInvalidRole(user) {
+  if (user?.account_role === 'user') {
+    return false;
+  }
   return user?.onboarding_state === 'active' && !isValidDashboardRole(user?.role);
 }

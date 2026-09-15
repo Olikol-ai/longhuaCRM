@@ -18,6 +18,7 @@ import {
   formatBytes,
   formatMaterialsMaxLabel,
   formatUploadSpeed,
+  isAllowedMaterialsFile,
   probeMediaDurationSeconds,
 } from '@/lib/materialUpload';
 import { TUTOR_LIBRARY_COURSE_ID, isTutorLibraryCourseId } from '@/lib/tutorMaterials';
@@ -199,28 +200,35 @@ export default function MaterialDialog({
     if (next.size > MATERIALS_MAX_UPLOAD_BYTES) {
       setError(`Размер файла не должен превышать ${formatMaterialsMaxLabel()}`);
       setFile(null);
+      e.target.value = '';
+      return;
+    }
+    if (!isAllowedMaterialsFile(next)) {
+      setError('Этот тип файла не поддерживается. Разрешены PDF, Office, аудио, видео, изображения и ZIP.');
+      setFile(null);
+      e.target.value = '';
       return;
     }
     setError(null);
     setFile(next);
     if (!form.title) {
-      setField('title', next.name.replace(/\.[^/.]+$/, ''));
+      setField('title', next.name.replace(/\.[^/.]+$/, '') || next.name || 'Материал');
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg max-h-[92vh] overflow-y-auto rounded-2xl bg-card border border-border shadow-xl">
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-5 py-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4">
+      <div className="w-full max-w-lg max-h-[92dvh] sm:max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-card border border-border shadow-xl">
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-card px-4 sm:px-5 py-4">
           <h2 className="text-lg font-semibold text-foreground">
             {editing ? 'Редактировать материал' : 'Добавить материал'}
           </h2>
-          <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-muted" disabled={saving}>
+          <button type="button" onClick={onClose} className="p-2 min-h-touch min-w-touch inline-flex items-center justify-center rounded-lg hover:bg-muted shrink-0" disabled={saving}>
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
 
-        <div className="space-y-4 px-5 py-4">
+        <div className="space-y-4 px-4 sm:px-5 py-4">
           {error && (
             <div className="flex gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
               <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -267,10 +275,10 @@ export default function MaterialDialog({
               </label>
               <label className="flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-border p-5 hover:border-brand/40 transition-colors">
                 {file ? (
-                  <span className="flex flex-col items-center gap-1 text-sm text-center">
-                    <span className="flex items-center gap-2">
-                      <File className="h-4 w-4" />
-                      {file.name}
+                  <span className="flex flex-col items-center gap-1 text-sm text-center min-w-0 w-full px-1">
+                    <span className="flex items-center gap-2 max-w-full">
+                      <File className="h-4 w-4 shrink-0" />
+                      <span className="break-all">{file.name}</span>
                     </span>
                     <span className="text-xs text-muted-foreground">{formatBytes(file.size)}</span>
                   </span>

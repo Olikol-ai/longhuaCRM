@@ -11,7 +11,10 @@ function formatElapsed(ms) {
 }
 
 /**
- * Zoom-like share strip — local “you are sharing” controls or remote “teacher sharing” status.
+ * Zoom-like share strip — local “you are sharing” controls or remote status.
+ *
+ * @param {boolean} [embedded] When true, render only the bar (no absolute chrome).
+ *   Used inside LessonVideoNotificationLayer top stack so toasts push this control down.
  */
 export default function LessonVideoScreenShareBar({
   visible,
@@ -20,6 +23,7 @@ export default function LessonVideoScreenShareBar({
   isLocalShare = true,
   onStopShare,
   onChangeSource,
+  embedded = false,
 }) {
   const [now, setNow] = useState(() => Date.now());
 
@@ -33,60 +37,81 @@ export default function LessonVideoScreenShareBar({
 
   const elapsed = startedAt ? formatElapsed(now - startedAt) : '00:00';
 
+  const bar = (
+    <div
+      className={cn(
+        'pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 rounded-2xl border border-amber-500/40 bg-card/95 px-3 py-2 shadow-xl backdrop-blur-md',
+        'transition-all duration-200 ease-out',
+      )}
+      data-testid="lesson-video-screenshare-bar-inner"
+    >
+      <span
+        className={cn(
+          'inline-flex max-w-[min(100%,16rem)] items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-1 text-[11px] font-semibold text-amber-900 dark:text-amber-100',
+        )}
+      >
+        <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-amber-500" />
+        <span className="truncate">
+          {isLocalShare
+            ? `Вы демонстрируете ${shareLabel}`
+            : 'Демонстрация экрана'}
+        </span>
+      </span>
+
+      <span
+        className="tabular-nums text-xs font-medium text-muted-foreground"
+        data-testid="lesson-video-share-timer"
+      >
+        {elapsed}
+      </span>
+
+      {isLocalShare && onStopShare ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="destructive"
+          className="min-h-10"
+          onClick={onStopShare}
+          data-testid="lesson-video-stop-share"
+        >
+          <MonitorOff className="mr-1.5 h-4 w-4" />
+          Завершить демонстрацию
+        </Button>
+      ) : null}
+
+      {isLocalShare && onChangeSource ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="min-h-10"
+          onClick={onChangeSource}
+          data-testid="lesson-video-change-share"
+        >
+          <RefreshCw className="mr-1.5 h-4 w-4" />
+          Сменить источник
+        </Button>
+      ) : null}
+    </div>
+  );
+
+  if (embedded) {
+    return (
+      <div
+        className="flex w-full justify-center"
+        data-testid="lesson-video-screenshare-bar"
+      >
+        {bar}
+      </div>
+    );
+  }
+
   return (
     <div
       className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center px-2 pt-2"
       data-testid="lesson-video-screenshare-bar"
     >
-      <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 rounded-2xl border border-amber-500/40 bg-card/95 px-3 py-2 shadow-xl backdrop-blur-md">
-        <span
-          className={cn(
-            'inline-flex max-w-[min(100%,16rem)] items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-1 text-[11px] font-semibold text-amber-900 dark:text-amber-100',
-          )}
-        >
-          <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-amber-500" />
-          <span className="truncate">
-            {isLocalShare
-              ? `Вы демонстрируете ${shareLabel}`
-              : 'Демонстрация экрана'}
-          </span>
-        </span>
-
-        <span
-          className="tabular-nums text-xs font-medium text-muted-foreground"
-          data-testid="lesson-video-share-timer"
-        >
-          {elapsed}
-        </span>
-
-        {isLocalShare && onStopShare ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="destructive"
-            className="min-h-10"
-            onClick={onStopShare}
-            data-testid="lesson-video-stop-share"
-          >
-            <MonitorOff className="mr-1.5 h-4 w-4" />
-            Остановить
-          </Button>
-        ) : null}
-
-        {isLocalShare && onChangeSource ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="min-h-10"
-            onClick={onChangeSource}
-            data-testid="lesson-video-change-share"
-          >
-            <RefreshCw className="mr-1.5 h-4 w-4" />
-            Сменить источник
-          </Button>
-        ) : null}
-      </div>
+      {bar}
     </div>
   );
 }

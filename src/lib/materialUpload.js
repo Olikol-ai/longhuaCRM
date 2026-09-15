@@ -3,7 +3,7 @@
 /** Keep in sync with apps/api material-upload.limits.ts (default 2 GiB). */
 export const MATERIALS_MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024;
 
-export const MATERIALS_FILE_ACCEPT = [
+export const MATERIALS_ALLOWED_EXTENSIONS = [
   '.pdf',
   '.pptx',
   '.ppt',
@@ -28,6 +28,20 @@ export const MATERIALS_FILE_ACCEPT = [
   '.gif',
   '.webp',
   '.zip',
+];
+
+/** MIME values browsers may send for ZIP (esp. Windows / Android). */
+export const MATERIALS_ZIP_MIME_TYPES = [
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/zip-compressed',
+  'multipart/x-zip',
+];
+
+/** HTML accept= list: extensions + ZIP MIME variants for mobile pickers. */
+export const MATERIALS_FILE_ACCEPT = [
+  ...MATERIALS_ALLOWED_EXTENSIONS,
+  ...MATERIALS_ZIP_MIME_TYPES,
 ].join(',');
 
 export function formatBytes(bytes) {
@@ -46,6 +60,31 @@ export function formatUploadSpeed(bytesPerSecond) {
 
 export function formatMaterialsMaxLabel(bytes = MATERIALS_MAX_UPLOAD_BYTES) {
   return formatBytes(bytes).replace(' ГБ', ' ГБ').replace(/\.00 ГБ$/, ' ГБ');
+}
+
+function extensionOf(filename) {
+  const base = String(filename || '').split(/[\\/]/).pop() || '';
+  const idx = base.lastIndexOf('.');
+  if (idx <= 0) return '';
+  return base.slice(idx).toLowerCase();
+}
+
+export function isZipMimeType(mimeType) {
+  const mime = String(mimeType || '')
+    .toLowerCase()
+    .split(';')[0]
+    .trim();
+  return MATERIALS_ZIP_MIME_TYPES.includes(mime);
+}
+
+export function isAllowedMaterialsFile(file) {
+  if (!file) return false;
+  const ext = extensionOf(file.name);
+  if (MATERIALS_ALLOWED_EXTENSIONS.includes(ext)) return true;
+  // Mobile content pickers sometimes omit the extension but set a ZIP MIME.
+  // Do not let a disallowed extension be rescued by MIME alone.
+  if (!ext && isZipMimeType(file.type)) return true;
+  return false;
 }
 
 /**

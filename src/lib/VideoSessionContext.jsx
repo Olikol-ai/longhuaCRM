@@ -104,8 +104,9 @@ export function VideoSessionProvider({ children }) {
   const [session, setSession] = useState(null);
   /** @type {'idle'|'full'|'mini'|'pip'} — `pip` = Document Picture-in-Picture window */
   const [mode, setMode] = useState('idle');
-  const [audioMuted, setAudioMuted] = useState(false);
-  const [videoMuted, setVideoMuted] = useState(false);
+  /** Match Jitsi startWith*Muted — dock shows OFF until user unmutes. */
+  const [audioMuted, setAudioMuted] = useState(true);
+  const [videoMuted, setVideoMuted] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('idle');
   const [linkQuality, setLinkQuality] = useState('unknown');
@@ -127,6 +128,11 @@ export function VideoSessionProvider({ children }) {
   const [embedKey, setEmbedKey] = useState(0);
   const prevConnectionRef = useRef('idle');
   const suppressAutoMiniRef = useRef(false);
+  /** Survives embed remounts — true after the lesson was on the wire at least once. */
+  const everConnectedRef = useRef(false);
+  const softRemountInFlightRef = useRef(false);
+  const softRemountTimerRef = useRef(null);
+  const intentionalEndRef = useRef(false);
 
   const setMiniPos = useCallback((next) => {
     setMiniPosState((prev) => {
@@ -177,7 +183,13 @@ export function VideoSessionProvider({ children }) {
   useEffect(() => {
     const prev = prevConnectionRef.current;
     prevConnectionRef.current = connectionStatus;
-    if (prev === 'reconnecting' && connectionStatus === 'connected') {
+    if (connectionStatus === 'connected') {
+      everConnectedRef.current = true;
+    }
+    if (
+      (prev === 'reconnecting' || prev === 'interrupted' || prev === 'degraded') &&
+      connectionStatus === 'connected'
+    ) {
       setReconnectRestoredFlash(true);
       const t = window.setTimeout(() => setReconnectRestoredFlash(false), 3500);
       return () => window.clearTimeout(t);
@@ -216,6 +228,14 @@ export function VideoSessionProvider({ children }) {
   }, []);
 
   const executeCommand = useCallback((command, ...args) => {
+    if (command === 'hangup') {
+      intentionalEndRef.current = true;
+      try {
+        jitsiRef.current?.markIntentionalLeave?.();
+      } catch {
+        // ignore
+      }
+    }
     try {
       jitsiRef.current?.executeCommand?.(command, ...args);
     } catch {
@@ -242,6 +262,13 @@ export function VideoSessionProvider({ children }) {
       tokenExpiresAt: expiresAt,
       domain: payload.domain || null,
     });
+    intentionalEndRef.current = false;
+    everConnectedRef.current = false;
+    softRemountInFlightRef.current = false;
+    if (softRemountTimerRef.current) {
+      window.clearTimeout(softRemountTimerRef.current);
+      softRemountTimerRef.current = null;
+    }
     setSession({
       lessonId: String(payload.lessonId),
       jwt: payload.jwt,
@@ -262,8 +289,8 @@ export function VideoSessionProvider({ children }) {
       crmUserId: payload.crmUserId || null,
       crmEmail: payload.crmEmail || null,
     });
-    setAudioMuted(false);
-    setVideoMuted(false);
+    setAudioMuted(true);
+    setVideoMuted(true);
     setScreenSharing(false);
     setConnectionStatus('connecting');
     setLinkQuality('unknown');
@@ -281,6 +308,9 @@ export function VideoSessionProvider({ children }) {
   /**
    * Refresh JWT in the background. Does NOT remount the iframe — External API
    * cannot swap JWT mid-call. Fresh token is kept for emergency remount only.
+   *
+   * Production TTL is 4h (JITSI_JWT_TTL_SECONDS=14400). A ~10 minute mid-call
+   * flap is NOT JWT expiry — soft reconnect must not remount blindly for auth.
    */
   const refreshSessionToken = useCallback(
     async ({ remount = false } = {}) => {
@@ -313,8 +343,13 @@ export function VideoSessionProvider({ children }) {
         if (remount) {
           videoDiagWarn('jwt_remount', {
             lessonId: id,
-            reason: 'fatal_auth_or_expiry',
+            reason: 'auth_recovery_remount',
           });
+          try {
+            jitsiRef.current?.markIntentionalLeave?.();
+          } catch {
+            // ignore
+          }
           setEmbedKey((k) => k + 1);
         }
         return token;
@@ -327,6 +362,61 @@ export function VideoSessionProvider({ children }) {
       }
     },
     [session?.lessonId],
+  );
+
+  /**
+   * Idempotent soft remount after unexpected conference leave / auth recovery.
+   * Keeps CRM session; one in-flight remount at a time; always refreshes JWT first.
+   */
+  const softRemountConference = useCallback(
+    async (reason = 'unexpected_leave') => {
+      if (!session?.lessonId) return false;
+      if (intentionalEndRef.current) return false;
+      if (softRemountInFlightRef.current) {
+        videoDiagWarn('soft_remount_skipped_inflight', { reason });
+        return false;
+      }
+      softRemountInFlightRef.current = true;
+      setConnectionStatus('reconnecting');
+      videoDiagWarn('soft_remount_start', {
+        reason,
+        lessonId: session.lessonId,
+        everConnected: everConnectedRef.current,
+      });
+      try {
+        try {
+          jitsiRef.current?.markIntentionalLeave?.();
+        } catch {
+          // ignore
+        }
+        try {
+          jitsiRef.current?.executeCommand?.('hangup');
+        } catch {
+          // ignore
+        }
+        await refreshSessionToken({ remount: false });
+        // Allow hangup/dispose to settle before creating a new ExternalAPI
+        // so the previous MUC endpoint is less likely to ghost.
+        await new Promise((resolve) => {
+          softRemountTimerRef.current = window.setTimeout(resolve, 400);
+        });
+        softRemountTimerRef.current = null;
+        if (intentionalEndRef.current || !session?.lessonId) return false;
+        try {
+          jitsiRef.current?.dispose?.();
+        } catch {
+          // ignore
+        }
+        setEmbedKey((k) => k + 1);
+        return true;
+      } finally {
+        softRemountTimerRef.current = window.setTimeout(() => {
+          softRemountInFlightRef.current = false;
+          softRemountTimerRef.current = null;
+        }, 2500);
+      }
+    },
+    [session?.lessonId, refreshSessionToken],
   );
 
   // Proactively refresh JWT well before expiry (buffer for emergency remount).
@@ -351,6 +441,17 @@ export function VideoSessionProvider({ children }) {
 
   const endSession = useCallback(() => {
     videoDiag('session_end', { lessonId: session?.lessonId || null });
+    intentionalEndRef.current = true;
+    softRemountInFlightRef.current = false;
+    if (softRemountTimerRef.current) {
+      window.clearTimeout(softRemountTimerRef.current);
+      softRemountTimerRef.current = null;
+    }
+    try {
+      jitsiRef.current?.markIntentionalLeave?.();
+    } catch {
+      // ignore
+    }
     try {
       jitsiRef.current?.executeCommand?.('hangup');
     } catch {
@@ -361,10 +462,11 @@ export function VideoSessionProvider({ children }) {
     } catch {
       // ignore
     }
+    everConnectedRef.current = false;
     setSession(null);
     setMode('idle');
-    setAudioMuted(false);
-    setVideoMuted(false);
+    setAudioMuted(true);
+    setVideoMuted(true);
     setScreenSharing(false);
     setConnectionStatus('idle');
     setLinkQuality('unknown');
@@ -497,6 +599,8 @@ export function VideoSessionProvider({ children }) {
       startSession,
       endSession,
       refreshSessionToken,
+      softRemountConference,
+      everConnectedRef,
       minimize,
       enterPipMode,
       exitPipMode,
@@ -535,6 +639,7 @@ export function VideoSessionProvider({ children }) {
       startSession,
       endSession,
       refreshSessionToken,
+      softRemountConference,
       minimize,
       enterPipMode,
       exitPipMode,

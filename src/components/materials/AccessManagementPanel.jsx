@@ -1,10 +1,37 @@
 import React, { useState, useEffect } from "react";
 import { api } from "@/api";
 import { useAuth } from "@/lib/AuthContext";
+import { getUserDisplayName } from "@/lib/user-registry.utils";
 import { Users, Loader2, Settings2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import UserAccessEditor from "@/components/materials/UserAccessEditor";
+
+function resolveTeacherListName(teacher) {
+  const fromCanonical = getUserDisplayName({
+    full_name: teacher.name || teacher.full_name,
+    first_name: teacher.first_name || teacher.firstName,
+    last_name: teacher.last_name || teacher.lastName,
+    email: teacher.email,
+  });
+  if (fromCanonical && fromCanonical !== "Без имени") {
+    return fromCanonical;
+  }
+  return teacher.email || "Преподаватель";
+}
+
+function resolveStudentListName(student) {
+  const fromCanonical = getUserDisplayName({
+    full_name: student.name || student.full_name,
+    first_name: student.first_name || student.firstName,
+    last_name: student.last_name || student.lastName,
+    email: student.email,
+  });
+  if (fromCanonical && fromCanonical !== "Без имени") {
+    return fromCanonical;
+  }
+  return student.email || "Ученик";
+}
 
 export default function AccessManagementPanel({ isAdmin }) {
   const { user } = useAuth();
@@ -29,7 +56,9 @@ export default function AccessManagementPanel({ isAdmin }) {
 
         if (stsResult.status === "fulfilled") {
           setStudents(
-            (Array.isArray(stsResult.value) ? stsResult.value : []).filter((s) => s.user_id),
+            (Array.isArray(stsResult.value) ? stsResult.value : []).filter(
+              (s) => s.user_id || s.userId,
+            ),
           );
         } else {
           setStudents([]);
@@ -37,7 +66,9 @@ export default function AccessManagementPanel({ isAdmin }) {
 
         if (trsResult.status === "fulfilled") {
           setTeachers(
-            (Array.isArray(trsResult.value) ? trsResult.value : []).filter((t) => t.user_id),
+            (Array.isArray(trsResult.value) ? trsResult.value : []).filter(
+              (t) => t.user_id || t.userId,
+            ),
           );
         } else {
           setTeachers([]);
@@ -53,7 +84,9 @@ export default function AccessManagementPanel({ isAdmin }) {
           setStudents(
             teacherId
               ? allStudents.filter(
-                  (s) => s.user_id && s.assigned_teacher === teacherId,
+                  (s) =>
+                    (s.user_id || s.userId) &&
+                    (s.assigned_teacher === teacherId || s.assignedTeacherId === teacherId),
                 )
               : [],
           );
@@ -81,14 +114,14 @@ export default function AccessManagementPanel({ isAdmin }) {
   const activeList =
     isAdmin && userTypeTab === "teachers"
       ? teachers.map((t) => ({
-          userId: t.user_id,
-          name: t.name || t.email || 'Преподаватель',
+          userId: t.user_id || t.userId,
+          name: resolveTeacherListName(t),
           email: t.email,
           type: "teacher",
         }))
       : students.map((s) => ({
-          userId: s.user_id,
-          name: s.name || s.email || 'Ученик',
+          userId: s.user_id || s.userId,
+          name: resolveStudentListName(s),
           email: s.email,
           type: "student",
         }));
@@ -137,7 +170,7 @@ export default function AccessManagementPanel({ isAdmin }) {
       ) : (
         <div className="space-y-2">
           {activeList.map((row) => (
-            <Card key={row.userId} className="p-4 flex items-center justify-between gap-4">
+            <Card key={row.userId} className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-10 h-10 rounded-full bg-brand-muted dark:bg-brand-soft flex items-center justify-center shrink-0">
                   <span className="text-sm font-bold text-brand dark:text-brand">
@@ -145,14 +178,14 @@ export default function AccessManagementPanel({ isAdmin }) {
                   </span>
                 </div>
                 <div className="min-w-0">
-                  <p className="font-medium text-foreground truncate">{row.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{row.email}</p>
+                  <p className="font-medium text-foreground break-words">{row.name}</p>
+                  <p className="text-xs text-muted-foreground break-all">{row.email}</p>
                 </div>
               </div>
               <Button
                 variant="outline"
                 onClick={() => setEditingUser(row)}
-                className="gap-2 shrink-0"
+                className="gap-2 w-full sm:w-auto shrink-0 min-h-touch"
               >
                 <Settings2 className="h-4 w-4" />
                 Настроить доступ

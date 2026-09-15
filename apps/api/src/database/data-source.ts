@@ -87,6 +87,11 @@ import { ChatMemberListPrefs1746400000000 } from './migrations/1746400000000-Cha
 import { HomeworkGradingMode1746500000000 } from './migrations/1746500000000-HomeworkGradingMode';
 import { AssessmentExamDescription1746600000000 } from './migrations/1746600000000-AssessmentExamDescription';
 import { HomeworkAccess1746700000000 } from './migrations/1746700000000-HomeworkAccess';
+import { B2bSalesFoundation1746800000000 } from './migrations/1746800000000-B2bSalesFoundation';
+import { UserDeletionFkAlign1746900000000 } from './migrations/1746900000000-UserDeletionFkAlign';
+import { SalesDiaryFoundation1747000000000 } from './migrations/1747000000000-SalesDiaryFoundation';
+import { StudentMergeFoundation1747100000000 } from './migrations/1747100000000-StudentMergeFoundation';
+import { StudentLessonBalanceAdjustments1747200000000 } from './migrations/1747200000000-StudentLessonBalanceAdjustments';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -177,6 +182,11 @@ export default new DataSource({
     HomeworkGradingMode1746500000000,
     AssessmentExamDescription1746600000000,
     HomeworkAccess1746700000000,
+    B2bSalesFoundation1746800000000,
+    UserDeletionFkAlign1746900000000,
+    SalesDiaryFoundation1747000000000,
+    StudentMergeFoundation1747100000000,
+    StudentLessonBalanceAdjustments1747200000000,
   ],
   synchronize: false,
 });

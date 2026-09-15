@@ -728,6 +728,9 @@ function WeekLessonChip({
       onDoubleClick={openDetails}
     >
       <p className="text-xs font-bold text-foreground">{lesson.start_time}</p>
+      {(lesson.lesson_type === "trial" || lesson.lessonType === "trial") ? (
+        <p className="text-[10px] font-semibold text-brand mt-0.5">Пробное</p>
+      ) : null}
       <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
         {studentLabel}
       </p>
@@ -822,6 +825,9 @@ export function ScheduleLessonCard({
             <p className="font-semibold text-foreground">
               {lesson.start_time}
             </p>
+            {(lesson.lesson_type === "trial" || lesson.lessonType === "trial") ? (
+              <p className="text-[11px] font-semibold text-brand">Пробное</p>
+            ) : null}
             <p className="text-sm text-muted-foreground">
               {resolveLessonStudentLabel(lesson, students)}
             </p>

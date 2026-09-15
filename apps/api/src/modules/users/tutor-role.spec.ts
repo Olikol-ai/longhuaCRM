@@ -17,6 +17,8 @@ describe('Tutor role foundation', () => {
     expect(normalizeRole('tutor')).toBe('tutor');
     expect(normalizeUserRole('tutor')).toBe('tutor');
     expect(toDbRole('tutor')).toBe('tutor');
+    expect(toDbRole('user')).toBe('user');
+    expect(toDbRole('pending')).toBe('');
     expect(getRedirectPath('active', 'tutor')).toBe('/TutorDashboard');
   });
 

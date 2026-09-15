@@ -81,6 +81,13 @@ function lessonStudentIds(lesson) {
  * Otherwise use API-attached student_names (also derived from Student.name).
  */
 export function resolveLessonStudentLabel(lesson, students = []) {
+  if (
+    lesson?.lesson_type === 'trial'
+    || lesson?.lessonType === 'trial'
+  ) {
+    return 'Пробное занятие';
+  }
+
   const studentIds = lessonStudentIds(lesson);
 
   if (studentIds.length > 0 && students.length > 0) {

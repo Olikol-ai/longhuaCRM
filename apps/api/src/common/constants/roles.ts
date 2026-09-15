@@ -1,4 +1,4 @@
-export const APP_ROLES = ['admin', 'teacher', 'tutor', 'student', 'tutor_student'] as const;
+export const APP_ROLES = ['admin', 'teacher', 'tutor', 'student', 'tutor_student', 'sales_manager'] as const;
 
 export type AppRole = (typeof APP_ROLES)[number];
 
@@ -23,7 +23,8 @@ export function normalizeRole(role: string | undefined | null): NormalizedRole {
     role === 'teacher' ||
     role === 'tutor' ||
     role === 'student' ||
-    role === 'tutor_student'
+    role === 'tutor_student' ||
+    role === 'sales_manager'
   ) {
     return role;
   }

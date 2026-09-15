@@ -59,8 +59,8 @@ export class AssessmentAttemptEntity {
   teacherId: string | null;
 
   @Index('IDX_ASSESSMENT_ATTEMPTS_USER_ID')
-  @Column({ name: 'user_id', type: 'uuid' })
-  userId: string;
+  @Column({ name: 'user_id', type: 'uuid', nullable: true })
+  userId: string | null;
 
   @Column({ name: 'started_at', type: 'timestamptz', nullable: true })
   startedAt: Date | null;

@@ -25,6 +25,7 @@ describe('locale-by dictionaries', () => {
     assert.equal(localizeRole('tutor_student'), 'Ученик репетитора');
     assert.equal(getRoleLabel('tutor'), 'Репетитор');
     assert.equal(ROLE_LABEL.pending, 'Ожидает роли');
+    assert.equal(getRoleLabel('registration'), 'Незавершённая регистрация');
   });
 
   it('maps lesson and entity statuses to Russian', () => {
@@ -68,10 +69,10 @@ describe('Belarus UI localization contracts', () => {
       join(srcRoot, 'pages', 'userManagement.constants.js'),
       'utf8',
     );
-    assert.match(constants, /getRoleLabel\('Администратор'\)|getRoleLabel\('admin'\)|label:\s*getRoleLabel/);
-    assert.match(constants, /getRoleLabel\('tutor'\)/);
-    assert.match(constants, /getRoleLabel\('tutor_student'\)/);
+    assert.match(constants, /getRoleLabel\('admin'\)|label:\s*getRoleLabel/);
+    assert.match(constants, /getRoleLabel\('sales_manager'\)/);
     assert.match(constants, /from '@\/lib\/locale-by'/);
+    assert.doesNotMatch(constants, /getRoleLabel\('tutor'\)/);
   });
 
   it('does not expose common English UI chrome in shared primitives', () => {

@@ -111,20 +111,20 @@ export default function UserAccessEditor({ targetUser, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-card rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto border border-border">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card z-10">
-          <div>
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-card rounded-t-2xl sm:rounded-2xl max-w-2xl w-full max-h-[92dvh] sm:max-h-[85vh] overflow-y-auto border border-border">
+        <div className="flex items-start justify-between gap-3 px-4 sm:px-6 py-4 border-b border-border sticky top-0 bg-card z-10">
+          <div className="min-w-0">
             <h2 className="text-lg font-bold text-foreground">Настроить доступ</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">{targetUser.name}</p>
-            <p className="text-xs text-muted-foreground">{targetUser.email}</p>
+            <p className="text-sm text-muted-foreground mt-0.5 break-words">{targetUser.name}</p>
+            <p className="text-xs text-muted-foreground break-all">{targetUser.email}</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-muted rounded-xl transition-colors">
+          <button onClick={onClose} className="p-2 min-h-touch min-w-touch inline-flex items-center justify-center hover:bg-muted rounded-xl transition-colors shrink-0">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
 
-        <div className="p-6 space-y-3">
+        <div className="p-4 sm:p-6 space-y-3">
           {courses.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
               Нет доступных курсов и материалов для настройки
@@ -192,14 +192,14 @@ export default function UserAccessEditor({ targetUser, onClose, onSaved }) {
           )}
         </div>
 
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-border sticky bottom-0 bg-card">
-          <Button variant="outline" onClick={onClose}>
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 px-4 sm:px-6 py-4 border-t border-border sticky bottom-0 bg-card">
+          <Button variant="outline" onClick={onClose} className="w-full sm:w-auto min-h-touch">
             Отмена
           </Button>
           <Button
             onClick={handleSave}
             disabled={saving}
-            className="bg-primary hover:bg-primary/90 gap-2"
+            className="bg-primary hover:bg-primary/90 gap-2 w-full sm:w-auto min-h-touch"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Сохранить

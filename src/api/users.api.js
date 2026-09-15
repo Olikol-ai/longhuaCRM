@@ -1,6 +1,15 @@
 import { apiFetch, apiUploadTo } from './http';
 import { recordToEntityPayload } from './domain-client';
 
+function withQuery(path, params = {}) {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value != null && value !== '') search.set(key, String(value));
+  });
+  const qs = search.toString();
+  return qs ? `${path}?${qs}` : path;
+}
+
 export const users = {
   list() {
     return apiFetch('/users');
@@ -8,6 +17,14 @@ export const users = {
 
   directory() {
     return apiFetch('/users/directory');
+  },
+
+  registry(params = {}) {
+    return apiFetch(withQuery('/users/registry', params));
+  },
+
+  get(id) {
+    return apiFetch(`/users/${id}`);
   },
 
   filter() {
@@ -23,6 +40,10 @@ export const users = {
 
   delete(id) {
     return apiFetch(`/users/${id}`, { method: 'DELETE' });
+  },
+
+  deletePendingRegistration(id) {
+    return apiFetch(`/users/pending-registrations/${id}`, { method: 'DELETE' });
   },
 
   create() {

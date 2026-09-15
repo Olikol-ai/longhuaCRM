@@ -17,6 +17,8 @@ import { StudentEntity } from '../students/entities/student.entity';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { TutorEntity } from '../tutors/entities/tutor.entity';
 import { TutorStudentEntity } from '../tutors/entities/tutor-student.entity';
+import { composeDisplayName } from '../users/display-name.util';
+import { UserEntity } from '../users/entities/user.entity';
 import { GrantedByRole, MaterialAccessEntity } from './entities/material-access.entity';
 import { MaterialCourseGrantEntity } from './entities/material-course-grant.entity';
 import { MaterialFolderEntity } from './entities/material-folder.entity';
@@ -57,6 +59,8 @@ export class MaterialAccessService {
     private readonly tutorRepo: Repository<TutorEntity>,
     @InjectRepository(TutorStudentEntity)
     private readonly tutorStudentRepo: Repository<TutorStudentEntity>,
+    @InjectRepository(UserEntity)
+    private readonly userRepo: Repository<UserEntity>,
     @InjectRepository(GroupEntity)
     private readonly groupRepo: Repository<GroupEntity>,
     @InjectRepository(GroupMemberEntity)
@@ -186,6 +190,31 @@ export class MaterialAccessService {
       students.filter((row) => row.userId).map((row) => [row.userId as string, row]),
     );
 
+    const teachers =
+      userIds.length > 0
+        ? await this.teacherRepo.find({ where: { userId: In(userIds) } })
+        : [];
+    const teacherByUser = new Map(
+      teachers.filter((row) => row.userId).map((row) => [row.userId as string, row]),
+    );
+
+    const tutors =
+      userIds.length > 0
+        ? await this.tutorRepo.find({ where: { userId: In(userIds) } })
+        : [];
+    const tutorByUser = new Map(
+      tutors.filter((row) => row.userId).map((row) => [row.userId as string, row]),
+    );
+
+    const users =
+      userIds.length > 0
+        ? await this.userRepo.find({
+            where: { id: In(userIds) },
+            select: ['id', 'email', 'firstName', 'lastName', 'role'],
+          })
+        : [];
+    const userById = new Map(users.map((row) => [row.id, row]));
+
     const tutorStudents =
       tutorStudentIds.length > 0
         ? await this.tutorStudentRepo.find({ where: { id: In(tutorStudentIds) } })
@@ -241,22 +270,24 @@ export class MaterialAccessService {
           ? tutorStudentById.get(row.tutorStudentId)
           : undefined;
         const student = row.userId ? studentByUser.get(row.userId) : undefined;
+        const teacher = row.userId ? teacherByUser.get(row.userId) : undefined;
+        const tutor = row.userId ? tutorByUser.get(row.userId) : undefined;
+        const user = row.userId ? userById.get(row.userId) : undefined;
+        const resolved = this.resolvePersonalGrantDisplay({
+          tutorStudent,
+          student,
+          teacher,
+          tutor,
+          user,
+        });
         return {
           user_id: row.userId,
           student_id: student?.id ?? null,
           tutor_student_id: row.tutorStudentId,
-          name:
-            tutorStudent?.name ||
-            student?.name ||
-            student?.email ||
-            row.userId ||
-            row.tutorStudentId ||
-            'Ученик',
-          email: tutorStudent?.email || student?.email || '',
+          name: resolved.name,
+          email: resolved.email,
           source: 'personal' as const,
-          label: tutorStudent
-            ? 'Персональный доступ (ученик репетитора)'
-            : 'Персональный доступ',
+          label: resolved.label,
           revocable: true as const,
         };
       }),
@@ -1085,5 +1116,82 @@ export class MaterialAccessService {
       throw new NotFoundException('Один или несколько материалов не найдены или удалены');
     }
     return unique;
+  }
+
+  /**
+   * Human-readable label for a personal material_access row.
+   * Never falls back to userId / entity UUID — use composeDisplayName + email.
+   */
+  private resolvePersonalGrantDisplay(input: {
+    tutorStudent?: TutorStudentEntity;
+    student?: StudentEntity;
+    teacher?: TeacherEntity;
+    tutor?: TutorEntity;
+    user?: Pick<UserEntity, 'email' | 'firstName' | 'lastName' | 'role'>;
+  }): { name: string; email: string; label: string } {
+    const { tutorStudent, student, teacher, tutor, user } = input;
+
+    if (tutorStudent) {
+      const name =
+        String(tutorStudent.name ?? '').trim() ||
+        String(tutorStudent.email ?? '').trim() ||
+        'Ученик репетитора';
+      return {
+        name,
+        email: String(tutorStudent.email ?? '').trim(),
+        label: 'Персональный доступ (ученик репетитора)',
+      };
+    }
+
+    if (student) {
+      const name =
+        String(student.name ?? '').trim() ||
+        composeDisplayName(student.firstName, student.lastName, '') ||
+        String(student.email ?? '').trim() ||
+        composeDisplayName(user?.firstName, user?.lastName, user?.email ?? '') ||
+        'Ученик';
+      return {
+        name,
+        email: String(student.email ?? user?.email ?? '').trim(),
+        label: 'Персональный доступ',
+      };
+    }
+
+    if (teacher) {
+      const name =
+        String(teacher.name ?? '').trim() ||
+        composeDisplayName(teacher.firstName, teacher.lastName, '') ||
+        composeDisplayName(user?.firstName, user?.lastName, user?.email ?? '') ||
+        String(teacher.email ?? user?.email ?? '').trim() ||
+        'Преподаватель';
+      return {
+        name,
+        email: String(teacher.email ?? user?.email ?? '').trim(),
+        label: 'Персональный доступ (преподаватель)',
+      };
+    }
+
+    if (tutor) {
+      const name =
+        String(tutor.displayName ?? '').trim() ||
+        composeDisplayName(user?.firstName, user?.lastName, user?.email ?? '') ||
+        String(user?.email ?? '').trim() ||
+        'Репетитор';
+      return {
+        name,
+        email: String(user?.email ?? '').trim(),
+        label: 'Персональный доступ (репетитор)',
+      };
+    }
+
+    const name =
+      composeDisplayName(user?.firstName, user?.lastName, user?.email ?? '') ||
+      String(user?.email ?? '').trim() ||
+      'Пользователь';
+    return {
+      name,
+      email: String(user?.email ?? '').trim(),
+      label: 'Персональный доступ',
+    };
   }
 }

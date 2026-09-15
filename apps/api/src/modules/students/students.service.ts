@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -11,6 +12,7 @@ import { normalizeRole } from '../../common/constants/roles';
 import { JwtPayload } from '../auth/auth.service';
 import { ChatMembershipSyncService } from '../chats/services/chat-membership-sync.service';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
+import { TutorEntity } from '../tutors/entities/tutor.entity';
 import { TeacherStudentContactsService } from '../teacher-student-contacts/teacher-student-contacts.service';
 import { RoleEntitySyncService } from '../users/role-entity-sync.service';
 import { UsersRepository } from '../users/users.repository';
@@ -18,6 +20,7 @@ import { StudentEntity } from './entities/student.entity';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { StudentDeleteResult, StudentDeletionService } from './student-deletion.service';
+import { StudentMergeService } from './student-merge.service';
 import { StudentsRepository } from './students.repository';
 
 @Injectable()
@@ -28,8 +31,11 @@ export class StudentsService {
     private readonly roleEntitySync: RoleEntitySyncService,
     private readonly usersRepository: UsersRepository,
     private readonly studentDeletion: StudentDeletionService,
+    private readonly studentMerge: StudentMergeService,
     @InjectRepository(TeacherEntity)
     private readonly teacherRepo: Repository<TeacherEntity>,
+    @InjectRepository(TutorEntity)
+    private readonly tutorRepo: Repository<TutorEntity>,
     @Optional()
     private readonly teacherStudentContacts?: TeacherStudentContactsService,
     @Optional()
@@ -102,7 +108,17 @@ export class StudentsService {
       }
     } else if (role !== 'admin') {
       throw new ForbiddenException('Forbidden');
+    } else {
+      // Admin may leave teacher unset (pending assignment queue).
+      if (!payload.assignedTeacherId && !payload.status) {
+        payload.status = 'pending_assignment';
+      } else if (payload.assignedTeacherId && !payload.status) {
+        payload.status = 'active';
+      }
     }
+
+    await this.assertAssignableTeacherId(payload.assignedTeacherId);
+    await this.assertAssignableTutorId(payload.assignedTutorId);
 
     if (dto.email?.trim() && !dto.userId) {
       const user = await this.usersRepository.findByEmail(dto.email.trim().toLowerCase());
@@ -114,6 +130,16 @@ export class StudentsService {
     const student = await this.roleEntitySync.upsertStudentFromCreate(payload);
     if (this.chatMembershipSync) {
       await this.chatMembershipSync.syncSubjectChatsForStudent(student.id);
+    }
+    if (
+      this.teacherStudentContacts &&
+      typeof student.assignedTeacherId === 'string' &&
+      student.assignedTeacherId
+    ) {
+      await this.teacherStudentContacts.syncTeacherOwnerFromLinkedStudent(
+        student.id,
+        student.assignedTeacherId,
+      );
     }
     return student;
   }
@@ -137,6 +163,21 @@ export class StudentsService {
       && (normalized.assignedTutorId === '' || normalized.assignedTutorId === undefined)
     ) {
       normalized.assignedTutorId = null;
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(normalized, 'assignedTeacherId')
+      && typeof normalized.assignedTeacherId === 'string'
+      && normalized.assignedTeacherId
+    ) {
+      await this.assertAssignableTeacherId(normalized.assignedTeacherId);
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(normalized, 'assignedTutorId')
+      && typeof normalized.assignedTutorId === 'string'
+      && normalized.assignedTutorId
+    ) {
+      await this.assertAssignableTutorId(normalized.assignedTutorId);
     }
 
     // Admin assigned a teacher → leave the "awaiting assignment" queue.
@@ -227,8 +268,48 @@ export class StudentsService {
     return result;
   }
 
+  /**
+   * assignedTeacherId must be a TeacherEntity.id (school teacher profile), never a User UUID.
+   */
+  private async assertAssignableTeacherId(teacherId: unknown): Promise<void> {
+    if (teacherId === undefined || teacherId === null || teacherId === '') {
+      return;
+    }
+    if (typeof teacherId !== 'string') {
+      throw new BadRequestException('Некорректный идентификатор преподавателя');
+    }
+    const teacher = await this.teacherRepo.findOne({ where: { id: teacherId } });
+    if (!teacher || teacher.status !== 'active') {
+      throw new BadRequestException('Преподаватель не найден или неактивен');
+    }
+  }
+
+  private async assertAssignableTutorId(tutorId: unknown): Promise<void> {
+    if (tutorId === undefined || tutorId === null || tutorId === '') {
+      return;
+    }
+    if (typeof tutorId !== 'string') {
+      throw new BadRequestException('Некорректный идентификатор репетитора');
+    }
+    const tutor = await this.tutorRepo.findOne({ where: { id: tutorId } });
+    if (!tutor || tutor.status !== 'active') {
+      throw new BadRequestException('Репетитор не найден или неактивен');
+    }
+  }
+
   delete(id: string): Promise<StudentDeleteResult> {
     return this.studentDeletion.deleteStudent(id);
+  }
+
+  findMergeCandidates(params: { primaryStudentId: string; search?: string }) {
+    return this.studentMerge.findMergeCandidates(params);
+  }
+
+  mergeStudents(primaryStudentId: string, secondaryStudentId: string, actor: JwtPayload) {
+    if (normalizeRole(actor.role) !== 'admin') {
+      throw new ForbiddenException('Forbidden');
+    }
+    return this.studentMerge.mergeStudents(primaryStudentId, secondaryStudentId, actor.sub);
   }
 
   async filter(actor: JwtPayload, where: Record<string, unknown>): Promise<StudentEntity[]> {

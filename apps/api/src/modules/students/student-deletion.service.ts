@@ -54,6 +54,7 @@ export class StudentDeletionService {
 
       await manager.delete(GroupMemberEntity, { studentId });
       await manager.delete(SeriesStudentEntity, { studentId });
+      await this.nullifyStudentRefs(manager, studentId);
       await manager.delete(StudentEntity, { id: studentId });
 
       // Same rule as teacher deletion: hide the linked account from active directories.
@@ -71,5 +72,27 @@ export class StudentDeletionService {
     });
 
     return { success: true };
+  }
+
+  private async nullifyStudentRefs(
+    manager: import('typeorm').EntityManager,
+    studentId: string,
+  ): Promise<void> {
+    const tables: Array<[string, string]> = [
+      ['homework_assignments', 'student_id'],
+      ['homework_attempts', 'student_id'],
+      ['assessment_attempts', 'student_id'],
+      ['exam_academy_sessions', 'student_id'],
+    ];
+    for (const [table, column] of tables) {
+      const exists = await manager.query(`SELECT to_regclass($1) AS name`, [`public.${table}`]);
+      if (!exists[0]?.name) {
+        continue;
+      }
+      await manager.query(
+        `UPDATE "${table}" SET "${column}" = NULL WHERE "${column}" = $1`,
+        [studentId],
+      );
+    }
   }
 }

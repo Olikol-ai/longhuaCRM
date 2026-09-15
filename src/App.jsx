@@ -21,13 +21,14 @@ import PwaUpdateController from '@/components/pwa/PwaUpdateController';
 import OfflineStatusController from '@/components/pwa/OfflineStatusController';
 import NameFormModal from '@/components/auth/NameFormModal';
 import RoleRouteGuard, { RoleHomeRedirect, OnboardingFallback, RootRedirect } from '@/components/auth/RoleRouteGuard';
-import { AdminRoute, TeacherRoute, StudentRoute, TutorRoute, PathAccessGuard } from '@/components/auth/AdminRoute';
+import { AdminRoute, TeacherRoute, StudentRoute, TutorRoute, SalesManagerRoute, PathAccessGuard } from '@/components/auth/AdminRoute';
 import AppErrorBoundary from '@/components/common/AppErrorBoundary';
 import { ONBOARDING_PATH } from '@/lib/routing';
 import { lazyRetry } from '@/lib/lazyRetry';
 
 const UserManagement = lazyRetry(() => import('./pages/UserManagement'));
 const LowBalanceStudents = lazyRetry(() => import('./pages/LowBalanceStudents'));
+const Balance = lazyRetry(() => import('./pages/Balance'));
 const StudentLessonMaterials = lazyRetry(() => import('./pages/StudentLessonMaterials'));
 const MaterialsHub = lazyRetry(() => import('./pages/MaterialsHub'));
 const AdminPanel = lazyRetry(() => import('./pages/AdminPanel'));
@@ -75,6 +76,9 @@ const HomeworkResults = lazyRetry(() => import('./pages/HomeworkResults'));
 const HomeworkViewer = lazyRetry(() => import('./pages/HomeworkViewer'));
 const LessonVideo = lazyRetry(() => import('./pages/LessonVideo'));
 const Chats = lazyRetry(() => import('./pages/Chats'));
+const B2bSalesHub = lazyRetry(() => import('./pages/B2bSalesHub'));
+const SalesManagerDashboard = lazyRetry(() => import('./pages/SalesManagerDashboard'));
+const SalesDiary = lazyRetry(() => import('./pages/SalesDiary'));
 
 /**
  * Route registration: see docs/frontend-routing.md
@@ -153,6 +157,7 @@ const AuthenticatedApp = () => {
         <Route path="/teacher" element={<RoleHomeRedirect role="teacher" />} />
         <Route path="/tutor" element={<RoleHomeRedirect role="tutor" />} />
         <Route path="/admin" element={<RoleHomeRedirect role="admin" />} />
+        <Route path="/sales-manager" element={<RoleHomeRedirect role="sales_manager" />} />
         <Route path="/Students" element={<Navigate to="/UserManagement" replace />} />
         <Route path="/students" element={<Navigate to="/UserManagement" replace />} />
         <Route path="/" element={<RootRedirect />} />
@@ -189,10 +194,14 @@ const AuthenticatedApp = () => {
         <Route path="/StudentLessonMaterials" element={<StudentRoute><LayoutWrapper currentPageName="StudentLessonMaterials"><StudentLessonMaterials /></LayoutWrapper></StudentRoute>} />
         <Route path="/UserManagement" element={<AdminRoute><LayoutWrapper currentPageName="UserManagement"><UserManagement /></LayoutWrapper></AdminRoute>} />
         <Route path="/LowBalanceStudents" element={<AdminRoute><LayoutWrapper currentPageName="LowBalanceStudents"><LowBalanceStudents /></LayoutWrapper></AdminRoute>} />
+        <Route path="/Balance" element={<AdminRoute><LayoutWrapper currentPageName="Balance"><Balance /></LayoutWrapper></AdminRoute>} />
         <Route path="/AdminPanel" element={<AdminRoute><LayoutWrapper currentPageName="AdminPanel"><AdminPanel /></LayoutWrapper></AdminRoute>} />
         <Route path="/admin/tutors/:tutorId" element={<AdminRoute><LayoutWrapper currentPageName="AdminPanel"><AdminTutorDetail /></LayoutWrapper></AdminRoute>} />
         <Route path="/Groups/:groupId" element={<AdminRoute><LayoutWrapper currentPageName="Groups"><GroupDetail /></LayoutWrapper></AdminRoute>} />
         <Route path="/Groups" element={<AdminRoute><LayoutWrapper currentPageName="Groups"><Groups /></LayoutWrapper></AdminRoute>} />
+        <Route path="/B2bSales" element={<AdminRoute><LayoutWrapper currentPageName="B2bSales"><B2bSalesHub /></LayoutWrapper></AdminRoute>} />
+        <Route path="/SalesManagerDashboard" element={<SalesManagerRoute><LayoutWrapper currentPageName="SalesManagerDashboard"><SalesManagerDashboard /></LayoutWrapper></SalesManagerRoute>} />
+        <Route path="/SalesDiary" element={<SalesManagerRoute><LayoutWrapper currentPageName="SalesDiary"><SalesDiary /></LayoutWrapper></SalesManagerRoute>} />
         <Route path="/Certificates" element={<AdminRoute><LayoutWrapper currentPageName="Certificates"><Certificates /></LayoutWrapper></AdminRoute>} />
         <Route path="/StudentCertificates" element={<StudentRoute><LayoutWrapper currentPageName="StudentCertificates"><StudentCertificates /></LayoutWrapper></StudentRoute>} />
         <Route path="/StudentExams" element={<StudentRoute><LayoutWrapper currentPageName="StudentExams"><StudentExams /></LayoutWrapper></StudentRoute>} />

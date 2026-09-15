@@ -11,14 +11,15 @@ export type LessonParticipantFields = {
   teacherStudentContactId?: string;
   tutorId?: string;
   teacherId?: string;
-  lessonType?: 'individual' | 'group';
+  lessonType?: 'individual' | 'group' | 'trial';
 };
 
 export type LessonParticipantKind =
   | 'group'
   | 'crm_student'
   | 'contact'
-  | 'tutor_student';
+  | 'tutor_student'
+  | 'trial';
 
 export type ResolvedLessonParticipant = {
   kind: LessonParticipantKind;
@@ -57,6 +58,11 @@ export function resolveLessonParticipant(
   const primaryStudentId = resolvePrimaryStudentId(dto);
   const primaryTutorStudentId = resolvePrimaryTutorStudentId(dto);
   const contactId = resolveTeacherStudentContactId(dto);
+
+  // Trial is identified by type, not by missing student/group.
+  if (dto.lessonType === 'trial') {
+    return { kind: 'trial' };
+  }
 
   if (dto.lessonType === 'group') {
     return groupId ? { kind: 'group', groupId } : null;
@@ -140,6 +146,15 @@ export function assertLessonParticipant(
   const primaryStudentId = resolvePrimaryStudentId(dto);
   const primaryTutorStudentId = resolvePrimaryTutorStudentId(dto);
   const contactId = resolveTeacherStudentContactId(dto);
+
+  if (dto.lessonType === 'trial') {
+    if (dto.tutorId && !dto.teacherId) {
+      throw new BadRequestException(
+        'Пробные занятия доступны только преподавателям школы',
+      );
+    }
+    return { kind: 'trial' };
+  }
 
   if (dto.tutorId && !dto.teacherId) {
     if (dto.lessonType === 'group' || dto.groupId) {
