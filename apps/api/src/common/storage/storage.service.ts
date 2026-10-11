@@ -120,9 +120,24 @@ export class StorageService implements OnModuleInit {
     try {
       renameSync(source, destination);
       return;
-    } catch {
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException)?.code;
+      if (code === 'ENOSPC') {
+        throw new Error('Недостаточно места на диске для сохранения файла (ENOSPC)');
+      }
+      if (code === 'EACCES' || code === 'EPERM') {
+        throw new Error('Нет прав на запись в хранилище материалов (EACCES)');
+      }
       // Cross-device rename fails — copy then unlink.
-      copyFileSync(source, destination);
+      try {
+        copyFileSync(source, destination);
+      } catch (copyErr) {
+        const copyCode = (copyErr as NodeJS.ErrnoException)?.code;
+        if (copyCode === 'ENOSPC') {
+          throw new Error('Недостаточно места на диске для сохранения файла (ENOSPC)');
+        }
+        throw copyErr;
+      }
       if (deleteSource) {
         try {
           unlinkSync(source);
@@ -177,13 +192,21 @@ export class StorageService implements OnModuleInit {
     throw new NotFoundException('Файл был удалён или недоступен.');
   }
 
-  openReadStream(storageKey: string, context?: string) {
+  /** Resolve path + size without opening a read stream (Range-aware controllers). */
+  resolveFileInfo(storageKey: string, context?: string) {
     const absolutePath = this.requireExisting(storageKey, context);
     return {
       absolutePath,
-      stream: createReadStream(absolutePath),
       size: statSync(absolutePath).size,
       filename: basename(absolutePath),
+    };
+  }
+
+  openReadStream(storageKey: string, context?: string) {
+    const info = this.resolveFileInfo(storageKey, context);
+    return {
+      ...info,
+      stream: createReadStream(info.absolutePath),
     };
   }
 

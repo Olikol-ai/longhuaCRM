@@ -20,6 +20,7 @@ import { CreateShopItemDto } from './dto/create-shop-item.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { UpdateShopItemDto } from './dto/update-shop-item.dto';
 import { PaymentsRepository } from './payments.repository';
+import { StudentBalanceLedgerService } from '../student-balances/student-balance-ledger.service';
 
 @Injectable()
 export class PaymentsService {
@@ -28,6 +29,7 @@ export class PaymentsService {
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly audit: AuditService,
     private readonly studentAccess: StudentAccessService,
+    private readonly ledger: StudentBalanceLedgerService,
   ) {}
 
   async findAllPayments(actor: JwtPayload): Promise<PaymentEntity[]> {
@@ -82,14 +84,23 @@ export class PaymentsService {
       );
 
       if (await this.shouldApplyBalance(manager, saved)) {
-        const before = student.lessonBalance ?? 0;
-        await this.applyBalanceDelta(manager, dto.studentId, lessonsAdded);
-        await this.audit.log({
-          action: 'lesson_balance_change',
-          entityType: 'Student',
-          entityId: dto.studentId,
-          summary: `manual payment ${saved.id}: balance ${before} → ${before + lessonsAdded}`,
-        });
+        const result = await this.applyBalanceDelta(
+          manager,
+          dto.studentId,
+          lessonsAdded,
+          saved.id,
+          StudentBalanceLedgerService.paymentCreditKey(saved.id, 'apply'),
+          `manual payment ${saved.id}`,
+          actor.sub ?? null,
+        );
+        if (result.applied) {
+          await this.audit.log({
+            action: 'lesson_balance_change',
+            entityType: 'Student',
+            entityId: dto.studentId,
+            summary: `manual payment ${saved.id}: balance ${result.balanceBefore} → ${result.balanceAfter}`,
+          });
+        }
       }
 
       return saved;
@@ -152,7 +163,18 @@ export class PaymentsService {
         const nextEffect = nowApplies ? (saved.lessonsAdded ?? 0) : 0;
         const delta = nextEffect - previousEffect;
         if (delta !== 0 && saved.studentId) {
-          await this.applyBalanceDelta(manager, saved.studentId, delta);
+          await this.applyBalanceDelta(
+            manager,
+            saved.studentId,
+            delta,
+            saved.id,
+            StudentBalanceLedgerService.paymentDeltaKey(
+              saved.id,
+              `${previousEffect}->${nextEffect}`,
+            ),
+            `payment revise ${saved.id}: ${previousEffect}→${nextEffect}`,
+            actor.sub ?? null,
+          );
         }
       }
 
@@ -177,7 +199,18 @@ export class PaymentsService {
       }
 
       if (row.studentId && (await this.shouldApplyBalance(manager, row))) {
-        await this.applyBalanceDelta(manager, row.studentId, -(row.lessonsAdded ?? 0));
+        const lessons = row.lessonsAdded ?? 0;
+        if (lessons !== 0) {
+          await this.applyBalanceDelta(
+            manager,
+            row.studentId,
+            -lessons,
+            row.id,
+            StudentBalanceLedgerService.paymentDeltaKey(row.id, 'delete'),
+            `payment delete ${row.id}`,
+            actor.sub ?? null,
+          );
+        }
       }
 
       await paymentRepo.delete({ id });
@@ -321,18 +354,28 @@ export class PaymentsService {
 
       if (this.isPackagePayment(shopItem)) {
         const lessonsAdded = row.lessonsAdded ?? 0;
-        const before = student.lessonBalance ?? 0;
-        const refreshed = await this.applyBalanceDelta(manager, student.id, lessonsAdded);
-        await this.audit.log({
-          action: 'lesson_balance_change',
-          entityType: 'Student',
-          entityId: student.id,
-          summary: `webhook ${row.id}: balance ${before} → ${refreshed.lessonBalance ?? 0}`,
-        });
+        const credit = await this.applyBalanceDelta(
+          manager,
+          student.id,
+          lessonsAdded,
+          row.id,
+          StudentBalanceLedgerService.paymentCreditKey(row.id, 'apply'),
+          `webhook package ${row.id}`,
+          null,
+        );
+        const refreshed = await studentRepo.findOne({ where: { id: student.id } });
+        if (credit.applied) {
+          await this.audit.log({
+            action: 'lesson_balance_change',
+            entityType: 'Student',
+            entityId: student.id,
+            summary: `webhook ${row.id}: balance ${credit.balanceBefore} → ${credit.balanceAfter}`,
+          });
+        }
         return {
           applied: true,
           paymentId: row.id,
-          student: refreshed,
+          student: refreshed ?? student,
           lessonsAdded,
           shopItem,
           amount: Number(row.amount),
@@ -378,18 +421,28 @@ export class PaymentsService {
 
       const fallbackLessons = row.lessonsAdded ?? 0;
       if (fallbackLessons > 0) {
-        const before = student.lessonBalance ?? 0;
-        const refreshed = await this.applyBalanceDelta(manager, student.id, fallbackLessons);
-        await this.audit.log({
-          action: 'lesson_balance_change',
-          entityType: 'Student',
-          entityId: student.id,
-          summary: `webhook ${row.id}: balance ${before} → ${refreshed.lessonBalance ?? 0}`,
-        });
+        const credit = await this.applyBalanceDelta(
+          manager,
+          student.id,
+          fallbackLessons,
+          row.id,
+          StudentBalanceLedgerService.paymentCreditKey(row.id, 'apply'),
+          `webhook fallback ${row.id}`,
+          null,
+        );
+        const refreshed = await studentRepo.findOne({ where: { id: student.id } });
+        if (credit.applied) {
+          await this.audit.log({
+            action: 'lesson_balance_change',
+            entityType: 'Student',
+            entityId: student.id,
+            summary: `webhook ${row.id}: balance ${credit.balanceBefore} → ${credit.balanceAfter}`,
+          });
+        }
         return {
           applied: true,
           paymentId: row.id,
-          student: refreshed,
+          student: refreshed ?? student,
           lessonsAdded: fallbackLessons,
           shopItem,
           amount: Number(row.amount),
@@ -420,20 +473,33 @@ export class PaymentsService {
     manager: EntityManager,
     studentId: string,
     delta: number,
-  ): Promise<StudentEntity> {
-    const studentRepo = manager.getRepository(StudentEntity);
-    const student = await studentRepo
-      .createQueryBuilder('student')
-      .setLock('pessimistic_write')
-      .where('student.id = :id', { id: studentId })
-      .getOne();
-
-    if (!student) {
-      throw new NotFoundException('Student not found');
+    paymentId: string,
+    idempotencyKey: string,
+    description: string,
+    createdByUserId: string | null,
+  ) {
+    if (delta === 0) {
+      const student = await manager.getRepository(StudentEntity).findOne({
+        where: { id: studentId },
+      });
+      if (!student) {
+        throw new NotFoundException('Student not found');
+      }
+      const bal = student.lessonBalance ?? 0;
+      return { applied: false, balanceBefore: bal, balanceAfter: bal };
     }
-
-    const nextBalance = (student.lessonBalance ?? 0) + delta;
-    student.lessonBalance = nextBalance;
-    return studentRepo.save(student);
+    return this.ledger.apply(
+      {
+        studentId,
+        delta,
+        operationType: delta > 0 ? 'credit' : 'debit',
+        sourceType: 'payment',
+        sourceId: paymentId,
+        idempotencyKey,
+        description,
+        createdByUserId,
+      },
+      manager,
+    );
   }
 }

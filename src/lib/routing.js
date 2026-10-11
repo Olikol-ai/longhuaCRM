@@ -38,7 +38,7 @@ const EXACT_ROUTE_ACCESS = {
   '/UserManagement': ['admin'],
   '/LowBalanceStudents': ['admin'],
   '/AdminPanel': ['admin'],
-  '/Groups': ['admin'],
+  '/Groups': ['admin', 'teacher'],
   '/B2bSales': ['admin'],
   '/SalesManagerDashboard': ['admin', 'sales_manager'],
   '/SalesDiary': ['admin', 'sales_manager'],
@@ -79,7 +79,6 @@ const EXACT_ROUTE_ACCESS = {
   '/StudentExamTake': ['student'],
   // Own-result feedback page; payload ACL is assertCanReadResult on the API.
   '/StudentExamFeedback': ['admin', 'teacher', 'tutor', 'student'],
-  '/PaymentReturn': ['student'],
 
   '/HomeworkViewer': ['student', 'tutor_student'],
 
@@ -116,9 +115,8 @@ const EXACT_ROUTE_ACCESS = {
 
 const PREFIX_ROUTE_ACCESS = [
   { prefix: '/admin/tutors/', roles: ['admin'] },
-  { prefix: '/Groups/', roles: ['admin'] },
+  { prefix: '/Groups/', roles: ['admin', 'teacher'] },
   { prefix: '/StudentDetail', roles: ['admin', 'teacher'] },
-  { prefix: '/lesson/', roles: ['admin', 'teacher', 'tutor', 'student', 'tutor_student'] },
   { prefix: '/certificate/', roles: ['admin', 'teacher', 'student'] },
 ];
 

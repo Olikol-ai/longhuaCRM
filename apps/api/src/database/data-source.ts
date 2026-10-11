@@ -92,6 +92,7 @@ import { UserDeletionFkAlign1746900000000 } from './migrations/1746900000000-Use
 import { SalesDiaryFoundation1747000000000 } from './migrations/1747000000000-SalesDiaryFoundation';
 import { StudentMergeFoundation1747100000000 } from './migrations/1747100000000-StudentMergeFoundation';
 import { StudentLessonBalanceAdjustments1747200000000 } from './migrations/1747200000000-StudentLessonBalanceAdjustments';
+import { StudentBalanceLedger1747300000000 } from './migrations/1747300000000-StudentBalanceLedger';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -187,6 +188,7 @@ export default new DataSource({
     SalesDiaryFoundation1747000000000,
     StudentMergeFoundation1747100000000,
     StudentLessonBalanceAdjustments1747200000000,
+    StudentBalanceLedger1747300000000,
   ],
   synchronize: false,
 });

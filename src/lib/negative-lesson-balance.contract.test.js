@@ -8,15 +8,16 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const read = (rel) => readFileSync(join(root, rel), 'utf8');
 
 describe('negative lesson balance integrity', () => {
-  it('student DTOs allow negative integers without @Min(0)', () => {
+  it('create DTO allows negative integers; update DTO omits lessonBalance', () => {
     const create = read('apps/api/src/modules/students/dto/create-student.dto.ts');
     const update = read('apps/api/src/modules/students/dto/update-student.dto.ts');
+    const studentsSvc = read('apps/api/src/modules/students/students.service.ts');
     assert.match(create, /lessonBalance/);
-    assert.match(update, /lessonBalance/);
     assert.doesNotMatch(create, /lessonBalance[\s\S]{0,80}@Min\(0\)/);
-    assert.doesNotMatch(update, /lessonBalance[\s\S]{0,80}@Min\(0\)/);
     assert.match(create, /may be negative|Never constrain/i);
-    assert.match(update, /may be negative|Never constrain/i);
+    assert.doesNotMatch(update, /^\s+lessonBalance\??:/m);
+    assert.match(update, /intentionally absent|never/i);
+    assert.match(studentsSvc, /delete normalized\.lessonBalance/);
   });
 
   it('balance arithmetic never floors at zero', () => {
@@ -25,7 +26,7 @@ describe('negative lesson balance integrity', () => {
     const contactBalance = read(
       'apps/api/src/modules/teacher-student-contacts/teacher-student-contact-balance.service.ts',
     );
-    assert.match(studentBalance, /lessonBalance = \(student\.lessonBalance \?\? 0\) - 1/);
+    assert.match(studentBalance, /newBalance = oldBalance - 1|lessonBalance = \(student\.lessonBalance \?\? 0\) - 1/);
     assert.doesNotMatch(studentBalance, /Math\.max\(0,\s*\(student\.lessonBalance/);
     assert.doesNotMatch(payments, /nextBalance\s*<\s*0/);
     assert.doesNotMatch(contactBalance, /Math\.max\(\s*0,/);
@@ -35,7 +36,7 @@ describe('negative lesson balance integrity', () => {
     const form = read('src/components/students/StudentFormDialog.jsx');
     const balanceBlock = form.slice(
       form.indexOf('Баланс уроков'),
-      form.indexOf('Баланс уроков') + 500,
+      form.indexOf('Баланс уроков') + 800,
     );
     assert.doesNotMatch(balanceBlock, /min=\{0\}/);
     assert.doesNotMatch(balanceBlock, /min="0"/);

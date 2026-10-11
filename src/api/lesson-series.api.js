@@ -11,6 +11,10 @@ export const lessonSeries = {
       payload.courseId = payload.courseTemplateId;
       delete payload.courseTemplateId;
     }
+    // Course is optional — schedule-only group series are allowed.
+    if (!payload.courseId) {
+      delete payload.courseId;
+    }
     if (Array.isArray(data.slots)) {
       payload.slots = data.slots.map((slot) => ({
         dayOfWeek: slot.day_of_week ?? slot.dayOfWeek,

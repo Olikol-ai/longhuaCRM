@@ -18,7 +18,6 @@ import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AssessmentModule } from './modules/assessment/assessment.module';
 import { HomeworkModule } from './modules/homework/homework.module';
-import { VideoModule } from './modules/video/video.module';
 import { CertificatesModule } from './modules/certificates/certificates.module';
 import { CoursesModule } from './modules/courses/courses.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
@@ -137,7 +136,6 @@ function resolveEnvFilePaths(): string[] {
     CertificatesModule,
     AssessmentModule,
     HomeworkModule,
-    VideoModule,
     NotificationsModule,
     SettingsModule,
     AlfaBankModule,

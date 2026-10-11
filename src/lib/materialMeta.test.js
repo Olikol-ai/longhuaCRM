@@ -4,6 +4,7 @@ import {
   packMaterialDescription,
   publicMaterialDescription,
   resolveMaterialDisplayTitle,
+  resolveMaterialFormTitle,
   unpackMaterialDescription,
   detectFileType,
   detectLinkType,
@@ -48,6 +49,22 @@ describe('materialMeta', () => {
       }),
       'Аудио урок',
     );
+  });
+
+  it('resolves form title without placeholder so edit field can be prefilled', () => {
+    assert.equal(
+      resolveMaterialFormTitle({ title: 'Грамматика HSK 3' }),
+      'Грамматика HSK 3',
+    );
+    assert.equal(
+      resolveMaterialFormTitle({
+        title: '',
+        original_filename: 'lesson-audio.mp3',
+      }),
+      'lesson-audio.mp3',
+    );
+    assert.equal(resolveMaterialFormTitle({}), '');
+    assert.equal(resolveMaterialFormTitle(null), '');
   });
 
   it('detects file and link types', () => {

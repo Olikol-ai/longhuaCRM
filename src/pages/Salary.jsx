@@ -13,6 +13,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { toast } from "@/components/ui/use-toast";
 import { formatBYN } from "@/lib/formatters";
+import { userFacingError } from "@/lib/userFacingError";
 
 const fieldCls =
   "px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-brand/20";
@@ -44,6 +45,165 @@ function exportCSV(filename, rows) {
 
 function statusLabel(status) {
   return status === "paid" ? "Выплачено" : "Не выплачено";
+}
+
+function normalizeHourlyRateInput(value) {
+  if (value === "" || value === null || value === undefined) return "";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "";
+  return String(n);
+}
+
+/**
+ * Current teachers.hourly_rate editor — loaded via api.teachers.get(teachers.id).
+ * Shown inside the expanded salary details for a teacher.
+ */
+function TeacherHourlyRateEditor({ teacherId }) {
+  const [rate, setRate] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  useEffect(() => {
+    if (!teacherId) return undefined;
+    let cancelled = false;
+    setLoading(true);
+    setLoadFailed(false);
+    (async () => {
+      try {
+        const teacher = await api.teachers.get(teacherId);
+        if (cancelled) return;
+        const raw = teacher?.hourly_rate ?? teacher?.hourlyRate;
+        setRate(normalizeHourlyRateInput(raw));
+      } catch {
+        if (!cancelled) {
+          setLoadFailed(true);
+          setRate("");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [teacherId]);
+
+  const save = async () => {
+    const rateRaw = String(rate ?? "").trim();
+    if (rateRaw === "") {
+      toast({
+        title: "Укажите ставку",
+        description: "Тарифная ставка не может быть пустой",
+        variant: "destructive",
+      });
+      return;
+    }
+    const hourlyRate = Number(rateRaw);
+    if (!Number.isFinite(hourlyRate) || hourlyRate < 0) {
+      toast({
+        title: "Некорректная ставка",
+        description: "Введите неотрицательное число",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.teachers.update(teacherId, { hourly_rate: hourlyRate });
+      toast({ title: "Ставка сохранена" });
+      setRate(normalizeHourlyRateInput(hourlyRate));
+    } catch (err) {
+      toast({
+        title: "Не удалось сохранить ставку",
+        description: userFacingError(err, "Попробуйте ещё раз"),
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <p className="text-xs text-muted-foreground flex items-center gap-2 mb-3">
+        <Loader2 className="w-3 h-3 animate-spin" /> Загрузка ставки…
+      </p>
+    );
+  }
+
+  if (loadFailed) {
+    return (
+      <p className="text-xs text-amber-700 dark:text-amber-400 mb-3">
+        Не удалось загрузить текущую ставку преподавателя.
+      </p>
+    );
+  }
+
+  return (
+    <div
+      className="mb-3 pb-3 border-b border-border/60 space-y-2"
+      data-testid="salary-teacher-hourly-rate"
+    >
+      <label className="block text-sm min-w-0">
+        <span className="text-muted-foreground">Текущая ставка</span>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            className={`${fieldCls} w-28`}
+            value={rate}
+            onChange={(e) => setRate(e.target.value)}
+            aria-label="Текущая ставка преподавателя"
+            data-testid="salary-teacher-hourly-rate-input"
+          />
+          <span className="text-sm text-muted-foreground shrink-0">BYN/час</span>
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="inline-flex items-center gap-1 px-3 py-2 min-h-touch text-sm bg-primary text-primary-foreground rounded-lg disabled:opacity-50"
+            data-testid="salary-teacher-hourly-rate-save"
+          >
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+            Сохранить
+          </button>
+        </div>
+      </label>
+    </div>
+  );
+}
+
+function TeacherDetailsPanel({ teacherId, details, detailsLoading }) {
+  return (
+    <div className="rounded-xl bg-muted/40 p-3 space-y-2">
+      <TeacherHourlyRateEditor teacherId={teacherId} />
+      {detailsLoading ? (
+        <p className="text-xs text-muted-foreground flex items-center gap-2">
+          <Loader2 className="w-3 h-3 animate-spin" /> Загрузка занятий…
+        </p>
+      ) : details.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Нет занятий</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {details.map((lesson) => (
+            <li
+              key={lesson.lesson_id ?? lesson.lessonId}
+              className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-1"
+            >
+              <span>
+                {lesson.date}{" "}
+                {String(lesson.start_time ?? lesson.startTime ?? "").slice(0, 5)}
+              </span>
+              <span>{lesson.duration || 60} мин</span>
+              <span>{formatBYN(lesson.amount || 0)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -291,31 +451,11 @@ export default function Salary() {
                     ) : null}
                   </div>
                   {isExpanded ? (
-                    <div className="rounded-xl bg-muted/40 p-3">
-                      {detailsLoadingId === teacherId ? (
-                        <p className="text-xs text-muted-foreground flex items-center gap-2">
-                          <Loader2 className="w-3 h-3 animate-spin" /> Загрузка занятий…
-                        </p>
-                      ) : details.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">Нет занятий</p>
-                      ) : (
-                        <ul className="space-y-1.5">
-                          {details.map((lesson) => (
-                            <li
-                              key={lesson.lesson_id ?? lesson.lessonId}
-                              className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-1"
-                            >
-                              <span>
-                                {lesson.date}{" "}
-                                {String(lesson.start_time ?? lesson.startTime ?? "").slice(0, 5)}
-                              </span>
-                              <span>{lesson.duration || 60} мин</span>
-                              <span>{formatBYN(lesson.amount || 0)}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
+                    <TeacherDetailsPanel
+                      teacherId={teacherId}
+                      details={details}
+                      detailsLoading={detailsLoadingId === teacherId}
+                    />
                   ) : null}
                 </article>
               );
@@ -401,29 +541,11 @@ export default function Salary() {
                     {isExpanded ? (
                       <tr className="border-b border-border bg-muted/40">
                         <td colSpan={6} className="px-4 py-3">
-                          {detailsLoadingId === teacherId ? (
-                            <p className="text-xs text-muted-foreground flex items-center gap-2">
-                              <Loader2 className="w-3 h-3 animate-spin" /> Загрузка занятий…
-                            </p>
-                          ) : details.length === 0 ? (
-                            <p className="text-xs text-muted-foreground">Нет занятий</p>
-                          ) : (
-                            <ul className="space-y-1.5">
-                              {details.map((lesson) => (
-                                <li
-                                  key={lesson.lesson_id ?? lesson.lessonId}
-                                  className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-1"
-                                >
-                                  <span>
-                                    {lesson.date}{" "}
-                                    {String(lesson.start_time ?? lesson.startTime ?? "").slice(0, 5)}
-                                  </span>
-                                  <span>{lesson.duration || 60} мин</span>
-                                  <span>{formatBYN(lesson.amount || 0)}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
+                          <TeacherDetailsPanel
+                            teacherId={teacherId}
+                            details={details}
+                            detailsLoading={detailsLoadingId === teacherId}
+                          />
                         </td>
                       </tr>
                     ) : null}

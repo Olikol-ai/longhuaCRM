@@ -1,0 +1,30 @@
+[Unit]
+Description=Cloudflare Tunnel longhua-dev for LonghuaCRM
+Documentation=file:///opt/longhuaCRM/docs/Deployment.md
+After=network-online.target
+Wants=network-online.target
+# Soft ordering only — do not Require longhua (avoids boot deadlock if CRM is slow).
+After=longhua.service
+
+[Service]
+Type=simple
+User=ilya
+Group=ilya
+WorkingDirectory=/opt/longhuaCRM
+Environment=HOME=/home/ilya
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=CLOUDFLARED_CONFIG=/home/ilya/.cloudflared/config.yml
+Environment=CLOUDFLARE_TUNNEL_NAME=longhua-dev
+# Existing tunnel only (UUID 94ebeebd-… / name longhua-dev). Does not create a new tunnel.
+ExecStart=/opt/longhuaCRM/scripts/run-cloudflare-tunnel.sh
+Restart=always
+RestartSec=5
+TimeoutStartSec=60
+TimeoutStopSec=30
+KillMode=mixed
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cloudflared-longhua
+
+[Install]
+WantedBy=multi-user.target

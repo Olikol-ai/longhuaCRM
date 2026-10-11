@@ -73,6 +73,12 @@ describe('UserManagement page contract', () => {
     assert.match(page, /UserEditDialog/);
     assert.match(page, /useSearchParams/);
     assert.match(page, /lg:hidden space-y-3/);
+    assert.match(page, /Pencil/);
+    assert.match(page, /Редактировать пользователя/);
+    assert.match(page, /setEditUser\(user\)/);
+    assert.match(page, /user-row-edit/);
+    assert.match(page, /user-mobile-edit/);
+    assert.match(page, /Редактировать/);
     assert.doesNotMatch(page, /activeTab/);
     assert.doesNotMatch(page, /StudentsTab/);
     assert.doesNotMatch(page, /TeachersTab/);
@@ -115,5 +121,41 @@ describe('UserEditDialog teacher availability tab', () => {
     assert.doesNotMatch(dialog, /checkTeacherAvailability/);
     assert.doesNotMatch(dialog, /findAvailableForSlot/);
     assert.doesNotMatch(dialog, /api\.teachers\.list/);
+  });
+
+  it('sends account status blocked|active with role on save', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join, dirname } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const root = join(dirname(fileURLToPath(import.meta.url)), '../..');
+    const dialog = readFileSync(join(root, 'src/components/users/UserEditDialog.jsx'), 'utf8');
+    assert.match(dialog, /value: 'blocked', label: 'Заблокирован'/);
+    assert.match(dialog, /value: 'active', label: 'Активен'/);
+    assert.match(dialog, /api\.users\.update\(user\.id/);
+    assert.match(dialog, /status: form\.status/);
+    assert.match(dialog, /role: form\.role/);
+  });
+
+  it('edits own teacher hourly_rate via teacher_profile_id (not student assigned teacher)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join, dirname } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const root = join(dirname(fileURLToPath(import.meta.url)), '../..');
+    const dialog = readFileSync(join(root, 'src/components/users/UserEditDialog.jsx'), 'utf8');
+    assert.match(dialog, /Section title="Преподаватель"/);
+    assert.match(dialog, /Ставка в час \(BYN\)/);
+    assert.match(dialog, /BYN\/час/);
+    assert.match(dialog, /user-edit-teacher-hourly-rate/);
+    assert.match(dialog, /showOwnTeacherRate/);
+    assert.match(dialog, /form\.role === 'teacher'/);
+    assert.match(dialog, /api\.teachers\.get\(teacherProfileId\)/);
+    assert.match(dialog, /api\.teachers\.update\(teacherProfileId/);
+    assert.match(dialog, /hourly_rate:\s*parsed\.value/);
+    assert.match(dialog, /teacher_profile_id/);
+    assert.match(dialog, /AssignedTeacherSelect/);
+    assert.doesNotMatch(dialog, /user-edit-assigned-teacher-hourly-rate/);
+    assert.doesNotMatch(dialog, /showAssignedTeacherRate/);
+    assert.doesNotMatch(dialog, /teacher_rate|salary_rate|lesson_rate/);
+    assert.doesNotMatch(dialog, /api\.teachers\.create/);
   });
 });

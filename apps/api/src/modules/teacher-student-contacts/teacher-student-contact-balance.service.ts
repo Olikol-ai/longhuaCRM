@@ -4,7 +4,8 @@ import { randomUUID } from 'crypto';
 import { DataSource, EntityManager } from 'typeorm';
 import { AttendanceEntity } from '../lessons/entities/attendance.entity';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
-import { StudentEntity } from '../students/entities/student.entity';
+import { StudentBalanceLedgerService } from '../student-balances/student-balance-ledger.service';
+import { shouldDeductLessonBalance } from '../student-balances/student-balance-math';
 import { TeacherStudentBalanceHistoryEntity } from './entities/teacher-student-balance-history.entity';
 import { TeacherStudentContactEntity } from './entities/teacher-student-contact.entity';
 import { TutorContactBalanceEntity } from './entities/tutor-contact-balance.entity';
@@ -12,17 +13,22 @@ import { TutorContactBalanceEntity } from './entities/tutor-contact-balance.enti
 /**
  * Balance mutations for notebook contacts.
  *
- * Teacher + linkedStudentId → students.lesson_balance only.
- * Tutor → tutor_contact_balances.lesson_balance only.
+ * Teacher + linkedStudentId → students.lesson_balance via StudentBalanceLedgerService
+ *   (same debit/restore keys as CRM StudentBalanceService — no double charge).
+ * Tutor → tutor_contact_balances.lesson_balance only (separate wallet).
  *
- * teacher_student_contacts has no balance column.
+ * Debit only when shouldDeductLessonBalance(lesson.status).
  */
 @Injectable()
 export class TeacherStudentContactBalanceService {
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly ledger: StudentBalanceLedgerService,
+  ) {}
 
   /**
-   * Deduct 1 lesson on completed contact lesson. Idempotent via attendance.balanceDeducted.
+   * Deduct 1 lesson for chargeable contact lesson statuses (completed | missed_no_notice).
+   * Idempotent via attendance + ledger key. Never deducts for cancelled/rescheduled/missed/planned.
    */
   async deductForCompletedLesson(
     lessonId: string,
@@ -37,6 +43,9 @@ export class TeacherStudentContactBalanceService {
       if (!lesson || !contactId) {
         return;
       }
+      if (!shouldDeductLessonBalance(lesson.status)) {
+        return;
+      }
 
       const attendanceRepo = em.getRepository(AttendanceEntity);
       let attendance = await attendanceRepo.findOne({
@@ -45,6 +54,7 @@ export class TeacherStudentContactBalanceService {
       });
 
       if (attendance?.balanceDeducted) {
+        // Already charged — never invent a second school debit for legacy rows.
         return;
       }
 
@@ -77,17 +87,45 @@ export class TeacherStudentContactBalanceService {
         return;
       }
 
-      const oldBalance = await this.readBalance(em, contact);
-      const newBalance = oldBalance - 1;
-      await this.writeBalance(em, contact, newBalance);
+      if (contact.ownerType === 'teacher' && contact.linkedStudentId) {
+        const result = await this.ledger.apply(
+          {
+            studentId: contact.linkedStudentId,
+            delta: -1,
+            operationType: 'debit',
+            sourceType: 'lesson',
+            sourceId: lessonId,
+            idempotencyKey: StudentBalanceLedgerService.debitKey(
+              lessonId,
+              contact.linkedStudentId,
+            ),
+            description: `contact_lesson_deduct ${lessonId}`,
+            createdByUserId: createdBy ?? null,
+          },
+          em,
+        );
+        await this.writeHistory(em, {
+          studentContactId: contactId,
+          oldBalance: result.balanceBefore,
+          newBalance: result.balanceAfter,
+          reason: 'Списание за проведённый урок',
+          createdBy: createdBy ?? null,
+        });
+        return;
+      }
 
-      await this.writeHistory(em, {
-        studentContactId: contactId,
-        oldBalance,
-        newBalance,
-        reason: 'Списание за проведённый урок',
-        createdBy: createdBy ?? null,
-      });
+      if (contact.ownerType === 'tutor') {
+        const oldBalance = await this.readTutorBalance(em, contact.id);
+        const newBalance = oldBalance - 1;
+        await this.writeTutorBalance(em, contact.id, newBalance);
+        await this.writeHistory(em, {
+          studentContactId: contactId,
+          oldBalance,
+          newBalance,
+          reason: 'Списание за проведённый урок',
+          createdBy: createdBy ?? null,
+        });
+      }
     };
 
     if (manager) {
@@ -99,7 +137,7 @@ export class TeacherStudentContactBalanceService {
 
   /**
    * Restore 1 lesson when a previously completed contact lesson is cancelled
-   * or reassigned. Idempotent via attendance.balanceDeducted.
+   * or reassigned. Idempotent via attendance + ledger restore key.
    */
   async restoreForCancelledLesson(
     lessonId: string,
@@ -121,6 +159,59 @@ export class TeacherStudentContactBalanceService {
         lock: { mode: 'pessimistic_write' },
       });
 
+      const contact = await em.getRepository(TeacherStudentContactEntity).findOne({
+        where: { id: contactId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!contact) {
+        return false;
+      }
+
+      if (contact.ownerType === 'teacher' && contact.linkedStudentId) {
+        const debitExists = await this.ledger.findByIdempotencyKey(
+          StudentBalanceLedgerService.debitKey(lessonId, contact.linkedStudentId),
+          em,
+        );
+        const hadDeduction = Boolean(attendance?.balanceDeducted) || Boolean(debitExists);
+        if (!hadDeduction) {
+          return false;
+        }
+
+        if (attendance?.balanceDeducted) {
+          await attendanceRepo.update(
+            { id: attendance.id, balanceDeducted: true },
+            { balanceDeducted: false },
+          );
+        }
+
+        const result = await this.ledger.apply(
+          {
+            studentId: contact.linkedStudentId,
+            delta: 1,
+            operationType: 'restore',
+            sourceType: 'lesson',
+            sourceId: lessonId,
+            idempotencyKey: StudentBalanceLedgerService.restoreKey(
+              lessonId,
+              contact.linkedStudentId,
+            ),
+            description: `contact_lesson_restore ${lessonId}`,
+            createdByUserId: createdBy ?? null,
+          },
+          em,
+        );
+        if (result.applied) {
+          await this.writeHistory(em, {
+            studentContactId: contactId,
+            oldBalance: result.balanceBefore,
+            newBalance: result.balanceAfter,
+            reason: 'Возврат за отменённый урок',
+            createdBy: createdBy ?? null,
+          });
+        }
+        return true;
+      }
+
       if (!attendance?.balanceDeducted) {
         return false;
       }
@@ -133,26 +224,21 @@ export class TeacherStudentContactBalanceService {
         return false;
       }
 
-      const contact = await em.getRepository(TeacherStudentContactEntity).findOne({
-        where: { id: contactId },
-        lock: { mode: 'pessimistic_write' },
-      });
-      if (!contact) {
-        return false;
+      if (contact.ownerType === 'tutor') {
+        const oldBalance = await this.readTutorBalance(em, contact.id);
+        const newBalance = oldBalance + 1;
+        await this.writeTutorBalance(em, contact.id, newBalance);
+        await this.writeHistory(em, {
+          studentContactId: contactId,
+          oldBalance,
+          newBalance,
+          reason: 'Возврат за отменённый урок',
+          createdBy: createdBy ?? null,
+        });
+        return true;
       }
 
-      const oldBalance = await this.readBalance(em, contact);
-      const newBalance = oldBalance + 1;
-      await this.writeBalance(em, contact, newBalance);
-
-      await this.writeHistory(em, {
-        studentContactId: contactId,
-        oldBalance,
-        newBalance,
-        reason: 'Возврат за отменённый урок',
-        createdBy: createdBy ?? null,
-      });
-      return true;
+      return false;
     };
 
     if (manager) {
@@ -168,18 +254,46 @@ export class TeacherStudentContactBalanceService {
     reason: string | null,
     createdBy: string | null,
   ): Promise<TeacherStudentContactEntity> {
-    const oldBalance = await this.readBalance(em, contact);
-    if (oldBalance === newBalance) {
+    if (contact.ownerType === 'teacher' && contact.linkedStudentId) {
+      const result = await this.ledger.setAbsolute(
+        {
+          studentId: contact.linkedStudentId,
+          newBalance,
+          sourceType: 'adjustment',
+          sourceId: contact.id,
+          idempotencyKey: `contact-adjust:${contact.id}:${newBalance}:${Date.now()}`,
+          description: reason ?? 'contact manual adjustment',
+          createdByUserId: createdBy,
+          operationType: 'adjustment',
+        },
+        em,
+      );
+      if ('entry' in result && result.applied) {
+        await this.writeHistory(em, {
+          studentContactId: contact.id,
+          oldBalance: result.balanceBefore,
+          newBalance: result.balanceAfter,
+          reason,
+          createdBy,
+        });
+      }
       return contact;
     }
-    await this.writeBalance(em, contact, newBalance);
-    await this.writeHistory(em, {
-      studentContactId: contact.id,
-      oldBalance,
-      newBalance,
-      reason,
-      createdBy,
-    });
+
+    if (contact.ownerType === 'tutor') {
+      const oldBalance = await this.readTutorBalance(em, contact.id);
+      if (oldBalance === newBalance) {
+        return contact;
+      }
+      await this.writeTutorBalance(em, contact.id, newBalance);
+      await this.writeHistory(em, {
+        studentContactId: contact.id,
+        oldBalance,
+        newBalance,
+        reason,
+        createdBy,
+      });
+    }
     return contact;
   }
 
@@ -202,52 +316,19 @@ export class TeacherStudentContactBalanceService {
     );
   }
 
-  private async readBalance(
-    em: EntityManager,
-    contact: TeacherStudentContactEntity,
-  ): Promise<number> {
-    if (contact.ownerType === 'teacher' && contact.linkedStudentId) {
-      const student = await em.getRepository(StudentEntity).findOne({
-        where: { id: contact.linkedStudentId },
-        lock: { mode: 'pessimistic_write' },
-      });
-      if (student) {
-        return student.lessonBalance ?? 0;
-      }
-      return 0;
-    }
-
-    if (contact.ownerType === 'tutor') {
-      const row = await this.lockTutorBalance(em, contact.id);
-      return row.lessonBalance ?? 0;
-    }
-
-    return 0;
+  private async readTutorBalance(em: EntityManager, contactId: string): Promise<number> {
+    const row = await this.lockTutorBalance(em, contactId);
+    return row.lessonBalance ?? 0;
   }
 
-  private async writeBalance(
+  private async writeTutorBalance(
     em: EntityManager,
-    contact: TeacherStudentContactEntity,
+    contactId: string,
     newBalance: number,
   ): Promise<void> {
-    if (contact.ownerType === 'teacher' && contact.linkedStudentId) {
-      const studentRepo = em.getRepository(StudentEntity);
-      const student = await studentRepo.findOne({
-        where: { id: contact.linkedStudentId },
-        lock: { mode: 'pessimistic_write' },
-      });
-      if (student) {
-        student.lessonBalance = newBalance;
-        await studentRepo.save(student);
-      }
-      return;
-    }
-
-    if (contact.ownerType === 'tutor') {
-      const row = await this.lockTutorBalance(em, contact.id);
-      row.lessonBalance = newBalance;
-      await em.getRepository(TutorContactBalanceEntity).save(row);
-    }
+    const row = await this.lockTutorBalance(em, contactId);
+    row.lessonBalance = newBalance;
+    await em.getRepository(TutorContactBalanceEntity).save(row);
   }
 
   private async lockTutorBalance(

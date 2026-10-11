@@ -35,12 +35,12 @@ import { toast } from '@/components/ui/use-toast';
 import {
   Loader2,
   Trash2,
+  Pencil,
   Users,
   UserPlus,
   ChevronUp,
   ChevronDown,
   ChevronRight,
-  MoreVertical,
 } from 'lucide-react';
 import {
   PAGE_SIZE_OPTIONS,
@@ -220,14 +220,26 @@ function UserMobileCard({ user, onOpen, onDelete }) {
           <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground mt-1" aria-hidden />
         ) : null}
       </button>
-      <div className="flex items-center justify-end border-t border-border px-2 py-1">
+      <div className="flex items-center justify-end gap-1 border-t border-border px-2 py-1">
+        {canOpen ? (
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2.5 min-h-touch text-sm text-muted-foreground hover:text-foreground hover:bg-muted"
+            onClick={() => onOpen(user)}
+            aria-label={`Редактировать ${name}`}
+            data-testid="user-mobile-edit"
+          >
+            <Pencil className="h-4 w-4" aria-hidden />
+            <span>Редактировать</span>
+          </button>
+        ) : null}
         <button
           type="button"
           className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2.5 min-h-touch text-sm text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
           onClick={() => onDelete(user)}
           aria-label={`Удалить ${name}`}
         >
-          <MoreVertical className="h-4 w-4" aria-hidden />
+          <Trash2 className="h-4 w-4" aria-hidden />
           <span>Удалить</span>
         </button>
       </div>
@@ -522,14 +534,30 @@ export default function UserManagement() {
                           {user.created_date ? new Date(user.created_date).toLocaleDateString('ru-RU') : '—'}
                         </td>
                         <td className="px-4 py-3">
-                          <button
-                            type="button"
-                            className="p-2 text-muted-foreground hover:text-red-500 rounded-lg"
-                            onClick={(e) => { e.stopPropagation(); setDeleteUser(user); }}
-                            aria-label="Удалить"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center gap-0.5">
+                            {user.entry_type !== 'pending_registration' ? (
+                              <button
+                                type="button"
+                                className="p-2 text-muted-foreground hover:text-foreground rounded-lg"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditUser(user);
+                                }}
+                                aria-label="Редактировать пользователя"
+                                data-testid="user-row-edit"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="p-2 text-muted-foreground hover:text-red-500 rounded-lg"
+                              onClick={(e) => { e.stopPropagation(); setDeleteUser(user); }}
+                              aria-label="Удалить"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

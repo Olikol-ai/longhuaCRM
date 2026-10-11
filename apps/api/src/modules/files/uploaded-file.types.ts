@@ -8,4 +8,6 @@ export interface UploadedFilePayload {
   mimetype?: string;
   filename?: string;
   destination?: string;
+  fieldname?: string;
+  encoding?: string;
 }

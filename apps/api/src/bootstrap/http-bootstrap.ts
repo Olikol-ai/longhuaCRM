@@ -25,6 +25,15 @@ export function configureHttpMiddleware(app: INestApplication, config: ConfigSer
           if (req.headers['x-no-compression']) {
             return false;
           }
+          const url = String(req.url || '');
+          // Never compress upload responses (and skip work on upload routes).
+          if (url.includes('/api/files/upload')) {
+            return false;
+          }
+          // Signed material blobs + Range/206 must stay uncompressed (audio/video).
+          if (url.includes('/api/files/signed/')) {
+            return false;
+          }
           return compression.filter(req, res);
         },
       }),

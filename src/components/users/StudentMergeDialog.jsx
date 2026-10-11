@@ -16,6 +16,10 @@ function formatBalance(value) {
   return `${Number(value)} занятий`;
 }
 
+/**
+ * Primary student is ALWAYS the account opened via «Объединить»
+ * (`user.student_profile_id`). The selected candidate is secondary (absorbed).
+ */
 export default function StudentMergeDialog({ user, open, onOpenChange, onMerged }) {
   const [search, setSearch] = useState('');
   const [candidates, setCandidates] = useState([]);
@@ -24,6 +28,7 @@ export default function StudentMergeDialog({ user, open, onOpenChange, onMerged 
   const [merging, setMerging] = useState(false);
 
   const primaryStudentId = user?.student_profile_id;
+  const primaryLabel = user?.full_name || user?.email || 'Основной аккаунт';
 
   useEffect(() => {
     if (!open || !primaryStudentId) return;
@@ -58,10 +63,16 @@ export default function StudentMergeDialog({ user, open, onOpenChange, onMerged 
 
   const merge = async () => {
     if (!selected) return;
+    // Freeze primary at click-time account — never swap based on heuristics.
+    const lockedPrimaryId = primaryStudentId;
+    const lockedSecondaryId = selected.id;
     setMerging(true);
     try {
-      await api.students.merge(primaryStudentId, selected.id);
-      toast({ title: 'Ученики объединены' });
+      await api.students.merge(lockedPrimaryId, lockedSecondaryId);
+      toast({
+        title: 'Ученики объединены',
+        description: `Данные перенесены в «${primaryLabel}». Расписание занятий не изменялось.`,
+      });
       onOpenChange(false);
       await onMerged?.();
     } catch (err) {
@@ -81,20 +92,29 @@ export default function StudentMergeDialog({ user, open, onOpenChange, onMerged 
         <ResponsiveDialogTitle>Объединение учеников</ResponsiveDialogTitle>
       </ResponsiveDialogHeader>
       <div className="space-y-4 px-1">
-        <div className="rounded-xl border border-border p-3 bg-muted/30">
-          <p className="text-xs text-muted-foreground mb-1">Основной аккаунт</p>
-          <p className="font-semibold">{user.full_name || user.email}</p>
+        <div
+          className="rounded-xl border border-emerald-200 bg-emerald-50/80 dark:bg-emerald-950/20 dark:border-emerald-900 p-3"
+          data-testid="merge-primary-card"
+        >
+          <p className="text-xs font-medium text-emerald-800 dark:text-emerald-200 mb-1">
+            Основной аккаунт (останется)
+          </p>
+          <p className="font-semibold">{primaryLabel}</p>
           <p className="text-sm text-muted-foreground">{user.email || '—'}</p>
-          <p className="text-sm mt-2">Баланс аккаунта: {formatBalance(primaryBalance)}</p>
+          <p className="text-sm mt-2">Баланс: {formatBalance(primaryBalance)}</p>
+          <p className="text-xs text-muted-foreground mt-2">
+            Это аккаунт, у которого вы нажали «Объединить». Его занятия и ID сохраняются.
+          </p>
         </div>
 
         <label className="block text-sm">
-          <span className="text-muted-foreground">Объединить с</span>
+          <span className="text-muted-foreground">Присоединить профиль</span>
           <Input
             className="mt-1"
             placeholder="Поиск ученика..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            data-testid="merge-search"
           />
         </label>
 
@@ -113,6 +133,7 @@ export default function StudentMergeDialog({ user, open, onOpenChange, onMerged 
                   : 'border-border hover:bg-muted/40'
               }`}
               onClick={() => setSelected(candidate)}
+              data-testid={`merge-candidate-${candidate.id}`}
             >
               <p className="font-medium">{candidate.full_name}</p>
               <p className="text-xs text-muted-foreground">
@@ -123,6 +144,7 @@ export default function StudentMergeDialog({ user, open, onOpenChange, onMerged 
               </p>
               <p className="text-xs text-muted-foreground">
                 Баланс: {formatBalance(candidate.lesson_balance)}
+                {candidate.account_status === 'active_account' ? ' · Есть аккаунт' : ' · Без аккаунта'}
                 {candidate.group_names?.length ? ` · Группы: ${candidate.group_names.join(', ')}` : ''}
               </p>
             </button>
@@ -130,20 +152,32 @@ export default function StudentMergeDialog({ user, open, onOpenChange, onMerged 
         </div>
 
         {selected && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 p-3 text-sm">
-            <p className="font-medium text-amber-900 dark:text-amber-200">Перед объединением</p>
-            <p className="text-muted-foreground mt-1">
-              Баланс аккаунта: {formatBalance(primaryBalance)}
+          <div
+            className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 p-3 text-sm space-y-2"
+            data-testid="merge-confirm-summary"
+          >
+            <p className="font-medium text-amber-900 dark:text-amber-200">Перед подтверждением</p>
+            <p>
+              <span className="text-muted-foreground">Основной аккаунт: </span>
+              <b>{primaryLabel}</b>
+            </p>
+            <p>
+              <span className="text-muted-foreground">Присоединяемый аккаунт: </span>
+              <b>{selected.full_name}</b>
+              {selected.email ? ` (${selected.email})` : ''}
             </p>
             <p className="text-muted-foreground">
-              Баланс ученика: {formatBalance(secondaryBalance)}
+              Баланс основного: {formatBalance(primaryBalance)}
             </p>
-            <p className="font-semibold mt-2">
-              Результат: {formatBalance(resultingBalance)}
+            <p className="text-muted-foreground">
+              Баланс присоединяемого: {formatBalance(secondaryBalance)}
             </p>
-            <p className="text-xs text-muted-foreground mt-2">
-              После объединения данные выбранного ученика будут перенесены в основной аккаунт.
-              Операцию необходимо выполнить аккуратно, чтобы не создать дубликаты.
+            <p className="font-semibold">
+              Итоговый баланс: {formatBalance(resultingBalance)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Данные присоединяемого профиля будут перенесены в основной. Дата, время и повторение
+              существующих занятий не изменяются. Присоединённый профиль будет деактивирован.
             </p>
           </div>
         )}
@@ -152,8 +186,13 @@ export default function StudentMergeDialog({ user, open, onOpenChange, onMerged 
         <Button type="button" intent="outline" onClick={() => onOpenChange(false)} disabled={merging}>
           Отмена
         </Button>
-        <Button type="button" onClick={merge} disabled={!selected || merging}>
-          {merging ? 'Объединение...' : 'Объединить'}
+        <Button
+          type="button"
+          onClick={merge}
+          disabled={!selected || merging}
+          data-testid="merge-confirm"
+        >
+          {merging ? 'Объединение...' : 'Подтвердить объединение'}
         </Button>
       </ResponsiveDialogFooter>
     </ResponsiveDialog>

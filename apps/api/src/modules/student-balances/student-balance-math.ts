@@ -19,6 +19,25 @@
 
 export const BALANCE_DEDUCT_LESSON_STATUSES = ['completed', 'missed_no_notice'] as const;
 
+export type BalanceDeductLessonStatus =
+  (typeof BALANCE_DEDUCT_LESSON_STATUSES)[number];
+
+/**
+ * Single source of truth: only these lesson statuses debit students.lesson_balance.
+ *
+ * completed          → deduct
+ * missed_no_notice   → deduct
+ * planned/cancelled/rescheduled/missed → never deduct
+ */
+export function shouldDeductLessonBalance(
+  status: string | null | undefined,
+): status is BalanceDeductLessonStatus {
+  return (
+    status === 'completed' || status === 'missed_no_notice'
+  );
+}
+
+
 export type MoneyPosition = {
   paidAmount: number;
   lessonsPurchased: number;

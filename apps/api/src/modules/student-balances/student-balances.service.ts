@@ -16,6 +16,14 @@ import {
   computeMoneyPosition,
   roundMoney,
 } from './student-balance-math';
+import {
+  buildBalanceHistoryFromLedger,
+  type AdminBalanceHistoryItem,
+} from './student-balance-history';
+import { StudentBalanceLedgerService } from './student-balance-ledger.service';
+import { StudentBalanceReconciliationService } from './student-balance-reconciliation.service';
+
+export type { AdminBalanceHistoryItem } from './student-balance-history';
 
 export type AdminBalanceRow = {
   student_id: string;
@@ -58,18 +66,6 @@ export type AdminBalancesListResult = {
   limit: number;
   page_count: number;
   summary: AdminBalancesSummary;
-};
-
-export type AdminBalanceHistoryItem = {
-  id: string;
-  date: string;
-  type: 'payment' | 'lesson' | 'adjustment';
-  label: string;
-  amount: number | null;
-  comment: string | null;
-  lesson_id: string | null;
-  payment_id: string | null;
-  status: string | null;
 };
 
 export type AdminBalanceDetail = {
@@ -118,7 +114,11 @@ type AggRow = {
 
 @Injectable()
 export class StudentBalancesService {
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly ledger: StudentBalanceLedgerService,
+    private readonly reconciliation: StudentBalanceReconciliationService,
+  ) {}
 
   async list(query: AdminBalancesQueryDto = {}): Promise<AdminBalancesListResult> {
     const page = Math.max(1, Number(query.page) || 1);
@@ -150,7 +150,7 @@ export class StudentBalancesService {
       throw new NotFoundException('Student not found');
     }
     const student = this.toBalanceRow(rows[0]);
-    const history = await this.loadHistory(studentId, student.unit_price);
+    const history = await this.loadHistory(studentId);
 
     return {
       student,
@@ -210,18 +210,33 @@ export class StudentBalancesService {
         return;
       }
 
-      student.lessonBalance = newBalance;
-      await studentRepo.save(student);
+      const adjustment = await manager
+        .getRepository(StudentLessonBalanceAdjustmentEntity)
+        .save(
+          manager.getRepository(StudentLessonBalanceAdjustmentEntity).create({
+            studentId,
+            oldBalance,
+            newBalance,
+            changeAmount: newBalance - oldBalance,
+            reason,
+            createdBy: actor.sub ?? null,
+          }),
+        );
 
-      await manager.getRepository(StudentLessonBalanceAdjustmentEntity).save(
-        manager.getRepository(StudentLessonBalanceAdjustmentEntity).create({
+      await this.ledger.apply(
+        {
           studentId,
-          oldBalance,
-          newBalance,
-          changeAmount: newBalance - oldBalance,
-          reason,
-          createdBy: actor.sub ?? null,
-        }),
+          delta: newBalance - oldBalance,
+          operationType: 'adjustment',
+          sourceType: 'adjustment',
+          sourceId: adjustment.id,
+          idempotencyKey: StudentBalanceLedgerService.adjustmentKey(adjustment.id),
+          description: reason
+            ? `historical/manual adjustment: ${oldBalance} → ${newBalance} (${reason})`
+            : `historical/manual adjustment: ${oldBalance} → ${newBalance}`,
+          createdByUserId: actor.sub ?? null,
+        },
+        manager,
       );
 
       await manager.getRepository(AuditLogEntity).save(
@@ -238,6 +253,15 @@ export class StudentBalancesService {
     });
 
     return this.detail(studentId);
+  }
+
+  /** Diagnostic ledger audit — does not mutate balances. */
+  async balanceAudit(studentId: string) {
+    return this.reconciliation.auditStudent(studentId);
+  }
+
+  async balanceReconciliationSummary(limit?: number) {
+    return this.reconciliation.summarizeAll(limit);
   }
 
   private toBalanceRow(row: AggRow): AdminBalanceRow {
@@ -496,163 +520,14 @@ export class StudentBalancesService {
     return this.dataSource.query(sql, params);
   }
 
+  /**
+   * Personal balance-movement timeline from student_balance_ledger (SSOT).
+   * Chronological ASC by ledger.created_at, then id. No payments/lessons remix.
+   */
   private async loadHistory(
     studentId: string,
-    unitPrice: number | null,
   ): Promise<AdminBalanceHistoryItem[]> {
-    const payments: Array<{
-      id: string;
-      amount: string | number;
-      status: string;
-      payment_date: string | null;
-      paid_at: Date | string | null;
-      notes: string | null;
-      lessons_added: number;
-      created_at: Date | string;
-    }> = await this.dataSource.query(
-      `
-      SELECT id, amount, status, payment_date, paid_at, notes, lessons_added, created_at
-      FROM payments
-      WHERE student_id = $1
-      ORDER BY COALESCE(paid_at, payment_date::timestamptz, created_at) DESC
-      `,
-      [studentId],
-    );
-
-    const lessons: Array<{
-      lesson_id: string;
-      status: string;
-      lesson_date: string;
-      start_time: string | null;
-      lesson_type: string | null;
-      kind: string;
-    }> = await this.dataSource.query(
-      `
-      WITH lesson_links AS (
-        SELECT
-          l.id AS lesson_id,
-          l.status,
-          l.date AS lesson_date,
-          l.start_time,
-          l.lesson_type,
-          CASE
-            WHEN l.lesson_type = 'individual' AND l.group_id IS NULL AND l.primary_student_id IS NOT NULL
-              THEN l.primary_student_id
-            ELSE NULL
-          END AS individual_student_id,
-          l.group_id
-        FROM lessons l
-        WHERE l.status = ANY($2::text[])
-      )
-      SELECT
-        ll.lesson_id,
-        ll.status,
-        ll.lesson_date,
-        ll.start_time::text AS start_time,
-        ll.lesson_type,
-        'individual'::text AS kind
-      FROM lesson_links ll
-      WHERE ll.individual_student_id = $1
-
-      UNION ALL
-
-      SELECT
-        ll.lesson_id,
-        ll.status,
-        ll.lesson_date,
-        ll.start_time::text AS start_time,
-        ll.lesson_type,
-        'group'::text AS kind
-      FROM lesson_links ll
-      INNER JOIN group_members gm ON gm.group_id = ll.group_id
-      WHERE gm.student_id = $1 AND ll.group_id IS NOT NULL
-      `,
-      [studentId, [...BALANCE_DEDUCT_LESSON_STATUSES]],
-    );
-
-    const history: AdminBalanceHistoryItem[] = [];
-
-    for (const payment of payments) {
-      const date =
-        (payment.paid_at
-          ? new Date(payment.paid_at).toISOString().slice(0, 10)
-          : null)
-        || payment.payment_date
-        || (payment.created_at
-          ? new Date(payment.created_at).toISOString().slice(0, 10)
-          : '');
-      const lessonsNote =
-        Number(payment.lessons_added) > 0
-          ? ` (+${payment.lessons_added} зан.)`
-          : '';
-      history.push({
-        id: `payment:${payment.id}`,
-        date,
-        type: 'payment',
-        label: payment.status === 'paid' ? 'Оплата' : `Платёж (${payment.status})`,
-        amount: payment.status === 'paid' ? roundMoney(Number(payment.amount) || 0) : null,
-        comment: `${payment.notes?.trim() || 'Оплата'}${lessonsNote}`,
-        lesson_id: null,
-        payment_id: payment.id,
-        status: payment.status,
-      });
-    }
-
-    for (const lesson of lessons) {
-      const time = lesson.start_time ? String(lesson.start_time).slice(0, 5) : '';
-      const kindLabel = lesson.kind === 'group' ? 'групповое' : 'индивидуальное';
-      history.push({
-        id: `lesson:${lesson.lesson_id}`,
-        date: String(lesson.lesson_date).slice(0, 10),
-        type: 'lesson',
-        label: 'Занятие',
-        amount: unitPrice != null ? roundMoney(-unitPrice) : null,
-        comment: `${kindLabel}${time ? `, ${time}` : ''} · ${lesson.status}`,
-        lesson_id: lesson.lesson_id,
-        payment_id: null,
-        status: lesson.status,
-      });
-    }
-
-    const adjustments: Array<{
-      id: string;
-      old_balance: number;
-      new_balance: number;
-      change_amount: number;
-      reason: string;
-      created_at: Date | string;
-    }> = await this.dataSource.query(
-      `
-      SELECT id, old_balance, new_balance, change_amount, reason, created_at
-      FROM student_lesson_balance_adjustments
-      WHERE student_id = $1
-      ORDER BY created_at DESC
-      `,
-      [studentId],
-    ).catch(() => []);
-
-    for (const adj of adjustments) {
-      history.push({
-        id: `adjustment:${adj.id}`,
-        date: new Date(adj.created_at).toISOString().slice(0, 10),
-        type: 'adjustment',
-        label: 'Корректировка остатка',
-        amount: null,
-        comment:
-          `${adj.reason} · занятия ${adj.old_balance} → ${adj.new_balance}`
-          + ` (${adj.change_amount >= 0 ? '+' : ''}${adj.change_amount})`,
-        lesson_id: null,
-        payment_id: null,
-        status: 'adjustment',
-      });
-    }
-
-    history.sort((a, b) => {
-      const byDate = String(b.date).localeCompare(String(a.date));
-      if (byDate !== 0) return byDate;
-      return a.type.localeCompare(b.type);
-    });
-
-    return history;
+    const entries = await this.ledger.listForStudent(studentId, 1000);
+    return buildBalanceHistoryFromLedger(entries);
   }
 }

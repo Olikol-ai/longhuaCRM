@@ -185,6 +185,118 @@ describe('Lesson completion balance & attendance (e2e)', () => {
     expect(repeat.status).toBe(409);
   });
 
+  it('group: roster change after create does not change attendance or balance targets', async () => {
+    const suffix = randomUUID().slice(0, 8);
+
+    const studentA = await api(app)
+      .post('/api/students')
+      .set(authHeader(adminToken))
+      .send({ name: `SnapA ${suffix}`, status: 'active' });
+    const studentB = await api(app)
+      .post('/api/students')
+      .set(authHeader(adminToken))
+      .send({ name: `SnapB ${suffix}`, status: 'active' });
+    const studentC = await api(app)
+      .post('/api/students')
+      .set(authHeader(adminToken))
+      .send({ name: `SnapC ${suffix}`, status: 'active' });
+    const studentAId = studentA.body.id as string;
+    const studentBId = studentB.body.id as string;
+    const studentCId = studentC.body.id as string;
+
+    for (const id of [studentAId, studentBId, studentCId]) {
+      await api(app)
+        .patch(`/api/students/${id}`)
+        .set(authHeader(adminToken))
+        .send({ lessonBalance: 10 });
+    }
+
+    const teacherRes = await api(app)
+      .post('/api/teachers')
+      .set(authHeader(adminToken))
+      .send({ name: `Snap Teacher ${suffix}`, status: 'active', hourlyRate: 30 });
+    const teacherId = teacherRes.body.id as string;
+
+    const groupRes = await api(app)
+      .post('/api/groups')
+      .set(authHeader(adminToken))
+      .send({ name: `Snap Group ${suffix}`, teacherId, status: 'active' });
+    const groupId = groupRes.body.id as string;
+
+    const memberA = await api(app)
+      .post(`/api/groups/${groupId}/members`)
+      .set(authHeader(adminToken))
+      .send({ studentId: studentAId });
+    await api(app)
+      .post(`/api/groups/${groupId}/members`)
+      .set(authHeader(adminToken))
+      .send({ studentId: studentBId });
+
+    const lessonRes = await api(app)
+      .post('/api/lessons')
+      .set(authHeader(adminToken))
+      .send({
+        teacherId,
+        groupId,
+        lessonType: 'group',
+        date: futureLessonDate(8),
+        startTime: '16:00',
+        duration: 60,
+        status: 'planned',
+      });
+    expect(lessonRes.status).toBe(201);
+    const lessonId = lessonRes.body.id as string;
+
+    // Roster change after lesson create: remove A, add C
+    await api(app)
+      .delete(`/api/groups/${groupId}/members/${memberA.body.id}`)
+      .set(authHeader(adminToken));
+    await api(app)
+      .post(`/api/groups/${groupId}/members`)
+      .set(authHeader(adminToken))
+      .send({ studentId: studentCId });
+
+    const attendanceBefore = await api(app)
+      .post('/api/lessons/attendance/filter')
+      .set(authHeader(adminToken))
+      .send({ where: { lesson_id: lessonId } });
+    const beforeIds = (attendanceBefore.body as Array<{ student_id?: string }>)
+      .map((row) => row.student_id)
+      .filter(Boolean)
+      .sort();
+    expect(beforeIds).toEqual([studentAId, studentBId].sort());
+
+    await api(app)
+      .patch(`/api/lessons/${lessonId}/complete`)
+      .set(authHeader(adminToken))
+      .expect(200);
+
+    const afterA = await api(app)
+      .get(`/api/students/${studentAId}`)
+      .set(authHeader(adminToken));
+    const afterB = await api(app)
+      .get(`/api/students/${studentBId}`)
+      .set(authHeader(adminToken));
+    const afterC = await api(app)
+      .get(`/api/students/${studentCId}`)
+      .set(authHeader(adminToken));
+
+    // Snapshot A+B charged; C (added later) untouched
+    expect(afterA.body.lesson_balance ?? afterA.body.lessonBalance).toBe(9);
+    expect(afterB.body.lesson_balance ?? afterB.body.lessonBalance).toBe(9);
+    expect(afterC.body.lesson_balance ?? afterC.body.lessonBalance).toBe(10);
+
+    const attendanceAfter = await api(app)
+      .post('/api/lessons/attendance/filter')
+      .set(authHeader(adminToken))
+      .send({ where: { lesson_id: lessonId } });
+    const afterIds = (attendanceAfter.body as Array<{ student_id?: string }>)
+      .map((row) => row.student_id)
+      .filter(Boolean)
+      .sort();
+    expect(afterIds).toEqual([studentAId, studentBId].sort());
+  });
+
   it('after reassigning primary student, complete deducts the new student only', async () => {
     const suffix = randomUUID().slice(0, 8);
 

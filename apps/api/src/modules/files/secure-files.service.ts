@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { basename, extname } from 'path';
-import { unlinkSync } from 'fs';
+import { createReadStream, unlinkSync } from 'fs';
 import { Repository } from 'typeorm';
 import { normalizeRole } from '../../common/constants/roles';
 import { STORAGE_NAMESPACE } from '../../common/storage/storage.constants';
@@ -193,38 +193,68 @@ export class SecureFilesService implements OnModuleInit {
     };
   }
 
-  async streamSignedFile(token: string): Promise<StreamableFile> {
+  /**
+   * Resolve a signed material blob for Range-aware streaming.
+   * Auth is the HMAC token issued after ACL at GET /files/material/:id/url.
+   * Do not rebuild the full materials ACL graph here — that blocked first-byte
+   * for teachers/tutors on the stream path.
+   */
+  async resolveSignedMaterialFile(token: string): Promise<{
+    materialId: string;
+    absolutePath: string;
+    size: number;
+    filename: string;
+    contentType: string;
+    disposition: 'inline' | 'attachment';
+    contentDisposition: string;
+  }> {
     const started = Date.now();
     const payload = this.signedFileUrl.validateSignedUrl(token);
-    // Auth is the HMAC token issued after ACL at /url. Do not rebuild the full
-    // materials ACL graph here — that blocked first-byte for teachers/tutors.
     const material = await this.materialRepo.findOne({
       where: { id: payload.materialId },
-      select: ['id', 'fileUrl', 'status', 'mimeType'],
+      select: ['id', 'fileUrl', 'status', 'mimeType', 'originalFilename'],
     });
     if (!material?.fileUrl || material.status === 'deleted') {
       this.logMissing(payload.materialId, material?.fileUrl ?? null, null);
       throw new NotFoundException(FILE_MISSING_MESSAGE);
     }
 
-    const resolved = this.storage.openReadStream(
+    const resolved = this.storage.resolveFileInfo(
       material.fileUrl,
       `material:${payload.materialId}`,
     );
-    this.logger.log(
-      `material.stream materialId=${payload.materialId} sizeBytes=${resolved.size} ` +
-        `setupMs=${Date.now() - started}`,
-    );
+
     const contentType =
       material.mimeType?.trim() || this.guessContentType(material.fileUrl);
     const disposition = isZipMimeType(contentType)
       || String(material.fileUrl || '').toLowerCase().endsWith('.zip')
       ? 'attachment'
       : 'inline';
-    return new StreamableFile(resolved.stream, {
-      type: contentType,
-      disposition: buildContentDisposition(disposition, resolved.filename),
-      length: resolved.size,
+    const filename =
+      material.originalFilename?.trim() || resolved.filename;
+
+    this.logger.log(
+      `material.stream materialId=${payload.materialId} sizeBytes=${resolved.size} ` +
+        `setupMs=${Date.now() - started}`,
+    );
+
+    return {
+      materialId: payload.materialId,
+      absolutePath: resolved.absolutePath,
+      size: resolved.size,
+      filename,
+      contentType,
+      disposition,
+      contentDisposition: buildContentDisposition(disposition, filename),
+    };
+  }
+
+  async streamSignedFile(token: string): Promise<StreamableFile> {
+    const file = await this.resolveSignedMaterialFile(token);
+    return new StreamableFile(createReadStream(file.absolutePath), {
+      type: file.contentType,
+      disposition: file.contentDisposition,
+      length: file.size,
     });
   }
 

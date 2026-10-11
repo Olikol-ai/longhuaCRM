@@ -5,6 +5,7 @@ import { LessonConfirmationsModule } from '../lesson-confirmations/lesson-confir
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ScheduleModule } from '../schedule/schedule.module';
 import { StudentEntity } from '../students/entities/student.entity';
+import { StudentBalancesModule } from '../student-balances/student-balances.module';
 import { TeacherPaymentsModule } from '../teacher-payments/teacher-payments.module';
 import { TelegramModule } from '../telegram/telegram.module';
 import { UserEntity } from '../users/entities/user.entity';
@@ -22,7 +23,6 @@ import { LessonsController } from './lessons.controller';
 import { LessonsRepository } from './lessons.repository';
 import { LessonsScheduler } from './lessons.scheduler';
 import { LessonsService } from './lessons.service';
-import { VideoModule } from '../video/video.module';
 import { TeacherStudentContactsModule } from '../teacher-student-contacts/teacher-student-contacts.module';
 
 @Module({
@@ -42,8 +42,8 @@ import { TeacherStudentContactsModule } from '../teacher-student-contacts/teache
     LessonConfirmationsModule,
     NotificationsModule,
     TelegramModule,
-    VideoModule,
     TeacherStudentContactsModule,
+    StudentBalancesModule,
   ],
   controllers: [LessonsController],
   providers: [
@@ -62,6 +62,7 @@ import { TeacherStudentContactsModule } from '../teacher-student-contacts/teache
     LessonRecurrenceService,
     LessonRecurrenceExceptionsService,
     LessonsScheduler,
+    StudentBalanceService,
     TypeOrmModule,
   ],
 })

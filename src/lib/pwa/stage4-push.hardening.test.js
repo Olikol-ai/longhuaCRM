@@ -226,13 +226,12 @@ describe('Stage 4 hardening — lifecycle / fan-out / ACL contracts', () => {
     assert.match(sw, /url\.origin !== self\.location\.origin/);
   });
 
-  it('notificationclick defers SPA nav during Jitsi / Document PiP gate', () => {
+  it('notificationclick defers SPA nav when reload gate is active', () => {
     const push = read('src/lib/pwa/pushClient.js');
     assert.match(push, /shouldDeferAppReload/);
     assert.match(push, /NOTIFICATION_NAVIGATE/);
-    const video = read('src/lib/VideoSessionContext.jsx');
-    assert.match(video, /setVideoSessionBlocksReload/);
-    assert.match(video, /Document PiP/);
+    const gate = read('src/lib/pwa/reloadGate.js');
+    assert.match(gate, /setVideoSessionBlocksReload/);
   });
 
   it('permission UX is progressive (Settings), not aggressive on login', () => {

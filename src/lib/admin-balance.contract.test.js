@@ -23,6 +23,8 @@ describe('Admin Balance page contract', () => {
     assert.match(page, /api\.balances\.detail/);
     assert.match(page, /historical_lessons_credit|Исторический кредит/);
     assert.match(page, /adjustLessons|Корректировка остатка/);
+    assert.match(page, /История движения баланса/);
+    assert.match(page, /formatLessonDelta|movement_at/);
     assert.match(page, /formatBYN/);
     assert.doesNotMatch(page, /BYN BYN|formatBYN\([^)]+\)\s*\+\s*['\"]BYN/);
     assert.match(api, /\/admin\/balances/);

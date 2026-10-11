@@ -17,8 +17,8 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SkipThrottle } from '@nestjs/throttler';
 import { memoryStorage } from 'multer';
-import { createReadStream } from 'fs';
 import { buildContentDisposition } from '../../../common/http/content-disposition';
+import { streamFileWithOptionalRange } from '../../../common/http/byte-range';
 import { Request, Response } from 'express';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
@@ -171,47 +171,17 @@ export class ChatsController {
     const forceDownload = dispositionQuery === 'attachment';
     const disposition = forceDownload ? 'attachment' : 'inline';
 
-    // Skip express compression for binary media / Range responses.
-    (request as Request & { headers: Record<string, string | undefined> }).headers[
-      'x-no-compression'
-    ] = '1';
-
-    response.setHeader('Content-Type', mime);
-    response.setHeader('Accept-Ranges', 'bytes');
-    response.setHeader('Cache-Control', 'private, no-store');
-    response.setHeader('Content-Disposition', buildContentDisposition(disposition, filename));
-
-    const range = request.headers.range;
-    if (range && /^bytes=/.test(range)) {
-      const match = /^bytes=(\d*)-(\d*)$/.exec(range);
-      if (match) {
-        let start: number;
-        let end: number;
-        if (match[1] === '' && match[2] !== '') {
-          // suffix: bytes=-500
-          const suffix = parseInt(match[2], 10);
-          start = Math.max(0, size - suffix);
-          end = size - 1;
-        } else {
-          start = match[1] ? parseInt(match[1], 10) : 0;
-          end = match[2] ? parseInt(match[2], 10) : size - 1;
-        }
-        if (Number.isFinite(start) && Number.isFinite(end) && start >= 0 && start <= end && end < size) {
-          response.status(206);
-          response.setHeader('Content-Range', `bytes ${start}-${end}/${size}`);
-          response.setHeader('Content-Length', String(end - start + 1));
-          createReadStream(absolutePath, { start, end }).pipe(response);
-          return;
-        }
-      }
-      response.status(416);
-      response.setHeader('Content-Range', `bytes */${size}`);
-      response.end();
-      return;
-    }
-
-    response.setHeader('Content-Length', String(size));
-    createReadStream(absolutePath).pipe(response);
+    streamFileWithOptionalRange(
+      response,
+      {
+        absolutePath,
+        size,
+        contentType: mime,
+        contentDisposition: buildContentDisposition(disposition, filename),
+        rangeHeader: request.headers.range,
+      },
+      request.headers as Record<string, string | string[] | undefined>,
+    );
   }
 
   @Patch('messages/:messageId')

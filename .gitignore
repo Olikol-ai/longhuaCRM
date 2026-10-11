@@ -3,8 +3,10 @@
 .env.local
 .env.*.local
 .env.jitsi
+.env.turn.external
 !.env.example
 !.env.jitsi.example
+src/lib/jitsi-ice-servers.js
 
 # Local MCP config (may contain DATABASE_URL credentials)
 .cursor/mcp.json

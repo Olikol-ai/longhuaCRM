@@ -6,7 +6,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
-  Video,
   CheckCircle2,
   XCircle,
   Calendar,
@@ -32,7 +31,6 @@ import { toast } from "@/components/ui/use-toast";
 import { createPageUrl } from "@/utils";
 import { resolveLessonStudentLabel } from "@/lib/studentLabels";
 import { resolveLessonTeacherLabel } from "@/lib/teacherLabels";
-import { canStartVideoLesson, isOnlineLesson, lessonVideoPath } from "@/lib/lesson-video";
 import { filterScheduleListLessons } from "@/lib/scheduleListLessons";
 import LessonModal from "@/components/schedule/LessonModal";
 import LessonDetailModal from "@/components/schedule/LessonDetailModal";
@@ -738,27 +736,6 @@ function WeekLessonChip({
         <p className="text-[10px] text-muted-foreground truncate">{teacherLabel}</p>
       ) : null}
       <p className="text-[10px] text-muted-foreground">{lesson.duration || 60} мин</p>
-      {isOnlineLesson(lesson) && (
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 text-[10px] text-brand hover:underline mt-1"
-          onClick={(e) => {
-            e.stopPropagation();
-            const gate = canStartVideoLesson(lesson);
-            if (!gate.ok && gate.reason === "too_early") {
-              toast({
-                title: "Видеоурок ещё не начался",
-                description: "Войти можно за 10 минут до начала.",
-              });
-              return;
-            }
-            navigate(lessonVideoPath(lesson.id));
-          }}
-        >
-          <Video className="h-2.5 w-2.5" />{" "}
-          {isAdmin ? "Видеоурок" : "Начать видеоурок"}
-        </button>
-      )}
       {showQuickActions && !isAdmin && expandedLesson === lesson.id ? (
         <>
           <QuickActionsPanel
@@ -837,27 +814,6 @@ export function ScheduleLessonCard({
               </p>
             ) : null}
             <p className="text-xs text-muted-foreground">{lesson.duration || 60} мин</p>
-            {isOnlineLesson(lesson) && (
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 text-xs text-brand hover:underline mt-0.5"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const gate = canStartVideoLesson(lesson);
-                  if (!gate.ok && gate.reason === "too_early") {
-                    toast({
-                      title: "Видеоурок ещё не начался",
-                      description: "Войти можно за 10 минут до начала.",
-                    });
-                    return;
-                  }
-                  navigate(lessonVideoPath(lesson.id));
-                }}
-              >
-                <Video className="h-3 w-3" />{" "}
-                {isAdmin ? "Видеоурок" : "Начать видеоурок"}
-              </button>
-            )}
           </div>
         </div>
         <Badge

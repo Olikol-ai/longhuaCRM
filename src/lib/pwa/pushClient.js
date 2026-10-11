@@ -148,7 +148,7 @@ export function bindNotificationNavigate(navigate) {
     const data = event.data || {};
     if (data.type !== 'NOTIFICATION_NAVIGATE' || !data.url) return;
     if (shouldDeferAppReload()) {
-      // Lesson / PiP active — keep VideoSession mounted; user must navigate explicitly.
+      // Reload deferred by reloadGate; prefer soft SPA navigation.
       return;
     }
     if (typeof navigate === 'function') {

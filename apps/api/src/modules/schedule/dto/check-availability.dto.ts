@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString } from 'class-validator';
+import { IsInt, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CheckAvailabilityDto {
   @IsString()
@@ -15,4 +15,13 @@ export class CheckAvailabilityDto {
   @IsOptional()
   @IsInt()
   duration?: number;
+
+  /** When editing a lesson, exclude it so it does not conflict with itself. */
+  @IsOptional()
+  @IsUUID()
+  excludeLessonId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  exclude_lesson_id?: string;
 }

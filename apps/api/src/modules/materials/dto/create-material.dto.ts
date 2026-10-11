@@ -6,10 +6,12 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
   Min,
 } from 'class-validator';
 import { MATERIAL_FILE_TYPES, MaterialFileType } from '../entities/material.entity';
+import { DEFAULT_MATERIALS_MAX_UPLOAD_BYTES } from '../../files/material-upload.limits';
 
 export class CreateMaterialDto {
   @IsUUID()
@@ -39,6 +41,7 @@ export class CreateMaterialDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(DEFAULT_MATERIALS_MAX_UPLOAD_BYTES)
   fileSizeBytes?: number;
 
   @IsOptional()

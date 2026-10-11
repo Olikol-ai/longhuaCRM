@@ -8,7 +8,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const read = (rel) => readFileSync(join(root, rel), 'utf8');
 
 describe('Lesson balance zero save contract', () => {
-  it('never treats numeric 0 as missing; teacher 1→0 sticks on Student', () => {
+  it('never treats numeric 0 as missing; edit PATCH omits lesson_balance', () => {
     const form = read('src/components/students/StudentFormDialog.jsx');
     const notebook = read('src/components/students/PrivateStudentsNotebook.jsx');
     const balanceSvc = read(
@@ -23,6 +23,8 @@ describe('Lesson balance zero save contract', () => {
     );
 
     assert.match(form, /Number\.isFinite\(raw\)/);
+    assert.match(form, /if \(!student\)/);
+    assert.match(form, /data\.lesson_balance/);
     assert.doesNotMatch(form, /lesson_balance:\s*Number\(formData\.lesson_balance\)\s*\|\|/);
     assert.match(notebook, /Number\.isInteger\(newBalance\)/);
     assert.doesNotMatch(notebook, /newBalance\s*<\s*0/);
@@ -30,6 +32,7 @@ describe('Lesson balance zero save contract', () => {
     assert.doesNotMatch(balanceSvc, /Math\.max\(\s*lockedContact\.lessonBalance/);
     assert.doesNotMatch(contactsSvc, /patch\.lessonBalance/);
     assert.doesNotMatch(studentsSvc, /balanceTouched/);
+    assert.match(studentsSvc, /delete normalized\.lessonBalance/);
     assert.match(spec, /writes Student only|writes tutor_contact_balances only/);
   });
 });

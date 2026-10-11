@@ -2,16 +2,14 @@ import React, { useState, useEffect, useRef } from "react";
 import { api } from '@/api';
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { Calendar, BookOpen, GraduationCap, Video, Clock, Loader2, Plus, ChevronDown, ChevronUp, List } from "lucide-react";
+import { Calendar, BookOpen, GraduationCap, Clock, Loader2, ChevronDown, ChevronUp, List } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button, EmptyState } from "@/design-system";
 import StatCard from "@/components/dashboard/StatCard";
-import TopUpModal from "@/components/student/TopUpModal";
 import { useAuth } from "@/lib/AuthContext";
 import { formatWelcomeGreeting, getGreetingName } from "@/lib/display-name";
 import { resolveAssignedTeacherLabel, resolveLessonTeacherLabel } from "@/lib/teacherLabels";
-import { isOnlineLesson, lessonVideoPath } from "@/lib/lesson-video";
 import { getLessonBalance, lessonBalanceStatColor } from "@/lib/lessonBalance";
 import LessonBalanceDisplay from "@/components/students/LessonBalanceDisplay";
 import { OfflineSnapshotBanner } from "@/components/pwa/OfflineSnapshotBanner";
@@ -41,7 +39,6 @@ export default function StudentDashboard() {
   const [teacher, setTeacher] = useState(null);
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showTopUp, setShowTopUp] = useState(false);
   const [upcomingExpanded, setUpcomingExpanded] = useState(true);
   const [viewMode, setViewMode] = useState("list"); // "list" | "calendar"
   const [sortAsc, setSortAsc] = useState(true);
@@ -191,12 +188,6 @@ export default function StudentDashboard() {
             </p>
           ) : null}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Button intent="primary" onClick={() => setShowTopUp(true)}>
-            <Plus className="h-4 w-4" />
-            Пополнить баланс
-          </Button>
-        </div>
       </div>
 
       {/* Stats */}
@@ -314,15 +305,6 @@ export default function StudentDashboard() {
                           {lesson.notes && <p className="text-xs text-muted-foreground mt-1">{lesson.notes}</p>}
                         </div>
                       </div>
-                      {isOnlineLesson(lesson) && (
-                        <a
-                          href={lessonVideoPath(lesson.id)}
-                          className="inline-flex min-h-touch items-center gap-2 px-4 py-2 bg-brand-soft dark:bg-brand-soft/40 text-brand rounded-xl text-sm font-medium hover:bg-brand-muted dark:hover:bg-brand-soft/60 transition-colors shrink-0"
-                        >
-                          <Video className="h-4 w-4" />
-                          Войти в видеоурок
-                        </a>
-                      )}
                     </div>
                   </Card>
                 ))}
@@ -352,14 +334,6 @@ export default function StudentDashboard() {
                             <p className="text-sm font-medium text-foreground">{resolveLessonTeacherLabel(lesson, teachers)}</p>
                             {lesson.notes && <p className="text-xs text-muted-foreground truncate">{lesson.notes}</p>}
                           </div>
-                          {isOnlineLesson(lesson) && (
-                            <a
-                              href={lessonVideoPath(lesson.id)}
-                              className="flex items-center gap-1 text-[11px] text-brand dark:text-brand hover:underline shrink-0"
-                            >
-                              <Video className="h-3 w-3" /> Войти в видеоурок
-                            </a>
-                          )}
                         </div>
                       ))}
                     </div>
@@ -402,8 +376,6 @@ export default function StudentDashboard() {
           ))}
       </div>
 
-      {/* TopUp Modal */}
-      {showTopUp && <TopUpModal onClose={() => setShowTopUp(false)} />}
     </div>
   );
 }

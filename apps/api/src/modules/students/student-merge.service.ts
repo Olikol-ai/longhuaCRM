@@ -15,6 +15,11 @@ import { AttendanceEntity } from '../lessons/entities/attendance.entity';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
 import { PaymentEntity } from '../payments/entities/payment.entity';
 import { SeriesStudentEntity } from '../schedule/entities/series-student.entity';
+import { StudentBalanceLedgerService } from '../student-balances/student-balance-ledger.service';
+import {
+  lessonScheduleRowsEqual,
+  recurrenceScheduleRowsEqual,
+} from './student-merge-schedule-guard';
 import { StudentEntity } from './entities/student.entity';
 
 export interface StudentMergePreview {
@@ -53,6 +58,7 @@ export class StudentMergeService {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly audit: AuditService,
+    private readonly ledger: StudentBalanceLedgerService,
   ) {}
 
   async previewMerge(
@@ -88,11 +94,21 @@ export class StudentMergeService {
         manager,
       );
 
-      movedCounts.group_members = await this.mergeGroupMembers(manager, primary.id, secondary.id);
-      movedCounts.lesson_series_students = await this.reassignRows(
+      // Snapshot schedule fields BEFORE any FK moves. Merge must never alter them.
+      const lessonScheduleBefore = await this.snapshotLessonSchedule(
         manager,
-        'lesson_series_students',
-        'student_id',
+        primary.id,
+        secondary.id,
+      );
+      const seriesScheduleBefore = await this.snapshotRecurrenceSchedule(
+        manager,
+        primary.id,
+        secondary.id,
+      );
+
+      movedCounts.group_members = await this.mergeGroupMembers(manager, primary.id, secondary.id);
+      movedCounts.lesson_series_students = await this.mergeLessonSeriesStudents(
+        manager,
         primary.id,
         secondary.id,
       );
@@ -193,11 +209,59 @@ export class StudentMergeService {
 
       await this.reassignAssessmentExamTargets(manager, primary.id, secondary.id);
 
-      const resultingBalance = primary.lessonBalance + secondary.lessonBalance;
-      await manager.update(StudentEntity, { id: primary.id }, {
-        lessonBalance: resultingBalance,
-        updatedAt: new Date(),
+      const primaryBefore = primary.lessonBalance ?? 0;
+      const secondaryBefore = secondary.lessonBalance ?? 0;
+
+      if (secondaryBefore !== 0) {
+        await this.ledger.apply(
+          {
+            studentId: secondary.id,
+            delta: -secondaryBefore,
+            operationType: 'merge_out',
+            sourceType: 'student_merge',
+            sourceId: primary.id,
+            idempotencyKey: StudentBalanceLedgerService.mergeOutKey(
+              primary.id,
+              secondary.id,
+            ),
+            description: `merge out → ${primary.id}`,
+            createdByUserId: actorUserId,
+          },
+          manager,
+        );
+        await this.ledger.apply(
+          {
+            studentId: primary.id,
+            delta: secondaryBefore,
+            operationType: 'merge_in',
+            sourceType: 'student_merge',
+            sourceId: secondary.id,
+            idempotencyKey: StudentBalanceLedgerService.mergeInKey(
+              primary.id,
+              secondary.id,
+            ),
+            description: `merge in from ${secondary.id}`,
+            createdByUserId: actorUserId,
+          },
+          manager,
+        );
+      }
+
+      const primaryAfter = await manager.getRepository(StudentEntity).findOne({
+        where: { id: primary.id },
       });
+      const resulting = primaryAfter?.lessonBalance ?? primaryBefore + secondaryBefore;
+
+      // Detach secondary platform account so it cannot remain an independent login.
+      if (secondary.userId && secondary.userId !== primary.userId) {
+        await manager.query(
+          `UPDATE users
+           SET status = 'blocked', updated_at = NOW()
+           WHERE id = $1 AND status <> 'blocked'`,
+          [secondary.userId],
+        );
+        movedCounts.secondary_user_blocked = 1;
+      }
 
       await manager.update(StudentEntity, { id: secondary.id }, {
         status: 'inactive',
@@ -207,21 +271,36 @@ export class StudentMergeService {
         assignedTeacherId: null,
         updatedAt: new Date(),
       });
+
+      await this.assertLessonScheduleUnchanged(manager, lessonScheduleBefore);
+      await this.assertRecurrenceScheduleUnchanged(manager, seriesScheduleBefore);
+
+      movedCounts.primary_balance_before = primaryBefore;
+      movedCounts.secondary_balance_before = secondaryBefore;
+      movedCounts.resulting_balance = resulting;
     });
+
+    const resultingBalance = Number(movedCounts.resulting_balance ?? preview.resultingBalance);
+    const primaryBefore = Number(movedCounts.primary_balance_before ?? preview.primaryBalance);
+    const secondaryBefore = Number(
+      movedCounts.secondary_balance_before ?? preview.secondaryBalance,
+    );
 
     await this.audit.log({
       actorUserId,
       action: 'student_merge',
       entityType: 'Student',
       entityId: primaryStudentId,
-      summary: `merged ${secondaryStudentId} → ${primaryStudentId}; balance ${preview.resultingBalance}`,
+      summary:
+        `merged ${secondaryStudentId} → ${primaryStudentId}; ` +
+        `balance ${primaryBefore}+${secondaryBefore}=${resultingBalance}`,
     });
 
     return {
       ok: true,
       primaryStudentId,
       secondaryStudentId,
-      resultingBalance: preview.resultingBalance,
+      resultingBalance,
       movedCounts,
     };
   }
@@ -328,16 +407,167 @@ export class StudentMergeService {
     }
     if (!primary.userId) {
       throw new BadRequestException(
-        'Основной профиль должен быть аккаунтом платформы (зарегистрированный ученик)',
+        'Основной профиль должен быть аккаунтом платформы (зарегистрированный ученик). '
+          + 'Откройте «Объединить» у аккаунта, который должен остаться основным.',
       );
     }
-    if (secondary.userId && secondary.userId !== primary.userId) {
-      throw new ConflictException(
-        'Нельзя объединить двух учеников с разными аккаунтами. Выберите профиль без аккаунта.',
-      );
-    }
+    // Secondary may be an orphan profile OR another platform account.
+    // Primary is always the path-param student (the account where admin clicked Merge).
 
     return { primary, secondary };
+  }
+
+  /**
+   * Capture lesson schedule columns that merge must leave untouched.
+   * Only primary_student_id may change for these rows.
+   */
+  private async snapshotLessonSchedule(
+    manager: EntityManager,
+    primaryId: string,
+    secondaryId: string,
+  ): Promise<
+    Array<{
+      id: string;
+      date: string;
+      start_time: string;
+      duration: number;
+      recurrence_series_id: string | null;
+    }>
+  > {
+    if (!(await this.tableExists(manager, 'lessons'))) {
+      return [];
+    }
+    return manager.query(
+      `SELECT id,
+              date::text AS date,
+              start_time::text AS start_time,
+              duration,
+              recurrence_series_id
+       FROM lessons
+       WHERE primary_student_id = $1 OR primary_student_id = $2
+       ORDER BY id`,
+      [primaryId, secondaryId],
+    );
+  }
+
+  private async snapshotRecurrenceSchedule(
+    manager: EntityManager,
+    primaryId: string,
+    secondaryId: string,
+  ): Promise<
+    Array<{
+      id: string;
+      weekday: number;
+      start_date: string;
+      start_time: string;
+      duration: number;
+      until_date: string | null;
+    }>
+  > {
+    if (!(await this.tableExists(manager, 'lesson_recurrence_series'))) {
+      return [];
+    }
+    return manager.query(
+      `SELECT id,
+              weekday,
+              start_date::text AS start_date,
+              start_time::text AS start_time,
+              duration,
+              until_date::text AS until_date
+       FROM lesson_recurrence_series
+       WHERE primary_student_id = $1 OR primary_student_id = $2
+       ORDER BY id`,
+      [primaryId, secondaryId],
+    );
+  }
+
+  private async assertLessonScheduleUnchanged(
+    manager: EntityManager,
+    before: Array<{
+      id: string;
+      date: string;
+      start_time: string;
+      duration: number;
+      recurrence_series_id: string | null;
+    }>,
+  ): Promise<void> {
+    if (before.length === 0) return;
+    const ids = before.map((row) => row.id);
+    const after = (await manager.query(
+      `SELECT id,
+              date::text AS date,
+              start_time::text AS start_time,
+              duration,
+              recurrence_series_id
+       FROM lessons
+       WHERE id = ANY($1::uuid[])
+       ORDER BY id`,
+      [ids],
+    )) as typeof before;
+    if (!lessonScheduleRowsEqual(before, after)) {
+      throw new ConflictException(
+        'Объединение прервано: дата/время/повторение занятия изменились. '
+          + 'Объединение не должно менять расписание.',
+      );
+    }
+  }
+
+  private async assertRecurrenceScheduleUnchanged(
+    manager: EntityManager,
+    before: Array<{
+      id: string;
+      weekday: number;
+      start_date: string;
+      start_time: string;
+      duration: number;
+      until_date: string | null;
+    }>,
+  ): Promise<void> {
+    if (before.length === 0) return;
+    const ids = before.map((row) => row.id);
+    const after = (await manager.query(
+      `SELECT id,
+              weekday,
+              start_date::text AS start_date,
+              start_time::text AS start_time,
+              duration,
+              until_date::text AS until_date
+       FROM lesson_recurrence_series
+       WHERE id = ANY($1::uuid[])
+       ORDER BY id`,
+      [ids],
+    )) as typeof before;
+    if (!recurrenceScheduleRowsEqual(before, after)) {
+      throw new ConflictException(
+        'Объединение прервано: параметры серии повторений изменились. '
+          + 'Объединение не должно менять расписание.',
+      );
+    }
+  }
+
+  private async mergeLessonSeriesStudents(
+    manager: EntityManager,
+    primaryId: string,
+    secondaryId: string,
+  ): Promise<number> {
+    if (!(await this.tableExists(manager, 'lesson_series_students'))) {
+      return 0;
+    }
+    const repo = manager.getRepository(SeriesStudentEntity);
+    const secondaryRows = await repo.find({ where: { studentId: secondaryId } });
+    let moved = 0;
+    for (const row of secondaryRows) {
+      const exists = await repo.findOne({
+        where: { seriesId: row.seriesId, studentId: primaryId },
+      });
+      if (exists) {
+        await repo.delete({ id: row.id });
+      } else {
+        await repo.update({ id: row.id }, { studentId: primaryId });
+        moved += 1;
+      }
+    }
+    return moved;
   }
 
   private async mergeGroupMembers(

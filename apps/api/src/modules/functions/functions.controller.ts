@@ -8,7 +8,6 @@ import {
   Param,
   Post,
   Req,
-  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -51,23 +50,19 @@ export class FunctionsController {
       'clearTelegramUpdates',
       'sendTelegramMessage',
       'tgDebug',
+      // Legacy Alfa helpers — admin-only (student self-top-up removed).
+      'alfaBankInit',
+      'checkPaymentStatus',
     ];
-    const studentFunctions = ['alfaBankInit', 'checkPaymentStatus'];
 
-    const known = [...adminFunctions, ...studentFunctions].includes(name);
+    const known = adminFunctions.includes(name);
 
     if (!known) {
       throw new NotFoundException(`Unknown function: ${name}`);
     }
 
-    if (adminFunctions.includes(name)) {
-      if (!user || normalizeRole(user.role) !== 'admin') {
-        throw new ForbiddenException('Forbidden: Admin access required');
-      }
-    } else if (studentFunctions.includes(name)) {
-      if (!user) {
-        throw new UnauthorizedException('Unauthorized');
-      }
+    if (!user || normalizeRole(user.role) !== 'admin') {
+      throw new ForbiddenException('Forbidden: Admin access required');
     }
 
     try {

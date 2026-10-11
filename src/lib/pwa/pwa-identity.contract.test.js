@@ -106,12 +106,13 @@ describe('PWA Stage 1 identity', () => {
     dismissInstallPrompt(Date.now());
   });
 
-  it('VideoSession wires reload gate; App mounts install/update controllers', () => {
-    const video = read('src/lib/VideoSessionContext.jsx');
+  it('App mounts install/update controllers; reload gate API remains', () => {
     const app = read('src/App.jsx');
-    assert.match(video, /setVideoSessionBlocksReload/);
+    const gate = read('src/lib/pwa/reloadGate.js');
     assert.match(app, /PwaInstallController/);
     assert.match(app, /PwaUpdateController/);
+    assert.match(gate, /setVideoSessionBlocksReload/);
+    assert.doesNotMatch(app, /VideoSessionProvider|LessonVideo|VideoSessionLayer/);
   });
 });
 

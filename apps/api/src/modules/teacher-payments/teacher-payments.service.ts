@@ -10,17 +10,20 @@ import { filterToEntityWhere } from '../../common/utils/api-record.util';
 import { JwtPayload } from '../auth/auth.service';
 import { TeacherAccessService } from '../../common/access/teacher-access.service';
 import { LessonEntity } from '../lessons/entities/lesson.entity';
-import {
-  isTrialLessonType,
-  TRIAL_LESSON_TEACHER_PAYMENT_BYN,
-} from '../lessons/lesson-trial';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { UserEntity } from '../users/entities/user.entity';
 import { TeacherMonthlyPayoutEntity } from './entities/teacher-monthly-payout.entity';
 import { TeacherPaymentEntity } from './entities/teacher-payment.entity';
 import { UpdateTeacherPaymentDto } from './dto/update-teacher-payment.dto';
+import {
+  resolveLessonTeacherAmount,
+  shouldPersistLessonTeacherAccrual,
+} from './resolve-lesson-accrual-amount';
 import { TeacherPaymentsRepository } from './teacher-payments.repository';
-import { aggregateTeacherPaymentsByPeriod } from './teacher-pay-periods';
+import {
+  getTeacherPayPeriodForDate,
+  TeacherPayPeriodTotal,
+} from './teacher-pay-periods';
 
 export type TeacherMonthlySummaryRow = {
   teacherId: string;
@@ -83,28 +86,54 @@ export class TeacherPaymentsService {
 
   /**
    * Calendar-month payroll totals for the authenticated teacher.
-   * Each row: month (yyyy-MM), label, amount, paymentCount, payoutDate, start/end.
+   *
+   * Canonical source = same as admin getMonthlySummary / getMonthlyLessonDetails
+   * (completed lessons + resolveLessonTeacherAmount). Must NOT sum raw
+   * teacher_payments rows alone — zero legacy accruals would diverge from admin.
    */
-  async findMyPeriods(actor: JwtPayload) {
-    const payments = await this.findMyPayments(actor);
-    const lessonIds = [
-      ...new Set(
-        payments
-          .map((p) => p.lessonId)
-          .filter((id): id is string => Boolean(id)),
-      ),
-    ];
-    const lessonDateById = new Map<string, string>();
-    if (lessonIds.length > 0) {
-      const lessons = await this.lessonRepo.find({
-        where: { id: In(lessonIds) },
-        select: ['id', 'date'],
-      });
-      for (const lesson of lessons) {
-        lessonDateById.set(lesson.id, lesson.date);
-      }
+  async findMyPeriods(actor: JwtPayload): Promise<TeacherPayPeriodTotal[]> {
+    const teacherId = await this.teacherAccess.resolveTeacherId(actor);
+    if (!teacherId) {
+      return [];
     }
-    return aggregateTeacherPaymentsByPeriod(payments, lessonDateById);
+
+    const completedLessons = await this.lessonRepo.find({
+      where: {
+        teacherId,
+        status: 'completed',
+      },
+      select: ['date'],
+    });
+
+    const months = [
+      ...new Set(
+        completedLessons
+          .map((lesson) => String(lesson.date ?? '').slice(0, 7))
+          .filter((month) => /^\d{4}-\d{2}$/.test(month)),
+      ),
+    ].sort((a, b) => b.localeCompare(a));
+
+    const periods: TeacherPayPeriodTotal[] = [];
+    for (const month of months) {
+      const details = await this.getMonthlyLessonDetails(month, teacherId);
+      if (details.length === 0) continue;
+
+      const periodMeta = getTeacherPayPeriodForDate(`${month}-01`);
+      if (!periodMeta) continue;
+
+      const amount = details.reduce(
+        (sum, lesson) => Math.round((sum + Number(lesson.amount || 0)) * 100) / 100,
+        0,
+      );
+
+      periods.push({
+        ...periodMeta,
+        amount,
+        paymentCount: details.length,
+      });
+    }
+
+    return periods;
   }
 
   async update(id: string, dto: UpdateTeacherPaymentDto): Promise<TeacherPaymentEntity> {
@@ -125,8 +154,9 @@ export class TeacherPaymentsService {
 
   /**
    * Monthly salary summary.
-   * Accrual amount SSOT = teacher_payments.amount captured at lesson completion.
-   * Fallback to current hourlyRate only when an accrual row is missing (legacy gaps).
+   * Accrual amount SSOT = teacher_payments.amount captured at lesson completion
+   * when the amount is a positive snapshot.
+   * Zero accruals (legacy: rate unset at completion) fall back to current hourlyRate.
    * Payout status comes from teacher_monthly_payouts (teacher_id + month).
    */
   async getMonthlySummary(month: string): Promise<TeacherMonthlySummaryRow[]> {
@@ -201,14 +231,12 @@ export class TeacherPaymentsService {
       if (!teacher) continue;
 
       const duration = Number(lesson.duration ?? 60);
-      const accrued = amountByLessonId.get(lesson.id);
-      const lessonAmount =
-        accrued != null && Number.isFinite(accrued)
-          ? Math.round(accrued * 100) / 100
-          : isTrialLessonType(lesson.lessonType)
-            ? TRIAL_LESSON_TEACHER_PAYMENT_BYN
-            : Math.round(Number(teacher.hourlyRate ?? 0) * (duration / 60) * 100) /
-              100;
+      const lessonAmount = resolveLessonTeacherAmount({
+        accruedAmount: amountByLessonId.get(lesson.id),
+        lessonType: lesson.lessonType,
+        hourlyRate: teacher.hourlyRate,
+        durationMinutes: duration,
+      });
 
       const current = byTeacher.get(lesson.teacherId) ?? {
         lessonsCount: 0,
@@ -277,16 +305,14 @@ export class TeacherPaymentsService {
       accruals.map((row) => [row.lessonId, Number(row.amount)]),
     );
 
-    const hourlyRate = Number(teacher.hourlyRate ?? 0);
     return lessons.map((lesson) => {
       const duration = Number(lesson.duration ?? 60);
-      const accrued = amountByLessonId.get(lesson.id);
-      const amount =
-        accrued != null && Number.isFinite(accrued)
-          ? Math.round(accrued * 100) / 100
-          : isTrialLessonType(lesson.lessonType)
-            ? TRIAL_LESSON_TEACHER_PAYMENT_BYN
-            : Math.round(hourlyRate * (duration / 60) * 100) / 100;
+      const amount = resolveLessonTeacherAmount({
+        accruedAmount: amountByLessonId.get(lesson.id),
+        lessonType: lesson.lessonType,
+        hourlyRate: teacher.hourlyRate,
+        durationMinutes: duration,
+      });
       return {
         lessonId: lesson.id,
         date: lesson.date,
@@ -370,13 +396,23 @@ export class TeacherPaymentsService {
       return null;
     }
 
-    const amount = isTrialLessonType(lesson.lessonType)
-      ? TRIAL_LESSON_TEACHER_PAYMENT_BYN
-      : (() => {
-          const hourlyRate = Number(resolvedTeacher.hourlyRate ?? 0);
-          const hours = (lesson.duration ?? 60) / 60;
-          return Math.round(hourlyRate * hours * 100) / 100;
-        })();
+    // Do not persist amount=0 for non-trial lessons — that freezes a broken
+    // "rate was unset" snapshot and blocks later fallback to current hourly_rate.
+    if (
+      !shouldPersistLessonTeacherAccrual({
+        lessonType: lesson.lessonType,
+        hourlyRate: resolvedTeacher.hourlyRate,
+      })
+    ) {
+      return null;
+    }
+
+    const amount = resolveLessonTeacherAmount({
+      accruedAmount: null,
+      lessonType: lesson.lessonType,
+      hourlyRate: resolvedTeacher.hourlyRate,
+      durationMinutes: lesson.duration,
+    });
 
     const payload = {
       teacherId: lesson.teacherId,

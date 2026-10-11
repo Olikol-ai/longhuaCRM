@@ -123,8 +123,9 @@ describe('SW Stage 2 source contracts', () => {
     assert.doesNotMatch(ui, /startReload\('sw_auto'\)/);
   });
 
-  it('VideoSession still owns reload gate', () => {
-    const video = readFileSync(join(root, 'src/lib/VideoSessionContext.jsx'), 'utf8');
-    assert.match(video, /setVideoSessionBlocksReload/);
+  it('reload gate API remains available for deferred updates', () => {
+    const gate = readFileSync(join(root, 'src/lib/pwa/reloadGate.js'), 'utf8');
+    assert.match(gate, /setVideoSessionBlocksReload/);
+    assert.match(gate, /shouldDeferAppReload/);
   });
 });

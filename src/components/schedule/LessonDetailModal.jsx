@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X, Edit2, Trash2, CheckCircle2, XCircle, Video, Clock, Calendar, RefreshCw, Users, Loader2, MapPin } from "lucide-react";
 import { api } from "@/api";
 import { resolveLessonTeacherLabel } from "@/lib/teacherLabels";
@@ -7,8 +7,10 @@ import LessonAttendancePanel from "@/components/groups/LessonAttendancePanel";
 import EditLessonStudentsModal from "@/components/schedule/EditLessonStudentsModal";
 import RecurrenceApplyScopeDialog from "@/components/schedule/RecurrenceApplyScopeDialog";
 import {
+  futureDeleteWarningText,
   lessonBelongsToSeries,
   statusChangeDialogTitle,
+  thisDeleteWarningText,
 } from "@/lib/lessonSeriesScope";
 import {
   AlertDialog,
@@ -23,6 +25,7 @@ import {
 
 const OUTSIDE_AVAILABILITY_MESSAGE =
   "Преподаватель не указал это время как свободное.";
+const SLOT_CHECK_DEBOUNCE_MS = 400;
 
 export const STATUS_LABELS = {
   planned: "Запланировано",
@@ -122,11 +125,16 @@ export default function LessonDetailModal({
   const [applyScope, setApplyScope] = useState("this");
   const [pendingPayload, setPendingPayload] = useState(null);
   const [pendingDelete, setPendingDelete] = useState(false);
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [outsideAvailabilityOpen, setOutsideAvailabilityOpen] = useState(false);
   const [pendingOutsideUpdate, setPendingOutsideUpdate] = useState(null);
+  const [futurePreview, setFuturePreview] = useState(null);
+  const [futurePreviewLoading, setFuturePreviewLoading] = useState(false);
+  const [futurePreviewError, setFuturePreviewError] = useState("");
+  const [slotCheck, setSlotCheck] = useState(null);
+  const [slotCheckLoading, setSlotCheckLoading] = useState(false);
+  const slotCheckRequestId = useRef(0);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -142,6 +150,54 @@ export default function LessonDetailModal({
     Boolean(isAdmin) && lesson.status === "planned";
   const canChangeStudents = Boolean(isAdmin || isTeacher || isTutor) && !isTrialLesson;
   const wasInSeries = lessonBelongsToSeries(lesson);
+
+  useEffect(() => {
+    if (!editing) {
+      setSlotCheck(null);
+      setSlotCheckLoading(false);
+      return undefined;
+    }
+    const teacherId = String(form.teacher_id || lesson.teacher_id || "").trim();
+    const dateValue = String(form.date || "").trim();
+    const startTime = String(form.start_time || "").trim();
+    if (!teacherId || !dateValue || !startTime) {
+      setSlotCheck(null);
+      return undefined;
+    }
+    const requestId = ++slotCheckRequestId.current;
+    setSlotCheckLoading(true);
+    const timer = setTimeout(() => {
+      api.schedule
+        .checkTeacherAvailability(teacherId, {
+          date: dateValue,
+          start_time: startTime,
+          duration: Number(form.duration) || 60,
+          exclude_lesson_id: lesson.id,
+        })
+        .then((data) => {
+          if (slotCheckRequestId.current !== requestId) return;
+          setSlotCheck(data);
+        })
+        .catch(() => {
+          if (slotCheckRequestId.current !== requestId) return;
+          setSlotCheck(null);
+        })
+        .finally(() => {
+          if (slotCheckRequestId.current === requestId) {
+            setSlotCheckLoading(false);
+          }
+        });
+    }, SLOT_CHECK_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [
+    editing,
+    form.teacher_id,
+    form.date,
+    form.start_time,
+    form.duration,
+    lesson.id,
+    lesson.teacher_id,
+  ]);
 
   const activeContacts = (Array.isArray(contacts) ? contacts : []).filter(
     (c) => c.status !== "inactive",
@@ -257,8 +313,10 @@ export default function LessonDetailModal({
           date: payload.date || lesson.date,
           start_time: payload.start_time || lesson.start_time,
           duration: Number(payload.duration ?? lesson.duration ?? 60),
+          exclude_lesson_id: lesson.id,
         });
-        if (!result?.available) {
+        // Busy overlaps are still blocked by the API — only warn for outside declared schedule.
+        if (result?.status === "outside_availability" || (result && result.available === false && !result.occupied)) {
           setPendingOutsideUpdate({ payload, scope });
           setOutsideAvailabilityOpen(true);
           return;
@@ -305,16 +363,50 @@ export default function LessonDetailModal({
 
   const requestDelete = () => {
     if (!onDelete) return;
-    if (wasInSeries) {
-      setPendingPayload(null);
-      setPendingDelete(true);
-      setApplyScope("this");
-      setScopeDialogMode("delete");
-      setScopeDialogOpen(true);
-      return;
-    }
-    setConfirmDeleteOpen(true);
+    setPendingPayload(null);
+    setPendingDelete(true);
+    setApplyScope("this");
+    setScopeDialogMode("delete");
+    setFuturePreview(null);
+    setFuturePreviewError("");
+    setScopeDialogOpen(true);
   };
+
+  useEffect(() => {
+    if (
+      !scopeDialogOpen ||
+      scopeDialogMode !== "delete" ||
+      (applyScope !== "future" && applyScope !== "series") ||
+      !lesson?.id
+    ) {
+      return undefined;
+    }
+    let cancelled = false;
+    setFuturePreviewLoading(true);
+    setFuturePreviewError("");
+    const loader =
+      applyScope === "series"
+        ? api.lessons.previewSeriesDelete(lesson.id)
+        : api.lessons.previewFutureDelete(lesson.id);
+    void loader
+      .then((preview) => {
+        if (cancelled) return;
+        setFuturePreview(preview);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setFuturePreview(null);
+        setFuturePreviewError(
+          err?.message || "Не удалось подсчитать будущие занятия",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setFuturePreviewLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [scopeDialogOpen, scopeDialogMode, applyScope, lesson?.id]);
 
   const executeDelete = async (scope = "this") => {
     if (!onDelete) return;
@@ -323,7 +415,7 @@ export default function LessonDetailModal({
       await onDelete(lesson.id, scope);
       setScopeDialogOpen(false);
       setPendingDelete(false);
-      setConfirmDeleteOpen(false);
+      setFuturePreview(null);
     } catch {
       // Parent shows error toast
     } finally {
@@ -399,6 +491,24 @@ export default function LessonDetailModal({
                         <option key={t.id} value={t.id}>{t.name}</option>
                       ))}
                     </select>
+                    {slotCheckLoading ? (
+                      <p className="mt-2 text-xs text-muted-foreground inline-flex items-center gap-1.5">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Проверяем занятость…
+                      </p>
+                    ) : slotCheck?.status === "busy" || slotCheck?.occupied ? (
+                      <p className="mt-2 text-xs text-destructive">
+                        🔴 {slotCheck.conflict?.summary || "Занят"}
+                      </p>
+                    ) : slotCheck?.status === "outside_availability" ? (
+                      <p className="mt-2 text-xs text-amber-800 dark:text-amber-300">
+                        ⚪ Вне заявленного графика — можно сохранить после подтверждения
+                      </p>
+                    ) : slotCheck?.status === "free" ? (
+                      <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-400">
+                        🟢 Свободен
+                      </p>
+                    ) : null}
                   </div>
                 )}
                 {isAdmin && (
@@ -650,10 +760,24 @@ export default function LessonDetailModal({
                 ? "Отменить"
                 : "Применить"
           }
+          inSeries={wasInSeries}
+          deleteWarningSummary={
+            futurePreviewError
+              || (applyScope === "this"
+                ? thisDeleteWarningText(lesson)
+                : futureDeleteWarningText(futurePreview, applyScope === "series" ? "series" : "future"))
+          }
+          futurePreviewLoading={futurePreviewLoading}
+          confirmDisabled={Boolean(
+            deleting
+            || ((applyScope === "future" || applyScope === "series") && futurePreviewError),
+          )}
           onCancel={() => {
             setScopeDialogOpen(false);
             setPendingPayload(null);
             setPendingDelete(false);
+            setFuturePreview(null);
+            setFuturePreviewError("");
           }}
           onConfirm={() => {
             if (scopeDialogMode === "delete" || pendingDelete) {
@@ -813,18 +937,16 @@ export default function LessonDetailModal({
               ) : null}
             </section>
 
-            {(lesson.lesson_format === "online" || lesson.video_room_url || lesson.meeting_link) ? (
+            {lesson.meeting_link ? (
               <a
-                href={`/lesson/${lesson.id}/video`}
+                href={lesson.meeting_link}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex items-start gap-2 px-3 py-2.5 bg-brand-soft text-brand rounded-xl text-sm font-medium hover:bg-brand-muted transition-colors min-w-0"
               >
                 <Video className="w-4 h-4 shrink-0 mt-0.5" />
                 <span className="min-w-0 break-all [overflow-wrap:anywhere]">
-                  {lesson.status === "completed"
-                    ? "Открыть видеоурок"
-                    : isTeacher || isAdmin
-                      ? "Начать видеоурок"
-                      : "Войти в видеоурок"}
+                  Открыть ссылку на занятие
                 </span>
               </a>
             ) : null}
@@ -958,10 +1080,24 @@ export default function LessonDetailModal({
               ? "Отменить"
               : "Применить"
         }
+        inSeries={wasInSeries}
+        deleteWarningSummary={
+          futurePreviewError
+            || (applyScope === "this"
+              ? thisDeleteWarningText(lesson)
+              : futureDeleteWarningText(futurePreview, applyScope === "series" ? "series" : "future"))
+        }
+        futurePreviewLoading={futurePreviewLoading}
+        confirmDisabled={Boolean(
+          deleting
+          || ((applyScope === "future" || applyScope === "series") && futurePreviewError),
+        )}
         onCancel={() => {
           setScopeDialogOpen(false);
           setPendingPayload(null);
           setPendingDelete(false);
+          setFuturePreview(null);
+          setFuturePreviewError("");
         }}
         onConfirm={() => {
           if (scopeDialogMode === "delete" || pendingDelete) {
@@ -973,43 +1109,6 @@ export default function LessonDetailModal({
           void maybeWarnOutsideAvailabilityThenSubmit(pendingPayload, applyScope);
         }}
       />
-
-      <AlertDialog
-        open={confirmDeleteOpen}
-        onOpenChange={(open) => !deleting && !open && setConfirmDeleteOpen(false)}
-      >
-        <AlertDialogContent className="max-w-[min(100%,24rem)] mx-4">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="break-words [overflow-wrap:anywhere]">
-              Удалить занятие?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Это действие нельзя отменить.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2">
-            <AlertDialogCancel disabled={deleting} className="w-full sm:w-auto">
-              Отмена
-            </AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault();
-                void executeDelete("this");
-              }}
-              className="w-full sm:w-auto bg-red-600 hover:bg-red-700"
-            >
-              {deleting ? (
-                <span className="inline-flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Удаление…
-                </span>
-              ) : (
-                "Удалить"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <AlertDialog
         open={Boolean(confirmAttendance)}

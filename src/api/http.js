@@ -2,13 +2,17 @@ import {
   assertOnlineForMutation,
   isMutationMethod,
   noteFetchFailure,
-  OfflineMutationError,
 } from '@/lib/offline/offlineGuard';
 import { markNetworkOnline } from '@/lib/offline/offlineStatus';
 
 const API_BASE = '/api';
 export const TOKEN_KEY = 'longhua_access_token';
 const TOKEN_CHANGE_EVENT = 'longhua:token-change';
+
+/** Cloudflare Free/Pro roughly caps a single proxied body near 100 MB — stay under. */
+export const MATERIALS_UPLOAD_CHUNK_BYTES = 40 * 1024 * 1024;
+/** Use chunked protocol for anything that risks the Cloudflare body limit. */
+export const MATERIALS_UPLOAD_CHUNK_THRESHOLD_BYTES = 50 * 1024 * 1024;
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -96,67 +100,209 @@ function extractApiErrorMessage(data) {
   return 'Не удалось выполнить запрос. Попробуйте ещё раз.';
 }
 
+function mapUploadHttpError(status, fallbackMessage) {
+  if (status === 413) {
+    return 'Файл слишком большой для инфраструктуры (лимит прокси/сервера). Попробуйте ещё раз или уменьшите файл.';
+  }
+  if (status === 408 || status === 499) {
+    return 'Соединение прервалось или истекло время ожидания. Повторите загрузку.';
+  }
+  if (status === 502 || status === 504) {
+    return 'Сервер временно недоступен (ошибка шлюза). Повторите загрузку через минуту.';
+  }
+  if (status >= 500) {
+    return 'Ошибка сервера при загрузке файла. Повторите попытку.';
+  }
+  return fallbackMessage || 'Не удалось загрузить файл. Попробуйте ещё раз.';
+}
+
+function emitProgress(onProgress, patch) {
+  if (typeof onProgress !== 'function') return;
+  onProgress(patch);
+}
+
 export async function apiUploadTo(path, file, fieldName = 'file', options = {}) {
   assertOnlineForMutation();
   const { onProgress, signal } = options;
 
-  // XHR: progress + abort for large materials uploads.
-  if (typeof onProgress === 'function' || signal) {
-    return uploadWithXhr(path, file, fieldName, { onProgress, signal });
+  if (
+    path === '/files/upload' &&
+    file &&
+    Number(file.size) > MATERIALS_UPLOAD_CHUNK_THRESHOLD_BYTES
+  ) {
+    return uploadMaterialChunked(file, { onProgress, signal });
   }
 
-  const formData = new FormData();
-  formData.append(fieldName, file);
-
-  const headers = {};
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  let res;
-  try {
-    res = await fetch(`${API_BASE}${path}`, { method: 'POST', headers, body: formData });
-  } catch (err) {
-    noteFetchFailure(err);
-    throw err;
-  }
-  const text = await res.text();
-  let data = {};
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    data = { raw: text };
-  }
-
-  if (!res.ok) {
-    const payload = typeof data.message === 'object' && data.message !== null ? data.message : data;
-    const message = Array.isArray(payload.message)
-      ? payload.message.join(', ')
-      : payload.message || data.error || 'Не удалось загрузить файл. Попробуйте ещё раз.';
-    const err = new Error(message);
-    err.status = res.status;
-    err.data = payload;
-    throw err;
-  }
-
-  markNetworkOnline();
-  return data;
+  return uploadWithXhr(path, file, fieldName, { onProgress, signal });
 }
 
-function uploadWithXhr(path, file, fieldName, { onProgress, signal } = {}) {
+/**
+ * Chunked materials upload: init → N× chunk → complete.
+ * Each chunk stays under Cloudflare's proxied body limit.
+ */
+async function uploadMaterialChunked(file, { onProgress, signal } = {}) {
+  assertOnlineForMutation();
+  const total = Number(file.size) || 0;
+  emitProgress(onProgress, {
+    phase: 'uploading',
+    loaded: 0,
+    total,
+    percent: 0,
+    bytesPerSecond: 0,
+  });
+
+  const init = await apiFetch('/files/upload/init', {
+    method: 'POST',
+    body: JSON.stringify({
+      originalName: file.name,
+      sizeBytes: total,
+      mimeType: file.type || undefined,
+    }),
+  });
+
+  const uploadId = init.upload_id;
+  const chunkSize = Number(init.chunk_size_bytes) || MATERIALS_UPLOAD_CHUNK_BYTES;
+  const totalChunks = Number(init.total_chunks) || Math.ceil(total / chunkSize);
+  let uploadedBytes = 0;
+  const startedAt = Date.now();
+
+  const abortSession = async () => {
+    try {
+      await apiFetch('/files/upload/abort', {
+        method: 'POST',
+        body: JSON.stringify({ uploadId }),
+      });
+    } catch {
+      // best-effort cleanup
+    }
+  };
+
+  if (signal?.aborted) {
+    await abortSession();
+    const err = new Error('Загрузка отменена');
+    err.status = 0;
+    err.aborted = true;
+    throw err;
+  }
+
+  const onAbort = () => {
+    void abortSession();
+  };
+  signal?.addEventListener?.('abort', onAbort, { once: true });
+
+  try {
+    for (let index = 0; index < totalChunks; index += 1) {
+      if (signal?.aborted) {
+        const err = new Error('Загрузка отменена');
+        err.status = 0;
+        err.aborted = true;
+        throw err;
+      }
+      const start = index * chunkSize;
+      const end = Math.min(total, start + chunkSize);
+      const blob = file.slice(start, end);
+
+      await uploadWithXhr('/files/upload/chunk', blob, 'file', {
+        signal,
+        extraFields: {
+          uploadId,
+          chunkIndex: String(index),
+        },
+        onProgress: (chunkProgress) => {
+          const loaded = uploadedBytes + (chunkProgress.loaded || 0);
+          const overallElapsed = Math.max(0.001, (Date.now() - startedAt) / 1000);
+          emitProgress(onProgress, {
+            phase: 'uploading',
+            loaded: Math.min(total, loaded),
+            total,
+            percent: total > 0 ? Math.min(99, Math.round((loaded / total) * 100)) : 0,
+            bytesPerSecond: loaded / overallElapsed,
+          });
+        },
+        timeoutMs: Math.max(10 * 60 * 1000, (end - start) * 40),
+      });
+      uploadedBytes = end;
+      const overallElapsed = Math.max(0.001, (Date.now() - startedAt) / 1000);
+      emitProgress(onProgress, {
+        phase: 'uploading',
+        loaded: uploadedBytes,
+        total,
+        percent: total > 0 ? Math.min(99, Math.round((uploadedBytes / total) * 100)) : 0,
+        bytesPerSecond: uploadedBytes / overallElapsed,
+      });
+    }
+
+    emitProgress(onProgress, {
+      phase: 'processing',
+      loaded: total,
+      total,
+      percent: 100,
+      bytesPerSecond: 0,
+    });
+
+    // Assemble of multi-GB files is streaming but can take minutes — keep upload-scoped timeout.
+    const result = await apiFetch('/files/upload/complete', {
+      method: 'POST',
+      body: JSON.stringify({ uploadId }),
+      signal,
+      // Note: apiFetch passes signal through; browsers do not enforce a default short timeout.
+    });
+
+    emitProgress(onProgress, {
+      phase: 'success',
+      loaded: total,
+      total,
+      percent: 100,
+      bytesPerSecond: 0,
+    });
+    return result;
+  } catch (err) {
+    if (!err?.aborted) {
+      await abortSession();
+    }
+    emitProgress(onProgress, {
+      phase: 'error',
+      loaded: uploadedBytes,
+      total,
+      percent: total > 0 ? Math.min(99, Math.round((uploadedBytes / total) * 100)) : 0,
+      bytesPerSecond: 0,
+    });
+    throw err;
+  } finally {
+    signal?.removeEventListener?.('abort', onAbort);
+  }
+}
+
+function uploadWithXhr(path, fileOrBlob, fieldName, options = {}) {
+  const { onProgress, signal, extraFields = null, timeoutMs = 0 } = options;
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     const formData = new FormData();
-    formData.append(fieldName, file);
+    if (extraFields && typeof extraFields === 'object') {
+      for (const [key, value] of Object.entries(extraFields)) {
+        formData.append(key, value);
+      }
+    }
+    // Preserve filename for File; Blob chunks use a generic name.
+    if (typeof File !== 'undefined' && fileOrBlob instanceof File) {
+      formData.append(fieldName, fileOrBlob);
+    } else {
+      formData.append(fieldName, fileOrBlob, 'chunk.bin');
+    }
 
     const startedAt = Date.now();
     let lastLoaded = 0;
     let lastAt = startedAt;
+    let reachedBodyEnd = false;
 
     xhr.open('POST', `${API_BASE}${path}`);
     const token = getToken();
     if (token) {
       xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     }
+
+    // 0 = no browser-imposed timeout (large uploads may take tens of minutes).
+    xhr.timeout = Number(timeoutMs) > 0 ? Number(timeoutMs) : 0;
 
     xhr.upload.onprogress = (event) => {
       if (!event.lengthComputable || typeof onProgress !== 'function') return;
@@ -168,12 +314,39 @@ function uploadWithXhr(path, file, fieldName, { onProgress, signal } = {}) {
       const averageSpeed = event.loaded / overallElapsed;
       lastLoaded = event.loaded;
       lastAt = now;
+      const percent =
+        event.total > 0 ? Math.min(100, Math.round((event.loaded / event.total) * 100)) : 0;
+      if (percent >= 100) {
+        reachedBodyEnd = true;
+        onProgress({
+          phase: 'processing',
+          loaded: event.loaded,
+          total: event.total,
+          percent: 100,
+          bytesPerSecond: instantSpeed || averageSpeed,
+        });
+        return;
+      }
       onProgress({
+        phase: 'uploading',
         loaded: event.loaded,
         total: event.total,
-        percent: event.total > 0 ? Math.min(100, Math.round((event.loaded / event.total) * 100)) : 0,
+        percent,
         bytesPerSecond: instantSpeed || averageSpeed,
       });
+    };
+
+    xhr.upload.onload = () => {
+      if (!reachedBodyEnd && typeof onProgress === 'function') {
+        reachedBodyEnd = true;
+        onProgress({
+          phase: 'processing',
+          loaded: lastLoaded,
+          total: lastLoaded,
+          percent: 100,
+          bytesPerSecond: 0,
+        });
+      }
     };
 
     xhr.onload = () => {
@@ -185,14 +358,23 @@ function uploadWithXhr(path, file, fieldName, { onProgress, signal } = {}) {
       }
       if (xhr.status >= 200 && xhr.status < 300) {
         markNetworkOnline();
+        if (typeof onProgress === 'function') {
+          onProgress({
+            phase: 'success',
+            loaded: lastLoaded,
+            total: lastLoaded,
+            percent: 100,
+            bytesPerSecond: 0,
+          });
+        }
         resolve(data);
         return;
       }
       const payload = typeof data.message === 'object' && data.message !== null ? data.message : data;
-      const message = Array.isArray(payload.message)
+      const rawMessage = Array.isArray(payload.message)
         ? payload.message.join(', ')
-        : payload.message || data.error || 'Не удалось загрузить файл. Попробуйте ещё раз.';
-      const err = new Error(message);
+        : payload.message || data.error || '';
+      const err = new Error(mapUploadHttpError(xhr.status, rawMessage));
       err.status = xhr.status;
       err.data = payload;
       reject(err);
@@ -201,6 +383,12 @@ function uploadWithXhr(path, file, fieldName, { onProgress, signal } = {}) {
     xhr.onerror = () => {
       const err = new Error('Сеть недоступна. Проверьте соединение и попробуйте ещё раз.');
       noteFetchFailure(err);
+      reject(err);
+    };
+
+    xhr.ontimeout = () => {
+      const err = new Error('Превышено время ожидания загрузки. Повторите попытку.');
+      err.status = 408;
       reject(err);
     };
 

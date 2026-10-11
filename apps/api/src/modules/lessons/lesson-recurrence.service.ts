@@ -175,6 +175,14 @@ export class LessonRecurrenceService {
     series: LessonRecurrenceSeriesEntity,
     fromDateInclusive?: string,
   ): Promise<number> {
+    // Re-read under the advisory lock — a concurrent "delete future/series"
+    // may have stopped this template after extendAllActiveSeries loaded it.
+    const fresh = await this.seriesRepo.findOne({ where: { id: series.id } });
+    if (!fresh || fresh.status !== 'active') {
+      return 0;
+    }
+    series = fresh;
+
     const today = this.todayInMinsk();
     let startFrom = today;
     if (fromDateInclusive && fromDateInclusive > startFrom) {

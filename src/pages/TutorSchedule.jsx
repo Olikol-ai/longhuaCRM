@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  ChevronLeft, ChevronRight, Loader2, Video, Plus,
+  ChevronLeft, ChevronRight, Loader2, Plus,
   CheckCircle2, XCircle,
 } from 'lucide-react';
 import { resolveLessonStudentLabel } from '@/lib/studentLabels';
@@ -19,7 +19,6 @@ import LessonDetailModal from '@/components/schedule/LessonDetailModal';
 import RecurrenceApplyScopeDialog from '@/components/schedule/RecurrenceApplyScopeDialog';
 import { lessonBelongsToSeries } from '@/lib/lessonSeriesScope';
 import { toast } from '@/components/ui/use-toast';
-import { isOnlineLesson, lessonVideoPath } from '@/lib/lesson-video';
 import { filterScheduleListLessons } from '@/lib/scheduleListLessons';
 import { OfflineSnapshotBanner } from '@/components/pwa/OfflineSnapshotBanner';
 import { OFFLINE_RESOURCES, readWithOfflineFallback } from '@/lib/offline';
@@ -70,15 +69,6 @@ function TutorLessonCard({ lesson, students, onOpen, onComplete, onCancel, busy 
             <XCircle className="w-3.5 h-3.5 mr-1" /> Отменить
           </Button>
         </div>
-      )}
-      {isOnlineLesson(lesson) && (
-        <a
-          href={lessonVideoPath(lesson.id)}
-          className="mt-2 inline-flex items-center gap-1 text-xs text-brand"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Video className="w-3 h-3" /> Начать видеоурок
-        </a>
       )}
     </button>
   );
@@ -237,14 +227,21 @@ export default function TutorSchedule() {
 
   const handleDeleteLesson = async (id, applyScope = 'this') => {
     try {
-      await api.lessons.delete(id, { apply_scope: applyScope });
+      const result = await api.lessons.delete(id, { apply_scope: applyScope });
       setViewingLesson(null);
       await loadData();
+      const deleted = result?.deletedCount ?? result?.deleted_count;
       toast({
         title:
-          applyScope === 'all' || applyScope === 'series'
-            ? 'Серия занятий удалена'
-            : 'Урок удалён',
+          applyScope === 'future' || applyScope === 'series'
+            ? deleted > 1
+              ? `Удалено занятий: ${deleted}`
+              : applyScope === 'series'
+                ? 'Серия занятий удалена'
+                : 'Урок удалён'
+            : applyScope === 'all'
+              ? 'Серия занятий удалена'
+              : 'Урок удалён',
       });
     } catch (err) {
       toast({

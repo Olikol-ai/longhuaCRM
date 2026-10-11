@@ -150,6 +150,7 @@ describeE2E('Secure files upload (e2e)', () => {
     });
 
     expect(streamRes.status).toBe(200);
+    expect(String(streamRes.headers['accept-ranges'] || '')).toMatch(/bytes/i);
     expect(String(streamRes.headers['content-type'] || '')).toMatch(/application\/pdf/i);
     expect(String(streamRes.headers['content-disposition'] || '')).toMatch(/inline/i);
     expect(String(streamRes.headers['content-disposition'] || '')).toMatch(/filename=/i);
@@ -159,6 +160,18 @@ describeE2E('Secure files upload (e2e)', () => {
     expect(body.toString('utf8')).toContain('%PDF-1.4');
     expect(body.toString('utf8')).not.toContain('"options"');
     expect(body.toString('utf8')).not.toContain('"stream"');
+
+    const rangeRes = await api(app)
+      .get(urlRes.body.url)
+      .set('Range', 'bytes=0-3')
+      .buffer(true)
+      .parse((res, cb) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+        res.on('end', () => cb(null, Buffer.concat(chunks)));
+      });
+    expect(rangeRes.status).toBe(206);
+    expect((rangeRes.body as Buffer).toString('utf8')).toBe('%PDF');
   });
 
   it('rejects invalid signed token', async () => {

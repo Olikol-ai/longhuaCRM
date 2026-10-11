@@ -42,14 +42,6 @@ export default () => ({
   },
   serveFrontend: parseEnvBoolean(process.env.SERVE_FRONTEND, true),
   appPublicUrl: process.env.APP_PUBLIC_URL,
-  video: {
-    /** Corporate self-hosted Jitsi base URL (NOT public meet.jit.si / 8x8.vc). */
-    jitsiBaseUrl: process.env.JITSI_BASE_URL ?? '',
-    /** Required HS256 app id/secret — Prosody AUTH_TYPE=jwt, no guests. */
-    jitsiJwtAppId: process.env.JITSI_JWT_APP_ID ?? '',
-    jitsiJwtAppSecret: process.env.JITSI_JWT_APP_SECRET ?? '',
-    jitsiJwtTtlSeconds: parseInt(process.env.JITSI_JWT_TTL_SECONDS ?? '14400', 10),
-  },
   mail: readMailEnvFromProcess(),
   pendingRegistration: {
     ttlHours: parseInt(process.env.PENDING_REGISTRATION_TTL_HOURS ?? '24', 10),
@@ -76,9 +68,9 @@ export default () => ({
     process.env.UPLOADS_ROOT ||
     '/mnt/storage/longhua-storage'
   ).trim(),
-  /** Max multipart size for materials upload (bytes). Default 2 GiB. */
+  /** Max multipart / chunked materials upload (bytes). Default 5 GiB. */
   materialsMaxUploadBytes: parseInt(
-    process.env.MATERIALS_MAX_UPLOAD_BYTES ?? String(2 * 1024 * 1024 * 1024),
+    process.env.MATERIALS_MAX_UPLOAD_BYTES ?? String(5 * 1024 * 1024 * 1024),
     10,
   ),
 });

@@ -28,12 +28,29 @@ import MobileFilterToolbar from '@/components/responsive/MobileFilterToolbar';
 import MobileFilterChips from '@/components/responsive/MobileFilterChips';
 import { MobileSelectField } from '@/components/responsive/MobileFilterFields';
 import LessonBalanceDisplay from '@/components/students/LessonBalanceDisplay';
-import { formatBYN } from '@/lib/formatters';
+import { formatBYN, formatDateTime } from '@/lib/formatters';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { userFacingError } from '@/lib/userFacingError';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 25;
+
+/** Russian plural for «занятие» given absolute count. */
+function lessonWord(absCount) {
+  const n = Math.abs(Math.trunc(Number(absCount) || 0));
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'занятие';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'занятия';
+  return 'занятий';
+}
+
+function formatLessonDelta(delta) {
+  const value = Math.trunc(Number(delta) || 0);
+  const sign = value > 0 ? '+' : value < 0 ? '−' : '';
+  const abs = Math.abs(value);
+  return `${sign}${abs} ${lessonWord(abs)}`;
+}
 
 const FILTER_PRESETS = [
   { id: 'all', label: 'Все ученики' },
@@ -714,12 +731,20 @@ export default function Balance() {
               </section>
 
               <section className="space-y-2">
-                <h3 className="text-sm font-semibold text-foreground">История операций</h3>
+                <h3 className="text-sm font-semibold text-foreground">История движения баланса</h3>
                 {detail.history.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Операций пока нет</p>
                 ) : (
                   <ul className="space-y-2">
-                    {detail.history.map((item) => (
+                    {detail.history.map((item) => {
+                      const delta = Number(item.delta);
+                      const hasDelta = Number.isFinite(delta) && delta !== 0;
+                      const when = formatDateTime(item.movement_at || item.date);
+                      const reason =
+                        item.status && item.status !== item.type
+                          ? item.status
+                          : item.comment;
+                      return (
                       <li
                         key={item.id}
                         className="rounded-xl border border-border px-3 py-2 text-sm"
@@ -727,27 +752,29 @@ export default function Balance() {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="font-medium">
-                              {item.date} — {item.label}
+                              {when} · {item.label}
+                              {hasDelta ? ` · ${formatLessonDelta(delta)}` : ''}
                             </p>
-                            <p className="text-xs text-muted-foreground">{item.comment || '—'}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {reason || (item.lesson_id ? 'Урок' : '—')}
+                            </p>
                           </div>
                           <span
                             className={cn(
                               'tabular-nums font-semibold shrink-0',
-                              item.amount == null
+                              !hasDelta
                                 ? 'text-muted-foreground'
-                                : item.amount >= 0
+                                : delta > 0
                                   ? 'text-emerald-700'
                                   : 'text-red-600',
                             )}
                           >
-                            {item.amount == null
-                              ? '—'
-                              : `${item.amount >= 0 ? '+' : ''}${formatBYN(item.amount)}`}
+                            {hasDelta ? formatLessonDelta(delta) : '—'}
                           </span>
                         </div>
                       </li>
-                    ))}
+                      );
+                    })}
                   </ul>
                 )}
               </section>

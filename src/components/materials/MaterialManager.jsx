@@ -34,6 +34,12 @@ import {
   readWithOfflineFallback,
   sanitizeMaterialMetaList,
 } from '@/lib/offline';
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from '@/components/ui/resizable';
+import { useIsLgUp } from '@/lib/responsive';
 
 function MaterialsSkeleton() {
   return (
@@ -58,6 +64,7 @@ function MaterialsSkeleton() {
 
 export default function MaterialManager() {
   const { user, isLoadingAuth } = useAuth();
+  const isLgUp = useIsLgUp();
   const [materials, setMaterials] = useState([]);
   const [courses, setCourses] = useState([]);
   const [folders, setFolders] = useState([]);
@@ -582,98 +589,163 @@ export default function MaterialManager() {
             Материалы
           </button>
 
-          <div className="flex flex-col lg:flex-row gap-4 items-start">
-            <FolderTree
-              courses={courses}
-              folders={folders}
-              materials={materials}
-              selectedCourseId={selectedCourseId}
-              selectedFolderId={selectedFolderId}
-              onSelectFolder={({ courseId, folderId }) => {
-                setSelectedCourseId(courseId);
-                setSelectedFolderId(folderId);
-              }}
-              onRefresh={async () => {
-                await loadTree();
-                await loadMaterials(selectedCourseId, selectedFolderId);
-              }}
-              onTreeRefresh={loadTree}
-              onFolderRenamed={(folderId, name) => {
-                setFolders((prev) =>
-                  prev.map((folder) =>
-                    folder.id === folderId ? { ...folder, name } : folder,
-                  ),
-                );
-              }}
-              canManage={canManageCourses}
-              currentUserId={user?.id || null}
-              canReceiveMaterials={canReceiveMaterials}
-              onDropMaterials={moveMaterials}
-            />
-            <div className="flex-1 min-w-0 w-full relative">
-              {materialsLoading && (
-                <div className="absolute inset-0 z-10 flex items-start justify-center rounded-xl bg-background/60 pt-16">
-                  <Loader2 className="h-6 w-6 animate-spin text-brand" />
-                </div>
-              )}
-              <MaterialTable
-                materials={filtered}
-                courses={courses}
-                folders={folders}
-                selectedIds={selectedIds}
-                emptyHint={
-                  materials.length === 0
-                    ? 'Измените курс или папку, либо добавьте материал'
-                    : 'Попробуйте изменить поиск или фильтры'
-                }
-                onResetFilters={
-                  filtersActive || materials.length > 0
-                    ? resetBrowseFilters
+          {(() => {
+            const folderTree = (
+              <FolderTree
+                className={
+                  isLgUp
+                    ? 'h-full max-h-none lg:w-full lg:max-h-none'
                     : undefined
                 }
-                showResetFilters={filtersActive && filtered.length === 0 && materials.length > 0}
-                onToggleSelect={(id) => {
-                  setSelectedIds((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(id)) next.delete(id);
-                    else next.add(id);
-                    return next;
-                  });
+                courses={courses}
+                folders={folders}
+                materials={materials}
+                selectedCourseId={selectedCourseId}
+                selectedFolderId={selectedFolderId}
+                onSelectFolder={({ courseId, folderId }) => {
+                  setSelectedCourseId(courseId);
+                  setSelectedFolderId(folderId);
                 }}
-                onSelectAll={(checked) => {
-                  setSelectedIds(checked ? new Set(filtered.map((m) => m.id)) : new Set());
+                onRefresh={async () => {
+                  await loadTree();
+                  await loadMaterials(selectedCourseId, selectedFolderId);
                 }}
-                canManage={canCreateMaterials}
-                canEditMaterial={canEditMaterial}
-                canAccess={canAccess}
-                canDragMaterials={canDragMaterials}
-                onOpen={async (mat) => {
-                  try {
-                    if (isInAppMediaMaterial(mat)) {
-                      setPreviewMaterial(mat);
-                      return;
-                    }
-                    await openMaterial(mat);
-                  } catch (err) {
-                    toast({
-                      title: 'Не удалось открыть материал',
-                      description: err?.message || 'Попробуйте ещё раз',
-                      variant: 'destructive',
-                    });
-                  }
+                onTreeRefresh={loadTree}
+                onFolderRenamed={(folderId, name) => {
+                  setFolders((prev) =>
+                    prev.map((folder) =>
+                      folder.id === folderId ? { ...folder, name } : folder,
+                    ),
+                  );
                 }}
-                onEdit={(mat) => setDialog({ mode: 'edit', material: mat })}
-                onAccess={(mat) => setAccessMaterial(mat)}
-                onDelete={handleDelete}
-                deletingId={deletingId}
+                canManage={canManageCourses}
+                currentUserId={user?.id || null}
+                canReceiveMaterials={canReceiveMaterials}
+                onDropMaterials={moveMaterials}
               />
-            </div>
-          </div>
+            );
+
+            const materialsPane = (
+              <div
+                className={
+                  isLgUp
+                    ? 'h-full min-w-0 w-full relative overflow-auto'
+                    : 'flex-1 min-w-0 w-full relative'
+                }
+              >
+                {materialsLoading && (
+                  <div className="absolute inset-0 z-10 flex items-start justify-center rounded-xl bg-background/60 pt-16">
+                    <Loader2 className="h-6 w-6 animate-spin text-brand" />
+                  </div>
+                )}
+                <MaterialTable
+                  materials={filtered}
+                  courses={courses}
+                  folders={folders}
+                  selectedIds={selectedIds}
+                  emptyHint={
+                    materials.length === 0
+                      ? 'Измените курс или папку, либо добавьте материал'
+                      : 'Попробуйте изменить поиск или фильтры'
+                  }
+                  onResetFilters={
+                    filtersActive || materials.length > 0
+                      ? resetBrowseFilters
+                      : undefined
+                  }
+                  showResetFilters={filtersActive && filtered.length === 0 && materials.length > 0}
+                  onToggleSelect={(id) => {
+                    setSelectedIds((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(id)) next.delete(id);
+                      else next.add(id);
+                      return next;
+                    });
+                  }}
+                  onSelectAll={(checked) => {
+                    setSelectedIds(checked ? new Set(filtered.map((m) => m.id)) : new Set());
+                  }}
+                  canManage={canCreateMaterials}
+                  canEditMaterial={canEditMaterial}
+                  canAccess={canAccess}
+                  canDragMaterials={canDragMaterials}
+                  onOpen={async (mat) => {
+                    try {
+                      if (isInAppMediaMaterial(mat)) {
+                        setPreviewMaterial(mat);
+                        return;
+                      }
+                      await openMaterial(mat);
+                    } catch (err) {
+                      toast({
+                        title: 'Не удалось открыть материал',
+                        description: err?.message || 'Попробуйте ещё раз',
+                        variant: 'destructive',
+                      });
+                    }
+                  }}
+                  onEdit={(mat) => setDialog({ mode: 'edit', material: mat })}
+                  onAccess={(mat) => setAccessMaterial(mat)}
+                  onDelete={handleDelete}
+                  deletingId={deletingId}
+                />
+              </div>
+            );
+
+            if (!isLgUp) {
+              return (
+                <div className="flex flex-col gap-4 items-start">
+                  {folderTree}
+                  {materialsPane}
+                </div>
+              );
+            }
+
+            // Desktop: existing react-resizable-panels splitter (left courses / right content).
+            // Sizes are % of the row: left default ~28% (~320px), min 18%, max 42%.
+            return (
+              <div
+                className="h-[min(70vh,52rem)] min-h-[24rem] w-full max-w-full overflow-hidden"
+                data-testid="materials-split-layout"
+              >
+                <ResizablePanelGroup
+                  direction="horizontal"
+                  autoSaveId="materials-hub-panels"
+                  className="h-full w-full"
+                >
+                  <ResizablePanel
+                    defaultSize={28}
+                    minSize={18}
+                    maxSize={42}
+                    className="min-w-0"
+                  >
+                    {folderTree}
+                  </ResizablePanel>
+                  <ResizableHandle
+                    className="mx-0.5 w-1.5 rounded-full bg-transparent transition-colors hover:bg-brand/35 data-[resize-handle-state=drag]:bg-brand/45 data-[resize-handle-state=hover]:bg-brand/35"
+                    data-testid="materials-panel-resizer"
+                  />
+                  <ResizablePanel
+                    defaultSize={72}
+                    minSize={40}
+                    className="min-w-0"
+                  >
+                    {materialsPane}
+                  </ResizablePanel>
+                </ResizablePanelGroup>
+              </div>
+            );
+          })()}
         </>
       )}
 
       {dialog && (
         <MaterialDialog
+          key={
+            dialog.mode === 'edit' && dialog.material?.id
+              ? `edit:${dialog.material.id}`
+              : `create:${dialog.courseId || ''}:${dialog.folderId || ''}`
+          }
           mode={dialog.mode}
           material={dialog.material}
           courses={courses}

@@ -66,9 +66,33 @@ function composeStudentName(firstName, lastName) {
   return first || last;
 }
 
+function normalizeHourlyRateInput(value) {
+  if (value === '' || value === null || value === undefined) return '';
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '';
+  return String(n);
+}
+
+function parseHourlyRateForSave(raw) {
+  const rateRaw = String(raw ?? '').trim();
+  if (rateRaw === '') {
+    return { ok: false, error: 'Укажите ставку в час (BYN)' };
+  }
+  const hourlyRate = Number(rateRaw);
+  if (!Number.isFinite(hourlyRate)) {
+    return { ok: false, error: 'Ставка в час должна быть числом' };
+  }
+  if (hourlyRate < 0) {
+    return { ok: false, error: 'Ставка в час не может быть отрицательной' };
+  }
+  return { ok: true, value: hourlyRate };
+}
+
 export default function UserEditDialog({ user, open, onOpenChange, onSaved, onMerge }) {
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState('info');
+  const [teacherRateLoading, setTeacherRateLoading] = useState(false);
+  const [teacherRateLoadFailed, setTeacherRateLoadFailed] = useState(false);
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
@@ -76,14 +100,18 @@ export default function UserEditDialog({ user, open, onOpenChange, onSaved, onMe
     role: 'user',
     status: 'active',
     assignedTeacherId: '',
+    hourlyRate: '',
   });
 
   const userRole = user ? displayRole(user) : '';
   const isTeacher = userRole === 'teacher';
+  // teachers.id linked via teachers.user_id — registry exposes teacher_profile_id
   const teacherProfileId = user?.teacher_profile_id || null;
   const studentProfileId = resolveStudentProfileId(user);
   const isStudentCard = Boolean(studentProfileId) || userRole === 'student';
   const isStudentProfileOnly = user?.entry_type === 'student_profile';
+  // Edit this user's own teacher profile rate — not an assigned teacher of a student.
+  const showOwnTeacherRate = form.role === 'teacher';
 
   useEffect(() => {
     if (!user) return;
@@ -95,7 +123,9 @@ export default function UserEditDialog({ user, open, onOpenChange, onSaved, onMe
       role: displayRole(user),
       status: user.status || 'active',
       assignedTeacherId: user.assigned_teacher_id || '',
+      hourlyRate: '',
     });
+    setTeacherRateLoadFailed(false);
     setTab('info');
   }, [user]);
 
@@ -104,6 +134,47 @@ export default function UserEditDialog({ user, open, onOpenChange, onSaved, onMe
       setTab('info');
     }
   }, [open]);
+
+  // Load teachers.hourly_rate for THIS user via teacher_profile_id (teachers.id).
+  useEffect(() => {
+    if (!open || !user) return undefined;
+    if (displayRole(user) !== 'teacher' || !teacherProfileId) {
+      setTeacherRateLoadFailed(displayRole(user) === 'teacher' && !teacherProfileId);
+      setTeacherRateLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setTeacherRateLoading(true);
+    setTeacherRateLoadFailed(false);
+
+    (async () => {
+      try {
+        const teacher = await api.teachers.get(teacherProfileId);
+        if (cancelled) return;
+        const raw = teacher?.hourly_rate ?? teacher?.hourlyRate;
+        setForm((f) => ({
+          ...f,
+          hourlyRate: normalizeHourlyRateInput(raw),
+        }));
+      } catch {
+        if (!cancelled) {
+          setTeacherRateLoadFailed(true);
+          toast({
+            title: 'Не удалось загрузить ставку преподавателя',
+            description: 'Профиль преподавателя недоступен. Ставка не будет изменена.',
+            variant: 'destructive',
+          });
+        }
+      } finally {
+        if (!cancelled) setTeacherRateLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, user, teacherProfileId]);
 
   if (!user) return null;
 
@@ -114,6 +185,27 @@ export default function UserEditDialog({ user, open, onOpenChange, onSaved, onMe
     || displayStatusKey
     || '—';
   const lessonBalance = user.lesson_balance;
+
+  const saveOwnTeacherHourlyRate = async () => {
+    if (form.role !== 'teacher') return;
+    if (!teacherProfileId) {
+      toast({
+        title: 'Ставка не сохранена',
+        description:
+          'У пользователя нет связанного профиля преподавателя (teacher_profile_id). Создайте/привяжите teacher отдельно.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (teacherRateLoadFailed) return;
+    const parsed = parseHourlyRateForSave(form.hourlyRate);
+    if (!parsed.ok) {
+      throw new Error(parsed.error);
+    }
+    await api.teachers.update(teacherProfileId, {
+      hourly_rate: parsed.value,
+    });
+  };
 
   const save = async () => {
     setSaving(true);
@@ -153,6 +245,7 @@ export default function UserEditDialog({ user, open, onOpenChange, onSaved, onMe
             assigned_teacher: form.assignedTeacherId || null,
           });
         }
+        await saveOwnTeacherHourlyRate();
       }
 
       toast({ title: 'Пользователь сохранён' });
@@ -258,6 +351,7 @@ export default function UserEditDialog({ user, open, onOpenChange, onSaved, onMe
                   Сейчас: {currentRoleLabel}
                 </span>
               </label>
+
               <label className="block text-sm min-w-0">
                 <span className="text-muted-foreground">Статус аккаунта</span>
                 <select
@@ -276,13 +370,51 @@ export default function UserEditDialog({ user, open, onOpenChange, onSaved, onMe
             </Section>
           )}
 
+          {showOwnTeacherRate ? (
+            <Section title="Преподаватель">
+              <label className="block text-sm min-w-0">
+                <span className="text-muted-foreground">Ставка в час (BYN)</span>
+                <div className="mt-1 flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    className="flex-1"
+                    value={form.hourlyRate}
+                    disabled={
+                      teacherRateLoading
+                      || !teacherProfileId
+                      || teacherRateLoadFailed
+                    }
+                    onChange={(e) => setForm((f) => ({ ...f, hourlyRate: e.target.value }))}
+                    data-testid="user-edit-teacher-hourly-rate"
+                    placeholder="0"
+                  />
+                  <span className="shrink-0 text-sm text-muted-foreground">BYN/час</span>
+                </div>
+                {!teacherProfileId || teacherRateLoadFailed ? (
+                  <span className="mt-1 block text-xs text-amber-700 dark:text-amber-400">
+                    Профиль преподавателя не найден — ставка не будет сохранена.
+                  </span>
+                ) : (
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    Сохраняется в teachers.hourly_rate и используется при расчёте зарплаты.
+                  </span>
+                )}
+              </label>
+            </Section>
+          ) : null}
+
           {isStudentCard && (
             <Section title="Обучение">
               <AssignedTeacherSelect
                 id="user-edit-assigned-teacher"
                 label="Преподаватель"
                 value={form.assignedTeacherId}
-                onChange={(teacherId) => setForm((f) => ({ ...f, assignedTeacherId: teacherId }))}
+                onChange={(teacherId) => setForm((f) => ({
+                  ...f,
+                  assignedTeacherId: teacherId,
+                }))}
                 emptyLabel="Не назначен"
                 data-testid="user-edit-assigned-teacher"
               />

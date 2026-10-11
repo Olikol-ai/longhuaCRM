@@ -10,6 +10,7 @@ import {
   isCanvaUrlString,
   isLinkMaterial,
   packMaterialDescription,
+  resolveMaterialFormTitle,
   unpackMaterialDescription,
 } from '@/lib/materialMeta';
 import {
@@ -28,6 +29,33 @@ function getErrorMessage(err) {
   return err?.data?.message || err?.message || 'Не удалось сохранить материал';
 }
 
+function buildMaterialFormState({
+  mode = 'create',
+  material = null,
+  courses = [],
+  defaultCourseId = '',
+  defaultFolderId = null,
+} = {}) {
+  const editing = mode === 'edit' && material;
+  const meta = unpackMaterialDescription(material?.description);
+  return {
+    sourceMode: editing && isLinkMaterial(material) ? 'link' : 'file',
+    form: {
+      // Same title the list shows (title → name → original filename), never leave blank when known.
+      title: editing ? resolveMaterialFormTitle(material) : '',
+      description: meta.description || '',
+      notes: meta.notes || '',
+      course_id: material?.course_id || defaultCourseId || courses[0]?.id || '',
+      folder_id: material?.folder_id || defaultFolderId || '',
+      block_name: meta.blockName || '',
+      external_link:
+        editing && isLinkMaterial(material)
+          ? (material.external_link || material.file_url || '')
+          : '',
+    },
+  };
+}
+
 export default function MaterialDialog({
   mode = 'create',
   material = null,
@@ -39,29 +67,46 @@ export default function MaterialDialog({
   onSaved,
 }) {
   const editing = mode === 'edit' && material;
-  const initialMeta = unpackMaterialDescription(material?.description);
+  const materialKey = editing ? material.id : `create:${defaultCourseId || ''}:${defaultFolderId || ''}`;
 
   const [sourceMode, setSourceMode] = useState(
-    editing && isLinkMaterial(material) ? 'link' : 'file',
+    () => buildMaterialFormState({
+      mode, material, courses, defaultCourseId, defaultFolderId,
+    }).sourceMode,
   );
-  const [form, setForm] = useState({
-    title: material?.title || '',
-    description: initialMeta.description || '',
-    notes: initialMeta.notes || '',
-    course_id: material?.course_id || defaultCourseId || courses[0]?.id || '',
-    folder_id: material?.folder_id || defaultFolderId || '',
-    block_name: initialMeta.blockName || '',
-    external_link:
-      editing && isLinkMaterial(material)
-        ? (material.external_link || material.file_url || '')
-        : '',
-  });
+  const [form, setForm] = useState(
+    () => buildMaterialFormState({
+      mode, material, courses, defaultCourseId, defaultFolderId,
+    }).form,
+  );
   const [file, setFile] = useState(null);
   const [courseFolders, setCourseFolders] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(null);
   const abortRef = useRef(null);
+
+  // When opening another material (or switching create↔edit) without remount, refill the form.
+  useEffect(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    const next = buildMaterialFormState({
+      mode,
+      material,
+      courses,
+      defaultCourseId,
+      defaultFolderId,
+    });
+    setSourceMode(next.sourceMode);
+    setForm(next.form);
+    setFile(null);
+    setError(null);
+    setUploadProgress(null);
+    setSaving(false);
+    // materialKey encodes material.id (edit) or create defaults — do not depend on
+    // courses/material object identity or mid-edit typing would be wiped on parent refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: reset only on target change
+  }, [materialKey]);
 
   useEffect(() => {
     if (!form.course_id) {
@@ -106,7 +151,13 @@ export default function MaterialDialog({
   const uploadSelectedFile = async () => {
     const controller = new AbortController();
     abortRef.current = controller;
-    setUploadProgress({ percent: 0, loaded: 0, total: file.size, bytesPerSecond: 0 });
+    setUploadProgress({
+      phase: 'uploading',
+      percent: 0,
+      loaded: 0,
+      total: file.size,
+      bytesPerSecond: 0,
+    });
 
     const uploaded = await api.uploads.uploadFile({
       file,
@@ -305,30 +356,48 @@ export default function MaterialDialog({
               {uploadProgress ? (
                 <div className="mt-3 space-y-2 rounded-xl border border-border bg-muted/30 p-3">
                   <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                    <span>Загрузка файла… {uploadProgress.percent}%</span>
+                    <span>
+                      {uploadProgress.phase === 'processing'
+                        ? 'Обработка на сервере…'
+                        : uploadProgress.phase === 'error'
+                          ? 'Ошибка загрузки'
+                          : uploadProgress.phase === 'success'
+                            ? 'Готово'
+                            : `Загрузка файла… ${uploadProgress.percent}%`}
+                    </span>
                     <span>
                       {formatBytes(uploadProgress.loaded)}
                       {uploadProgress.total ? ` / ${formatBytes(uploadProgress.total)}` : ''}
-                      {uploadProgress.bytesPerSecond
+                      {uploadProgress.phase === 'uploading' && uploadProgress.bytesPerSecond
                         ? ` · ${formatUploadSpeed(uploadProgress.bytesPerSecond)}`
                         : ''}
                     </span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full rounded-full bg-primary transition-[width] duration-150"
-                      style={{ width: `${uploadProgress.percent}%` }}
+                      className={
+                        uploadProgress.phase === 'processing'
+                          ? 'h-full w-full animate-pulse rounded-full bg-primary'
+                          : 'h-full rounded-full bg-primary transition-[width] duration-150'
+                      }
+                      style={
+                        uploadProgress.phase === 'processing'
+                          ? undefined
+                          : { width: `${uploadProgress.percent}%` }
+                      }
                     />
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={handleCancelUpload}
-                  >
-                    Отменить загрузку
-                  </Button>
+                  {uploadProgress.phase === 'uploading' || uploadProgress.phase === 'processing' ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={handleCancelUpload}
+                    >
+                      Отменить загрузку
+                    </Button>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -351,8 +420,12 @@ export default function MaterialDialog({
           )}
 
           <div>
-            <label className="block text-sm font-medium mb-2">Название *</label>
+            <label className="block text-sm font-medium mb-2" htmlFor="material-edit-title">
+              Название материала *
+            </label>
             <input
+              id="material-edit-title"
+              data-testid="material-edit-title"
               value={form.title}
               onChange={(e) => setField('title', e.target.value)}
               disabled={saving}
@@ -442,7 +515,11 @@ export default function MaterialDialog({
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                {uploadProgress ? `Загрузка ${uploadProgress.percent}%` : 'Сохранение...'}
+                {uploadProgress?.phase === 'processing'
+                  ? 'Обработка файла…'
+                  : uploadProgress
+                    ? `Загрузка ${uploadProgress.percent}%`
+                    : 'Сохранение...'}
               </>
             ) : editing ? (
               'Сохранить'

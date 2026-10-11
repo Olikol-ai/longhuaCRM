@@ -332,10 +332,10 @@ describe('Stage 3 wiring contracts', () => {
     assert.match(sw, /access_token/);
   });
 
-  it('App mounts OfflineStatusController; VideoSession untouched by offline layer', () => {
+  it('App mounts OfflineStatusController without video session layer', () => {
     const app = readFileSync(join(root, 'src/App.jsx'), 'utf8');
     assert.match(app, /OfflineStatusController/);
-    assert.match(app, /VideoSessionProvider/);
+    assert.doesNotMatch(app, /VideoSessionProvider|VideoSessionLayer|LessonVideo/);
     const offlineIdx = readFileSync(join(root, 'src/lib/offline/index.js'), 'utf8');
     assert.doesNotMatch(offlineIdx, /VideoSession|Jitsi|PictureInPicture|PiP/i);
   });
@@ -362,8 +362,4 @@ describe('Stage 3 wiring contracts', () => {
     assert.doesNotMatch(chats, /localStorage.*messages/);
   });
 
-  it('Document PiP contract still present and independent', () => {
-    const pip = readFileSync(join(root, 'src/lib/document-picture-in-picture.contract.test.js'), 'utf8');
-    assert.match(pip, /Picture-in-Picture|pictureInPicture|PiP/i);
-  });
 });

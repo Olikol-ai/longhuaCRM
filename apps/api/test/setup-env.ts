@@ -28,9 +28,10 @@ process.env.ENABLE_CRON = 'false';
 process.env.TELEGRAM_ENABLED = 'false';
 process.env.TELEGRAM_MOCK = 'true';
 process.env.TELEGRAM_MODE = 'polling';
-process.env.ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'admin@test.local';
-process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'TestAdmin123!';
-process.env.JWT_SECRET = process.env.JWT_SECRET ?? 'test-jwt-secret';
+// Empty strings from root .env must not block e2e admin bootstrap.
+process.env.ADMIN_EMAIL = (process.env.ADMIN_EMAIL || '').trim() || 'admin@test.local';
+process.env.ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || '').trim() || 'TestAdmin123!';
+process.env.JWT_SECRET = (process.env.JWT_SECRET || '').trim() || 'test-jwt-secret';
 process.env.ALFA_BANK_TOKEN = 'e2e-test-alfa-token';
 process.env.ALFA_BANK_MERCHANT_ID = 'e2e-merchant';
 // Prevent MailService from blocking app bootstrap on real SMTP verify during E2E.

@@ -153,9 +153,6 @@ export class LessonConfirmationJobsService {
     const now = this.getTimezoneNow();
     const windowMin = 12;
     const windowMax = 18;
-    const appBase = String(this.config.get<string>('appPublicUrl') || '')
-      .trim()
-      .replace(/\/$/, '');
 
     const windowLessons = planned.filter((lesson) => {
       if (lesson.lessonFormat !== 'online') return false;
@@ -171,16 +168,15 @@ export class LessonConfirmationJobsService {
         ? await this.teacherRepo.findOne({ where: { id: lesson.teacherId } })
         : null;
       const studentIds = await this.confirmations.resolveParticipantStudentIds(lesson);
-      const joinUrl = appBase
-        ? `${appBase}/lesson/${lesson.id}/video`
-        : `/lesson/${lesson.id}/video`;
+      const externalJoinUrl = String(lesson.meetingLink || '').trim();
       const text = build15mOnlineLessonReminderMessage({
         time: formatLessonTime(lesson.startTime),
         teacher: teacher?.name?.trim() || '—',
       });
-      const replyMarkup = appBase.startsWith('http')
-        ? buildOnlineLessonJoinKeyboard(joinUrl)
-        : undefined;
+      const replyMarkup =
+        externalJoinUrl.startsWith('http')
+          ? buildOnlineLessonJoinKeyboard(externalJoinUrl)
+          : undefined;
 
       let delivered = 0;
       for (const studentId of studentIds) {

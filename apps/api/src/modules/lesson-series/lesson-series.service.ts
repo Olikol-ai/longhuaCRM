@@ -95,9 +95,12 @@ export class LessonSeriesService {
       throw new BadRequestException('Group does not belong to the selected teacher');
     }
 
-    const course = await this.courseRepo.findOne({ where: { id: dto.courseId } });
-    if (!course) {
-      throw new NotFoundException('Course not found');
+    const courseId = dto.courseId?.trim() ? dto.courseId.trim() : null;
+    if (courseId) {
+      const course = await this.courseRepo.findOne({ where: { id: courseId } });
+      if (!course) {
+        throw new NotFoundException('Course not found');
+      }
     }
 
     const useWeeklySlots = Boolean(dto.slots?.length);
@@ -106,7 +109,7 @@ export class LessonSeriesService {
 
     const series = await this.repository.save({
       id: randomUUID(),
-      courseId: dto.courseId,
+      courseId,
       groupId: dto.groupId,
       teacherId,
       startDate: dto.startDate,

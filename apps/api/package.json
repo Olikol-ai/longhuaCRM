@@ -14,6 +14,8 @@
     "seed:assessment-demo": "ts-node -r tsconfig-paths/register scripts/seed-assessment-demo.ts",
     "db:audit": "ts-node -r tsconfig-paths/register scripts/audit-database-integrity.ts",
     "db:repair": "ts-node -r tsconfig-paths/register scripts/repair-database-integrity.ts",
+    "balance:legacy-import": "ts-node -r tsconfig-paths/register scripts/balance-legacy-import.ts",
+    "balance:scan-invalid-debits": "ts-node -r tsconfig-paths/register scripts/scan-invalid-lesson-debits.ts",
     "test": "jest --config ./jest.config.json",
     "test:e2e": "jest --config ./test/jest-e2e.json --runInBand"
   },

@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { MaterialAccessEntity } from '../materials/entities/material-access.entity';
 import { MaterialEntity } from '../materials/entities/material.entity';
 import { MaterialsModule } from '../materials/materials.module';
+import { ChunkedUploadService } from './chunked-upload.service';
 import { SecureFilesController } from './secure-files.controller';
 import { SecureFilesService } from './secure-files.service';
 import { SignedFileUrlService } from './signed-file-url.service';
@@ -13,7 +14,7 @@ import { SignedFileUrlService } from './signed-file-url.service';
     TypeOrmModule.forFeature([MaterialEntity, MaterialAccessEntity]),
   ],
   controllers: [SecureFilesController],
-  providers: [SignedFileUrlService, SecureFilesService],
+  providers: [SignedFileUrlService, SecureFilesService, ChunkedUploadService],
   exports: [SignedFileUrlService, SecureFilesService],
 })
 export class SecureFilesModule {}

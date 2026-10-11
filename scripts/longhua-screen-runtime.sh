@@ -7,7 +7,10 @@
 # which is concurrently:
 #   - npm run dev:server  (Nest watch + migrations)
 #   - npm run dev:client  (Vite)
-#   - npm run tunnel      (cloudflared)
+#
+# Cloudflare Tunnel is a separate systemd unit:
+#   cloudflared-longhua.service  → existing tunnel longhua-dev
+# Do NOT start cloudflared from this script or from npm run dev.
 #
 # Usage:
 #   scripts/longhua-screen-runtime.sh start     # systemd Type=simple (blocks)
@@ -117,7 +120,7 @@ list_crm_pids() {
       *Rocket.Chat*|*rocketchat*|*wekan*|*Wekan*) continue ;;
     esac
     case "$args" in
-      *concurrently*"dev:server"*|*"npm run dev"*|*"npm run dev:server"*|*"npm run dev:client"*|*"npm run tunnel"*)
+      *concurrently*"dev:server"*|*"npm run dev"*|*"npm run dev:server"*|*"npm run dev:client"*)
         echo "$pid"
         ;;
       *vite*|*"/node_modules/.bin/vite"*|*"node_modules/vite/"*)
@@ -130,12 +133,10 @@ list_crm_pids() {
           *"$CRM_DIR"*|*longhuaCRM*|*LongHuaCRM*|*apps/api*) echo "$pid" ;;
         esac
         ;;
-      *cloudflared*"tunnel run"*|*scripts/run-cloudflare-tunnel.sh*)
-        echo "$pid"
-        ;;
+      # cloudflared is owned by cloudflared-longhua.service — never kill here
       *"$CRM_DIR"*/*node*|*"$CRM_DIR"*npm*)
         case "$args" in
-          *rocketchat*|*Rocket.Chat*|*wekan*) ;;
+          *rocketchat*|*Rocket.Chat*|*wekan*|*cloudflared*|*run-cloudflare-tunnel*) ;;
           *) echo "$pid" ;;
         esac
         ;;
@@ -226,10 +227,11 @@ start_screen_once() {
     log "WARNING: frontend not responding yet at $FRONTEND_URL (Vite may still be compiling)"
   fi
 
-  if pgrep -af 'cloudflared tunnel run' >/dev/null 2>&1; then
-    log "cloudflared tunnel process is running"
+  if systemctl is-active --quiet cloudflared-longhua.service 2>/dev/null \
+    || pgrep -af 'cloudflared .*tunnel .*run' >/dev/null 2>&1; then
+    log "cloudflared tunnel is running (cloudflared-longhua.service or process)"
   else
-    log "WARNING: cloudflared tunnel process not detected yet"
+    log "WARNING: cloudflared tunnel not detected — check: systemctl status cloudflared-longhua"
   fi
 
   log "screen session '${SCREEN_NAME}' started (npm run dev)"

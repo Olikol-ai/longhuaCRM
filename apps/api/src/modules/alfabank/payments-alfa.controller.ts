@@ -35,7 +35,8 @@ export class PaymentsAlfaController {
 
   @Post('init')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('student', 'admin')
+  /** Admin-only: student self-service top-up UI was removed. */
+  @Roles('admin')
   @HttpCode(HttpStatus.OK)
   async init(@CurrentUser() user: JwtPayload, @Body() dto: AlfaInitPaymentDto, @Req() req: Request) {
     const origin = `${req.protocol}://${req.get('host')}`;
@@ -76,7 +77,7 @@ export class PaymentsAlfaController {
 
   @Get('status/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('student', 'admin')
+  @Roles('admin')
   async status(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) paymentId: string,

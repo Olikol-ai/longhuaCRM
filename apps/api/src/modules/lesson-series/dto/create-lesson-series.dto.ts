@@ -17,8 +17,10 @@ import {
 import { LessonSeriesSlotDto } from './lesson-series-slot.dto';
 
 export class CreateLessonSeriesDto {
+  /** Optional: schedule-only series need no course. Kept for legacy / enrollment. */
+  @IsOptional()
   @IsUUID()
-  courseId!: string;
+  courseId?: string;
 
   @IsUUID()
   groupId!: string;

@@ -1,5 +1,5 @@
 [Unit]
-Description=LonghuaCRM stack (screen: longhua → npm run dev)
+Description=LonghuaCRM stack (screen: longhua → npm run dev = API + Vite)
 Documentation=file:///opt/longhuaCRM/docs/Deployment.md
 After=network-online.target
 Wants=network-online.target
@@ -14,7 +14,8 @@ Environment=CRM_DIR=/opt/longhuaCRM
 Environment=SCREEN_NAME=longhua
 Environment=PATH=/home/ilya/.nvm/versions/node/v24.18.0/bin:/usr/local/bin:/usr/bin:/bin
 # Runtime only — does NOT run deploy.sh / git pull / migrate / full build.
-# Launches: screen -dmS longhua → npm run dev (API + Vite + cloudflared).
+# Launches: screen -dmS longhua → npm run dev (API + Vite).
+# Cloudflare Tunnel is separate: cloudflared-longhua.service (longhua-dev).
 ExecStart=/opt/longhuaCRM/scripts/longhua-screen-runtime.sh start
 ExecStop=/opt/longhuaCRM/scripts/longhua-screen-runtime.sh stop
 Restart=on-failure

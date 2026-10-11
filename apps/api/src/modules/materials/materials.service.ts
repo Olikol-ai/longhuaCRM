@@ -112,20 +112,27 @@ export class MaterialsService {
       }
     }
 
-    const patch: Partial<MaterialEntity> = {
-      folderId: dto.folderId,
-      title: dto.title,
-      fileUrl: dto.fileUrl,
-      fileType: dto.fileType,
-      description: dto.description,
-      mimeType: dto.mimeType,
-      durationSeconds: dto.durationSeconds,
-      originalFilename: dto.originalFilename,
-      storedFilename: dto.storedFilename,
-    };
+    const patch: Partial<MaterialEntity> = {};
+    if (dto.folderId !== undefined) patch.folderId = dto.folderId;
+    if (dto.title !== undefined) patch.title = dto.title;
+    if (dto.fileUrl !== undefined) patch.fileUrl = dto.fileUrl;
+    if (dto.fileType !== undefined) patch.fileType = dto.fileType;
+    if (dto.description !== undefined) patch.description = dto.description;
+    if (dto.mimeType !== undefined) patch.mimeType = dto.mimeType;
+    if (dto.durationSeconds !== undefined) patch.durationSeconds = dto.durationSeconds;
+    if (dto.originalFilename !== undefined) {
+      patch.originalFilename = dto.originalFilename;
+    }
+    if (dto.storedFilename !== undefined) patch.storedFilename = dto.storedFilename;
     if (dto.fileSizeBytes !== undefined) {
       patch.fileSizeBytes =
         dto.fileSizeBytes === null ? null : String(dto.fileSizeBytes);
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return this.attachAccessSources(actor, await this.attachCourseIds([existing])).then(
+        (list) => list[0],
+      );
     }
 
     const row = await this.repository.updateMaterial(id, patch);

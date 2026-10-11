@@ -10,7 +10,7 @@ import {
 import { shouldDeferAppReload } from '@/lib/pwa/reloadGate';
 
 /**
- * Global offline status strip. Never reloads the app; never touches VideoSession/Jitsi/PiP.
+ * Global offline status strip. Never reloads the app; never forces a full page reload.
  */
 export default function OfflineStatusController() {
   const [mode, setMode] = useState(() => getOfflineNetworkState().mode);

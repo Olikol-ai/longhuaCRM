@@ -60,6 +60,20 @@ async function bootstrap() {
   }
 
   await app.listen(port);
+
+  // Large material uploads (chunked or single) can run for a long time on slow links.
+  // Keep the rest of the API responsive; only lift HTTP server idle/request ceilings.
+  const httpServer = app.getHttpServer() as import('http').Server & {
+    requestTimeout?: number;
+  };
+  const uploadIdleMs = 4 * 60 * 60 * 1000;
+  httpServer.setTimeout(uploadIdleMs);
+  httpServer.headersTimeout = uploadIdleMs + 60_000;
+  httpServer.keepAliveTimeout = 120_000;
+  if (typeof httpServer.requestTimeout === 'number') {
+    httpServer.requestTimeout = uploadIdleMs;
+  }
+
   Logger.log(
     `Longhua Academy API (${nodeEnv}) on http://localhost:${port} [log=${logLevel}]`,
     'Bootstrap',

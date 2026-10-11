@@ -49,11 +49,11 @@ export function publicMaterialDescription(raw) {
 }
 
 /**
- * Visible material title for lists/cards.
- * Prefer API `title`, then original filename / name — never blank when any label exists.
+ * Best available material label from API fields (no placeholder).
+ * Used by lists and by the edit form so the title field matches what the user sees.
  */
-export function resolveMaterialDisplayTitle(material) {
-  if (!material || typeof material !== 'object') return 'Без названия';
+export function resolveMaterialFormTitle(material) {
+  if (!material || typeof material !== 'object') return '';
   const candidates = [
     material.title,
     material.name,
@@ -66,7 +66,15 @@ export function resolveMaterialDisplayTitle(material) {
     const value = String(raw || '').trim();
     if (value) return value;
   }
-  return 'Без названия';
+  return '';
+}
+
+/**
+ * Visible material title for lists/cards.
+ * Prefer API `title`, then original filename / name — never blank when any label exists.
+ */
+export function resolveMaterialDisplayTitle(material) {
+  return resolveMaterialFormTitle(material) || 'Без названия';
 }
 
 const AUDIO_EXT = new Set(['mp3', 'wav', 'm4a', 'aac', 'ogg', 'opus', 'flac']);

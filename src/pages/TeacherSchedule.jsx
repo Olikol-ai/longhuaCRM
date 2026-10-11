@@ -195,13 +195,20 @@ export default function TeacherSchedule() {
 
   const handleDeleteLesson = async (id, applyScope = "this") => {
     try {
-      await api.lessons.delete(id, { apply_scope: applyScope });
+      const result = await api.lessons.delete(id, { apply_scope: applyScope });
       await loadData();
+      const deleted = result?.deletedCount ?? result?.deleted_count;
       toast({
         title:
-          applyScope === "all" || applyScope === "series"
-            ? "Серия занятий удалена"
-            : "Урок удалён",
+          applyScope === "future" || applyScope === "series"
+            ? deleted > 1
+              ? `Удалено занятий: ${deleted}`
+              : applyScope === "series"
+                ? "Серия занятий удалена"
+                : "Урок удалён"
+            : applyScope === "all"
+              ? "Серия занятий удалена"
+              : "Урок удалён",
       });
     } catch (err) {
       toast({

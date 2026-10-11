@@ -58,12 +58,24 @@ export const lessons = {
     });
   },
   /**
-   * Delete a lesson. For weekly series pass apply_scope:
-   * `this` (default) | `all` | `series` | `following`.
+   * Delete a lesson.
+   * - apply_scope `this` (default) | `all` | `series` | `following` — series scopes via DELETE /:id
+   * - apply_scope `future` — this + later planned of THIS series (DELETE /:id/future)
+   * - apply_scope `series` — all planned of THIS series (DELETE /:id/series)
    */
   delete(id, options = {}) {
     const scope =
       options.apply_scope ?? options.applyScope ?? null;
+    if (scope === 'future') {
+      return apiFetch(`/lessons/${encodeURIComponent(id)}/future`, {
+        method: 'DELETE',
+      });
+    }
+    if (scope === 'series') {
+      return apiFetch(`/lessons/${encodeURIComponent(id)}/series`, {
+        method: 'DELETE',
+      });
+    }
     const params = new URLSearchParams();
     if (scope && scope !== 'this') {
       params.set('apply_scope', String(scope));
@@ -73,6 +85,16 @@ export const lessons = {
       `/lessons/${encodeURIComponent(id)}${qs ? `?${qs}` : ''}`,
       { method: 'DELETE' },
     );
+  },
+
+  /** Preview count for DELETE /lessons/:id/future (no mutation). */
+  previewFutureDelete(id) {
+    return apiFetch(`/lessons/${encodeURIComponent(id)}/future`);
+  },
+
+  /** Preview count for DELETE /lessons/:id/series (no mutation). */
+  previewSeriesDelete(id) {
+    return apiFetch(`/lessons/${encodeURIComponent(id)}/series`);
   },
   updateStudents(id, data) {
     return apiFetch(`/lessons/${id}/students`, {

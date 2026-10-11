@@ -312,13 +312,32 @@ describe('TeacherStudentContactBalanceService', () => {
     const lessonRepo = {
       findOne: jest.fn().mockResolvedValue({
         id: 'l-1',
+        status: 'completed',
         primaryTeacherStudentContactId: 'c-1',
       }),
     };
 
-    const service = new TeacherStudentContactBalanceService({
-      transaction: jest.fn(),
-    } as never);
+    const service = new TeacherStudentContactBalanceService(
+      { transaction: jest.fn() } as never,
+      {
+        apply: jest.fn(async (input: { studentId: string; delta: number }) => {
+          // default unused for tutor paths
+          return {
+            applied: true,
+            balanceBefore: 0,
+            balanceAfter: input.delta,
+            entry: {},
+          };
+        }),
+        setAbsolute: jest.fn(async (input: { newBalance: number }) => ({
+          applied: true,
+          balanceBefore: 0,
+          balanceAfter: input.newBalance,
+          entry: {},
+        })),
+        findByIdempotencyKey: jest.fn().mockResolvedValue(null),
+      } as never,
+    );
 
     const { AttendanceEntity } = await import('../lessons/entities/attendance.entity');
     const { LessonEntity } = await import('../lessons/entities/lesson.entity');
@@ -385,6 +404,7 @@ describe('TeacherStudentContactBalanceService', () => {
     const lessonRepo = {
       findOne: jest.fn().mockResolvedValue({
         id: 'l-1',
+        status: 'completed',
         primaryTeacherStudentContactId: 'c-1',
       }),
     };
@@ -412,9 +432,27 @@ describe('TeacherStudentContactBalanceService', () => {
       },
     };
 
-    const service = new TeacherStudentContactBalanceService({
-      transaction: jest.fn(),
-    } as never);
+    const service = new TeacherStudentContactBalanceService(
+      { transaction: jest.fn() } as never,
+      {
+        apply: jest.fn(async (input: { studentId: string; delta: number }) => {
+          // default unused for tutor paths
+          return {
+            applied: true,
+            balanceBefore: 0,
+            balanceAfter: input.delta,
+            entry: {},
+          };
+        }),
+        setAbsolute: jest.fn(async (input: { newBalance: number }) => ({
+          applied: true,
+          balanceBefore: 0,
+          balanceAfter: input.newBalance,
+          entry: {},
+        })),
+        findByIdempotencyKey: jest.fn().mockResolvedValue(null),
+      } as never,
+    );
 
     await service.restoreForCancelledLesson('l-1', typedManager as never);
     expect(tutorBalance.lessonBalance).toBe(10);
@@ -431,6 +469,7 @@ describe('TeacherStudentContactBalanceService', () => {
     const lessonRepo = {
       findOne: jest.fn().mockResolvedValue({
         id: 'l-crm',
+        status: 'completed',
         primaryTeacherStudentContactId: null,
         primaryStudentId: 's-1',
       }),
@@ -445,11 +484,48 @@ describe('TeacherStudentContactBalanceService', () => {
         return lessonRepo;
       },
     };
-    const service = new TeacherStudentContactBalanceService({
-      transaction: jest.fn(),
-    } as never);
+    const service = new TeacherStudentContactBalanceService(
+      { transaction: jest.fn() } as never,
+      {
+        apply: jest.fn(),
+        setAbsolute: jest.fn(),
+        findByIdempotencyKey: jest.fn().mockResolvedValue(null),
+      } as never,
+    );
     await service.deductForCompletedLesson('l-crm', typedManager as never);
     expect(attendanceRepo.findOne).not.toHaveBeenCalled();
+  });
+
+  it('does not deduct when lesson status is cancelled', async () => {
+    const lessonRepo = {
+      findOne: jest.fn().mockResolvedValue({
+        id: 'l-cancel',
+        status: 'cancelled',
+        primaryTeacherStudentContactId: 'c-1',
+      }),
+    };
+    const attendanceRepo = { findOne: jest.fn(), update: jest.fn() };
+    const { LessonEntity } = await import('../lessons/entities/lesson.entity');
+    const { AttendanceEntity } = await import('../lessons/entities/attendance.entity');
+    const typedManager = {
+      getRepository: (entity: unknown) => {
+        if (entity === LessonEntity) return lessonRepo;
+        if (entity === AttendanceEntity) return attendanceRepo;
+        return lessonRepo;
+      },
+    };
+    const apply = jest.fn();
+    const service = new TeacherStudentContactBalanceService(
+      { transaction: jest.fn() } as never,
+      {
+        apply,
+        setAbsolute: jest.fn(),
+        findByIdempotencyKey: jest.fn().mockResolvedValue(null),
+      } as never,
+    );
+    await service.deductForCompletedLesson('l-cancel', typedManager as never);
+    expect(attendanceRepo.findOne).not.toHaveBeenCalled();
+    expect(apply).not.toHaveBeenCalled();
   });
 
   it('applyManualBalance for teacher writes Student only (no contact balance)', async () => {
@@ -485,9 +561,23 @@ describe('TeacherStudentContactBalanceService', () => {
         return contactRepo;
       },
     };
-    const service = new TeacherStudentContactBalanceService({
-      transaction: jest.fn(),
-    } as never);
+    const service = new TeacherStudentContactBalanceService(
+      { transaction: jest.fn() } as never,
+      {
+        apply: jest.fn(),
+        setAbsolute: jest.fn(async (input: { newBalance: number }) => {
+          const before = student.lessonBalance;
+          student.lessonBalance = input.newBalance;
+          return {
+            applied: true,
+            balanceBefore: before,
+            balanceAfter: input.newBalance,
+            entry: {},
+          };
+        }),
+        findByIdempotencyKey: jest.fn().mockResolvedValue(null),
+      } as never,
+    );
 
     await service.applyManualBalance(typedManager as never, contact as never, 0, 'zero', 'u-1');
     expect(student.lessonBalance).toBe(0);
@@ -539,9 +629,27 @@ describe('TeacherStudentContactBalanceService', () => {
         return contactRepo;
       },
     };
-    const service = new TeacherStudentContactBalanceService({
-      transaction: jest.fn(),
-    } as never);
+    const service = new TeacherStudentContactBalanceService(
+      { transaction: jest.fn() } as never,
+      {
+        apply: jest.fn(async (input: { studentId: string; delta: number }) => {
+          // default unused for tutor paths
+          return {
+            applied: true,
+            balanceBefore: 0,
+            balanceAfter: input.delta,
+            entry: {},
+          };
+        }),
+        setAbsolute: jest.fn(async (input: { newBalance: number }) => ({
+          applied: true,
+          balanceBefore: 0,
+          balanceAfter: input.newBalance,
+          entry: {},
+        })),
+        findByIdempotencyKey: jest.fn().mockResolvedValue(null),
+      } as never,
+    );
 
     await service.applyManualBalance(typedManager as never, contact as never, 2, 'adj', 'u-1');
     expect(tutorBalance.lessonBalance).toBe(2);
@@ -583,9 +691,23 @@ describe('TeacherStudentContactBalanceService', () => {
         return contactRepo;
       },
     };
-    const service = new TeacherStudentContactBalanceService({
-      transaction: jest.fn(),
-    } as never);
+    const service = new TeacherStudentContactBalanceService(
+      { transaction: jest.fn() } as never,
+      {
+        apply: jest.fn(),
+        setAbsolute: jest.fn(async (input: { newBalance: number }) => {
+          const before = student.lessonBalance;
+          student.lessonBalance = input.newBalance;
+          return {
+            applied: true,
+            balanceBefore: before,
+            balanceAfter: input.newBalance,
+            entry: {},
+          };
+        }),
+        findByIdempotencyKey: jest.fn().mockResolvedValue(null),
+      } as never,
+    );
 
     await service.applyManualBalance(typedManager as never, contact as never, -2, 'debt', 'u-1');
     expect(student.lessonBalance).toBe(-2);

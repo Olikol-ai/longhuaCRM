@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -19,6 +20,7 @@ import { JwtPayload } from '../auth/auth.service';
 import { CheckAvailabilityDto } from './dto/check-availability.dto';
 import { CreateAvailabilitySlotDto } from './dto/create-availability-slot.dto';
 import { FilterQueryDto } from './dto/filter-query.dto';
+import { FreeScheduleQueryDto } from './dto/free-schedule-query.dto';
 import { ReplaceAvailabilitySlotsDto } from './dto/replace-availability-slots.dto';
 import { UpdateAvailabilitySlotDto } from './dto/update-availability-slot.dto';
 import { ScheduleService } from './schedule.service';
@@ -32,6 +34,25 @@ export class ScheduleController {
   @Roles('admin', 'teacher')
   findAllSlots(@CurrentUser() user: JwtPayload) {
     return this.scheduleService.findAllSlots(user);
+  }
+
+  /**
+   * Free time = declared availability − occupying lessons for the date range.
+   * Must be registered before @Get(':id').
+   */
+  @Get('free-schedule')
+  @Roles('admin', 'teacher')
+  getFreeSchedule(
+    @CurrentUser() user: JwtPayload,
+    @Query() query: FreeScheduleQueryDto,
+  ) {
+    const teacherId = query.teacherId ?? query.teacher_id;
+    return this.scheduleService.getFreeSchedule(
+      user,
+      query.from,
+      query.to,
+      teacherId,
+    );
   }
 
   @Post('filter')
@@ -91,12 +112,14 @@ export class ScheduleController {
     @Body() body: CheckAvailabilityDto,
   ) {
     const startTime = body.start_time ?? body.startTime ?? '';
+    const excludeLessonId = body.excludeLessonId ?? body.exclude_lesson_id;
     return this.scheduleService.checkAvailability(
       user,
       teacherId,
       body.date,
       startTime,
       Number(body.duration) || 60,
+      excludeLessonId,
     );
   }
 

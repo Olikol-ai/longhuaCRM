@@ -3,7 +3,6 @@ import { assessment } from './assessment.api';
 import { examAcademy } from './exam-academy.api';
 import { examContent } from './exam-content.api';
 import { homework } from './homework.api';
-import { video } from './video.api';
 import { auth } from './auth';
 import { certificates } from './certificates.api';
 import { courses } from './courses.api';
@@ -37,7 +36,6 @@ export { assessment } from './assessment.api';
 export { examAcademy } from './exam-academy.api';
 export { examContent } from './exam-content.api';
 export { homework } from './homework.api';
-export { video } from './video.api';
 export { auth } from './auth';
 export { functions } from './functions';
 export { schedule } from './schedule';
@@ -72,7 +70,6 @@ export const api = {
   examAcademy,
   examContent,
   homework,
-  video,
   students,
   balances,
   teachers,

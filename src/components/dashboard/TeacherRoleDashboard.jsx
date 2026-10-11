@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { api } from '@/api';
 import { format, isToday, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
-import { CalendarDays, Clock, CheckCircle2, XCircle, Video } from "lucide-react";
+import { CalendarDays, Clock, CheckCircle2, XCircle } from "lucide-react";
 import StatCard from "./StatCard";
 import { formatWelcomeGreeting } from "@/lib/display-name";
 import { Card } from "@/components/ui/card";
@@ -12,7 +12,6 @@ import {
   computeCompletedLessonsMonthStats,
   formatCompletedMonthComparison,
 } from "@/lib/completedLessonsMonthStats";
-import { isOnlineLesson, lessonVideoPath } from "@/lib/lesson-video";
 
 const STATUS_LABELS = {
   planned: "Запланировано",
@@ -117,12 +116,6 @@ export default function TeacherRoleDashboard({ user }) {
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       <Clock className="w-3 h-3" /> {lesson.start_time} · {lesson.duration || 60}min
                     </span>
-                    {isOnlineLesson(lesson) && (
-                      <a href={lessonVideoPath(lesson.id)}
-                        className="text-xs text-brand dark:text-brand hover:text-brand dark:hover:text-brand flex items-center gap-1">
-                        <Video className="w-3 h-3" /> Начать видеоурок
-                      </a>
-                    )}
                   </div>
                 </div>
                 {lesson.status === "planned" && (
@@ -180,12 +173,6 @@ export default function TeacherRoleDashboard({ user }) {
                   </p>
                   <p className="text-xs text-muted-foreground">{lesson.start_time} · {lesson.duration || 60}мин</p>
                 </div>
-                {isOnlineLesson(lesson) && (
-                  <a href={lessonVideoPath(lesson.id)}
-                    className="text-xs text-brand dark:text-brand hover:text-brand dark:hover:text-brand flex items-center gap-1">
-                    <Video className="w-3 h-3" /> Начать видеоурок
-                  </a>
-                )}
               </div>
             ))
           )}

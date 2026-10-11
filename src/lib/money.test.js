@@ -67,13 +67,11 @@ describe('formatBYN canonical display', () => {
 describe('money UI must not double-suffix BYN', () => {
   const files = [
     'pages/Payments.jsx',
-    'pages/PaymentReturn.jsx',
     'pages/StudentDetail.jsx',
     'pages/Salary.jsx',
     'pages/Analytics.jsx',
     'pages/TeacherDashboard.jsx',
     'pages/ShopSettingsAdmin.jsx',
-    'components/student/TopUpModal.jsx',
     'components/payments/PaymentModal.jsx',
   ];
 
@@ -95,12 +93,9 @@ describe('money UI must not double-suffix BYN', () => {
     }
   });
 
-  it('Payments and PaymentReturn use formatBYN without extra currency', () => {
+  it('Payments use formatBYN without extra currency', () => {
     const payments = read('pages/Payments.jsx');
-    const ret = read('pages/PaymentReturn.jsx');
     assert.match(payments, /formatBYN/);
     assert.doesNotMatch(payments, /formatCurrency\(payment\.amount\)\s*\{payment\.currency/);
-    assert.match(ret, /formatBYN/);
-    assert.doesNotMatch(ret, /result\.currency \|\| ['"]BYN['"]/);
   });
 });

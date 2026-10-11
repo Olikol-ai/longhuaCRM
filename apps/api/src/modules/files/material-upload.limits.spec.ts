@@ -1,5 +1,6 @@
 import {
   decodeUploadOriginalName,
+  DEFAULT_MATERIALS_MAX_UPLOAD_BYTES,
   detectMaterialFileKind,
   getMaterialsMaxUploadBytes,
   isAllowedMaterialsUpload,
@@ -50,8 +51,16 @@ describe('material-upload.limits', () => {
     expect(detectMaterialFileKind('book.pdf')).toBe('pdf');
   });
 
-  it('reads MATERIALS_MAX_UPLOAD_BYTES from env', () => {
+  it('reads MATERIALS_MAX_UPLOAD_BYTES from env but never above 5 GiB', () => {
     process.env.MATERIALS_MAX_UPLOAD_BYTES = String(100 * 1024 * 1024);
     expect(getMaterialsMaxUploadBytes()).toBe(100 * 1024 * 1024);
+    process.env.MATERIALS_MAX_UPLOAD_BYTES = String(10 * 1024 * 1024 * 1024);
+    expect(getMaterialsMaxUploadBytes()).toBe(DEFAULT_MATERIALS_MAX_UPLOAD_BYTES);
+  });
+
+  it('defaults to 5 GiB product max', () => {
+    delete process.env.MATERIALS_MAX_UPLOAD_BYTES;
+    expect(DEFAULT_MATERIALS_MAX_UPLOAD_BYTES).toBe(5 * 1024 * 1024 * 1024);
+    expect(getMaterialsMaxUploadBytes()).toBe(5 * 1024 * 1024 * 1024);
   });
 });

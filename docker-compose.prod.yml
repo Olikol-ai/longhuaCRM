@@ -55,16 +55,13 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_WEBHOOK_URL: ${TELEGRAM_WEBHOOK_URL:-}
       TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
-      JITSI_BASE_URL: ${JITSI_BASE_URL:-}
-      JITSI_JWT_APP_ID: ${JITSI_JWT_APP_ID:-}
-      JITSI_JWT_APP_SECRET: ${JITSI_JWT_APP_SECRET:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@longhua.local}
       # Permanent HDD storage (host path). Survives container recreate.
       UPLOADS_DIR: /mnt/storage/longhua-storage
-      # Materials textbooks/videos — Multer + SecureFiles limit (bytes). Default 2 GiB.
-      MATERIALS_MAX_UPLOAD_BYTES: ${MATERIALS_MAX_UPLOAD_BYTES:-2147483648}
+      # Materials textbooks/videos/ZIP — Multer + chunked limit (bytes). Default 5 GiB.
+      MATERIALS_MAX_UPLOAD_BYTES: ${MATERIALS_MAX_UPLOAD_BYTES:-5368709120}
     volumes:
       - ${LONGHUA_STORAGE_HOST:-/mnt/storage/longhua-storage}:/mnt/storage/longhua-storage
       - backups_data:/app/backups

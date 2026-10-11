@@ -26,9 +26,21 @@ export class GroupsService {
     private readonly b2bDashboard: B2bDashboardService,
   ) {}
 
-  async findAll(actor: JwtPayload): Promise<GroupEntity[]> {
+  async findAll(
+    actor: JwtPayload,
+  ): Promise<Array<GroupEntity & { membersCount: number }>> {
     const where = await this.teacherAccess.scopeGroupFilter(actor, {});
-    return this.repository.filter(where as FindOptionsWhere<GroupEntity>);
+    const groups = await this.repository.filter(
+      where as FindOptionsWhere<GroupEntity>,
+    );
+    const counts = await this.repository.countMembersByGroupIds(
+      groups.map((g) => g.id),
+    );
+    return groups.map((group) =>
+      Object.assign(group, {
+        membersCount: counts.get(group.id) ?? 0,
+      }),
+    );
   }
 
   async findById(actor: JwtPayload, id: string): Promise<GroupEntity> {

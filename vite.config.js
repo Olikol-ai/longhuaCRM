@@ -108,6 +108,9 @@ export default defineConfig({
       '/api': {
         target: process.env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:3001',
         changeOrigin: true,
+        // Large material uploads (incl. chunked) can run for tens of minutes.
+        timeout: 4 * 60 * 60 * 1000,
+        proxyTimeout: 4 * 60 * 60 * 1000,
       },
       // Socket.IO for Chats (namespace /chat uses default /socket.io path)
       '/socket.io': {

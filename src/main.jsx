@@ -56,7 +56,7 @@ function mountDeferredUpdateBanner(reason) {
     <div class="mx-auto max-w-lg rounded-2xl border border-border bg-card p-3 shadow-lg">
       <p class="text-sm font-semibold text-foreground">Доступна новая версия</p>
       <p class="text-xs text-muted-foreground mt-1">
-        Обновление отложено до конца видеоурока (звонок не прерываем).
+        Обновление отложено. Обновите страницу, когда будет удобно.
       </p>
       <button type="button" class="mt-2 text-xs text-brand underline" data-dismiss>Скрыть</button>
     </div>

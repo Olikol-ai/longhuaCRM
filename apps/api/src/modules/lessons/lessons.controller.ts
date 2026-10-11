@@ -143,6 +143,47 @@ export class LessonsController {
     return this.recurrence.createWeeklySeries(user, dto);
   }
 
+  /**
+   * Preview / execute deletion of this lesson + later planned occurrences of
+   * the same recurrence series (stops the series so cron cannot regenerate).
+   * Must be registered before @Delete(':id').
+   */
+  @Get(':id/future')
+  @Roles('admin', 'teacher', 'tutor')
+  previewFutureDelete(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+  ) {
+    return this.lessonsService.previewStudentFutureDelete(user, id);
+  }
+
+  @Delete(':id/future')
+  @Roles('admin', 'teacher', 'tutor')
+  deleteFuture(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+  ) {
+    return this.lessonsService.deleteStudentFutureFrom(user, id);
+  }
+
+  @Get(':id/series')
+  @Roles('admin', 'teacher', 'tutor')
+  previewSeriesDelete(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+  ) {
+    return this.lessonsService.previewSeriesDelete(user, id);
+  }
+
+  @Delete(':id/series')
+  @Roles('admin', 'teacher', 'tutor')
+  deleteSeries(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+  ) {
+    return this.lessonsService.deleteSeriesPlannedFrom(user, id);
+  }
+
   @Get(':id')
   findById(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.lessonsService.findById(user, id);

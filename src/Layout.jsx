@@ -1,5 +1,5 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import {
   LayoutDashboard,
@@ -44,7 +44,6 @@ import {
 import NotificationCenter from "@/components/pwa/NotificationCenter";
 import { fetchNotificationUnreadCount } from "@/lib/pwa/notificationsApi";
 import { bindNotificationNavigate } from "@/lib/pwa/pushClient";
-import { useNavigate } from "react-router-dom";
 
 const adminNav = [
   { name: "Главная", icon: LayoutDashboard, page: "Dashboard" },
@@ -68,6 +67,7 @@ const teacherNav = [
   { name: "Главная", icon: LayoutDashboard, page: "TeacherDashboard" },
   { name: "Чаты", icon: MessageSquare, page: "Chats" },
   { name: "Моё расписание", icon: Calendar, page: "TeacherSchedule" },
+  { name: "Группы", icon: Users, page: "Groups" },
   { name: "Ученики", icon: Users, page: "TeacherStudents" },
   { name: "Платежи", icon: CreditCard, page: "Payments" },
   { name: "HSK Academy", icon: Award, page: "HskAcademy" },
@@ -221,16 +221,6 @@ export default function Layout({ children, currentPageName }) {
   }
 
   // Full-bleed lesson video shell — no CRM sidebar; video owns the viewport.
-  // Do not force dark theme here — LessonVideo follows ThemeContext.
-  // VideoSessionLayer is mounted at App level (not here) so Layout swaps
-  // never remount Jitsi when minimizing into the CRM shell.
-  if (currentPageName === 'LessonVideo') {
-    return (
-      <div className="h-dvh max-h-dvh overflow-hidden bg-background">
-        {children}
-      </div>
-    );
-  }
 
   if (shouldBlockUntilRoleKnown(user)) {
     return <AuthLoadingScreen />;

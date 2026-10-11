@@ -97,13 +97,10 @@ describe('online lesson 15m reminder', () => {
     assert.match(text, /Иван Иванов/);
   });
 
-  it('builds join keyboard with Войти в урок', () => {
-    const kb = buildOnlineLessonJoinKeyboard('https://crm.example.com/lesson/1/video');
+  it('builds join keyboard with Войти в урок for external meeting link', () => {
+    const kb = buildOnlineLessonJoinKeyboard('https://zoom.us/j/123');
     assert.equal(kb.inline_keyboard[0][0].text, 'Войти в урок');
-    assert.equal(
-      kb.inline_keyboard[0][0].url,
-      'https://crm.example.com/lesson/1/video',
-    );
+    assert.equal(kb.inline_keyboard[0][0].url, 'https://zoom.us/j/123');
   });
 });
 

@@ -1,7 +1,9 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { IsNumber, IsOptional, IsString, MinLength } from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { JwtPayload } from '../auth/auth.service';
 import { AlfaBankService } from './alfabank.service';
 
@@ -31,7 +33,9 @@ export class AlfaBankController {
   constructor(private readonly alfaBankService: AlfaBankService) {}
 
   @Post('offline-payment-request')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  /** Admin-only: student self-service top-up UI was removed. */
+  @Roles('admin')
   async offlinePaymentRequest(
     @CurrentUser() user: JwtPayload,
     @Body() dto: OfflinePaymentRequestDto,

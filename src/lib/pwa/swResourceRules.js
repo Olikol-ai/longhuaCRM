@@ -16,7 +16,12 @@ export function isSocketRequest(url) {
 }
 
 export function isUploadRequest(url) {
-  return url.pathname.startsWith('/uploads') || url.pathname.startsWith('/files/upload');
+  const path = url.pathname || '';
+  return (
+    path.startsWith('/uploads') ||
+    path.startsWith('/files/upload') ||
+    path.startsWith('/api/files/upload')
+  );
 }
 
 export function hasAuthQueryToken(url) {

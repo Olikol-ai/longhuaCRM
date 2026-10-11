@@ -1,5 +1,4 @@
-# Allow deploy.sh / ops (user ilya) to manage longhua.service without a password,
-# so deploy does not race with systemd Restart=on-failure.
+# Allow deploy/ops (user ilya) to manage LonghuaCRM systemd units without a password.
 ilya ALL=(root) NOPASSWD: \
   /usr/bin/systemctl start longhua.service, \
   /usr/bin/systemctl stop longhua.service, \
@@ -11,6 +10,18 @@ ilya ALL=(root) NOPASSWD: \
   /usr/bin/systemctl is-enabled longhua.service, \
   /usr/bin/systemctl show longhua.service, \
   /usr/bin/systemctl cat longhua.service, \
+  /usr/bin/systemctl start cloudflared-longhua.service, \
+  /usr/bin/systemctl stop cloudflared-longhua.service, \
+  /usr/bin/systemctl restart cloudflared-longhua.service, \
+  /usr/bin/systemctl reload cloudflared-longhua.service, \
+  /usr/bin/systemctl try-reload-or-restart cloudflared-longhua.service, \
+  /usr/bin/systemctl status cloudflared-longhua.service, \
+  /usr/bin/systemctl is-active cloudflared-longhua.service, \
+  /usr/bin/systemctl is-enabled cloudflared-longhua.service, \
+  /usr/bin/systemctl show cloudflared-longhua.service, \
+  /usr/bin/systemctl cat cloudflared-longhua.service, \
+  /usr/bin/systemctl enable cloudflared-longhua.service, \
+  /usr/bin/systemctl disable cloudflared-longhua.service, \
   /usr/bin/systemctl daemon-reload, \
   /bin/systemctl start longhua.service, \
   /bin/systemctl stop longhua.service, \
@@ -22,4 +33,16 @@ ilya ALL=(root) NOPASSWD: \
   /bin/systemctl is-enabled longhua.service, \
   /bin/systemctl show longhua.service, \
   /bin/systemctl cat longhua.service, \
+  /bin/systemctl start cloudflared-longhua.service, \
+  /bin/systemctl stop cloudflared-longhua.service, \
+  /bin/systemctl restart cloudflared-longhua.service, \
+  /bin/systemctl reload cloudflared-longhua.service, \
+  /bin/systemctl try-reload-or-restart cloudflared-longhua.service, \
+  /bin/systemctl status cloudflared-longhua.service, \
+  /bin/systemctl is-active cloudflared-longhua.service, \
+  /bin/systemctl is-enabled cloudflared-longhua.service, \
+  /bin/systemctl show cloudflared-longhua.service, \
+  /bin/systemctl cat cloudflared-longhua.service, \
+  /bin/systemctl enable cloudflared-longhua.service, \
+  /bin/systemctl disable cloudflared-longhua.service, \
   /bin/systemctl daemon-reload

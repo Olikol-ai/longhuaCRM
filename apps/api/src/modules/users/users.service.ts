@@ -173,15 +173,22 @@ export class UsersService {
           row.telegramId = String(dto.telegramId);
         }
 
+        // Assigning a dashboard role activates pending accounts when the client
+        // did not send an explicit status. UserEditDialog always sends role+status
+        // together — never overwrite an explicit blocked/pending/active value.
         if (
           dto.role !== undefined &&
           ['admin', 'teacher', 'tutor', 'student', 'sales_manager'].includes(String(dto.role))
         ) {
-          row.status = 'active';
-          row.verificationCode = null;
-          row.verificationCodeExpiresAt = null;
-          row.verificationCodeSentAt = null;
-          row.verificationAttempts = 0;
+          if (dto.status === undefined) {
+            row.status = 'active';
+          }
+          if (row.status === 'active') {
+            row.verificationCode = null;
+            row.verificationCodeExpiresAt = null;
+            row.verificationCodeSentAt = null;
+            row.verificationAttempts = 0;
+          }
         }
 
         row.updatedDate = new Date();

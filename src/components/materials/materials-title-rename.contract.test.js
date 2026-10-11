@@ -46,4 +46,17 @@ describe('materials title + folder rename regression', () => {
     assert.match(page, /resolveMaterialDisplayTitle/);
     assert.match(page, /data-testid=\{`material-title-\$\{mat\.id\}`\}/);
   });
+
+  it('MaterialDialog prefills edit title from the same resolver as the list', () => {
+    const dialog = read('components/materials/MaterialDialog.jsx');
+    const manager = read('components/materials/MaterialManager.jsx');
+    assert.match(dialog, /resolveMaterialFormTitle/);
+    assert.match(dialog, /buildMaterialFormState/);
+    assert.match(dialog, /materialKey/);
+    assert.match(dialog, /title: form\.title\.trim\(\)/);
+    assert.match(dialog, /api\.materials\.update\(material\.id, payload\)/);
+    assert.match(dialog, /data-testid="material-edit-title"/);
+    assert.match(manager, /key=\{/);
+    assert.match(manager, /edit:\$\{dialog\.material\.id\}/);
+  });
 });

@@ -133,7 +133,7 @@ describe('Homework module architecture', () => {
     assert.match(adminNav, /Проверочные работы/);
     // Homework pages still activate AdminAssessment (hub), not a separate menu row.
     assert.match(layout, /assessmentWorkspacePages/);
-    assert.match(layout, /'HomeworkList'/);
+    assert.match(layout, /["']HomeworkList["']/);
   });
 
   it('AssessmentScoringService exposes shared scoreFromData', () => {

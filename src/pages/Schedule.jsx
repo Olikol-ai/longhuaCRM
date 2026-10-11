@@ -3,6 +3,8 @@ import { api } from "@/api";
 import { createWeeklyLessonSeries } from "@/lib/recurring-lessons";
 import { filterSchoolTeacherLessons } from "@/lib/schoolSchedule";
 import SchoolScheduleCalendar from "@/components/schedule/SchoolScheduleCalendar";
+import TeacherFreeScheduleDialog from "@/components/schedule/TeacherFreeScheduleDialog";
+import { Button } from "@/design-system";
 import { toast } from "@/components/ui/use-toast";
 import { useAuth } from "@/lib/AuthContext";
 import { OFFLINE_RESOURCES, readWithOfflineFallback } from "@/lib/offline";
@@ -22,6 +24,7 @@ export default function Schedule() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedTeacherId, setSelectedTeacherId] = useState("");
+  const [freeScheduleOpen, setFreeScheduleOpen] = useState(false);
   const [offlineMeta, setOfflineMeta] = useState({ fromCache: false, updatedAt: null, missing: false });
 
   const load = async () => {
@@ -146,13 +149,20 @@ export default function Schedule() {
 
   const handleDelete = async (id, applyScope = "this") => {
     try {
-      await api.lessons.delete(id, { apply_scope: applyScope });
+      const result = await api.lessons.delete(id, { apply_scope: applyScope });
       await load();
+      const deleted = result?.deletedCount ?? result?.deleted_count;
       toast({
         title:
-          applyScope === "all" || applyScope === "series"
-            ? "Серия занятий удалена"
-            : "Урок удалён",
+          applyScope === "future" || applyScope === "series"
+            ? deleted > 1
+              ? `Удалено занятий: ${deleted}`
+              : applyScope === "series"
+                ? "Серия занятий удалена"
+                : "Урок удалён"
+            : applyScope === "all"
+              ? "Серия занятий удалена"
+              : "Урок удалён",
       });
     } catch (err) {
       toast({
@@ -238,6 +248,21 @@ export default function Schedule() {
         showAttendance
         showQuickActions
         createButtonLabel="Создать занятие"
+        headerExtra={
+          <div className="mb-3 flex justify-end">
+            <Button
+              type="button"
+              intent="outline"
+              onClick={() => setFreeScheduleOpen(true)}
+            >
+              Свободный график
+            </Button>
+          </div>
+        }
+      />
+      <TeacherFreeScheduleDialog
+        open={freeScheduleOpen}
+        onOpenChange={setFreeScheduleOpen}
       />
     </div>
   );

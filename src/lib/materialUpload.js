@@ -1,7 +1,10 @@
 /** Shared materials upload limits / accept list (frontend). */
 
-/** Keep in sync with apps/api material-upload.limits.ts (default 2 GiB). */
-export const MATERIALS_MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024;
+/**
+ * Keep in sync with apps/api material-upload.limits.ts
+ * (DEFAULT_MATERIALS_MAX_UPLOAD_BYTES = 5 GiB).
+ */
+export const MATERIALS_MAX_UPLOAD_BYTES = 5 * 1024 * 1024 * 1024;
 
 export const MATERIALS_ALLOWED_EXTENSIONS = [
   '.pdf',

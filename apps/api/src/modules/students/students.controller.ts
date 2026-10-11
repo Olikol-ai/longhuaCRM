@@ -20,11 +20,15 @@ import { FilterQueryDto } from './dto/filter-query.dto';
 import { MergeStudentsDto } from './dto/merge-students.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { StudentsService } from './students.service';
+import { StudentBalancesService } from '../student-balances/student-balances.service';
 
 @Controller('students')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class StudentsController {
-  constructor(private readonly studentsService: StudentsService) {}
+  constructor(
+    private readonly studentsService: StudentsService,
+    private readonly balancesService: StudentBalancesService,
+  ) {}
 
   @Get()
   findAll(@CurrentUser() user: JwtPayload) {
@@ -61,6 +65,15 @@ export class StudentsController {
     @Query('search') search?: string,
   ) {
     return this.studentsService.findMergeCandidates({ primaryStudentId, search });
+  }
+
+  /**
+   * Diagnostic ledger audit for one student. Admin only. Never mutates balances.
+   */
+  @Get(':id/balance/audit')
+  @Roles('admin')
+  balanceAudit(@Param('id', ParseUUIDPipe) id: string) {
+    return this.balancesService.balanceAudit(id);
   }
 
   @Get(':id')

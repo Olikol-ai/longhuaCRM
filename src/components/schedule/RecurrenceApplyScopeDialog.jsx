@@ -1,7 +1,9 @@
 import { createPortal } from "react-dom";
 import {
   DELETE_SCOPE_OPTIONS,
+  DELETE_SCOPE_OPTIONS_ONE_OFF,
   STATUS_SCOPE_OPTIONS,
+  isFutureDeleteScope,
   isSeriesWideScope,
 } from "@/lib/lessonSeriesScope";
 
@@ -24,12 +26,11 @@ const EDIT_OPTIONS = [
 ];
 
 /**
- * Ask how to apply edits / status changes / deletes to a weekly recurrence series.
+ * Ask how to apply edits / status changes / deletes.
  *
  * @param {'edit'|'status'|'delete'} [mode='edit']
- *   edit — this / following / all
- *   status — this / all (cancel & similar)
- *   delete — this / all
+ * @param {boolean} [inSeries=true] — for delete mode, which option set to show
+ * @param {string|null} [deleteWarningSummary]
  */
 export default function RecurrenceApplyScopeDialog({
   open,
@@ -41,14 +42,22 @@ export default function RecurrenceApplyScopeDialog({
   title,
   confirmLabel,
   subtitle,
+  inSeries = true,
+  deleteWarningSummary = null,
+  futurePreviewLoading = false,
+  confirmDisabled = false,
 }) {
   if (!open) return null;
+
+  const deleteOptions = inSeries
+    ? DELETE_SCOPE_OPTIONS
+    : DELETE_SCOPE_OPTIONS_ONE_OFF;
 
   const options =
     mode === "status"
       ? STATUS_SCOPE_OPTIONS
       : mode === "delete"
-        ? DELETE_SCOPE_OPTIONS
+        ? deleteOptions
         : EDIT_OPTIONS;
 
   const heading =
@@ -62,7 +71,7 @@ export default function RecurrenceApplyScopeDialog({
   const helperText =
     subtitle ||
     (mode === "delete"
-      ? "Это занятие входит в серию. Что удалить?"
+      ? "Выберите, что удалить из расписания."
       : "Урок входит в еженедельную серию. Выберите область применения.");
 
   const resolvedConfirmLabel =
@@ -73,7 +82,9 @@ export default function RecurrenceApplyScopeDialog({
         ? "Применить"
         : "Применить");
 
-  const confirmDanger = mode === "delete" && isSeriesWideScope(value);
+  const confirmDanger =
+    mode === "delete" &&
+    (isSeriesWideScope(value) || isFutureDeleteScope(value));
 
   const modal = (
     <div
@@ -104,7 +115,10 @@ export default function RecurrenceApplyScopeDialog({
               key={opt.value}
               className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${
                 value === opt.value
-                  ? confirmDanger && opt.value === "all"
+                  ? confirmDanger &&
+                    (opt.value === "all" ||
+                      opt.value === "future" ||
+                      opt.value === "series")
                     ? "border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/40"
                     : "border-brand/40 bg-brand-soft dark:bg-brand-soft/30"
                   : "border-border hover:bg-muted"
@@ -127,12 +141,23 @@ export default function RecurrenceApplyScopeDialog({
               </span>
             </label>
           ))}
-          {mode === "delete" && isSeriesWideScope(value) ? (
+          {mode === "delete" && deleteWarningSummary ? (
             <p
               className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-              data-testid="delete-series-warning"
+              data-testid="delete-scope-warning"
             >
-              Будут удалены все занятия этой серии.
+              {futurePreviewLoading ? "Подсчёт занятий…" : deleteWarningSummary}
+            </p>
+          ) : null}
+          {mode === "delete" &&
+          (isFutureDeleteScope(value) || value === "series") &&
+          futurePreviewLoading &&
+          !deleteWarningSummary ? (
+            <p
+              className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+              data-testid="delete-scope-warning"
+            >
+              Подсчёт занятий…
             </p>
           ) : null}
         </div>
@@ -147,8 +172,9 @@ export default function RecurrenceApplyScopeDialog({
           <button
             type="button"
             onClick={onConfirm}
+            disabled={confirmDisabled || futurePreviewLoading}
             data-testid="recurrence-apply-scope-confirm"
-            className={`rounded-lg px-4 py-2 text-sm font-medium text-primary-foreground ${
+            className={`rounded-lg px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50 ${
               mode === "delete"
                 ? "bg-red-600 hover:bg-red-700"
                 : "bg-primary hover:bg-primary/90"

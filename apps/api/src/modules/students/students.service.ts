@@ -22,6 +22,7 @@ import { UpdateStudentDto } from './dto/update-student.dto';
 import { StudentDeleteResult, StudentDeletionService } from './student-deletion.service';
 import { StudentMergeService } from './student-merge.service';
 import { StudentsRepository } from './students.repository';
+import { StudentBalanceLedgerService } from '../student-balances/student-balance-ledger.service';
 
 @Injectable()
 export class StudentsService {
@@ -32,6 +33,7 @@ export class StudentsService {
     private readonly usersRepository: UsersRepository,
     private readonly studentDeletion: StudentDeletionService,
     private readonly studentMerge: StudentMergeService,
+    private readonly balanceLedger: StudentBalanceLedgerService,
     @InjectRepository(TeacherEntity)
     private readonly teacherRepo: Repository<TeacherEntity>,
     @InjectRepository(TutorEntity)
@@ -127,7 +129,34 @@ export class StudentsService {
       }
     }
 
+    // Opening balance must go through the ledger — insert with 0, then CREDIT initial.
+    const desiredInitial = Math.trunc(Number(payload.lessonBalance) || 0);
+    payload.lessonBalance = 0;
+
     const student = await this.roleEntitySync.upsertStudentFromCreate(payload);
+
+    if (desiredInitial !== 0) {
+      // If upsert matched an existing row that already had a balance, do not
+      // invent a second opening credit — only credit when counter is still 0
+      // and no initial ledger row exists.
+      const existingInitial = await this.balanceLedger.findByIdempotencyKey(
+        StudentBalanceLedgerService.initialKey(student.id),
+      );
+      if (!existingInitial && (student.lessonBalance ?? 0) === 0) {
+        await this.balanceLedger.apply({
+          studentId: student.id,
+          delta: desiredInitial,
+          operationType: 'initial',
+          sourceType: 'student_create',
+          sourceId: student.id,
+          idempotencyKey: StudentBalanceLedgerService.initialKey(student.id),
+          description: `initial balance on student create (${desiredInitial})`,
+          createdByUserId: actor.sub ?? null,
+        });
+        student.lessonBalance = desiredInitial;
+      }
+    }
+
     if (this.chatMembershipSync) {
       await this.chatMembershipSync.syncSubjectChatsForStudent(student.id);
     }
@@ -152,6 +181,10 @@ export class StudentsService {
     );
 
     const normalized: Record<string, unknown> = { ...payload };
+    // Hard rule: profile PATCH never mutates students.lesson_balance (stale FE forms).
+    // Admin corrections use StudentBalancesService.adjustLessonBalance instead.
+    delete normalized.lessonBalance;
+    delete normalized.lesson_balance;
     if (
       Object.prototype.hasOwnProperty.call(normalized, 'assignedTeacherId')
       && (normalized.assignedTeacherId === '' || normalized.assignedTeacherId === undefined)

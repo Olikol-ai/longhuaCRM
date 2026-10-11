@@ -220,4 +220,54 @@ export class ScheduleRepository {
   teacherExists(teacherId: string): Promise<boolean> {
     return this.teacherRepo.exist({ where: { id: teacherId } });
   }
+
+  findActiveTeachers(): Promise<TeacherEntity[]> {
+    return this.teacherRepo.find({
+      where: { status: 'active' },
+      order: { name: 'ASC' },
+    });
+  }
+
+  findTeacherById(teacherId: string): Promise<TeacherEntity | null> {
+    return this.teacherRepo.findOne({ where: { id: teacherId } });
+  }
+
+  /**
+   * Lessons that occupy teacher calendar time in [fromDate, toDate] inclusive.
+   * Uses teachers.id (never users.id). Includes student/group labels for UI.
+   */
+  findOccupyingLessonsForTeachersInRange(
+    teacherIds: string[],
+    fromDate: string,
+    toDate: string,
+  ): Promise<LessonEntity[]> {
+    if (teacherIds.length === 0) {
+      return Promise.resolve([]);
+    }
+    return this.lessonRepo
+      .createQueryBuilder('lesson')
+      .leftJoinAndSelect('lesson.primaryStudent', 'primaryStudent')
+      .leftJoinAndSelect('lesson.group', 'group')
+      .leftJoinAndSelect(
+        'lesson.primaryTeacherStudentContact',
+        'primaryTeacherStudentContact',
+      )
+      .leftJoinAndSelect('lesson.primaryTutorStudent', 'primaryTutorStudent')
+      .where('lesson.teacher_id IN (:...teacherIds)', { teacherIds })
+      .andWhere('lesson.date >= :fromDate', { fromDate })
+      .andWhere('lesson.date <= :toDate', { toDate })
+      .andWhere('lesson.status IN (:...occupyingStatuses)', {
+        occupyingStatuses: [...SCHEDULE_OCCUPYING_LESSON_STATUSES],
+      })
+      .orderBy('lesson.date', 'ASC')
+      .addOrderBy('lesson.start_time', 'ASC')
+      .getMany();
+  }
+
+  findOccupyingLessonsByTeacherAndDate(
+    teacherId: string,
+    date: string,
+  ): Promise<LessonEntity[]> {
+    return this.findOccupyingLessonsForTeachersInRange([teacherId], date, date);
+  }
 }

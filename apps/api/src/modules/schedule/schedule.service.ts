@@ -1,13 +1,20 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { FindOptionsWhere } from 'typeorm';
 import { ScheduleAccessService } from '../../common/access/schedule-access.service';
+import { normalizeRole } from '../../common/constants/roles';
 import { JwtPayload } from '../auth/auth.service';
+import { LessonEntity } from '../lessons/entities/lesson.entity';
 import { AvailabilityBookingEntity } from './entities/availability-booking.entity';
 import { AvailabilitySlotEntity } from './entities/availability-slot.entity';
 import { AvailabilitySlotItemDto } from './dto/replace-availability-slots.dto';
 import { CreateAvailabilitySlotDto } from './dto/create-availability-slot.dto';
 import { UpdateAvailabilitySlotDto } from './dto/update-availability-slot.dto';
 import { ScheduleRepository } from './schedule.repository';
+import {
+  ClockInterval,
+  computeFreeClockIntervals,
+  clockToMinutes,
+} from './teacher-free-schedule.util';
 
 export type AvailabilitySlot = {
   day: number;
@@ -20,11 +27,52 @@ export type TeacherScheduleInfo = {
   slots: AvailabilitySlot[];
 };
 
+export type LessonConflictInfo = {
+  lessonId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  duration: number;
+  lessonType: string;
+  participantLabel: string;
+  summary: string;
+};
+
 export type AvailabilityCheckResult = {
   available: boolean;
   hasSchedule: boolean;
   message?: string;
   slotsForDay: AvailabilitySlot[];
+  /** True when an occupying lesson overlaps the requested slot. */
+  occupied: boolean;
+  /**
+   * free — no lesson conflict and within declared schedule (or no schedule set)
+   * busy — lesson conflict
+   * outside_availability — no lesson conflict but outside declared weekly slots
+   */
+  status: 'free' | 'busy' | 'outside_availability';
+  conflict: LessonConflictInfo | null;
+};
+
+export type TeacherFreeDay = {
+  date: string;
+  weekday: number;
+  availability: ClockInterval[];
+  busy: ClockInterval[];
+  free: ClockInterval[];
+};
+
+export type TeacherFreeScheduleRow = {
+  teacherId: string;
+  teacherName: string;
+  hasSchedule: boolean;
+  days: TeacherFreeDay[];
+};
+
+export type FreeScheduleResult = {
+  from: string;
+  to: string;
+  teachers: TeacherFreeScheduleRow[];
 };
 
 /** Options for hard availability gating on lesson assignment. */
@@ -45,6 +93,9 @@ const CONFLICT_MESSAGE =
 
 const STUDENT_CONFLICT_MESSAGE =
   'У ученика уже есть другое занятие в это время.';
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_FREE_SCHEDULE_DAYS = 31;
 
 @Injectable()
 export class ScheduleService {
@@ -169,10 +220,102 @@ export class ScheduleService {
     date: string,
     startTime: string,
     duration: number,
+    excludeLessonId?: string,
   ): Promise<AvailabilityCheckResult> {
     await this.scheduleAccess.assertCanAccessTeacherSchedule(actor, teacherId);
     await this.assertTeacherExists(teacherId);
-    return this.evaluateAvailability(teacherId, date, startTime, duration);
+    return this.evaluateAvailability(
+      teacherId,
+      date,
+      startTime,
+      duration,
+      excludeLessonId,
+    );
+  }
+
+  /**
+   * Free intervals for teachers over a date range:
+   * free = declared weekly availability − occupying lessons (planned/completed).
+   * Recurring instances are already materialised as lesson rows by fillHorizon.
+   */
+  async getFreeSchedule(
+    actor: JwtPayload,
+    fromDate: string,
+    toDate: string,
+    teacherId?: string,
+  ): Promise<FreeScheduleResult> {
+    this.assertDateRange(fromDate, toDate);
+
+    const role = normalizeRole(actor.role);
+    if (teacherId) {
+      await this.scheduleAccess.assertCanAccessTeacherSchedule(actor, teacherId);
+    } else if (role !== 'admin') {
+      // Non-admins must pass their own teacherId (ACL enforced above).
+      throw new BadRequestException('teacherId is required');
+    }
+
+    const teachers = teacherId
+      ? [await this.repository.findTeacherById(teacherId)].filter(
+          (row): row is NonNullable<typeof row> => Boolean(row),
+        )
+      : await this.repository.findActiveTeachers();
+
+    if (teacherId && teachers.length === 0) {
+      throw new NotFoundException('Teacher not found');
+    }
+
+    const teacherIds = teachers.map((t) => t.id);
+    const slotsByTeacher = await this.loadSlotsForTeachers(teacherIds);
+    const lessons = await this.repository.findOccupyingLessonsForTeachersInRange(
+      teacherIds,
+      fromDate,
+      toDate,
+    );
+    const lessonsByTeacherDate = new Map<string, LessonEntity[]>();
+    for (const lesson of lessons) {
+      if (!lesson.teacherId) continue;
+      const key = `${lesson.teacherId}|${lesson.date}`;
+      const list = lessonsByTeacherDate.get(key) ?? [];
+      list.push(lesson);
+      lessonsByTeacherDate.set(key, list);
+    }
+
+    const dates = this.enumerateDatesInclusive(fromDate, toDate);
+    const rows: TeacherFreeScheduleRow[] = teachers.map((teacher) => {
+      const slots = slotsByTeacher.get(teacher.id) ?? [];
+      const hasSchedule = slots.length > 0;
+      const days: TeacherFreeDay[] = dates.map((date) => {
+        const weekday = this.dayIndexFromDate(date);
+        const availability: ClockInterval[] = hasSchedule
+          ? slots
+              .filter((slot) => slot.day === weekday)
+              .map((slot) => ({
+                from: this.formatTimeValue(slot.from),
+                to: this.formatTimeValue(slot.to),
+              }))
+          : [];
+        const dayLessons = lessonsByTeacherDate.get(`${teacher.id}|${date}`) ?? [];
+        const busy: ClockInterval[] = dayLessons.map((lesson) => {
+          const from = this.formatTimeValue(lesson.startTime);
+          const to = this.formatTimeValue(
+            this.addMinutesToTime(lesson.startTime, lesson.duration || 60),
+          );
+          return { from, to };
+        });
+        const free = hasSchedule
+          ? computeFreeClockIntervals(availability, busy)
+          : [];
+        return { date, weekday, availability, busy, free };
+      });
+      return {
+        teacherId: teacher.id,
+        teacherName: teacher.name,
+        hasSchedule,
+        days,
+      };
+    });
+
+    return { from: fromDate, to: toDate, teachers: rows };
   }
 
   /** Same rules as lesson creation — for advisory available-teachers list. */
@@ -231,54 +374,219 @@ export class ScheduleService {
     date: string,
     startTime: string,
     duration: number,
+    excludeLessonId?: string,
   ): Promise<AvailabilityCheckResult> {
     const slots = await this.loadSlots(teacherId);
-
-    if (slots.length === 0) {
-      return {
-        available: true,
-        hasSchedule: false,
-        slotsForDay: [],
-      };
-    }
-
+    const hasSchedule = slots.length > 0;
     const dayOfWeek = this.dayIndexFromDate(date);
     const slotsForDay = slots.filter((slot) => slot.day === dayOfWeek);
 
-    if (slotsForDay.length === 0) {
+    const timeFrom = this.normalizeTime(startTime);
+    const timeTo = this.addMinutesToTime(timeFrom, Number(duration) || 60);
+
+    const conflict = await this.findLessonConflict(
+      teacherId,
+      date,
+      timeFrom,
+      timeTo,
+      excludeLessonId,
+    );
+
+    let withinDeclared = true;
+    let message: string | undefined;
+    if (hasSchedule) {
+      if (slotsForDay.length === 0) {
+        withinDeclared = false;
+        message = UNAVAILABLE_MESSAGE;
+      } else {
+        withinDeclared = slotsForDay.some((slot) =>
+          this.rangeContained(
+            timeFrom,
+            timeTo,
+            this.normalizeTime(slot.from),
+            this.normalizeTime(slot.to),
+          ),
+        );
+        if (!withinDeclared) {
+          message = UNAVAILABLE_MESSAGE;
+        }
+      }
+    }
+
+    if (conflict) {
       return {
-        available: false,
-        hasSchedule: true,
-        message: UNAVAILABLE_MESSAGE,
-        slotsForDay: [],
+        available: withinDeclared,
+        hasSchedule,
+        message: CONFLICT_MESSAGE,
+        slotsForDay,
+        occupied: true,
+        status: 'busy',
+        conflict,
       };
     }
 
-    const timeFrom = this.normalizeTime(startTime);
-    const timeTo = this.addMinutesToTime(timeFrom, Number(duration) || 60);
-    const fitsSlot = slotsForDay.some((slot) =>
-      this.rangeContained(
-        timeFrom,
-        timeTo,
-        this.normalizeTime(slot.from),
-        this.normalizeTime(slot.to),
-      ),
-    );
-
-    if (!fitsSlot) {
+    if (!withinDeclared) {
       return {
         available: false,
-        hasSchedule: true,
-        message: UNAVAILABLE_MESSAGE,
+        hasSchedule,
+        message,
         slotsForDay,
+        occupied: false,
+        status: 'outside_availability',
+        conflict: null,
       };
     }
 
     return {
       available: true,
-      hasSchedule: true,
+      hasSchedule,
       slotsForDay,
+      occupied: false,
+      status: 'free',
+      conflict: null,
     };
+  }
+
+  private async findLessonConflict(
+    teacherId: string,
+    date: string,
+    timeFrom: string,
+    timeTo: string,
+    excludeLessonId?: string,
+  ): Promise<LessonConflictInfo | null> {
+    const lessons = await this.repository.findOccupyingLessonsByTeacherAndDate(
+      teacherId,
+      date,
+    );
+    for (const lesson of lessons) {
+      if (excludeLessonId && lesson.id === excludeLessonId) {
+        continue;
+      }
+      const lessonFrom = this.normalizeTime(lesson.startTime);
+      const lessonTo = this.addMinutesToTime(lessonFrom, lesson.duration || 60);
+      if (!this.rangesOverlap(timeFrom, timeTo, lessonFrom, lessonTo)) {
+        continue;
+      }
+      return this.toConflictInfo(lesson, lessonFrom, lessonTo);
+    }
+
+    const bookings = await this.repository.findActiveBookingsByTeacherAndDate(
+      teacherId,
+      date,
+    );
+    for (const booking of bookings) {
+      if (excludeLessonId && booking.lessonId === excludeLessonId) {
+        continue;
+      }
+      const bookingFrom = this.normalizeTime(booking.timeFrom);
+      const bookingTo = this.normalizeTime(booking.timeTo);
+      if (!this.rangesOverlap(timeFrom, timeTo, bookingFrom, bookingTo)) {
+        continue;
+      }
+      // Prefer lesson row details when available; otherwise generic booking label.
+      const linked = lessons.find((row) => row.id === booking.lessonId);
+      if (linked) {
+        return this.toConflictInfo(linked, bookingFrom, bookingTo);
+      }
+      const startTime = this.formatTimeValue(bookingFrom);
+      const endTime = this.formatTimeValue(bookingTo);
+      return {
+        lessonId: booking.lessonId,
+        date,
+        startTime,
+        endTime,
+        duration: Math.max(0, clockToMinutes(bookingTo) - clockToMinutes(bookingFrom)),
+        lessonType: 'booking',
+        participantLabel: 'бронирование',
+        summary: `Занят: бронирование, ${startTime}–${endTime}`,
+      };
+    }
+
+    return null;
+  }
+
+  private toConflictInfo(
+    lesson: LessonEntity,
+    lessonFrom: string,
+    lessonTo: string,
+  ): LessonConflictInfo {
+    const startTime = this.formatTimeValue(lessonFrom);
+    const endTime = this.formatTimeValue(lessonTo);
+    const lessonType = lesson.lessonType || 'individual';
+    const typeLabel =
+      lessonType === 'group'
+        ? 'групповой'
+        : lessonType === 'trial'
+          ? 'пробное'
+          : 'индивидуальный';
+    const participantLabel = this.resolveParticipantLabel(lesson);
+    const summary = `Занят: ${typeLabel}${
+      participantLabel ? `, ${participantLabel}` : ''
+    }, ${startTime}–${endTime}`;
+    return {
+      lessonId: lesson.id,
+      date: lesson.date,
+      startTime,
+      endTime,
+      duration: lesson.duration || 60,
+      lessonType,
+      participantLabel,
+      summary,
+    };
+  }
+
+  private resolveParticipantLabel(lesson: LessonEntity): string {
+    if (lesson.group?.name) {
+      return `группа ${lesson.group.name}`;
+    }
+    if (lesson.primaryStudent?.name) {
+      return `ученик ${lesson.primaryStudent.name}`;
+    }
+    if (lesson.primaryTeacherStudentContact?.name) {
+      return `ученик ${lesson.primaryTeacherStudentContact.name}`;
+    }
+    if (lesson.primaryTutorStudent?.name) {
+      return `ученик ${lesson.primaryTutorStudent.name}`;
+    }
+    if (lesson.lessonType === 'trial') {
+      return 'пробное занятие';
+    }
+    return '';
+  }
+
+  private assertDateRange(fromDate: string, toDate: string): void {
+    if (!ISO_DATE_RE.test(fromDate) || !ISO_DATE_RE.test(toDate)) {
+      throw new BadRequestException('from and to must be YYYY-MM-DD');
+    }
+    if (fromDate > toDate) {
+      throw new BadRequestException('from must be on or before to');
+    }
+    const days = this.enumerateDatesInclusive(fromDate, toDate);
+    if (days.length > MAX_FREE_SCHEDULE_DAYS) {
+      throw new BadRequestException(
+        `Период не может превышать ${MAX_FREE_SCHEDULE_DAYS} дней`,
+      );
+    }
+  }
+
+  private enumerateDatesInclusive(fromDate: string, toDate: string): string[] {
+    const dates: string[] = [];
+    let cursor = fromDate;
+    while (cursor <= toDate) {
+      dates.push(cursor);
+      cursor = this.addCalendarDays(cursor, 1);
+    }
+    return dates;
+  }
+
+  private addCalendarDays(isoDate: string, days: number): string {
+    const [year, month, day] = isoDate.split('-').map(Number);
+    const dt = new Date(Date.UTC(year, month - 1, day));
+    dt.setUTCDate(dt.getUTCDate() + days);
+    const y = dt.getUTCFullYear();
+    const m = String(dt.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(dt.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
 
   async assertAvailableForLesson(

@@ -7,7 +7,7 @@ import { resolveLessonStudentLabel } from '@/lib/studentLabels';
 import { inviteUrlFromResponse, inviteUrlFromRow, isActiveInvite } from '@/lib/invite-links';
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { Calendar, CheckCircle2, XCircle, Clock, Loader2, DollarSign, Link2, Copy, Video } from "lucide-react";
+import { Calendar, CheckCircle2, XCircle, Clock, Loader2, DollarSign, Link2, Copy } from "lucide-react";
 import { Button } from "@/design-system";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +19,6 @@ import {
   computeCompletedLessonsMonthStats,
   formatCompletedMonthComparison,
 } from "@/lib/completedLessonsMonthStats";
-import { isOnlineLesson, lessonVideoPath } from "@/lib/lesson-video";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -401,15 +400,6 @@ export default function TeacherDashboard() {
                            </div>
                            <div>
                              <p className="font-medium text-foreground">{resolveLessonStudentLabel(lesson, students)}</p>
-                    {isOnlineLesson(lesson) && (
-                      <a
-                        href={lessonVideoPath(lesson.id)}
-                        className="text-xs text-brand dark:text-brand hover:underline inline-flex items-center gap-1"
-                      >
-                        <Video className="h-3 w-3" />
-                        Начать видеоурок →
-                      </a>
-                    )}
                     {lesson.notes && <p className="text-xs text-muted-foreground mt-1">{lesson.notes}</p>}
                   </div>
                 </div>

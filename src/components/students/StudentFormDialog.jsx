@@ -30,6 +30,9 @@ const nativeFieldClass =
 /**
  * Admin create/edit school Student card.
  * Teacher picker: same native select + api.teachers.list() as UserManagement / Groups.
+ *
+ * Edit mode never sends lesson_balance — balance is SSOT via payments / lessons /
+ * admin Balance adjust. Create may set an initial pack balance only.
  */
 export default function StudentFormDialog({ open, onOpenChange, student, onSave }) {
   const [loading, setLoading] = useState(false);
@@ -44,6 +47,16 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
     notes: '',
     status: 'active',
   });
+
+  const isEdit = Boolean(student);
+  const displayBalance = (() => {
+    if (isEdit) {
+      const raw = Number(student?.lesson_balance ?? student?.lessonBalance ?? 0);
+      return Number.isFinite(raw) ? Math.trunc(raw) : 0;
+    }
+    const raw = Number(formData.lesson_balance);
+    return Number.isFinite(raw) ? Math.trunc(raw) : 0;
+  })();
 
   useEffect(() => {
     if (!open) return undefined;
@@ -67,7 +80,7 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
         email: student.email || '',
         phone: student.phone || '',
         assigned_teacher: student.assigned_teacher || student.assigned_teacher_id || '',
-        lesson_balance: student.lesson_balance ?? 0,
+        lesson_balance: student.lesson_balance ?? student.lessonBalance ?? 0,
         start_date: student.start_date || '',
         notes: student.notes || '',
         status: student.status || 'active',
@@ -104,14 +117,16 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
         phone: formData.phone || '',
         // Mapped by domain-client to assignedTeacherId for POST/PATCH /students
         assigned_teacher: teacherId,
-        lesson_balance: (() => {
-          const raw = Number(formData.lesson_balance);
-          return Number.isFinite(raw) ? Math.trunc(raw) : 0;
-        })(),
         start_date: emptyToNull(formData.start_date),
         notes: formData.notes || '',
         status: formData.status || 'active',
       };
+      // Create only: initial pack balance. Edit never sends lesson_balance
+      // (backend also rejects it on PATCH to stop stale-form overwrites).
+      if (!student) {
+        const raw = Number(formData.lesson_balance);
+        data.lesson_balance = Number.isFinite(raw) ? Math.trunc(raw) : 0;
+      }
       if (!student && !teacherId && (!formData.status || formData.status === 'active')) {
         data.status = 'pending_assignment';
       }
@@ -208,13 +223,30 @@ export default function StudentFormDialog({ open, onOpenChange, student, onSave 
           </div>
           <div className="space-y-2">
             <Label htmlFor="student-form-balance">Баланс уроков</Label>
-            <Input
-              id="student-form-balance"
-              type="number"
-              step={1}
-              value={formData.lesson_balance}
-              onChange={(e) => setFormData({ ...formData, lesson_balance: e.target.value })}
-            />
+            {isEdit ? (
+              <>
+                <Input
+                  id="student-form-balance"
+                  type="number"
+                  step={1}
+                  value={displayBalance}
+                  readOnly
+                  disabled
+                  className="bg-muted"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Остаток меняется платежами, списанием за занятия и разделом «Баланс».
+                </p>
+              </>
+            ) : (
+              <Input
+                id="student-form-balance"
+                type="number"
+                step={1}
+                value={formData.lesson_balance}
+                onChange={(e) => setFormData({ ...formData, lesson_balance: e.target.value })}
+              />
+            )}
           </div>
         </div>
 

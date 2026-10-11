@@ -5,7 +5,11 @@ import { TeacherAccessService } from '../../common/access/teacher-access.service
 import { normalizeRole } from '../../common/constants/roles';
 import { JwtPayload } from '../auth/auth.service';
 import { ChatMembershipSyncService } from '../chats/services/chat-membership-sync.service';
-import { LessonEntity, LessonStatus } from '../lessons/entities/lesson.entity';
+import {
+  LessonEntity,
+  LessonStatus,
+  SCHEDULE_OCCUPYING_LESSON_STATUSES,
+} from '../lessons/entities/lesson.entity';
 import { ScheduleService } from '../schedule/schedule.service';
 import { RoleEntitySyncService } from '../users/role-entity-sync.service';
 import { UserEntity } from '../users/entities/user.entity';
@@ -15,11 +19,10 @@ import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import { TeacherDeleteResult, TeacherDeletionService } from './teacher-deletion.service';
 import { TeachersRepository } from './teachers.repository';
 
-/**
- * Lesson statuses that block a teacher for the "available teachers" hint.
- * Spec lists planned / confirmed / in_progress; only `planned` exists in the schema today.
- */
-const BUSY_LESSON_STATUSES: LessonStatus[] = ['planned'];
+/** Same occupying statuses as schedule conflict checks. */
+const BUSY_LESSON_STATUSES: LessonStatus[] = [
+  ...SCHEDULE_OCCUPYING_LESSON_STATUSES,
+];
 
 export type AvailableTeacherHint = {
   id: string;

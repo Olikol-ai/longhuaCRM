@@ -31,6 +31,7 @@ import { SeriesExclusionEntity } from '../modules/schedule/entities/series-exclu
 import { SeriesStudentEntity } from '../modules/schedule/entities/series-student.entity';
 import { StudentEntity } from '../modules/students/entities/student.entity';
 import { StudentLessonBalanceAdjustmentEntity } from '../modules/student-balances/entities/student-lesson-balance-adjustment.entity';
+import { StudentBalanceLedgerEntity } from '../modules/student-balances/entities/student-balance-ledger.entity';
 import { TeacherEntity } from '../modules/teachers/entities/teacher.entity';
 import { TutorEntity } from '../modules/tutors/entities/tutor.entity';
 import { TutorStudentEntity } from '../modules/tutors/entities/tutor-student.entity';
@@ -63,6 +64,7 @@ export const ALL_V2_ENTITIES = [
   PendingRegistrationEntity,
   StudentEntity,
   StudentLessonBalanceAdjustmentEntity,
+  StudentBalanceLedgerEntity,
   TeacherEntity,
   TutorEntity,
   TutorStudentEntity,

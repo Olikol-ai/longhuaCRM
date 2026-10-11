@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuditModule } from '../audit/audit.module';
 import { ChatMembershipModule } from '../chats/chat-membership.module';
+import { StudentBalancesModule } from '../student-balances/student-balances.module';
 import { TeacherEntity } from '../teachers/entities/teacher.entity';
 import { TutorEntity } from '../tutors/entities/tutor.entity';
 import { TeacherStudentContactsModule } from '../teacher-student-contacts/teacher-student-contacts.module';
@@ -20,6 +21,7 @@ import { UsersModule } from '../users/users.module';
     forwardRef(() => UsersModule),
     ChatMembershipModule,
     TeacherStudentContactsModule,
+    StudentBalancesModule,
   ],
   controllers: [StudentsController],
   providers: [StudentsRepository, StudentsService, StudentDeletionService, StudentMergeService],

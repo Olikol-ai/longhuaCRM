@@ -14,8 +14,6 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import PendingApproval from './pages/PendingApproval';
 import { ThemeProvider } from '@/lib/ThemeContext';
-import { VideoSessionProvider } from '@/lib/VideoSessionContext';
-import VideoSessionLayer from '@/components/video/VideoSessionLayer';
 import PwaInstallController from '@/components/pwa/PwaInstallController';
 import PwaUpdateController from '@/components/pwa/PwaUpdateController';
 import OfflineStatusController from '@/components/pwa/OfflineStatusController';
@@ -43,7 +41,6 @@ const StudentExamFeedback = lazyRetry(() => import('./pages/StudentExamFeedback'
 const CertificateView = lazyRetry(() => import('./pages/CertificateView'));
 const CertificateVerify = lazyRetry(() => import('./pages/CertificateVerify'));
 const Payments = lazyRetry(() => import('./pages/Payments'));
-const PaymentReturn = lazyRetry(() => import('./pages/PaymentReturn'));
 const AdminAssessment = lazyRetry(() => import('./pages/AdminAssessment'));
 const AssessmentQuestions = lazyRetry(() => import('./pages/AssessmentQuestions'));
 const AssessmentExams = lazyRetry(() => import('./pages/AssessmentExams'));
@@ -74,7 +71,6 @@ const HomeworkEditor = lazyRetry(() => import('./pages/HomeworkEditor'));
 const HomeworkAssignment = lazyRetry(() => import('./pages/HomeworkAssignment'));
 const HomeworkResults = lazyRetry(() => import('./pages/HomeworkResults'));
 const HomeworkViewer = lazyRetry(() => import('./pages/HomeworkViewer'));
-const LessonVideo = lazyRetry(() => import('./pages/LessonVideo'));
 const Chats = lazyRetry(() => import('./pages/Chats'));
 const B2bSalesHub = lazyRetry(() => import('./pages/B2bSalesHub'));
 const SalesManagerDashboard = lazyRetry(() => import('./pages/SalesManagerDashboard'));
@@ -99,11 +95,11 @@ const LayoutWrapper = ({ children, currentPageName }) => {
     : <>{children}</>;
 };
 
-/** Old /TeacherPayments bookmarks → AdminPanel (salary) or role home. */
+/** Old /TeacherPayments bookmarks → AdminPanel salary tab or role home. */
 function TeacherPaymentsLegacyRedirect() {
   const { user } = useAuth();
   if (user?.role === 'admin') {
-    return <Navigate to="/AdminPanel" replace />;
+    return <Navigate to="/AdminPanel?tab=salary" replace />;
   }
   if (user?.role === 'teacher') {
     return <Navigate to="/TeacherDashboard" replace />;
@@ -197,8 +193,8 @@ const AuthenticatedApp = () => {
         <Route path="/Balance" element={<AdminRoute><LayoutWrapper currentPageName="Balance"><Balance /></LayoutWrapper></AdminRoute>} />
         <Route path="/AdminPanel" element={<AdminRoute><LayoutWrapper currentPageName="AdminPanel"><AdminPanel /></LayoutWrapper></AdminRoute>} />
         <Route path="/admin/tutors/:tutorId" element={<AdminRoute><LayoutWrapper currentPageName="AdminPanel"><AdminTutorDetail /></LayoutWrapper></AdminRoute>} />
-        <Route path="/Groups/:groupId" element={<AdminRoute><LayoutWrapper currentPageName="Groups"><GroupDetail /></LayoutWrapper></AdminRoute>} />
-        <Route path="/Groups" element={<AdminRoute><LayoutWrapper currentPageName="Groups"><Groups /></LayoutWrapper></AdminRoute>} />
+        <Route path="/Groups/:groupId" element={<TeacherRoute><LayoutWrapper currentPageName="Groups"><GroupDetail /></LayoutWrapper></TeacherRoute>} />
+        <Route path="/Groups" element={<TeacherRoute><LayoutWrapper currentPageName="Groups"><Groups /></LayoutWrapper></TeacherRoute>} />
         <Route path="/B2bSales" element={<AdminRoute><LayoutWrapper currentPageName="B2bSales"><B2bSalesHub /></LayoutWrapper></AdminRoute>} />
         <Route path="/SalesManagerDashboard" element={<SalesManagerRoute><LayoutWrapper currentPageName="SalesManagerDashboard"><SalesManagerDashboard /></LayoutWrapper></SalesManagerRoute>} />
         <Route path="/SalesDiary" element={<SalesManagerRoute><LayoutWrapper currentPageName="SalesDiary"><SalesDiary /></LayoutWrapper></SalesManagerRoute>} />
@@ -237,20 +233,9 @@ const AuthenticatedApp = () => {
             </PathAccessGuard>
           }
         />
-        <Route
-          path="/lesson/:id/video"
-          element={
-            <PathAccessGuard>
-              <LayoutWrapper currentPageName="LessonVideo">
-                <LessonVideo />
-              </LayoutWrapper>
-            </PathAccessGuard>
-          }
-        />
         <Route path="/certificate/:id" element={<CertificateView />} />
         <Route path="/Attendance" element={<Navigate to="/Groups" replace />} />
         <Route path="/Payments" element={<TeacherRoute><LayoutWrapper currentPageName="Payments"><Payments /></LayoutWrapper></TeacherRoute>} />
-        <Route path="/PaymentReturn" element={<StudentRoute><LayoutWrapper currentPageName="PaymentReturn"><PaymentReturn /></LayoutWrapper></StudentRoute>} />
         <Route path="/AdminAssessment" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AdminAssessment /></LayoutWrapper></AdminRoute>} />
         <Route path="/AssessmentQuestions" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentQuestions"><AssessmentQuestions /></LayoutWrapper></TeacherRoute>} />
         <Route path="/AssessmentExams" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentExams"><AssessmentExams /></LayoutWrapper></TeacherRoute>} />
@@ -264,9 +249,6 @@ const AuthenticatedApp = () => {
         <Route path="*" element={<OnboardingFallback />} />
       </Routes>
       </Suspense>
-      {/* Global floating / full lesson host — outside page Layout so route
-          changes never remount Jitsi/WebRTC. */}
-      <VideoSessionLayer />
     </RoleRouteGuard>
     </AppErrorBoundary>
   );
@@ -281,7 +263,6 @@ function App() {
         <PresenceProvider>
         <QueryClientProvider client={queryClientInstance}>
           <Router>
-            <VideoSessionProvider>
             <PwaUpdateController />
             <PwaInstallController />
             <OfflineStatusController />
@@ -301,7 +282,6 @@ function App() {
               />
               <Route path="*" element={<AuthenticatedApp />} />
             </Routes>
-            </VideoSessionProvider>
           </Router>
           <Toaster />
         </QueryClientProvider>

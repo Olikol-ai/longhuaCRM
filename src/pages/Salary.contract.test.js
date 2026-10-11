@@ -82,4 +82,44 @@ describe('Salary page monthly summary contract', () => {
     assert.match(salarySource, /Выплата за \$\{monthLabel\}/);
     assert.equal(salarySource.includes('day >= 15'), false);
   });
+
+  it('edits current teachers.hourly_rate via teachers.get/update in expanded details', () => {
+    assert.match(salarySource, /Текущая ставка/);
+    assert.match(salarySource, /BYN\/час/);
+    assert.match(salarySource, /salary-teacher-hourly-rate/);
+    assert.match(salarySource, /api\.teachers\.get\(teacherId\)/);
+    assert.match(salarySource, /api\.teachers\.update\(teacherId/);
+    assert.match(salarySource, /hourly_rate:\s*hourlyRate/);
+    assert.equal(salarySource.includes('api.teachers.list'), false);
+    assert.equal(salarySource.includes('teacher_rate'), false);
+    assert.equal(salarySource.includes('salary_rate'), false);
+  });
+});
+
+describe('Admin salary access via AdminPanel tab', () => {
+  const layoutSource = readFileSync(join(root, 'Layout.jsx'), 'utf8');
+  const adminPanelSource = readFileSync(join(root, 'pages', 'AdminPanel.jsx'), 'utf8');
+  const appSource = readFileSync(join(root, 'App.jsx'), 'utf8');
+
+  it('does not put Зарплата in the global admin sidebar', () => {
+    const adminNavMatch = layoutSource.match(/const adminNav = \[([\s\S]*?)\];/);
+    assert.ok(adminNavMatch, 'adminNav must exist');
+    assert.doesNotMatch(adminNavMatch[1], /name:\s*"Зарплата"/);
+    assert.doesNotMatch(adminNavMatch[1], /AdminPanel\?tab=salary/);
+    assert.doesNotMatch(adminNavMatch[1], /navKey:\s*"AdminPanelSalary"/);
+    assert.match(adminNavMatch[1], /page:\s*"AdminPanel"/);
+  });
+
+  it('keeps Зарплата as an AdminPanel tab synced with ?tab=', () => {
+    assert.match(adminPanelSource, /id:\s*"salary"/);
+    assert.match(adminPanelSource, /label:\s*"Зарплата"/);
+    assert.match(adminPanelSource, /activeTab === "salary" && <Salary/);
+    assert.match(adminPanelSource, /setSearchParams/);
+    assert.match(adminPanelSource, /selectTab/);
+    assert.match(adminPanelSource, /next\.set\("tab", tabId\)/);
+  });
+
+  it('redirects legacy /TeacherPayments to AdminPanel salary tab for admin', () => {
+    assert.match(appSource, /AdminPanel\?tab=salary/);
+  });
 });

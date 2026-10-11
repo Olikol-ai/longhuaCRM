@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { StudentEntity } from '../students/entities/student.entity';
+import { StudentBalancesModule } from '../student-balances/student-balances.module';
 import { TeacherStudentBalanceHistoryEntity } from './entities/teacher-student-balance-history.entity';
 import { TeacherStudentContactEntity } from './entities/teacher-student-contact.entity';
 import { TutorContactBalanceEntity } from './entities/tutor-contact-balance.entity';
@@ -16,6 +17,7 @@ import { TeacherStudentContactsService } from './teacher-student-contacts.servic
       TutorContactBalanceEntity,
       StudentEntity,
     ]),
+    StudentBalancesModule,
   ],
   controllers: [TeacherStudentContactsController],
   providers: [TeacherStudentContactsService, TeacherStudentContactBalanceService],

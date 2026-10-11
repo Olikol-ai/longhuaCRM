@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   TrendingUp,
@@ -26,11 +26,31 @@ const TABS = [
 
 const TAB_IDS = new Set(TABS.map((t) => t.id));
 
+function resolveTab(searchParams) {
+  const tab = searchParams.get("tab");
+  return tab && TAB_IDS.has(tab) ? tab : "analytics";
+}
+
 export default function AdminPanel() {
-  const [searchParams] = useSearchParams();
-  const initialTab = searchParams.get("tab");
-  const [activeTab, setActiveTab] = useState(
-    initialTab && TAB_IDS.has(initialTab) ? initialTab : "analytics",
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => resolveTab(searchParams));
+
+  useEffect(() => {
+    setActiveTab(resolveTab(searchParams));
+  }, [searchParams]);
+
+  const selectTab = useCallback(
+    (tabId) => {
+      setActiveTab(tabId);
+      const next = new URLSearchParams(searchParams);
+      if (tabId === "analytics") {
+        next.delete("tab");
+      } else {
+        next.set("tab", tabId);
+      }
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
   );
 
   return (
@@ -44,7 +64,7 @@ export default function AdminPanel() {
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => selectTab(tab.id)}
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium rounded-lg whitespace-nowrap transition-colors shrink-0 lg:px-3 lg:py-1.5 lg:text-sm ${
                   active
                     ? "bg-primary text-primary-foreground shadow-sm"

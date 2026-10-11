@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..');
 
-describe('student without account in admin registry', () => {
+describe('student merge UX + API contract', () => {
   it('registry service includes orphan student profiles', async () => {
     const source = readFileSync(
       join(root, 'apps/api/src/modules/users/user-registry.service.ts'),
@@ -23,9 +23,24 @@ describe('student without account in admin registry', () => {
     assert.match(page, /StudentMergeDialog/);
   });
 
-  it('students API exposes merge endpoints client', () => {
+  it('students API exposes merge endpoints client with primary in path', () => {
     const apiClient = readFileSync(join(root, 'src/api/students.api.js'), 'utf8');
     assert.match(apiClient, /mergeCandidates/);
-    assert.match(apiClient, /\/merge/);
+    assert.match(apiClient, /\/\$\{primaryStudentId\}\/merge/);
+    assert.match(apiClient, /secondaryStudentId/);
+  });
+
+  it('StudentMergeDialog locks primary to clicked account and shows both sides', () => {
+    const dialog = readFileSync(
+      join(root, 'src/components/users/StudentMergeDialog.jsx'),
+      'utf8',
+    );
+    assert.match(dialog, /primaryStudentId = user\?\.student_profile_id/);
+    assert.match(dialog, /lockedPrimaryId/);
+    assert.match(dialog, /Основной аккаунт \(останется\)/);
+    assert.match(dialog, /Присоединяемый аккаунт/);
+    assert.match(dialog, /merge-confirm-summary/);
+    assert.match(dialog, /api\.students\.merge\(lockedPrimaryId, lockedSecondaryId\)/);
+    assert.doesNotMatch(dialog, /createdAt|lessonCount|choosePrimary|swapPrimary/);
   });
 });

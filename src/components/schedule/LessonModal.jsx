@@ -75,7 +75,10 @@ export default function LessonModal({
   const [availableTeachers, setAvailableTeachers] = useState([]);
   const [availableLoading, setAvailableLoading] = useState(false);
   const [availableError, setAvailableError] = useState(null);
+  const [slotCheck, setSlotCheck] = useState(null);
+  const [slotCheckLoading, setSlotCheckLoading] = useState(false);
   const availableRequestId = useRef(0);
+  const slotCheckRequestId = useRef(0);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -151,6 +154,45 @@ export default function LessonModal({
     };
   }, [form.date, form.start_time, form.duration]);
 
+  useEffect(() => {
+    const teacherId = String(form.teacher_id || "").trim();
+    const dateValue = String(form.date || "").trim();
+    const startTime = String(form.start_time || "").trim();
+    if (!teacherId || !dateValue || !startTime) {
+      setSlotCheck(null);
+      setSlotCheckLoading(false);
+      return undefined;
+    }
+
+    const requestId = ++slotCheckRequestId.current;
+    setSlotCheckLoading(true);
+    const timer = setTimeout(() => {
+      api.schedule
+        .checkTeacherAvailability(teacherId, {
+          date: dateValue,
+          start_time: startTime,
+          duration: Number(form.duration) || 60,
+        })
+        .then((data) => {
+          if (slotCheckRequestId.current !== requestId) return;
+          setSlotCheck(data);
+        })
+        .catch(() => {
+          if (slotCheckRequestId.current !== requestId) return;
+          setSlotCheck(null);
+        })
+        .finally(() => {
+          if (slotCheckRequestId.current === requestId) {
+            setSlotCheckLoading(false);
+          }
+        });
+    }, AVAILABLE_DEBOUNCE_MS);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [form.teacher_id, form.date, form.start_time, form.duration]);
+
   const slotsForDay = useMemo(() => {
     if (!form.date || !teacherSchedule.hasSchedule) return [];
     const dayIndex = dayIndexFromDate(form.date);
@@ -172,10 +214,21 @@ export default function LessonModal({
     [contacts, form.teacher_id],
   );
   const activeTeachers = teachers.filter((t) => t.status !== "inactive");
-  const teacherGroups = useMemo(
-    () => groups.filter((g) => !form.teacher_id || g.teacher_id === form.teacher_id),
-    [groups, form.teacher_id],
-  );
+  const groupTeacherId = (g) => g.teacher_id ?? g.teacherId ?? "";
+  const selectableGroups = useMemo(() => {
+    const active = groups.filter((g) => (g.status ?? "active") !== "inactive");
+    if (!form.teacher_id) return active;
+    return active.filter((g) => groupTeacherId(g) === form.teacher_id);
+  }, [groups, form.teacher_id]);
+
+  const selectGroup = (groupId) => {
+    const group = groups.find((g) => g.id === groupId);
+    setForm((f) => ({
+      ...f,
+      group_id: groupId,
+      teacher_id: groupTeacherId(group) || f.teacher_id,
+    }));
+  };
 
   const availableIds = useMemo(
     () => new Set(availableTeachers.map((t) => t.id)),
@@ -190,6 +243,26 @@ export default function LessonModal({
     && !availableError
     && !availableIds.has(form.teacher_id),
   );
+
+  const teacherSlotStatus = (() => {
+    if (!form.teacher_id || !form.date || !form.start_time) return null;
+    if (slotCheckLoading) return { kind: "loading" };
+    if (!slotCheck) return null;
+    if (slotCheck.status === "busy" || slotCheck.occupied) {
+      return {
+        kind: "busy",
+        text: slotCheck.conflict?.summary
+          || `Занят ${slotCheck.conflict?.startTime || ""}–${slotCheck.conflict?.endTime || ""}`.trim(),
+      };
+    }
+    if (slotCheck.status === "outside_availability" || slotCheck.available === false) {
+      return {
+        kind: "outside",
+        text: "Вне заявленного графика преподавателя",
+      };
+    }
+    return { kind: "free", text: "Свободен" };
+  })();
 
   const showAvailablePanel = Boolean(form.date && form.start_time);
 
@@ -286,7 +359,16 @@ export default function LessonModal({
     setSaving(true);
     try {
       const result = await checkTeacherAvailability(form.date, form.start_time, duration);
-      if (!result?.available) {
+      if (result?.occupied || result?.status === "busy") {
+        alert(
+          result?.conflict?.summary
+            || result?.message
+            || "У преподавателя уже есть занятие в это время.",
+        );
+        setSaving(false);
+        return;
+      }
+      if (result?.status === "outside_availability" || result?.available === false) {
         if (isAdmin) {
           setPendingOutsidePayload(payload);
           setOutsideAvailabilityOpen(true);
@@ -333,16 +415,17 @@ export default function LessonModal({
       )}
       {selectedTeacherBusy && (
         <p className="mt-3 text-xs text-amber-900 border-t border-amber-200/70 pt-3">
-          Выбранный преподаватель уже имеет занятие в это время
-          {isAdmin ? " или находится вне своего заявленного графика." : "."}
+          {teacherSlotStatus?.kind === "busy"
+            ? `Выбранный преподаватель занят: ${teacherSlotStatus.text.replace(/^Занят:\s*/, "")}`
+            : "Выбранный преподаватель уже имеет занятие в это время или находится вне своего заявленного графика."}
         </p>
       )}
-      {isAdmin && form.teacher_id && !availableLoading && !availableError && !availableIds.has(form.teacher_id) && (
+      {isAdmin && form.teacher_id && teacherSlotStatus?.kind === "outside" && (
         <p className="mt-2 text-xs text-amber-900">
           Вне графика преподавателя — администратор может назначить занятие после подтверждения.
         </p>
       )}
-      {form.teacher_id && !selectedTeacherBusy && !availableLoading && !availableError && availableIds.has(form.teacher_id) && (
+      {form.teacher_id && teacherSlotStatus?.kind === "free" && !availableLoading && !availableError && (
         <p className="mt-3 text-xs text-emerald-800 border-t border-amber-200/70 pt-3">
           🟢 Выбранный преподаватель свободен в это время.
         </p>
@@ -392,6 +475,25 @@ export default function LessonModal({
                       ))}
                     </SelectContent>
                   </Select>
+                  {teacherSlotStatus?.kind === "loading" ? (
+                    <p className="mt-2 text-xs text-muted-foreground inline-flex items-center gap-1.5">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Проверяем занятость…
+                    </p>
+                  ) : teacherSlotStatus?.kind === "free" ? (
+                    <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-400">
+                      🟢 Свободен
+                    </p>
+                  ) : teacherSlotStatus?.kind === "busy" ? (
+                    <p className="mt-2 text-xs text-destructive">
+                      🔴 {teacherSlotStatus.text}
+                    </p>
+                  ) : teacherSlotStatus?.kind === "outside" ? (
+                    <p className="mt-2 text-xs text-amber-800 dark:text-amber-300">
+                      ⚪ {teacherSlotStatus.text}
+                      {isAdmin ? " — можно назначить после подтверждения" : ""}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="col-span-2">
@@ -506,28 +608,40 @@ export default function LessonModal({
                     )}
                   </>
                 ) : (
-                  <div className="col-span-2">
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Группа *</label>
-                    <Select
-                      value={form.group_id}
-                      onValueChange={(value) => set("group_id", value)}
-                      disabled={!form.teacher_id}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder={form.teacher_id ? "Выбрать группу" : "Сначала выберите преподавателя"} />
-                      </SelectTrigger>
-                      <SelectContent className={DROPDOWN_Z}>
-                        {teacherGroups.length === 0 ? (
-                          <SelectItem value="__none" disabled>
-                            {form.teacher_id ? "Нет групп у преподавателя" : "Сначала выберите преподавателя"}
-                          </SelectItem>
-                        ) : (
-                          teacherGroups.map((g) => (
-                            <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
+                  <div className="col-span-2 space-y-2">
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">Группа *</label>
+                      <Select
+                        value={form.group_id}
+                        onValueChange={selectGroup}
+                      >
+                        <SelectTrigger className="w-full" data-testid="lesson-group-select">
+                          <SelectValue placeholder="Выбрать группу" />
+                        </SelectTrigger>
+                        <SelectContent className={DROPDOWN_Z}>
+                          {selectableGroups.length === 0 ? (
+                            <SelectItem value="__none" disabled>
+                              {form.teacher_id
+                                ? "Нет групп у выбранного преподавателя"
+                                : "Нет доступных групп"}
+                            </SelectItem>
+                          ) : (
+                            selectableGroups.map((g) => (
+                              <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {form.group_id ? (
+                      <p className="text-xs text-muted-foreground">
+                        Преподаватель берётся из группы
+                        {form.teacher_id
+                          ? `: ${activeTeachers.find((t) => t.id === form.teacher_id)?.name || "—"}`
+                          : ""}
+                        . Состав участников фиксируется при создании занятия.
+                      </p>
+                    ) : null}
                   </div>
                 )}
 

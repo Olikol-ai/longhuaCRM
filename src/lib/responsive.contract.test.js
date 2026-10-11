@@ -34,17 +34,13 @@ describe('responsive foundation', () => {
     assert.match(read('components/ui/input.jsx'), /min-h-11/);
   });
 
-  it('adapts shell, chats, schedule, and lesson video for mobile', () => {
+  it('adapts shell, chats, and schedule for mobile', () => {
     assert.match(read('Layout.jsx'), /min-h-touch/);
     assert.match(read('pages/Chats.jsx'), /mobilePane/);
     assert.match(read('pages/Chats.jsx'), /backToChatList/);
     assert.match(read('components/chats/ChatMessagePane.jsx'), /ArrowLeft/);
     assert.match(read('components/schedule/SchoolScheduleCalendar.jsx'), /md:hidden/);
     assert.match(read('pages/Schedule.jsx'), /SchoolScheduleCalendar/);
-    assert.match(read('pages/LessonVideo.jsx'), /useIsMdUp/);
-    assert.match(read('pages/LessonVideo.jsx'), /useIsLgUp/);
-    assert.match(read('pages/LessonVideo.jsx'), /side=\{isMdUp \? 'right' : 'bottom'\}/);
-    assert.match(read('pages/LessonVideo.jsx'), /h-dvh|min-h-dvh/);
   });
 
   it('uses card layouts for key tables on small screens', () => {

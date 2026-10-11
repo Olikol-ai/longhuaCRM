@@ -64,4 +64,23 @@ export class GroupsRepository {
   filterMembers(where: FindOptionsWhere<GroupMemberEntity>): Promise<GroupMemberEntity[]> {
     return this.memberRepo.find({ where });
   }
+
+  async countMembersByGroupIds(groupIds: string[]): Promise<Map<string, number>> {
+    const ids = [...new Set(groupIds.filter(Boolean))];
+    const result = new Map<string, number>();
+    if (ids.length === 0) {
+      return result;
+    }
+    const rows = await this.memberRepo
+      .createQueryBuilder('m')
+      .select('m.group_id', 'groupId')
+      .addSelect('COUNT(*)::int', 'cnt')
+      .where('m.group_id IN (:...ids)', { ids })
+      .groupBy('m.group_id')
+      .getRawMany<{ groupId: string; cnt: string | number }>();
+    for (const row of rows) {
+      result.set(row.groupId, Math.trunc(Number(row.cnt) || 0));
+    }
+    return result;
+  }
 }

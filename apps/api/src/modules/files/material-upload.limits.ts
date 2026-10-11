@@ -1,11 +1,28 @@
 /**
  * Shared materials upload limits and extension allowlist.
- * Used by Multer, SecureFilesService, and error messages.
+ * Used by Multer, SecureFilesService, ChunkedUploadService, and error messages.
  */
 import { extname } from 'path';
 
-/** Default 2 GiB — textbooks ~100–300 MB and video lessons need headroom. */
-export const DEFAULT_MATERIALS_MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024;
+/** 1 GiB in bytes (binary). */
+export const GIB_BYTES = 1024 * 1024 * 1024;
+
+/**
+ * Absolute product limit for one materials file (ZIP / video / textbook).
+ * Env MATERIALS_MAX_UPLOAD_BYTES may only lower this, never raise it.
+ */
+export const DEFAULT_MATERIALS_MAX_UPLOAD_BYTES = 5 * GIB_BYTES;
+
+/**
+ * Stay under Cloudflare Free/Pro ~100 MB request body (multipart overhead).
+ * Keep in sync with frontend MATERIALS_UPLOAD_CHUNK_BYTES in src/api/http.js.
+ */
+export const MATERIALS_UPLOAD_CHUNK_BYTES = 40 * 1024 * 1024;
+
+/** Max chunk parts for one session at the absolute size limit (5 GiB / 40 MiB = 128). */
+export const MATERIALS_UPLOAD_MAX_CHUNKS = Math.ceil(
+  DEFAULT_MATERIALS_MAX_UPLOAD_BYTES / MATERIALS_UPLOAD_CHUNK_BYTES,
+);
 
 export const MATERIALS_ALLOWED_EXTENSIONS = new Set([
   '.pdf',
@@ -77,14 +94,16 @@ export type MaterialUploadFileKind =
   | 'other';
 
 export function getMaterialsMaxUploadBytes(): number {
+  const absoluteMax = DEFAULT_MATERIALS_MAX_UPLOAD_BYTES;
   const raw = (process.env.MATERIALS_MAX_UPLOAD_BYTES || '').trim();
   if (raw) {
     const parsed = Number.parseInt(raw, 10);
     if (Number.isFinite(parsed) && parsed > 0) {
-      return parsed;
+      // Env may lower the limit (ops / staging); never raise above product max.
+      return Math.min(parsed, absoluteMax);
     }
   }
-  return DEFAULT_MATERIALS_MAX_UPLOAD_BYTES;
+  return absoluteMax;
 }
 
 export function formatMaterialsMaxUploadLabel(bytes = getMaterialsMaxUploadBytes()): string {

@@ -1,8 +1,6 @@
-import { Type } from 'class-transformer';
 import {
   IsEmail,
   IsEnum,
-  IsInt,
   IsOptional,
   IsString,
   IsUUID,
@@ -14,7 +12,12 @@ import { StudentStatus } from '../entities/student.entity';
  * Empty strings from the FE are treated as “omit / clear” via ValidateIf,
  * so @IsEmail / @IsUUID do not reject "".
  *
- * lessonBalance may be negative (student debt). Never constrain with a non-negative minimum.
+ * lessonBalance is intentionally absent: ordinary PATCH /students must never
+ * overwrite students.lesson_balance (stale forms). Use admin balance adjust /
+ * payments / lesson completion / merge instead.
+ *
+ * With ValidationPipe whitelist=true, a client-sent lessonBalance is stripped
+ * before the service runs; StudentsService.update also deletes it defensively.
  */
 export class UpdateStudentDto {
   @IsOptional()
@@ -57,11 +60,6 @@ export class UpdateStudentDto {
   @ValidateIf((_o, v) => v !== null && v !== undefined && String(v).trim() !== '')
   @IsUUID()
   assignedTutorId?: string | null;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  lessonBalance?: number;
 
   @IsOptional()
   @IsString()

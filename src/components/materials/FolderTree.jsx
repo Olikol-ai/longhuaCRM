@@ -4,6 +4,7 @@ import { api } from '@/api';
 import { toast } from '@/components/ui/use-toast';
 import { getCourseDisplayName } from '@/lib/courseLabels';
 import { isMaterialDrag, readMaterialDragIds } from '@/lib/materialDrag';
+import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -641,6 +642,7 @@ export default function FolderTree({
   currentUserId = null,
   canReceiveMaterials = false,
   onDropMaterials,
+  className,
 }) {
   // Teachers/students must not use DnD: missing drag handles crash @hello-pangea/dnd
   // ("Unable to find drag handle") when Draggable is enabled without a handle element.
@@ -944,7 +946,10 @@ export default function FolderTree({
 
   return (
     <aside
-      className="w-full lg:w-80 shrink-0 border border-border rounded-xl bg-card overflow-hidden flex flex-col max-h-[50vh] lg:max-h-[70vh]"
+      className={cn(
+        'w-full lg:w-80 shrink-0 border border-border rounded-xl bg-card overflow-hidden flex flex-col max-h-[50vh] lg:max-h-[70vh]',
+        className,
+      )}
       data-testid="materials-course-tree"
     >
       <div className="px-3 py-2.5 border-b border-border bg-muted/40 space-y-2">

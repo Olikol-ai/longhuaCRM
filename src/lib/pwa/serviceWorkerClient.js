@@ -43,7 +43,7 @@ function requestUpdateUi(phase, reason) {
 
 /**
  * Ask waiting worker to activate, then perform controlled document reload.
- * Must not be called while VideoSession is active.
+ * Safe to call when reloadGate is not blocking.
  */
 export async function activateWaitingServiceWorkerAndReload(reason = 'sw_update') {
   if (shouldDeferAppReload()) {

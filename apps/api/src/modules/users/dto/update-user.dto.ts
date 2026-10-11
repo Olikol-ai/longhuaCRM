@@ -1,4 +1,5 @@
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
+import { USER_STATUSES } from '../../auth/onboarding';
 
 export class UpdateUserDto {
   @IsOptional()
@@ -6,7 +7,7 @@ export class UpdateUserDto {
   role?: string;
 
   @IsOptional()
-  @IsString()
+  @IsIn([...USER_STATUSES])
   status?: string;
 
   @IsOptional()
