@@ -504,6 +504,55 @@ export class AssessmentAccessService {
     throw new ForbiddenException('Forbidden: cannot access foreign Result');
   }
 
+  /**
+   * Narrower than assertCanReadResult: only the assignment assigner (or admin)
+   * may change the final score. Broader teacher view ACL does NOT grant edit.
+   */
+  async assertCanAdjustFinalScore(
+    actor: DomainAccessActor,
+    resultId: string,
+  ): Promise<AssessmentResultEntity> {
+    const result = await this.requireResult(resultId);
+    if (this.isAdmin(actor)) {
+      return result;
+    }
+    if (!this.isTeacher(actor) && !this.isTutor(actor)) {
+      throw new ForbiddenException(
+        'Forbidden: only the assigning teacher/tutor or admin can adjust final score',
+      );
+    }
+
+    const attempt = await this.requireAttempt(result.attemptId);
+    if (!attempt.assignmentId) {
+      throw new ForbiddenException(
+        'Forbidden: result has no assignment; only admin can adjust final score',
+      );
+    }
+
+    const assignment = await this.requireAssignment(attempt.assignmentId);
+    if (assignment.examId !== result.examId) {
+      throw new ForbiddenException('Forbidden: assignment/exam mismatch');
+    }
+    if (assignment.assignedByUserId !== actor.sub) {
+      throw new ForbiddenException(
+        'Forbidden: only the teacher who assigned this exam can adjust final score',
+      );
+    }
+    return result;
+  }
+
+  async canAdjustFinalScore(
+    actor: DomainAccessActor,
+    resultId: string,
+  ): Promise<boolean> {
+    try {
+      await this.assertCanAdjustFinalScore(actor, resultId);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async assertCanViewResults(actor: DomainAccessActor, attemptId: string): Promise<void> {
     await this.assertCanAccessAttempt(actor, attemptId);
   }

@@ -46,6 +46,9 @@ export default function TeacherAssessmentReviewDetail() {
   const [comments, setComments] = useState({});
   const [saving, setSaving] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
+  const [finalScoreDraft, setFinalScoreDraft] = useState('');
+  const [finalScoreReason, setFinalScoreReason] = useState('');
+  const [adjustingFinal, setAdjustingFinal] = useState(false);
 
   const applyBundle = useCallback((payload) => {
     setBundle(payload);
@@ -58,6 +61,8 @@ export default function TeacherAssessmentReviewDetail() {
     }
     setScores(nextScores);
     setComments(nextComments);
+    const final = payload?.result?.score;
+    setFinalScoreDraft(final == null || final === '' ? '' : String(final));
   }, []);
 
   const reload = useCallback(async () => {
@@ -109,6 +114,13 @@ export default function TeacherAssessmentReviewDetail() {
     reviewStatus === 'reviewed' ||
     result?.status === 'passed' ||
     result?.status === 'failed';
+  const canAdjustFinalScore = Boolean(bundle?.can_adjust_final_score);
+  const autoScoreLabel =
+    result?.auto_score == null || result?.auto_score === ''
+      ? 'не зафиксирован'
+      : String(result.auto_score);
+  const scoreSourceLabel =
+    result?.score_source === 'manual' ? 'вручную' : 'автоматически';
 
   const manualItems = useMemo(
     () => items.filter((i) => i.requires_manual_review),
@@ -193,6 +205,74 @@ export default function TeacherAssessmentReviewDetail() {
     }
   };
 
+  const handleAdjustFinalScore = async () => {
+    if (!resultId || !canAdjustFinalScore) return;
+    const maxScore = Number(result?.max_score);
+    const next = Number(finalScoreDraft);
+    if (Number.isNaN(next)) {
+      toast({
+        title: 'Некорректный балл',
+        description: 'Введите число',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (next < 0 || next > maxScore) {
+      toast({
+        title: 'Балл вне диапазона',
+        description: `Допустимо от 0 до ${maxScore}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    const current = Number(result?.score);
+    if (next === current) {
+      toast({ title: 'Итоговый балл не изменился' });
+      return;
+    }
+    const confirmed = window.confirm(
+      `Изменить итоговый балл с ${result?.score} на ${next} (из ${maxScore})?\n` +
+        'Баллы за отдельные вопросы не изменятся.',
+    );
+    if (!confirmed) return;
+
+    setAdjustingFinal(true);
+    try {
+      const updated = await api.assessment.adjustResultFinalScore(resultId, {
+        score: next,
+        expected_score: current,
+        reason: finalScoreReason.trim() || null,
+      });
+      await reload();
+      toast({
+        title:
+          updated.passed || updated.status === 'passed'
+            ? 'Итоговый балл сохранён — экзамен сдан'
+            : 'Итоговый балл сохранён — экзамен не сдан',
+      });
+      setFinalScoreReason('');
+    } catch (err) {
+      const message = err?.message || 'Попробуйте ещё раз';
+      const isConflict =
+        err?.status === 409 ||
+        /concurrently|конфликт|reload and try again/i.test(String(message));
+      toast({
+        title: isConflict
+          ? 'Балл уже изменён'
+          : 'Не удалось изменить итоговый балл',
+        description: isConflict
+          ? 'Данные устарели. Страница будет обновлена — проверьте текущий балл и повторите.'
+          : message,
+        variant: 'destructive',
+      });
+      if (isConflict) {
+        await reload().catch(() => undefined);
+      }
+    } finally {
+      setAdjustingFinal(false);
+    }
+  };
+
   if (!resultId) {
     return (
       <div className="p-6 max-w-lg mx-auto text-center space-y-4">
@@ -250,19 +330,86 @@ export default function TeacherAssessmentReviewDetail() {
       </div>
 
       {isFinalized && (
-        <div className="rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/30 p-5 flex gap-3 items-start">
-          <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <p className="font-semibold text-emerald-900 dark:text-emerald-100">
-              {result?.passed || result?.status === 'passed'
-                ? 'Экзамен сдан'
-                : 'Экзамен не сдан'}
-            </p>
-            <p className="text-sm text-emerald-800/90 dark:text-emerald-200/90">
-              Балл: {result?.score} / {result?.max_score}
-              {result?.percent != null ? ` (${result.percent}%)` : ''}
-            </p>
+        <div className="rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/30 p-5 space-y-4">
+          <div className="flex gap-3 items-start">
+            <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-semibold text-emerald-900 dark:text-emerald-100">
+                {result?.passed || result?.status === 'passed'
+                  ? 'Экзамен сдан'
+                  : 'Экзамен не сдан'}
+              </p>
+              <p className="text-sm text-emerald-800/90 dark:text-emerald-200/90">
+                Окончательный балл: {result?.score} / {result?.max_score}
+                {result?.percent != null ? ` (${result.percent}%)` : ''}
+                {' · '}источник: {scoreSourceLabel}
+              </p>
+              <p className="text-sm text-emerald-800/80 dark:text-emerald-200/80">
+                Автоматический балл (сумма по вопросам): {autoScoreLabel}
+                {result?.max_score != null ? ` / ${result.max_score}` : ''}
+              </p>
+            </div>
           </div>
+
+          {canAdjustFinalScore && (
+            <div
+              className="rounded-xl border border-emerald-200/80 dark:border-emerald-800 bg-white/70 dark:bg-slate-950/40 p-4 space-y-3"
+              data-testid="teacher-adjust-final-score"
+            >
+              <p className="text-sm font-medium text-foreground">
+                Изменить только итоговый балл
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Баллы за отдельные вопросы и ответы ученика не изменятся.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">
+                    Итоговый балл (макс. {result?.max_score})
+                  </label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max={result?.max_score}
+                    step="0.01"
+                    disabled={adjustingFinal}
+                    value={finalScoreDraft}
+                    onChange={(e) => setFinalScoreDraft(e.target.value)}
+                    data-testid="teacher-final-score-input"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">
+                    Причина (необязательно)
+                  </label>
+                  <Input
+                    disabled={adjustingFinal}
+                    value={finalScoreReason}
+                    onChange={(e) => setFinalScoreReason(e.target.value)}
+                    placeholder="Кратко, для журнала"
+                    data-testid="teacher-final-score-reason"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  className="bg-primary hover:bg-primary/90"
+                  disabled={adjustingFinal}
+                  onClick={handleAdjustFinalScore}
+                  data-testid="teacher-final-score-save"
+                >
+                  {adjustingFinal ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Сохранение…
+                    </>
+                  ) : (
+                    'Сохранить итоговый балл'
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -1,7 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, Repository } from 'typeorm';
-import { AssessmentResultBreakdownEntity, AssessmentResultEntity } from '../entities';
+import {
+  AssessmentChangeJournalEntity,
+  AssessmentResultBreakdownEntity,
+  AssessmentResultEntity,
+} from '../entities';
+
+export type FinalScoreAuditInsert = {
+  actorUserId: string | null;
+  summary: string;
+  oldVersion: string;
+  newVersion: string;
+};
 
 @Injectable()
 export class AssessmentResultRepository {
@@ -45,6 +56,53 @@ export class AssessmentResultRepository {
   ): Promise<AssessmentResultEntity | null> {
     await this.resultRepo.update({ id }, data);
     return this.findById(id);
+  }
+
+  /**
+   * Optimistic final-score update + required audit row in one transaction.
+   * Returns null when another writer changed the score concurrently.
+   * If the journal insert fails, the score change is rolled back.
+   */
+  async updateFinalScoreIfExpected(
+    id: string,
+    expectedScore: string,
+    data: Partial<AssessmentResultEntity>,
+    audit: FinalScoreAuditInsert,
+  ): Promise<AssessmentResultEntity | null> {
+    return this.resultRepo.manager.transaction(async (manager) => {
+      const repo = manager.getRepository(AssessmentResultEntity);
+      const journalRepo = manager.getRepository(AssessmentChangeJournalEntity);
+      const current = await repo.findOne({
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!current) {
+        return null;
+      }
+      if (Number(current.score) !== Number(expectedScore)) {
+        return null;
+      }
+      await repo.update({ id }, data);
+      const loaded = await repo.findOne({
+        where: { id },
+        relations: ['breakdowns'],
+      });
+      if (!loaded) {
+        throw new Error(`Result ${id} not found after final-score update`);
+      }
+      await journalRepo.save(
+        journalRepo.create({
+          actorUserId: audit.actorUserId,
+          entityType: 'assessment_result',
+          entityId: id,
+          action: 'final_score_adjust',
+          summary: audit.summary,
+          oldVersion: audit.oldVersion,
+          newVersion: audit.newVersion,
+        }),
+      );
+      return loaded;
+    });
   }
 
   async delete(id: string): Promise<void> {

@@ -256,6 +256,14 @@ export const assessment = {
     });
   },
 
+  /** Assigner/admin: change final score only (does not alter per-question scores). */
+  adjustResultFinalScore(resultId, body) {
+    return apiFetch(`/assessment/results/${resultId}/final-score`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  },
+
   uploadSpeakingAudio(attemptId, questionSnapshotId, file, durationMs) {
     const formData = new FormData();
     formData.append('file', file);

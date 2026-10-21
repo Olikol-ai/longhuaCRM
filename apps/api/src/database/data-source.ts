@@ -93,6 +93,7 @@ import { SalesDiaryFoundation1747000000000 } from './migrations/1747000000000-Sa
 import { StudentMergeFoundation1747100000000 } from './migrations/1747100000000-StudentMergeFoundation';
 import { StudentLessonBalanceAdjustments1747200000000 } from './migrations/1747200000000-StudentLessonBalanceAdjustments';
 import { StudentBalanceLedger1747300000000 } from './migrations/1747300000000-StudentBalanceLedger';
+import { AssessmentResultFinalScore1747400000000 } from './migrations/1747400000000-AssessmentResultFinalScore';
 
 export default new DataSource({
   ...getDatabaseDataSourceOptions(),
@@ -189,6 +190,7 @@ export default new DataSource({
     StudentMergeFoundation1747100000000,
     StudentLessonBalanceAdjustments1747200000000,
     StudentBalanceLedger1747300000000,
+    AssessmentResultFinalScore1747400000000,
   ],
   synchronize: false,
 });

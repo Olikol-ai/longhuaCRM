@@ -33,3 +33,4 @@ export {
   SaveReviewDto,
   ReviewAnswerItemDto,
 } from './results/save-review.dto';
+export { AdjustFinalScoreDto } from './results/adjust-final-score.dto';

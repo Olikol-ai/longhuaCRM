@@ -20,7 +20,12 @@ import { Roles } from '../../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { JwtPayload } from '../../auth/auth.service';
-import { ListResultsQueryDto, SaveReviewDto, paginateArray } from '../dto';
+import {
+  AdjustFinalScoreDto,
+  ListResultsQueryDto,
+  SaveReviewDto,
+  paginateArray,
+} from '../dto';
 import { ResultService } from '../services/result.service';
 
 @ApiTags('Assessment Results')
@@ -89,6 +94,25 @@ export class AssessmentResultsController {
     @Param('resultId', ParseUUIDPipe) resultId: string,
   ) {
     return this.results.finalizeReview(resultId, user);
+  }
+
+  @Patch(':resultId/final-score')
+  @Roles('admin', 'teacher', 'tutor')
+  @ApiOperation({
+    summary:
+      'Adjust final score only (assigning teacher or admin; passed/failed)',
+  })
+  @ApiResponse({ status: 200, description: 'Final score updated' })
+  adjustFinalScore(
+    @CurrentUser() user: JwtPayload,
+    @Param('resultId', ParseUUIDPipe) resultId: string,
+    @Body() dto: AdjustFinalScoreDto,
+  ) {
+    return this.results.adjustFinalScore(resultId, user, {
+      score: dto.score,
+      expectedScore: dto.expected_score,
+      reason: dto.reason,
+    });
   }
 
   @Get(':resultId/feedback')

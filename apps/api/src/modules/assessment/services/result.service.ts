@@ -17,6 +17,7 @@ import {
   EvaluationType,
   QuestionType,
   ResultStatus,
+  ScoreSource,
   ShowCorrectAnswers,
   isManualReviewQuestionType,
 } from '../enums';
@@ -72,6 +73,14 @@ export type ReviewBundle = {
   reviewStatus: 'not_reviewed' | 'in_progress' | 'reviewed';
   items: ReviewItemView[];
   manualPendingCount: number;
+  /** Assigner/admin may edit final score only on passed/failed results. */
+  canAdjustFinalScore: boolean;
+};
+
+export type AdjustFinalScoreInput = {
+  score: number;
+  expectedScore: number;
+  reason?: string | null;
 };
 
 /** Read-only student-facing feedback — no examiner internals. */
@@ -121,7 +130,7 @@ export class ResultService {
     const result = await this.access.assertCanReadResult(actor, id);
     const withBreakdowns =
       (await this.results.findByAttemptId(result.attemptId)) ?? result;
-    return toResultDto(withBreakdowns);
+    return this.toActorResultDto(withBreakdowns, actor);
   }
 
   findByAttemptId(attemptId: string): Promise<AssessmentResultEntity | null> {
@@ -137,7 +146,7 @@ export class ResultService {
       await this.results.findByAttemptId(attemptId),
       'Result',
     );
-    return toResultDto(result);
+    return this.toActorResultDto(result, actor);
   }
 
   async listFiltered(
@@ -242,13 +251,16 @@ export class ResultService {
       }),
     );
 
+    const autoScoreValue = String(scored.score);
     const processing = await this.results.saveWithBreakdowns(
       {
         attemptId: attempt.id,
         examId: attempt.examId,
         status: ResultStatus.Processing,
         evaluationType,
-        score: String(scored.score),
+        score: autoScoreValue,
+        autoScore: autoScoreValue,
+        scoreSource: ScoreSource.Auto,
         maxScore: String(scored.maxScore),
         percent: scored.percent.toFixed(2),
         passed: false,
@@ -294,6 +306,9 @@ export class ResultService {
     this.assertCanPerformReview(actor);
     const result = await this.access.assertCanReadResult(actor, resultId);
     const items = await this.buildReviewItems(result.attemptId);
+    const canAdjustFinalScore =
+      this.isFinalScoreAdjustableStatus(result.status) &&
+      (await this.access.canAdjustFinalScore(actor, resultId));
     return {
       result,
       reviewStatus: this.resolveReviewStatus(result, items),
@@ -301,6 +316,7 @@ export class ResultService {
       manualPendingCount: items.filter(
         (i) => i.requiresManualReview && i.score == null,
       ).length,
+      canAdjustFinalScore,
     };
   }
 
@@ -371,7 +387,7 @@ export class ResultService {
     }
 
     return {
-      result: toResultDto(withBreakdowns),
+      result: this.toActorResultDto(withBreakdowns, actor),
       items: feedbackItems,
       show_correct_answers: showCorrect,
     };
@@ -471,6 +487,9 @@ export class ResultService {
     }
 
     const items = await this.buildReviewItems(result.attemptId);
+    const canAdjustFinalScore =
+      this.isFinalScoreAdjustableStatus(result.status) &&
+      (await this.access.canAdjustFinalScore(actor, resultId));
     return {
       result,
       reviewStatus: this.resolveReviewStatus(result, items),
@@ -478,12 +497,14 @@ export class ResultService {
       manualPendingCount: items.filter(
         (i) => i.requiresManualReview && i.score == null,
       ).length,
+      canAdjustFinalScore,
     };
   }
 
   /**
    * Finalize manual review: pending_review → passed | failed.
-   * Recalculates score / max_score / percent from answer scores.
+   * Recalculates auto sum from answer scores. Writes final score only when
+   * score_source is still auto (manual override must never be wiped).
    */
   async finalizeReview(
     resultId: string,
@@ -588,6 +609,8 @@ export class ResultService {
     const percent = totalMax > 0 ? (totalScore / totalMax) * 100 : 0;
     const passed = this.scoring.resolvePassed(totalScore, percent, rule);
     const nextStatus = passed ? ResultStatus.Passed : ResultStatus.Failed;
+    const autoScoreValue = String(totalScore);
+    const preserveManualFinal = result.scoreSource === ScoreSource.Manual;
 
     const breakdowns: Partial<AssessmentResultBreakdownEntity>[] = [
       ...sectionScores.values(),
@@ -598,15 +621,35 @@ export class ResultService {
       maxScore: String(section.maxScore),
     }));
 
+    // Always leave pending_review. If a manual final somehow exists, keep that
+    // score but still finalize status/percent/passed from the preserved final.
+    const patch: Partial<AssessmentResultEntity> = {
+      autoScore: autoScoreValue,
+      maxScore: String(totalMax),
+    };
+    if (preserveManualFinal) {
+      const keptScore = Number(result.score);
+      const keptPercent =
+        totalMax > 0 ? (keptScore / totalMax) * 100 : 0;
+      const keptPassed = this.scoring.resolvePassed(
+        keptScore,
+        keptPercent,
+        rule,
+      );
+      patch.status = keptPassed ? ResultStatus.Passed : ResultStatus.Failed;
+      patch.passed = keptPassed;
+      patch.percent = keptPercent.toFixed(2);
+    } else {
+      patch.status = nextStatus;
+      patch.passed = passed;
+      patch.score = autoScoreValue;
+      patch.scoreSource = ScoreSource.Auto;
+      patch.percent = percent.toFixed(2);
+    }
+
     const updated = await this.results.updateWithBreakdowns(
       result.id,
-      {
-        status: nextStatus,
-        passed,
-        score: String(totalScore),
-        maxScore: String(totalMax),
-        percent: percent.toFixed(2),
-      },
+      patch,
       breakdowns,
     );
 
@@ -616,6 +659,93 @@ export class ResultService {
     this.events?.emit(ASSESSMENT_RESULT_REVIEWED, updated);
 
     return updated;
+  }
+
+  /**
+   * Assigner/admin override of final score only (passed/failed).
+   * Does not mutate answers, per-question scores, or auto_score.
+   */
+  async adjustFinalScore(
+    resultId: string,
+    actor: DomainAccessActor,
+    input: AdjustFinalScoreInput,
+  ): Promise<ReturnType<typeof toResultDto>> {
+    const result = await this.access.assertCanAdjustFinalScore(actor, resultId);
+    if (!this.isFinalScoreAdjustableStatus(result.status)) {
+      throw new ConflictException(
+        'Final score can only be adjusted after the result is passed or failed',
+      );
+    }
+
+    const maxScore = Number(result.maxScore);
+    const newScore = this.normalizeFinalScore(input.score, maxScore);
+    const expectedScore = this.normalizeFinalScore(input.expectedScore, maxScore);
+
+    if (Number(result.score) !== expectedScore) {
+      throw new ConflictException(
+        'Result score changed concurrently; reload and try again',
+      );
+    }
+
+    const rule = await this.exams.findRuleByExamId(result.examId);
+    const percent =
+      maxScore > 0 ? (newScore / maxScore) * 100 : 0;
+    const passed = this.scoring.resolvePassed(newScore, percent, rule);
+    const nextStatus = passed ? ResultStatus.Passed : ResultStatus.Failed;
+    const reason =
+      input.reason == null || String(input.reason).trim() === ''
+        ? null
+        : String(input.reason).trim();
+
+    const oldVersion = {
+      result_id: result.id,
+      attempt_id: result.attemptId,
+      exam_id: result.examId,
+      score: result.score,
+      auto_score: result.autoScore,
+      score_source: result.scoreSource,
+      percent: result.percent,
+      passed: result.passed,
+      status: result.status,
+    };
+    const newVersion = {
+      result_id: result.id,
+      attempt_id: result.attemptId,
+      exam_id: result.examId,
+      score: String(newScore),
+      auto_score: result.autoScore,
+      score_source: ScoreSource.Manual,
+      percent: percent.toFixed(2),
+      passed,
+      status: nextStatus,
+      reason,
+    };
+
+    const updated = await this.results.updateFinalScoreIfExpected(
+      result.id,
+      String(expectedScore),
+      {
+        score: String(newScore),
+        scoreSource: ScoreSource.Manual,
+        percent: percent.toFixed(2),
+        passed,
+        status: nextStatus,
+      },
+      {
+        actorUserId: actor.sub,
+        summary: `Final score ${expectedScore} → ${newScore}`,
+        oldVersion: JSON.stringify(oldVersion),
+        newVersion: JSON.stringify(newVersion),
+      },
+    );
+
+    if (!updated) {
+      throw new ConflictException(
+        'Result score changed concurrently; reload and try again',
+      );
+    }
+
+    return toResultDto(updated);
   }
 
   assertCannotAutomaticallyRescore(result: AssessmentResultEntity): void {
@@ -629,6 +759,44 @@ export class ResultService {
         'Submitted Attempt Result cannot be rescored automatically',
       );
     }
+    if (result.scoreSource === ScoreSource.Manual) {
+      throw new ConflictException(
+        'Manually adjusted Result cannot be rescored automatically',
+      );
+    }
+  }
+
+  private isFinalScoreAdjustableStatus(status: ResultStatus): boolean {
+    return status === ResultStatus.Passed || status === ResultStatus.Failed;
+  }
+
+  /** Students see only the canonical final score — not examiner auto/source metadata. */
+  private toActorResultDto(
+    result: AssessmentResultEntity,
+    actor: DomainAccessActor,
+  ): ReturnType<typeof toResultDto> {
+    const dto = toResultDto(result);
+    if (this.access.isStudent(actor)) {
+      return {
+        ...dto,
+        auto_score: null,
+        score_source: ScoreSource.Auto,
+      };
+    }
+    return dto;
+  }
+
+  private normalizeFinalScore(value: number, maxScore: number): number {
+    if (!Number.isFinite(value)) {
+      throw new BadRequestException('Score must be a finite number');
+    }
+    const rounded = Math.round(value * 100) / 100;
+    if (rounded < 0 || rounded > maxScore) {
+      throw new BadRequestException(
+        `Score must be between 0 and ${maxScore}`,
+      );
+    }
+    return rounded;
   }
 
   private assertCanPerformReview(actor: DomainAccessActor): void {

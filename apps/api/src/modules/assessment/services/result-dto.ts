@@ -24,7 +24,11 @@ export function toResultDto(result: AssessmentResultEntity) {
     exam_id: result.examId,
     status: result.status,
     evaluation_type: result.evaluationType,
+    /** Canonical final score (auto or teacher override). */
     score: result.score,
+    /** Automatic sum; null when unknown (legacy pre-migration rows). */
+    auto_score: result.autoScore ?? null,
+    score_source: result.scoreSource ?? 'auto',
     max_score: result.maxScore,
     percent: result.percent,
     passed: result.passed,

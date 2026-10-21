@@ -10,7 +10,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { EvaluationType, ResultStatus } from '../enums';
+import { EvaluationType, ResultStatus, ScoreSource } from '../enums';
 import { AssessmentAttemptEntity } from './assessment-attempt.entity';
 import { AssessmentExamEntity } from './assessment-exam.entity';
 import { AssessmentResultBreakdownEntity } from './assessment-result-breakdown.entity';
@@ -46,8 +46,28 @@ export class AssessmentResultEntity {
   @Column({ name: 'evaluation_type', type: 'varchar', length: 16 })
   evaluationType: EvaluationType;
 
+  /**
+   * Canonical final score shown to students/teachers and used for percent/passed.
+   * May equal autoScore (score_source=auto) or a teacher override (score_source=manual).
+   */
   @Column({ type: 'numeric', precision: 10, scale: 2, default: 0 })
   score: string;
+
+  /**
+   * Automatic sum of question scores at last auto calculation / review finalize.
+   * Null for pre-migration rows where the original auto total cannot be proven.
+   */
+  @Column({ name: 'auto_score', type: 'numeric', precision: 10, scale: 2, nullable: true })
+  autoScore: string | null;
+
+  /** Whether `score` came from automatic sum or teacher final override. */
+  @Column({
+    name: 'score_source',
+    type: 'varchar',
+    length: 16,
+    default: ScoreSource.Auto,
+  })
+  scoreSource: ScoreSource;
 
   @Column({ name: 'max_score', type: 'numeric', precision: 10, scale: 2, default: 0 })
   maxScore: string;

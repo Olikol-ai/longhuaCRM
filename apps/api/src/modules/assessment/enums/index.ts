@@ -5,6 +5,7 @@ export { SubmitReason } from './submit-reason.enum';
 export { AssignmentStatus } from './assignment-status.enum';
 export { AssignmentTargetType } from './assignment-target-type.enum';
 export { ResultStatus } from './result-status.enum';
+export { ScoreSource } from './score-source.enum';
 export { EvaluationType } from './evaluation-type.enum';
 export { RetakePolicy } from './retake-policy.enum';
 export { ShowCorrectAnswers } from './show-correct-answers.enum';
