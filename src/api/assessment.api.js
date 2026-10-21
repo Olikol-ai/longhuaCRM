@@ -264,6 +264,26 @@ export const assessment = {
     });
   },
 
+  // ── Admin registry (role=admin only) ───────────────────────────────────
+  adminListExams(params) {
+    return apiFetch(`/assessment/admin/exams${toQuery(params)}`);
+  },
+
+  adminListAttempts(params) {
+    return apiFetch(`/assessment/admin/attempts${toQuery(params)}`);
+  },
+
+  adminGetAttemptDetail(attemptId) {
+    return apiFetch(`/assessment/admin/attempts/${encodeURIComponent(attemptId)}`);
+  },
+
+  adminGetScoreHistory(resultId) {
+    return apiFetch(
+      `/assessment/admin/results/${encodeURIComponent(resultId)}/score-history`,
+    );
+  },
+
+
   uploadSpeakingAudio(attemptId, questionSnapshotId, file, durationMs) {
     const formData = new FormData();
     formData.append('file', file);

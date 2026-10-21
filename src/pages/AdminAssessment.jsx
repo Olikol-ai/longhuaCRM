@@ -26,8 +26,15 @@ const SECTIONS = [
     page: 'HomeworkList',
   },
   {
-    title: 'Экзамены',
-    description: 'Все экзамены: наборы заданий, публикация, назначения и результаты',
+    title: 'Реестр экзаменов',
+    description:
+      'Все экзамены и попытки учеников: ответы, оценки, ручная корректировка итога',
+    icon: ClipboardList,
+    page: 'AdminExamRegistry',
+  },
+  {
+    title: 'Конструктор экзаменов',
+    description: 'Наборы заданий, публикация и параметры экзаменов',
     icon: BookOpen,
     page: 'AssessmentExams',
   },
@@ -68,11 +75,14 @@ export default function AdminAssessment() {
           Дополнительно
         </p>
         <div className="flex flex-wrap gap-3 text-sm">
+          <Link className="text-brand hover:underline" to={createPageUrl('AdminExamRegistry')}>
+            Реестр экзаменов и попыток
+          </Link>
           <Link className="text-brand hover:underline" to={createPageUrl('AssessmentAssignments')}>
             Назначения экзаменов
           </Link>
           <Link className="text-brand hover:underline" to={createPageUrl('AssessmentResults')}>
-            Результаты экзаменов
+            Результаты (кратко)
           </Link>
         </div>
       </div>

@@ -70,6 +70,17 @@ export default function AssessmentResultDetail() {
         <p className="text-sm text-muted-foreground mt-1">
           {studentName} · попытка #{result.attempt_number}
         </p>
+        {result.attempt_id ? (
+          <div className="mt-3">
+            <Button asChild size="sm">
+              <Link
+                to={`${createPageUrl('AdminExamAttemptDetail')}?attemptId=${result.attempt_id}`}
+              >
+                Полный разбор ответов и оценка
+              </Link>
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

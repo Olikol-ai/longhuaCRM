@@ -45,6 +45,8 @@ const EXACT_ROUTE_ACCESS = {
   '/Certificates': ['admin'],
   '/Payments': ['admin', 'teacher'],
   '/AdminAssessment': ['admin'],
+  '/AdminExamRegistry': ['admin'],
+  '/AdminExamAttemptDetail': ['admin'],
   '/AssessmentAssignments': ['admin'],
   '/AssessmentAssignmentDetail': ['admin'],
   '/AssessmentResults': ['admin'],

@@ -42,6 +42,8 @@ const CertificateView = lazyRetry(() => import('./pages/CertificateView'));
 const CertificateVerify = lazyRetry(() => import('./pages/CertificateVerify'));
 const Payments = lazyRetry(() => import('./pages/Payments'));
 const AdminAssessment = lazyRetry(() => import('./pages/AdminAssessment'));
+const AdminExamRegistry = lazyRetry(() => import('./pages/AdminExamRegistry'));
+const AdminExamAttemptDetail = lazyRetry(() => import('./pages/AdminExamAttemptDetail'));
 const AssessmentQuestions = lazyRetry(() => import('./pages/AssessmentQuestions'));
 const AssessmentExams = lazyRetry(() => import('./pages/AssessmentExams'));
 const AssessmentExamDetail = lazyRetry(() => import('./pages/AssessmentExamDetail'));
@@ -237,6 +239,8 @@ const AuthenticatedApp = () => {
         <Route path="/Attendance" element={<Navigate to="/Groups" replace />} />
         <Route path="/Payments" element={<TeacherRoute><LayoutWrapper currentPageName="Payments"><Payments /></LayoutWrapper></TeacherRoute>} />
         <Route path="/AdminAssessment" element={<AdminRoute><LayoutWrapper currentPageName="AdminAssessment"><AdminAssessment /></LayoutWrapper></AdminRoute>} />
+        <Route path="/AdminExamRegistry" element={<AdminRoute><LayoutWrapper currentPageName="AdminExamRegistry"><AdminExamRegistry /></LayoutWrapper></AdminRoute>} />
+        <Route path="/AdminExamAttemptDetail" element={<AdminRoute><LayoutWrapper currentPageName="AdminExamAttemptDetail"><AdminExamAttemptDetail /></LayoutWrapper></AdminRoute>} />
         <Route path="/AssessmentQuestions" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentQuestions"><AssessmentQuestions /></LayoutWrapper></TeacherRoute>} />
         <Route path="/AssessmentExams" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentExams"><AssessmentExams /></LayoutWrapper></TeacherRoute>} />
         <Route path="/AssessmentExamDetail" element={<TeacherRoute allowTutor><LayoutWrapper currentPageName="AssessmentExams"><AssessmentExamDetail /></LayoutWrapper></TeacherRoute>} />

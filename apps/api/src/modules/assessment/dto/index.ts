@@ -34,3 +34,7 @@ export {
   ReviewAnswerItemDto,
 } from './results/save-review.dto';
 export { AdjustFinalScoreDto } from './results/adjust-final-score.dto';
+export {
+  AdminExamRegistryQueryDto,
+  AdminAttemptRegistryQueryDto,
+} from './admin/admin-assessment-query.dto';

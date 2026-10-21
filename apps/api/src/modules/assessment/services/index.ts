@@ -13,6 +13,7 @@ import { ResultService } from './result.service';
 import { AssessmentAssignmentNotifier } from './assessment-assignment-notifier.service';
 import { AssessmentReviewNotifier } from './assessment-review-notifier.service';
 import { AssessmentChangeJournalService } from './assessment-change-journal.service';
+import { AdminAssessmentService } from './admin-assessment.service';
 import { ReadingTaskService } from './reading-task.service';
 import { ListeningTaskService } from './listening-task.service';
 
@@ -32,6 +33,7 @@ export const ASSESSMENT_SERVICES = [
   AssignmentService,
   AttemptService,
   ResultService,
+  AdminAssessmentService,
   AssessmentAssignmentNotifier,
   AssessmentReviewNotifier,
 ] as const;
@@ -44,6 +46,7 @@ export {
   AssessmentScoringService,
   AssessmentTimeoutJobService,
   AssessmentChangeJournalService,
+  AdminAssessmentService,
   QuestionAuthoringService,
   ReadingTaskService,
   ListeningTaskService,

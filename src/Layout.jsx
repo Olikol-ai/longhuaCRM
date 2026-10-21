@@ -322,6 +322,8 @@ export default function Layout({ children, currentPageName }) {
           {navItems.map((item) => {
             const assessmentWorkspacePages = [
               'AdminAssessment',
+              'AdminExamRegistry',
+              'AdminExamAttemptDetail',
               'AssessmentQuestions',
               'AssessmentExams',
               'AssessmentExamDetail',

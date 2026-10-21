@@ -19,6 +19,7 @@ import { AssessmentExamBlocksController } from './controllers/assessment-exam-bl
 import { AssessmentExamsController } from './controllers/assessment-exams.controller';
 import { AssessmentQuestionsController } from './controllers/assessment-questions.controller';
 import { AssessmentResultsController } from './controllers/assessment-results.controller';
+import { AssessmentAdminController } from './controllers/assessment-admin.controller';
 import { AssessmentController } from './controllers/assessment.controller';
 import { ASSESSMENT_ENTITIES } from './entities';
 import { ASSESSMENT_REPOSITORIES } from './repositories';
@@ -56,6 +57,7 @@ import { ASSESSMENT_SERVICES } from './services';
     AssessmentAttemptsController,
     AssessmentAttachmentsController,
     AssessmentResultsController,
+    AssessmentAdminController,
   ],
   providers: [...ASSESSMENT_REPOSITORIES, ...ASSESSMENT_SERVICES],
   exports: [...ASSESSMENT_SERVICES, ...ASSESSMENT_REPOSITORIES, TypeOrmModule],
