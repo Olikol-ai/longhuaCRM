@@ -1249,12 +1249,38 @@ export class LessonsService {
     // original series weekday so cron never recreates that date.
     // Exception + date UPDATE commit together under the series advisory lock so
     // concurrent fillHorizon cannot observe a gap and insert a ghost planned row.
+    const statusReleasedSlot =
+      typeof payload.status === 'string' &&
+      payload.status !== before.status &&
+      !isScheduleOccupyingLessonStatus(payload.status);
+
+    const shouldSyncBooking =
+      statusReleasedSlot || (scheduleSlotChanged && Boolean(teacherId) && !tutorId);
+
+    const syncBookingInManager = async (manager: EntityManager) => {
+      if (!shouldSyncBooking) return;
+      await this.scheduleService.syncLessonAvailabilityBooking(
+        {
+          lessonId: id,
+          teacherId,
+          date,
+          startTime,
+          duration,
+          occupying:
+            !statusReleasedSlot && isScheduleOccupyingLessonStatus(nextStatus),
+        },
+        manager,
+      );
+    };
+
     let row: LessonEntity | null = null;
     if (
       before.recurrenceSeriesId &&
       date !== before.date &&
       nextStatus !== 'cancelled'
     ) {
+      // Exception + lesson date + booking must commit together so a stale
+      // Thursday lock cannot survive a move to Saturday.
       await this.recurrenceExceptions.recordExceptionThen(
         before.recurrenceSeriesId,
         before.date,
@@ -1265,8 +1291,18 @@ export class LessonsService {
             { id },
             lessonFields as Partial<LessonEntity>,
           );
+          await syncBookingInManager(manager);
         },
       );
+      row = await this.repository.findById(id);
+    } else if (shouldSyncBooking) {
+      await this.dataSource.transaction(async (manager) => {
+        await manager.getRepository(LessonEntity).update(
+          { id },
+          lessonFields as Partial<LessonEntity>,
+        );
+        await syncBookingInManager(manager);
+      });
       row = await this.repository.findById(id);
     } else {
       row = await this.repository.update(id, lessonFields as UpdateLessonDto);
@@ -1284,36 +1320,6 @@ export class LessonsService {
       (row.lessonType === 'individual' || !row.groupId);
     if (primaryReassigned && nextPrimaryStudentId) {
       await this.syncIndividualLessonAttendance(row.id, nextPrimaryStudentId);
-    }
-
-    // UI cancels via PATCH { status: 'cancelled' } (not /cancel). Always free the booking
-    // when the lesson leaves an occupying status, even if date/time did not change.
-    const statusReleasedSlot =
-      typeof payload.status === 'string' &&
-      payload.status !== before.status &&
-      !isScheduleOccupyingLessonStatus(payload.status);
-
-    if (statusReleasedSlot) {
-      await this.dataSource.getRepository(AvailabilityBookingEntity).update(
-        { lessonId: id },
-        { status: 'cancelled' },
-      );
-    } else if (scheduleSlotChanged && teacherId && !tutorId) {
-      const timeFrom = this.scheduleService.normalizeTime(startTime);
-      const timeTo = this.scheduleService.addMinutesToTime(timeFrom, duration);
-      const bookingUpdate: Partial<AvailabilityBookingEntity> = {
-        date,
-        timeFrom,
-        timeTo,
-        status: isScheduleOccupyingLessonStatus(nextStatus) ? 'active' : 'cancelled',
-      };
-      if (teacherId) {
-        bookingUpdate.teacherId = teacherId;
-      }
-      await this.dataSource.getRepository(AvailabilityBookingEntity).update(
-        { lessonId: id },
-        bookingUpdate,
-      );
     }
 
     let teacherName: string | null = null;

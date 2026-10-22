@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { FindOptionsWhere } from 'typeorm';
+import { EntityManager, FindOptionsWhere } from 'typeorm';
 import { ScheduleAccessService } from '../../common/access/schedule-access.service';
 import { normalizeRole } from '../../common/constants/roles';
 import { JwtPayload } from '../auth/auth.service';
@@ -89,7 +89,7 @@ const UNAVAILABLE_MESSAGE =
   'Преподаватель в это время не работает. Урок не может быть назначен.';
 
 const CONFLICT_MESSAGE =
-  'У преподавателя уже есть урок или бронирование в это время.';
+  'У преподавателя уже есть урок в это время.';
 
 const STUDENT_CONFLICT_MESSAGE =
   'У ученика уже есть другое занятие в это время.';
@@ -470,6 +470,9 @@ export class ScheduleService {
       return this.toConflictInfo(lesson, lessonFrom, lessonTo);
     }
 
+    // Bookings are a slot-lock mirror of occupying lessons. After the repository
+    // requires lesson.date/teacher_id to match the booking, every hit has a
+    // same-day lesson — report that lesson, never a misleading "бронирование".
     const bookings = await this.repository.findActiveBookingsByTeacherAndDate(
       teacherId,
       date,
@@ -483,23 +486,12 @@ export class ScheduleService {
       if (!this.rangesOverlap(timeFrom, timeTo, bookingFrom, bookingTo)) {
         continue;
       }
-      // Prefer lesson row details when available; otherwise generic booking label.
       const linked = lessons.find((row) => row.id === booking.lessonId);
       if (linked) {
         return this.toConflictInfo(linked, bookingFrom, bookingTo);
       }
-      const startTime = this.formatTimeValue(bookingFrom);
-      const endTime = this.formatTimeValue(bookingTo);
-      return {
-        lessonId: booking.lessonId,
-        date,
-        startTime,
-        endTime,
-        duration: Math.max(0, clockToMinutes(bookingTo) - clockToMinutes(bookingFrom)),
-        lessonType: 'booking',
-        participantLabel: 'бронирование',
-        summary: `Занят: бронирование, ${startTime}–${endTime}`,
-      };
+      // Defensive: same-day occupying lesson must exist after the join filter.
+      // Skip rather than invent a fake "booking" conflict.
     }
 
     return null;
@@ -748,6 +740,39 @@ export class ScheduleService {
       timeTo,
       status: 'active',
     });
+  }
+
+  /**
+   * Align or cancel the availability booking after create / reschedule / cancel.
+   * Prefer calling inside the same transaction as the lesson write (`manager`).
+   */
+  async syncLessonAvailabilityBooking(
+    params: {
+      lessonId: string;
+      teacherId: string | null | undefined;
+      date: string;
+      startTime: string;
+      duration: number;
+      occupying: boolean;
+    },
+    manager?: EntityManager,
+  ): Promise<void> {
+    const timeFrom = this.normalizeTime(params.startTime);
+    const timeTo = this.addMinutesToTime(timeFrom, Number(params.duration) || 60);
+    const bookingRepo = manager
+      ? manager.getRepository(AvailabilityBookingEntity)
+      : undefined;
+    await this.repository.syncBookingForLesson(
+      {
+        lessonId: params.lessonId,
+        teacherId: params.teacherId,
+        date: params.date,
+        timeFrom,
+        timeTo,
+        occupying: params.occupying,
+      },
+      bookingRepo,
+    );
   }
 
   private assertValidTimeRange(timeFrom: string, timeTo: string): void {

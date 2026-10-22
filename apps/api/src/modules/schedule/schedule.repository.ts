@@ -105,6 +105,53 @@ export class ScheduleRepository {
     return this.bookingRepo.save(this.bookingRepo.create(entity));
   }
 
+  /**
+   * Keep the slot-lock row aligned with the lesson. Updates all bookings for
+   * `lessonId`; inserts one active row when none exist and the slot is occupied.
+   */
+  async syncBookingForLesson(
+    params: {
+      lessonId: string;
+      teacherId: string | null | undefined;
+      date: string;
+      timeFrom: string;
+      timeTo: string;
+      occupying: boolean;
+    },
+    bookingRepo: Repository<AvailabilityBookingEntity> = this.bookingRepo,
+  ): Promise<void> {
+    const lessonId = params.lessonId;
+    if (!params.occupying || !params.teacherId) {
+      await bookingRepo.update({ lessonId }, { status: 'cancelled' });
+      return;
+    }
+
+    const result = await bookingRepo.update(
+      { lessonId },
+      {
+        teacherId: params.teacherId,
+        date: params.date,
+        timeFrom: params.timeFrom,
+        timeTo: params.timeTo,
+        status: 'active',
+      },
+    );
+    const affected = result.affected ?? 0;
+    if (affected > 0) {
+      return;
+    }
+    await bookingRepo.save(
+      bookingRepo.create({
+        lessonId,
+        teacherId: params.teacherId,
+        date: params.date,
+        timeFrom: params.timeFrom,
+        timeTo: params.timeTo,
+        status: 'active',
+      }),
+    );
+  }
+
   findLessonsByTeacherAndDate(teacherId: string, date: string): Promise<LessonEntity[]> {
     return this.lessonRepo.find({
       where: {
@@ -198,8 +245,12 @@ export class ScheduleRepository {
   }
 
   /**
-   * Active bookings that still occupy the teacher slot.
-   * Stale `active` rows for cancelled/missed/rescheduled lessons are ignored.
+   * Active bookings that still occupy the teacher slot on this calendar day.
+   *
+   * Must match the linked lesson on teacher + date + occupying status.
+   * Otherwise a reschedule (e.g. Thu → Sat) leaves a stale `active` booking that
+   * falsely blocks the old day while the lesson already lives elsewhere.
+   * Cancelled / missed / rescheduled-away lessons are ignored.
    */
   findActiveBookingsByTeacherAndDate(
     teacherId: string,
@@ -207,7 +258,11 @@ export class ScheduleRepository {
   ): Promise<AvailabilityBookingEntity[]> {
     return this.bookingRepo
       .createQueryBuilder('booking')
-      .innerJoin(LessonEntity, 'lesson', 'lesson.id = booking.lesson_id')
+      .innerJoin(
+        LessonEntity,
+        'lesson',
+        'lesson.id = booking.lesson_id AND lesson.teacher_id = booking.teacher_id AND lesson.date = booking.date',
+      )
       .where('booking.teacher_id = :teacherId', { teacherId })
       .andWhere('booking.date = :date', { date })
       .andWhere('booking.status = :bookingStatus', { bookingStatus: 'active' })
