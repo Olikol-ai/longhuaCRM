@@ -1,5 +1,13 @@
 import { BadRequestException } from '@nestjs/common';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { resetUploadsRootCache } from '../../common/storage/uploads-root';
@@ -78,11 +86,12 @@ describe('ChunkedUploadService size limits (5 GiB)', () => {
     };
   }
 
-  it('exposes 5 GiB product max and 128 max chunks at 40 MiB', () => {
+  it('exposes 5 GiB product max and 1280 max chunks at 4 MiB', () => {
     expect(DEFAULT_MATERIALS_MAX_UPLOAD_BYTES).toBe(5 * GIB_BYTES);
     expect(getMaterialsMaxUploadBytes()).toBe(5 * GIB_BYTES);
-    expect(MATERIALS_UPLOAD_CHUNK_BYTES).toBe(40 * 1024 * 1024);
-    expect(MATERIALS_UPLOAD_MAX_CHUNKS).toBe(128);
+    // 4 MiB parts stay under Cloudflare ~100s edge timeout at ~50–100 KB/s.
+    expect(MATERIALS_UPLOAD_CHUNK_BYTES).toBe(4 * 1024 * 1024);
+    expect(MATERIALS_UPLOAD_MAX_CHUNKS).toBe(1280);
   });
 
   it('accepts declared sizes up to exactly 5 GiB', () => {
@@ -161,6 +170,78 @@ describe('ChunkedUploadService size limits (5 GiB)', () => {
     expect(existsSync(sessionDir)).toBe(true);
     service.abort(session.uploadId, 'user-1');
     expect(existsSync(sessionDir)).toBe(false);
+  });
+
+  it('purgeOrphanMulterTemps removes stale aborted single-shot uploads', () => {
+    const orphan = join(service.getTempRoot(), 'aborted-upload.pdf');
+    writeFileSync(orphan, Buffer.alloc(2048, 7));
+    // Age the file beyond SESSION_TTL (24h).
+    const oldMs = Date.now() - 25 * 60 * 60 * 1000;
+    utimesSync(orphan, new Date(oldMs), new Date(oldMs));
+    expect(existsSync(orphan)).toBe(true);
+    (service as unknown as { purgeExpired: () => void }).purgeExpired();
+    expect(existsSync(orphan)).toBe(false);
+  });
+
+  it('purgeOrphanMulterTemps keeps recent temp files (active/in-flight uploads)', () => {
+    const recent = join(service.getTempRoot(), 'in-flight.pdf');
+    writeFileSync(recent, Buffer.alloc(1024, 3));
+    (service as unknown as { purgeExpired: () => void }).purgeExpired();
+    expect(existsSync(recent)).toBe(true);
+  });
+
+  it('rejects a fourth concurrent session for the same user', () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      const session = service.initSession({
+        userId: 'user-busy',
+        originalName: `pack-${i}.zip`,
+        mimeType: 'application/zip',
+        sizeBytes: 1024 * 1024,
+      });
+      ids.push(session.uploadId);
+    }
+    expect(() =>
+      service.initSession({
+        userId: 'user-busy',
+        originalName: 'pack-4.zip',
+        mimeType: 'application/zip',
+        sizeBytes: 1024 * 1024,
+      }),
+    ).toThrow(BadRequestException);
+    for (const id of ids) {
+      service.abort(id, 'user-busy');
+    }
+  });
+
+  it('assembles multi-chunk 4 MiB parts into the declared file', async () => {
+    const chunkBytes = MATERIALS_UPLOAD_CHUNK_BYTES;
+    const sizeBytes = chunkBytes + 12345;
+    const session = service.initSession({
+      userId: 'user-1',
+      originalName: 'two-parts.zip',
+      mimeType: 'application/zip',
+      sizeBytes,
+    });
+    expect(session.totalChunks).toBe(2);
+    expect(session.chunkSizeBytes).toBe(chunkBytes);
+    service.saveChunk({
+      userId: 'user-1',
+      uploadId: session.uploadId,
+      chunkIndex: 0,
+      file: fakeChunk(chunkBytes),
+    });
+    service.saveChunk({
+      userId: 'user-1',
+      uploadId: session.uploadId,
+      chunkIndex: 1,
+      file: fakeChunk(12345),
+    });
+    const saved = await service.complete({
+      userId: 'user-1',
+      uploadId: session.uploadId,
+    });
+    expect(saved.sizeBytes).toBe(sizeBytes);
   });
 
   it('complete rejects when assembled size exceeds lowered max and cleans temp', async () => {

@@ -9,10 +9,15 @@ const API_BASE = '/api';
 export const TOKEN_KEY = 'longhua_access_token';
 const TOKEN_CHANGE_EVENT = 'longhua:token-change';
 
-/** Cloudflare Free/Pro roughly caps a single proxied body near 100 MB — stay under. */
-export const MATERIALS_UPLOAD_CHUNK_BYTES = 40 * 1024 * 1024;
-/** Use chunked protocol for anything that risks the Cloudflare body limit. */
-export const MATERIALS_UPLOAD_CHUNK_THRESHOLD_BYTES = 50 * 1024 * 1024;
+/**
+ * Chunk size must finish within Cloudflare edge request-duration (~100s).
+ * At ~100 KB/s tunnel speed, 40 MiB parts were aborted mid-upload; 4 MiB is safe.
+ * Also stays under Cloudflare Free/Pro ~100 MB proxied body limit.
+ * Keep in sync with apps/api MATERIALS_UPLOAD_CHUNK_BYTES.
+ */
+export const MATERIALS_UPLOAD_CHUNK_BYTES = 4 * 1024 * 1024;
+/** Chunk anything larger than one part — single POSTs of 16–50 MiB fail on slow links. */
+export const MATERIALS_UPLOAD_CHUNK_THRESHOLD_BYTES = MATERIALS_UPLOAD_CHUNK_BYTES;
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -111,6 +116,10 @@ function mapUploadHttpError(status, fallbackMessage) {
     return 'Сервер временно недоступен (ошибка шлюза). Повторите загрузку через минуту.';
   }
   if (status >= 500) {
+    const raw = String(fallbackMessage || '');
+    if (/aborted|econnreset|socket hang up/i.test(raw)) {
+      return 'Загрузка прервалась (тайм-аут туннеля или сети). Повторите — файл будет отправлен частями.';
+    }
     return 'Ошибка сервера при загрузке файла. Повторите попытку.';
   }
   return fallbackMessage || 'Не удалось загрузить файл. Попробуйте ещё раз.';
@@ -381,13 +390,20 @@ function uploadWithXhr(path, fileOrBlob, fieldName, options = {}) {
     };
 
     xhr.onerror = () => {
-      const err = new Error('Сеть недоступна. Проверьте соединение и попробуйте ещё раз.');
+      const err = new Error(
+        lastLoaded > 0
+          ? 'Соединение оборвалось во время загрузки. Повторите попытку — файл будет отправлен частями.'
+          : 'Сеть недоступна. Проверьте соединение и попробуйте ещё раз.',
+      );
+      err.status = 0;
       noteFetchFailure(err);
       reject(err);
     };
 
     xhr.ontimeout = () => {
-      const err = new Error('Превышено время ожидания загрузки. Повторите попытку.');
+      const err = new Error(
+        'Превышено время ожидания загрузки. Повторите попытку — файл будет отправлен частями.',
+      );
       err.status = 408;
       reject(err);
     };

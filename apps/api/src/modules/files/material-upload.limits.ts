@@ -14,12 +14,20 @@ export const GIB_BYTES = 1024 * 1024 * 1024;
 export const DEFAULT_MATERIALS_MAX_UPLOAD_BYTES = 5 * GIB_BYTES;
 
 /**
- * Stay under Cloudflare Free/Pro ~100 MB request body (multipart overhead).
+ * Chunk size for materials upload through Cloudflare Tunnel.
+ *
+ * Must stay under BOTH:
+ * - Cloudflare Free/Pro ~100 MB proxied request body (multipart overhead), and
+ * - Cloudflare edge request-duration (~100s). At ~100 KB/s tunnel throughput a
+ *   40 MiB part takes ~7 minutes and is aborted mid-transfer ("Request aborted" /
+ *   cloudflared "context canceled"), leaving orphan temp files.
+ *
+ * 4 MiB @ 50–100 KB/s finishes in ~40–80s — within the edge window.
  * Keep in sync with frontend MATERIALS_UPLOAD_CHUNK_BYTES in src/api/http.js.
  */
-export const MATERIALS_UPLOAD_CHUNK_BYTES = 40 * 1024 * 1024;
+export const MATERIALS_UPLOAD_CHUNK_BYTES = 4 * 1024 * 1024;
 
-/** Max chunk parts for one session at the absolute size limit (5 GiB / 40 MiB = 128). */
+/** Max chunk parts for one session at the absolute size limit (5 GiB / 4 MiB = 1280). */
 export const MATERIALS_UPLOAD_MAX_CHUNKS = Math.ceil(
   DEFAULT_MATERIALS_MAX_UPLOAD_BYTES / MATERIALS_UPLOAD_CHUNK_BYTES,
 );

@@ -52,19 +52,37 @@ describe('materials upload integrity', () => {
     assert.match(http, /phase: 'error'/);
   });
 
-  it('uses chunked upload under Cloudflare body limit for large files', () => {
+  it('uses chunked upload under Cloudflare body + duration limits', () => {
     const http = read('src/api/http.js');
     const controller = read('apps/api/src/modules/files/secure-files.controller.ts');
     const chunked = read('apps/api/src/modules/files/chunked-upload.service.ts');
+    const limits = read('apps/api/src/modules/files/material-upload.limits.ts');
     assert.match(http, /MATERIALS_UPLOAD_CHUNK_THRESHOLD_BYTES/);
+    assert.match(http, /MATERIALS_UPLOAD_CHUNK_BYTES = 4 \* 1024 \* 1024/);
+    assert.match(limits, /MATERIALS_UPLOAD_CHUNK_BYTES = 4 \* 1024 \* 1024/);
     assert.match(http, /\/files\/upload\/init/);
     assert.match(http, /\/files\/upload\/chunk/);
     assert.match(http, /\/files\/upload\/complete/);
     assert.match(controller, /upload\/init/);
     assert.match(controller, /upload\/chunk/);
     assert.match(controller, /upload\/complete/);
+    // Raised per-route throttle (not SkipThrottle) — chunks need headroom, abuse still capped.
+    assert.match(controller, /@Throttle\(\{\s*default:\s*\{\s*limit:\s*600/);
+    assert.doesNotMatch(
+      controller,
+      /@SkipThrottle\(\)\s*\n\s*@Post\('upload/,
+    );
     assert.match(chunked, /MATERIALS_UPLOAD_CHUNK_BYTES/);
     assert.match(chunked, /getUploadTempRoot/);
+    assert.match(chunked, /purgeOrphanMulterTemps/);
+  });
+
+  it('MaterialDialog uploads before metadata update (replace keeps old until success)', () => {
+    const dialog = read('src/components/materials/MaterialDialog.jsx');
+    // Edit path: uploadSelectedFile() then materials.update — never flips URL first.
+    assert.match(dialog, /Object\.assign\(payload, await uploadSelectedFile\(\)\)/);
+    assert.match(dialog, /await api\.materials\.update\(material\.id, payload\)/);
+    assert.match(dialog, /getErrorMessage/);
   });
 
   it('plays audio via AuthenticatedAudio preview', () => {

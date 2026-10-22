@@ -42,8 +42,6 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return;
     }
 
-    this.logger.error((exception as Error)?.message, (exception as Error)?.stack);
-
     const multerCode = (exception as { code?: string })?.code;
     if (multerCode === 'LIMIT_FILE_SIZE') {
       response.status(HttpStatus.PAYLOAD_TOO_LARGE).json({
@@ -52,6 +50,21 @@ export class AllExceptionsFilter implements ExceptionFilter {
       });
       return;
     }
+
+    // Client or Cloudflare Tunnel canceled the multipart body mid-stream.
+    // Do not report this as a generic 500 — the upload simply did not finish.
+    const abortedMessage = String((exception as Error)?.message || '');
+    if (/request aborted|aborted/i.test(abortedMessage)) {
+      this.logger.warn(`Upload aborted after client/tunnel cancel: ${abortedMessage}`);
+      response.status(499).json({
+        message:
+          'Загрузка прервалась до завершения (тайм-аут туннеля или сети). Повторите попытку.',
+        status: 499,
+      });
+      return;
+    }
+
+    this.logger.error((exception as Error)?.message, (exception as Error)?.stack);
 
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       error: 'Internal server error',

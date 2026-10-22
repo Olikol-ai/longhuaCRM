@@ -13,7 +13,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { SkipThrottle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { mkdirSync } from 'fs';
@@ -89,6 +89,12 @@ export class SecureFilesController {
     private readonly chunkedUpload: ChunkedUploadService,
   ) {}
 
+  /**
+   * Upload routes use a raised per-route throttle (not SkipThrottle): 4 MiB
+   * chunked uploads need more than the global 120/min budget, but abuse is
+   * still capped. Auth/roles + size/type/session limits remain enforced.
+   */
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @Post('upload')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin', 'teacher', 'tutor')
@@ -107,8 +113,9 @@ export class SecureFilesController {
 
   /**
    * Start a chunked upload session. Required when a single POST would exceed
-   * Cloudflare's proxied request-body limit (~100 MB on Free/Pro).
+   * Cloudflare edge duration / body limits on slow tunnel links.
    */
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('upload/init')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin', 'teacher', 'tutor')
@@ -130,6 +137,8 @@ export class SecureFilesController {
     };
   }
 
+  /** Sequential 4 MiB parts for multi-GB files — allow up to 10 chunk POSTs/sec. */
+  @Throttle({ default: { limit: 600, ttl: 60_000 } })
   @Post('upload/chunk')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin', 'teacher', 'tutor')
@@ -153,6 +162,7 @@ export class SecureFilesController {
     };
   }
 
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @Post('upload/complete')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin', 'teacher', 'tutor')
@@ -174,6 +184,7 @@ export class SecureFilesController {
     };
   }
 
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @Delete('upload/:uploadId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin', 'teacher', 'tutor')
@@ -185,6 +196,7 @@ export class SecureFilesController {
     return { ok: true };
   }
 
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @Post('upload/abort')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin', 'teacher', 'tutor')

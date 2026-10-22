@@ -26,7 +26,17 @@ import { TUTOR_LIBRARY_COURSE_ID, isTutorLibraryCourseId } from '@/lib/tutorMate
 
 function getErrorMessage(err) {
   if (err?.aborted) return 'Загрузка отменена';
-  return err?.data?.message || err?.message || 'Не удалось сохранить материал';
+  const fromData = err?.data?.message;
+  if (Array.isArray(fromData)) {
+    return fromData.filter(Boolean).join(', ') || 'Не удалось сохранить материал';
+  }
+  if (typeof fromData === 'string' && fromData.trim()) {
+    return fromData;
+  }
+  if (typeof err?.message === 'string' && err.message.trim()) {
+    return err.message;
+  }
+  return 'Не удалось сохранить материал';
 }
 
 function buildMaterialFormState({

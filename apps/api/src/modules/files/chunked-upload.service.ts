@@ -19,6 +19,7 @@ import {
   createWriteStream,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -47,6 +48,9 @@ export { MATERIALS_UPLOAD_CHUNK_BYTES, MATERIALS_UPLOAD_MAX_CHUNKS };
 
 /** Long enough for multi-GB uploads on slow links (chunked only). */
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** Cap parallel chunked sessions per authenticated user (abuse / disk pressure). */
+const MAX_ACTIVE_SESSIONS_PER_USER = 3;
 
 let resolvedTempRoot: string | null = null;
 
@@ -142,6 +146,13 @@ export class ChunkedUploadService implements OnModuleDestroy {
     const totalChunks = Math.ceil(sizeBytes / chunkSizeBytes);
     if (totalChunks < 1 || totalChunks > MATERIALS_UPLOAD_MAX_CHUNKS) {
       throw new BadRequestException('Invalid upload size');
+    }
+
+    const activeForUser = this.countActiveSessionsForUser(input.userId);
+    if (activeForUser >= MAX_ACTIVE_SESSIONS_PER_USER) {
+      throw new BadRequestException(
+        `Слишком много незавершённых загрузок (макс. ${MAX_ACTIVE_SESSIONS_PER_USER}). Дождитесь завершения или отмените предыдущие.`,
+      );
     }
 
     const uploadId = randomUUID();
@@ -409,12 +420,52 @@ export class ChunkedUploadService implements OnModuleDestroy {
     }
   }
 
+  private countActiveSessionsForUser(userId: string): number {
+    const now = Date.now();
+    let count = 0;
+    for (const meta of this.memory.values()) {
+      if (meta.userId === userId && meta.expiresAt >= now) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
   private purgeExpired(): void {
     const now = Date.now();
     for (const [id, meta] of [...this.memory.entries()]) {
       if (meta.expiresAt < now) {
         this.safeRmSession(id);
         this.memory.delete(id);
+      }
+    }
+    this.purgeOrphanMulterTemps(now);
+  }
+
+  /**
+   * When Cloudflare/client aborts a single-shot multipart POST, Multer may leave
+   * a partial file in the temp root (not under sessions/). Remove ones older
+   * than the session TTL so aborted replaces do not fill the disk.
+   */
+  private purgeOrphanMulterTemps(now: number): void {
+    const root = getUploadTempRoot();
+    let entries: string[];
+    try {
+      entries = readdirSync(root);
+    } catch {
+      return;
+    }
+    for (const name of entries) {
+      if (name === 'sessions') continue;
+      const absolute = join(root, name);
+      try {
+        const st = statSync(absolute);
+        if (!st.isFile()) continue;
+        if (now - st.mtimeMs < SESSION_TTL_MS) continue;
+        unlinkSync(absolute);
+        this.logger.log(`purged orphan upload temp ageMs=${now - st.mtimeMs} name=${name}`);
+      } catch {
+        // ignore races / permission
       }
     }
   }
